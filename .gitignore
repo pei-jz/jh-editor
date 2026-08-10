@@ -12,7 +12,7 @@ neutralino.js
 .storage
 *.log
 node_modules/
-
+.vscode/
 build_log*.txt
 
 # Rust compiler artifacts & target
@@ -41,4 +41,5 @@ coverage/
 # Runtime temp / local state (never commit)
 .tmp/
 test-results/
+test_data/
 playwright-report/
