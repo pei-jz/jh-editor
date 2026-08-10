@@ -1,0 +1,44 @@
+# Developer tools' files
+.lite_workspace.lua
+
+# Neutralinojs binaries and builds
+/bin
+/dist
+
+# Neutralinojs client (minified)
+neutralino.js
+
+# Neutralinojs related files
+.storage
+*.log
+node_modules/
+
+build_log*.txt
+
+# Rust compiler artifacts & target
+target/
+/target/
+
+# Python files & scratch area
+*.py
+scratch/
+__pycache__/
+*.pyc
+
+# Tauri temporary build dirs & logs
+src-tauri/temp_build/
+src-tauri/include-proto/
+src-tauri/bin/
+*.log
+*.log.*
+
+# AI Agent internal state
+.agent/
+
+# Test coverage
+coverage/
+
+# Runtime temp / local state (never commit)
+.tmp/
+test-results/
+playwright-report/

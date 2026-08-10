@@ -1,0 +1,2496 @@
+/* User Request: Editor View Width Full (Removing 900px limit) */
+.md-block {
+    text-align: left;
+    margin: 0;
+    padding: 2px 12px;
+    position: relative;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    user-select: text;
+    cursor: text;
+    line-height: 1.6;
+}
+
+/* Hover feedback is an outline, not a fill: a background tint washes over the
+   block's own surfaces (tables, code, callouts) and hurts readability — the
+   same reason .md-block.selected below draws only a border. */
+.md-block:hover {
+    outline: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+    outline-offset: -1px;
+    border-radius: 3px;
+}
+
+.md-block.editing {
+    width: 100%;
+    margin: 8px 0;
+    background-color: var(--bg-color);
+    border: 1px solid var(--primary-color);
+    box-shadow: var(--shadow-md);
+    padding: 15px;
+}
+
+
+
+/* Beautiful Visual Table Editor (Matches Markdown Preview) */
+.visual-table-editor {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 20px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: fixed;
+}
+
+.visual-table-editor thead {
+    background-color: var(--table-header-bg);
+}
+
+.visual-table-editor th {
+    padding: 0;
+    border: 1px solid var(--border-color);
+    background-color: var(--table-header-bg);
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.visual-table-editor td {
+    padding: 0;
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+    background-color: var(--bg-color);
+}
+
+.visual-table-editor input {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-family: inherit;
+    background-color: transparent;
+    color: var(--text-color);
+}
+
+.visual-table-editor input:focus {
+    background-color: rgba(var(--primary-color-rgb), 0.05);
+}
+
+.visual-table-editor .active-cell {
+    outline: 2px solid var(--primary-color) !important;
+    outline-offset: -2px;
+    z-index: 10;
+    background-color: rgba(var(--primary-color-rgb), 0.1) !important;
+}
+
+.visual-table-editor .cell-text {
+    padding: 8px 12px;
+    min-height: 1em;
+    word-break: break-all;
+}
+
+.visual-table-editor th .cell-text {
+    text-align: center;
+}
+
+.visual-table-editor tr.selected-row {
+    background-color: rgba(var(--primary-color-rgb), 0.15) !important;
+}
+
+.visual-table-editor .column-no,
+.visual-table-editor .column-no-header {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    text-align: center;
+    background-color: var(--table-header-bg) !important;
+    color: var(--text-color-muted);
+    font-size: 11px;
+    border-right: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.visual-table-editor td.column-no {
+    font-weight: 500;
+}
+
+.visual-table-editor .editing-cell {
+    background-color: var(--bg-color) !important;
+}
+
+.visual-table-editor .range-selected {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    /* Standard blue highlight */
+}
+
+/* Dark theme overrides */
+body.theme-dark .visual-table-editor .range-selected {
+    background-color: rgba(55, 148, 255, 0.2) !important;
+}
+
+.visual-table-editor td,
+.visual-table-editor th {
+    height: 38px;
+    max-height: 38px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding: 0 !important;
+}
+
+.visual-table-editor .cell-text {
+    display: block;
+    padding: 8px 12px;
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.visual-table-editor tr.selected-row {
+    background-color: rgba(13, 110, 253, 0.15);
+}
+
+.visual-table-editor .row-index {
+    background-color: var(--bg-color-secondary);
+    color: var(--text-secondary);
+    text-align: center;
+    font-size: 11px;
+    user-select: none;
+    width: 30px;
+}
+
+.table-editor-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 5px;
+    background-color: var(--bg-color-secondary);
+    border-radius: 4px;
+    margin-top: 5px;
+}
+
+.table-editor-hints strong {
+    color: var(--primary-color);
+}
+
+/* User Request: Edit Icon Fixed Right */
+.edit-icon {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    background: var(--primary-color);
+    color: #fff;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    display: none;
+    z-index: 50;
+    line-height: 1;
+}
+
+.md-block:hover .edit-icon {
+    display: block;
+}
+
+/* Preview Modal while Editing */
+#preview-modal {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    width: 450px;
+    min-width: 300px;
+    max-height: 80%;
+    background: var(--header-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    border-radius: var(--radius);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    resize: both;
+    overflow: hidden;
+}
+
+.preview-header {
+    padding: 10px;
+    background: var(--hover-color);
+    font-weight: bold;
+    font-size: 13px;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    cursor: move;
+}
+
+.close-preview {
+    cursor: pointer;
+    padding: 2px 5px;
+}
+
+.close-preview:hover {
+    color: red;
+}
+
+#preview-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 14px;
+    max-height: 500px;
+}
+
+/* User Request: Add Block Design (Match regular block but distinct) */
+.md-block.phantom {
+    border: 2px dashed var(--border-color);
+    opacity: 0.8;
+    justify-content: flex-start;
+    /* Left align like others */
+    align-items: center;
+    display: flex;
+    min-height: 40px;
+    color: #adb5bd;
+    font-style: italic;
+    background: transparent;
+}
+
+.md-block.phantom:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--bg-color);
+    opacity: 1;
+}
+
+/* Editor UI */
+/* Editor UI */
+.editor-block-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.block-editor {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 100px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-family: var(--editor-font-family, 'Cascadia Code', Consolas, monospace);
+    font-size: 14px;
+    line-height: 1.7;
+    tab-size: 2;
+    -moz-tab-size: 2;
+    margin-bottom: 5px;
+    resize: vertical;
+    background: var(--bg-color);
+    color: var(--text-color);
+    caret-color: var(--primary-color);
+}
+
+.block-editor:focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+.block-editor:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* CodeMirror 6 block editor (replaces the plain textarea). The wrapper keeps
+   the bordered box; CM handles padding/scroll internally. */
+.block-cm {
+    padding: 0;
+    overflow: hidden;
+    resize: none;
+    display: block;
+}
+.block-cm:focus-within {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+.block-cm .cm-editor {
+    max-height: 65vh;
+    background: transparent;
+    color: var(--text-color);
+}
+.block-cm .cm-editor.cm-focused {
+    outline: none;
+}
+.block-cm .cm-scroller {
+    font-family: var(--editor-font-family, 'Cascadia Code', Consolas, monospace);
+    font-size: 14px;
+    line-height: 1.7;
+}
+.block-cm .cm-content {
+    padding: 12px 14px;
+    caret-color: var(--primary-color);
+    -moz-tab-size: 2;
+    tab-size: 2;
+}
+.block-cm .cm-cursor {
+    border-left-color: var(--primary-color);
+}
+.block-cm .cm-selectionBackground,
+.block-cm .cm-content ::selection {
+    background: var(--cm-selection-bg, rgba(51, 144, 255, 0.25)) !important;
+}
+.block-cm .cm-line {
+    padding: 0;
+}
+
+/* User Request: Table & Mermaid Customization */
+:root {
+    --table-header-bg: var(--bg-color-secondary);
+    --table-width: 960px;
+    --mermaid-width: 960px;
+}
+
+/* Apply Table Customization */
+
+
+/* Beautiful Rounded Table */
+.md-block table:not(.visual-table-editor) {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: auto;
+    min-width: 200px;
+    max-width: 100%;
+    margin: 16px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.md-block table:not(.visual-table-editor) th,
+.md-block table:not(.visual-table-editor) td {
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    padding: 10px 15px;
+    text-align: left;
+    min-width: 80px;
+    max-width: 400px;
+}
+
+/* Remove double borders on edges */
+.md-block table:not(.visual-table-editor) th:last-child,
+.md-block table:not(.visual-table-editor) td:last-child {
+    border-right: none;
+}
+
+.md-block table:not(.visual-table-editor) tr:last-child td {
+    border-bottom: none;
+}
+
+.md-block table:not(.visual-table-editor) th {
+    background-color: var(--header-bg, #f8f9fa);
+    color: var(--header-text, #2d3436);
+    font-weight: 600;
+}
+
+/* Correct Theme-aware Colors (Matching active classes on body) */
+body.theme-dark .md-block table:not(.visual-table-editor) th,
+body.theme-midnight .md-block table:not(.visual-table-editor) th,
+body.theme-solarized-dark .md-block table:not(.visual-table-editor) th {
+    --header-bg: var(--bg-color-secondary, #252526);
+    --header-text: var(--text-color, #d4d4d4);
+}
+
+body.theme-light .md-block table:not(.visual-table-editor) th,
+body.theme-latte .md-block table:not(.visual-table-editor) th,
+body.theme-solarized-light .md-block table:not(.visual-table-editor) th {
+    --header-bg: var(--bg-color-secondary, #f3f4f6);
+    --header-text: var(--text-color, #343a40);
+}
+
+/* Live Preview modal (markdown block editing): tables rendered here live in
+   #preview-content, not .md-block, so they missed the border styling above and
+   showed as borderless text columns. Mirror the block table look. */
+#preview-content table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: auto;
+    max-width: 100%;
+    margin: 12px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+#preview-content table th,
+#preview-content table td {
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    padding: 8px 12px;
+    text-align: left;
+}
+#preview-content table th:last-child,
+#preview-content table td:last-child {
+    border-right: none;
+}
+#preview-content table tr:last-child td {
+    border-bottom: none;
+}
+#preview-content table th {
+    background-color: var(--bg-color-secondary, #f3f4f6);
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+/* Mermaid Theme Adjustments */
+.mermaid {
+    background: transparent;
+    padding: 15px;
+    border-radius: 8px;
+    width: auto;
+    min-width: 100px;
+    max-width: 100%;
+    margin: 15px auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: block;
+}
+
+
+.editor-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+}
+
+.editor-toolbar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.editor-toolbar button {
+    position: relative;
+    flex: 0 0 auto;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.alt-shortcut-hint {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4757;
+    color: white;
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 10;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.md-block a,
+.md-body a {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--primary-color);
+    transition: border-bottom-color 0.2s, opacity 0.2s;
+    font-weight: 500;
+}
+
+.md-block a:hover,
+.md-body a:hover {
+    opacity: 0.85;
+    border-bottom-style: solid;
+}
+
+/* Block selection: outline only.
+   A background tint fought with the content's own backgrounds (tables, code
+   blocks, callouts) and made those areas hard to read, so selection is shown
+   purely as a border + accent bar. `outline` doesn't affect layout, so nothing
+   shifts when a block becomes selected. */
+.md-block.selected {
+    border-left: 4px solid var(--primary-color);
+    padding-left: 8px;
+    /* 12px (default) - 4px (border) */
+    outline: 3px solid color-mix(in srgb, var(--primary-color) 70%, transparent);
+    outline-offset: -1px;
+    border-radius: 3px;
+}
+
+.editor-toolbar button {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.editor-toolbar button:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-save {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 6px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background-color: var(--hover-color);
+}
+
+/* User Request: Mermaid Fix - Auto-adjust width based on content */
+.mermaid {
+    text-align: center;
+    margin: 15px auto;
+    padding: 15px;
+    border-radius: var(--radius);
+    width: auto;
+    min-width: 100px;
+    max-width: 100%;
+    overflow-x: auto;
+    /* `hidden` clipped tall diagrams (mindmap/gantt) to nothing. */
+    overflow-y: visible;
+    display: block;
+}
+
+/* Allow Mermaid SVG to dictate its own width. Some diagram types (mindmap in
+   particular) emit height="100%", which collapses to 0 inside an auto-height
+   block — hence the min-height floor. renderMermaid() also fixes the height
+   from the viewBox when it can. */
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
+    min-height: 40px;
+}
+
+img {
+    max-width: 100%;
+    border-radius: var(--radius);
+}
+
+/* Markdown element styles moved to .md-block scoped section */
+
+
+.tab {
+    padding: 8px 15px;
+    cursor: pointer;
+    background-color: var(--header-bg);
+    color: var(--text-color);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    user-select: none;
+    transition: background 0.2s;
+    /* Overflow Handling */
+    max-width: 200px;
+    /* Increased max width */
+    position: relative;
+    box-sizing: border-box;
+}
+
+.tab:hover {
+    background-color: var(--hover-color);
+}
+
+.tab.active {
+    background-color: var(--active-tab-bg);
+    font-size: 13.5px;
+    font-weight: bold;
+    /* Thicker active tab font */
+}
+
+.tab-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tab-close {
+    margin-left: 8px;
+    font-size: 10px;
+    opacity: 0.6;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tab-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    opacity: 1;
+}
+
+/* Plain Mode Overrides */
+/* Plain Mode Overrides */
+#editor-content.plain-mode {
+    padding: 0 !important;
+    /* Wrapper handles scroll in plain mode */
+    overflow: hidden !important;
+}
+
+/* Ensure textarea specifically adheres to requirements */
+.plain-text-editor {
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    white-space: pre !important;
+    overflow-x: auto !important;
+    tab-size: 3;
+}
+
+.plain-text-highlights {
+    tab-size: 3;
+}
+
+/* --- Search Overlay (Backdrop) --- */
+.plain-text-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    overflow: hidden !important;
+    /* Force no scroll in container */
+    background-color: var(--bg-color);
+}
+
+.plain-text-gutter {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 45px;
+    height: 100%;
+    background-color: var(--header-bg);
+    border-right: 1px solid var(--border-color);
+    color: var(--gutter-color);
+    /* Theme-adaptive line number color */
+    text-align: right;
+    padding-right: 5px;
+    padding-top: 0;
+    box-sizing: border-box;
+    z-index: 3;
+    overflow: hidden;
+    user-select: none;
+}
+
+.current-line-highlight {
+    position: absolute;
+    left: 45px;
+    width: calc(100% - 45px);
+    height: 1.5em;
+    font-size: var(--editor-font-size);
+    /* Match editor line height */
+    background-color: rgba(100, 100, 100, 0.1);
+    pointer-events: none;
+    z-index: 0;
+    display: none;
+}
+
+/* EOL / Tab whitespace markers are defined further down (theme-adaptive block).
+   A duplicate definition used to live here with opacity:0.12, which silently
+   dimmed the markers to near-invisible once the newer block stopped declaring
+   its own opacity — removed to avoid the conflict. */
+
+.editor-fullwidth-space::before {
+    content: '\25A1';
+    position: absolute;
+    color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.editor-fullwidth-space {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    text-align: center;
+    min-width: 14px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* Shared typography for exact alignment */
+.editor-typography,
+.plain-text-gutter,
+.plain-text-highlights,
+.plain-text-editor,
+.word-highlights,
+.bracket-highlights,
+.search-highlights {
+    font-family: var(--editor-font-family) !important;
+    font-size: var(--editor-font-size) !important;
+    line-height: var(--editor-line-height-px, 22px) !important;
+    /* Dynamically managed line height */
+    --editor-padding-top: 10px;
+    /* Synchronized start padding */
+    white-space: pre !important;
+    letter-spacing: 0 !important;
+    tab-size: 4 !important;
+    font-variant-ligatures: none !important;
+    font-feature-settings: "liga" 0 !important;
+}
+
+/* --- Shared Layout for All Text Layers --- */
+.plain-text-highlights,
+.word-highlights,
+.bracket-highlights,
+.search-highlights,
+.nav-highlights {
+    position: absolute !important;
+    top: 0 !important;
+    left: 45px;
+    width: calc(100% - 45px);
+    height: 100%;
+    padding: 0 !important;
+    /* NO padding - layer-content handles offset */
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    will-change: transform;
+}
+
+.plain-text-editor {
+    position: absolute !important;
+    top: 0 !important;
+    left: 45px;
+    width: calc(100% - 45px);
+    height: 100%;
+    /* 10px top padding = single source of offset for text start */
+    padding: 10px 10px 500px 10px !important;
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+}
+
+.plain-text-gutter {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 45px;
+    height: 100%;
+    background-color: var(--bg-color-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: 0;
+    text-align: right;
+    color: var(--gutter-color);
+    /* Theme-adaptive line number color */
+    user-select: none;
+    box-sizing: border-box !important;
+    z-index: 1;
+    /* Use translateY instead of scroll to avoid layout thrashing */
+    overflow: visible !important;
+}
+
+.plain-text-gutter::-webkit-scrollbar {
+    display: none;
+    /* Chrome/WebView2 */
+}
+
+.active-line-highlight {
+    position: absolute;
+    top: 0;
+    /* NO !important - JS must be able to override this */
+    left: 45px;
+    width: calc(100% - 45px);
+    pointer-events: none;
+    z-index: 0;
+    background-color: rgba(128, 128, 128, 0.15);
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: none;
+    display: none;
+    /* Shown via JS */
+}
+
+body.theme-dark .active-line-highlight,
+body.theme-midnight .active-line-highlight,
+body.theme-solarized-dark .active-line-highlight {
+    background-color: rgba(255, 255, 255, 0.1);
+    /* More visible in dark mode */
+}
+
+.plain-text-highlights {
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden !important;
+    color: var(--text-color);
+    /* Ensure un-tokenized text gets correct theme color */
+}
+
+.search-highlights {
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden !important;
+    color: transparent !important;
+    /* Allow syntax highlighting to show through */
+}
+
+.word-highlights {
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden !important;
+    color: transparent !important;
+}
+
+.bracket-highlights {
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden !important;
+    color: transparent !important;
+}
+
+.plain-text-highlights span {
+    font-weight: normal !important;
+}
+
+.search-match {
+    background-color: rgba(255, 255, 0, 0.45);
+    /* Translucent yellow so text stays readable */
+    color: transparent;
+    border-radius: 2px;
+}
+
+.search-match.active {
+    /* Translucent orange + outline keeps the matched text legible on the first
+       hit (was an opaque #ff9800 that blanked out the glyphs underneath). */
+    background-color: rgba(255, 152, 0, 0.45);
+    outline: 1.5px solid #ff6d00;
+    outline-offset: -1px;
+    color: transparent;
+}
+
+.word-hl {
+    background-color: rgba(200, 200, 200, 0.3);
+    border-radius: 2px;
+    color: transparent;
+}
+
+.bracket-highlight-mark {
+    background-color: rgba(255, 255, 0, 0.4);
+    border-radius: 2px;
+}
+
+.scrollbar-decorations {
+    position: absolute;
+    top: 0;
+    right: 14px;
+    /* just inside the scrollbar track */
+    width: 6px;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.word-scroll-mark {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background-color: rgba(128, 128, 128, 0.4);
+    z-index: 10;
+    cursor: pointer;
+}
+
+.search-scroll-mark {
+    position: absolute;
+    right: 0;
+    width: 6px;
+    height: 3px;
+    background-color: rgba(255, 255, 0, 0.7);
+    /* Yellow */
+    border-radius: 2px;
+    z-index: 10;
+    cursor: pointer;
+}
+
+body.theme-midnight .word-scroll-mark,
+body.theme-dark .word-scroll-mark {
+    background-color: rgba(200, 200, 200, 0.8);
+}
+
+/* Navigation Hover Style: VS Code Style (Blue + Underline) */
+.nav-link-hover {
+    color: #3498db !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+}
+
+.nav-link-hover-mark {
+    border-bottom: 1px solid #3498db;
+    pointer-events: none;
+}
+
+.layer-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding-bottom: 50px !important;
+}
+
+
+
+/* EOL Symbols (whitespace visualization — Sakura/Eclipse style) */
+/* Theme-adaptive marker colour: a subtle neutral that stays legible but does not
+   compete with the syntax colours. Light themes (incl. the default no-class
+   theme, latte, solarized-light) use the :root value; dark themes override it. */
+:root {
+    --ws-marker-color: rgba(45, 110, 180, 0.8);
+}
+
+body.theme-dark,
+body.theme-midnight,
+body.theme-solarized-dark {
+    --ws-marker-color: rgba(120, 180, 235, 0.9);
+}
+
+.eol-lf,
+.eol-crlf,
+.eol-cr {
+    display: inline-block;
+    width: 0;
+    position: relative;
+    vertical-align: middle;
+    pointer-events: none;
+    user-select: none;
+}
+
+.eol-lf::after,
+.eol-crlf::after,
+.eol-cr::after {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ws-marker-color);
+    font-weight: bold;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.eol-lf::after {
+    content: '\2193';
+    font-size: 12px;
+}
+
+/* ↓  Line Feed */
+.eol-crlf::after {
+    content: '\21B5';
+    font-size: 13px;
+}
+
+/* ↵  CR+LF     */
+.eol-cr::after {
+    content: '\2190';
+    font-size: 12px;
+}
+
+/* ←  Carriage Return */
+
+/* Tab indicator */
+.editor-tab {
+    position: relative;
+    display: inline;
+}
+
+.editor-tab::before {
+    content: '\2192';
+    /* → */
+    position: absolute;
+    left: 1px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ws-marker-color);
+    pointer-events: none;
+    user-select: none;
+    font-size: 11px;
+    line-height: 1;
+}
+
+
+.plain-text-editor {
+    background-color: transparent !important;
+    z-index: 2;
+    color: transparent;
+    caret-color: var(--text-color);
+    overflow: auto !important;
+    /* ENABLE SCROLLING */
+    pointer-events: auto !important;
+}
+
+.plain-text-editor::selection {
+    background-color: var(--selection-bg) !important;
+    color: var(--selection-color) !important;
+    -webkit-text-fill-color: var(--selection-color) !important;
+}
+
+/* Rect Selection */
+.rect-selection-box {
+    position: absolute;
+    background-color: rgba(0, 120, 215, 0.3);
+    border: 1px solid rgba(0, 120, 215, 0.6);
+    pointer-events: none;
+    z-index: 4;
+    display: none;
+}
+
+/* --- Design Change: Modern Header Styling --- */
+.md-block h1,
+.md-block h2,
+.md-block h3,
+.md-block h4,
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+    color: var(--text-color);
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.md-block h1,
+.md-body h1 {
+    font-size: 1.75em;
+    font-weight: 700;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 8px;
+    margin-top: 32px;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.md-block h1::after,
+.md-body h1::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 80px;
+    height: 2px;
+    background-color: var(--primary-color);
+}
+
+.md-block h2,
+.md-body h2 {
+    font-size: 1.45em;
+    font-weight: 600;
+    position: relative;
+    padding-left: 12px;
+    margin-top: 28px;
+    margin-bottom: 12px;
+}
+
+.md-block h2::before,
+.md-body h2::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.15em;
+    bottom: 0.15em;
+    width: 4px;
+    background-color: var(--primary-color);
+    border-radius: 2px;
+}
+
+.md-block h3,
+.md-body h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 10px;
+}
+
+.md-block h4,
+.md-body h4 {
+    font-size: 1.1em;
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.md-block p,
+.md-body p {
+    margin-top: 0;
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+.md-block ul,
+.md-block ol,
+.md-body ul,
+.md-body ol {
+    margin-top: 0;
+    margin-bottom: 12px;
+    padding-left: 20px;
+}
+
+.md-block li,
+.md-body li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.md-block blockquote,
+.md-body blockquote {
+    border-left: 4px solid var(--primary-color);
+    margin: 16px 0;
+    padding: 10px 20px;
+    color: var(--text-secondary);
+    background: var(--blockquote-bg);
+    border-radius: 0 6px 6px 0;
+    font-style: italic;
+}
+
+.md-block blockquote p:last-child,
+.md-body blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* --- Design Change: Table Header --- */
+.md-block th,
+.md-body th {
+    background-color: var(--table-header-bg) !important;
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-color);
+}
+
+/* --- Design Change: Code Block --- */
+.md-block pre,
+.md-body pre {
+    background-color: var(--bg-color-secondary);
+    padding: 12px;
+    margin: 12px 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    line-height: 1.45;
+}
+
+.md-block code,
+.md-body code {
+    font-family: var(--font-mono);
+    color: var(--code-color);
+    background-color: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-weight: 500;
+    word-break: break-word;
+    letter-spacing: -0.01em;
+}
+
+.md-block pre code,
+.md-body pre code {
+    color: inherit;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 1em;
+    font-weight: normal;
+    word-break: normal;
+    letter-spacing: normal;
+}
+
+/* Bold / Strong / Keyboard key caps */
+.md-block strong,
+.md-body strong {
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.md-block em,
+.md-body em {
+    font-style: italic;
+}
+
+.md-block kbd,
+.md-body kbd {
+    display: inline-block;
+    padding: 0.15em 0.4em;
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    line-height: 1.2;
+    color: var(--text-color);
+    background-color: var(--bg-color-secondary);
+    border: 1px solid var(--border-color);
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    box-shadow: inset 0 -1px 0 var(--border-color), 0 1px 1px rgba(0, 0, 0, 0.1);
+    margin: 0 0.1em;
+    vertical-align: middle;
+}
+
+/* Task list checkbox styling */
+.md-block input[type="checkbox"],
+.md-body input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: middle;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    transform: translateY(-1px);
+}
+
+.md-block li:has(input[type="checkbox"]),
+.md-body li:has(input[type="checkbox"]) {
+    list-style-type: none;
+    padding-left: 0;
+    margin-left: -20px;
+}
+
+/* Naive Syntax Highlighting Classes */
+/* Themed via Variables */
+.hljs-keyword {
+    color: var(--hl-keyword);
+}
+
+.hljs-control-flow {
+    color: var(--hl-control-flow);
+}
+
+.hljs-built_in {
+    color: var(--hl-built-in);
+}
+
+.hljs-literal {
+    color: var(--hl-literal);
+}
+
+.hljs-string {
+    color: var(--hl-string);
+}
+
+.hljs-comment {
+    color: var(--hl-comment);
+    font-style: italic;
+}
+
+.hljs-function {
+    color: var(--hl-function);
+}
+
+.hljs-variable {
+    color: var(--hl-variable);
+}
+
+.hljs-number {
+    color: var(--hl-number);
+}
+
+.hljs-operator {
+    color: var(--hl-operator);
+}
+
+/* Force High Contrast for Dark Mode (Override Variables) */
+body.theme-dark .hljs-keyword {
+    color: #00ffff !important;
+}
+
+body.theme-dark .hljs-control-flow {
+    color: #ff79c6 !important;
+}
+
+body.theme-dark .hljs-built_in {
+    color: #8be9fd !important;
+}
+
+body.theme-dark .hljs-literal {
+    color: #bd93f9 !important;
+}
+
+body.theme-dark .hljs-string {
+    color: #ce9178 !important;
+    /* VSCode Orange */
+}
+
+body.theme-dark .hljs-comment {
+    color: #6272a4 !important;
+}
+
+body.theme-dark .hljs-function {
+    color: #50fa7b !important;
+}
+
+body.theme-dark .hljs-variable {
+    color: #ffffff !important;
+}
+
+body.theme-dark .hljs-number {
+    color: #bd93f9 !important;
+}
+
+body.theme-dark .hljs-operator {
+    color: #ffffff !important;
+}
+
+/* XML/HTML Specific Highlights */
+.hljs-tag {
+    color: #808080;
+    /* Punctuation < > */
+}
+
+.hljs-name {
+    color: #22863a;
+    /* Tag Name - Default Light */
+}
+
+.hljs-attr {
+    color: #6f42c1;
+    /* Attribute - Default Light */
+}
+
+/* Dark Mode XML/HTML */
+body.theme-dark .hljs-tag {
+    color: #569cd6 !important;
+}
+
+body.theme-dark .hljs-name {
+    color: #569cd6 !important;
+    /* VSCode Blue */
+}
+
+body.theme-dark .hljs-attr,
+body.theme-dark .hljs-variable {
+    color: #9cdcfe !important;
+    /* VSCode Light Blue */
+}
+
+body.theme-dark .hljs-string {
+    color: #ce9178 !important;
+    /* VSCode Orange */
+}
+
+/* Midnight Mode XML/HTML */
+body.theme-midnight .hljs-tag {
+    color: #808080 !important;
+}
+
+body.theme-midnight .hljs-name {
+    color: #ff79c6 !important;
+    /* Draco Pink */
+}
+
+body.theme-midnight .hljs-attr,
+body.theme-midnight .hljs-variable {
+    color: #8be9fd !important;
+    /* Draco Cyan */
+}
+
+body.theme-midnight .hljs-string {
+    color: #ce9178 !important;
+    /* VSCode Orange */
+}
+
+
+/* ==========================================================================
+   Syntax Highlighting Colors for PlainTextView
+   ========================================================================== */
+.plain-text-highlights .hljs-keyword,
+.plain-text-highlights .hljs-control-flow,
+.plain-text-highlights .hljs-tag,
+.md-block .hljs-keyword,
+.md-block .hljs-control-flow,
+.md-block .hljs-tag {
+    color: var(--hl-keyword) !important;
+}
+
+.plain-text-highlights .hljs-function,
+.md-block .hljs-function {
+    color: var(--hl-function) !important;
+}
+
+.plain-text-highlights .hljs-number,
+.md-block .hljs-number {
+    color: var(--hl-number) !important;
+}
+
+.plain-text-highlights .hljs-string,
+.md-block .hljs-string {
+    color: var(--hl-string) !important;
+}
+
+.plain-text-highlights .hljs-comment,
+.md-block .hljs-comment {
+    color: var(--hl-comment) !important;
+}
+
+.plain-text-highlights .hljs-literal,
+.md-block .hljs-literal {
+    color: var(--hl-literal) !important;
+}
+
+.plain-text-highlights .hljs-built_in,
+.md-block .hljs-built_in {
+    color: var(--hl-built-in) !important;
+}
+
+.plain-text-highlights .hljs-attr,
+.plain-text-highlights .hljs-variable,
+.md-block .hljs-attr,
+.md-block .hljs-variable {
+    color: var(--hl-variable) !important;
+}
+
+.plain-text-highlights .hljs-punctuation,
+.md-block .hljs-punctuation {
+    color: var(--hl-operator) !important;
+}
+
+/* Specific Midnight Theme Overrides if needed, but defaults are usually fine */
+body.theme-midnight .plain-text-highlights .hljs-function {
+    color: #f1fa8c !important;
+}
+
+body.theme-midnight .plain-text-highlights .hljs-keyword,
+body.theme-midnight .plain-text-highlights .hljs-control-flow {
+    color: #ff79c6 !important;
+}
+
+body.theme-midnight .plain-text-highlights .hljs-string {
+    color: #f1fa8c !important;
+}
+
+body.theme-midnight .plain-text-highlights .hljs-comment {
+    color: #6272a4 !important;
+}
+
+/* --- Structure View: Layered Source Editor --- */
+.node-source-wrapper {
+    position: relative;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+}
+
+.node-source-editor,
+.node-source-highlights {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 10px;
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    box-sizing: border-box;
+    overflow: auto;
+}
+
+.node-source-editor {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-color);
+    z-index: 2;
+    resize: none;
+    outline: none;
+}
+
+.node-source-highlights {
+    z-index: 1;
+    pointer-events: none;
+    background: transparent;
+    color: var(--text-color);
+    /* Match textarea scrollbar padding if needed */
+}
+
+.node-source-highlights code {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* Ensure syntax highlighting colors are applied correctly in the pre block */
+.node-source-highlights .hljs-keyword {
+    color: var(--hl-keyword);
+}
+
+.node-source-highlights .hljs-string {
+    color: var(--hl-string);
+}
+
+.node-source-highlights .hljs-comment {
+    color: var(--hl-comment);
+    font-style: italic;
+}
+
+.node-source-highlights .hljs-number {
+    color: var(--hl-number);
+}
+
+.node-source-highlights .hljs-function {
+    color: var(--hl-function);
+}
+
+.node-source-highlights .hljs-title {
+    color: var(--hl-function);
+}
+
+.node-source-highlights .hljs-params {
+    color: var(--text-color);
+}
+
+.node-source-highlights .hljs-built_in {
+    color: var(--hl-built-in);
+}
+
+.node-source-highlights .hljs-literal {
+    color: var(--hl-literal);
+}
+
+.node-source-highlights .hljs-attr {
+    color: var(--hl-variable);
+}
+
+.node-source-highlights .hljs-tag {
+    color: var(--hl-keyword);
+}
+
+.node-source-highlights .hljs-name {
+    color: var(--hl-keyword);
+}
+
+/* --- Markdown Book View Mode Styles --- */
+.markdown-mode {
+    position: relative !important;
+}
+
+.md-view-mode-toggle {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    z-index: 1000;
+    background: rgba(30, 30, 34, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-color);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+body.theme-light .md-view-mode-toggle,
+body.theme-latte .md-view-mode-toggle,
+body.theme-solarized-light .md-view-mode-toggle {
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.md-view-mode-toggle:hover {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 120, 212, 0.3);
+}
+
+.md-book-layout,
+.pt-book-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+}
+
+.md-book-page-container,
+.pt-book-page-container {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    justify-content: center;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.md-book-flipbook,
+.pt-book-flipbook {
+    width: 100%;
+    height: 100%;
+}
+
+/* StPageFlip page elements */
+.stf__page {
+    background: var(--bg-color);
+    color: var(--text-color);
+    overflow-y: auto;
+    padding: 30px 48px !important;
+    font-family: var(--editor-font-family);
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 1.65;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.02);
+    cursor: text;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* Remove massive fixed padding for PlainText book mode, but keep a reasonable 15px margin */
+.stf__page.plain-text-page {
+    padding: 15px 5px !important;
+}
+
+.stf__page:active {
+    cursor: grabbing;
+}
+
+.stf__page--blank {
+    background: var(--bg-color-secondary, var(--bg-color));
+    cursor: default;
+}
+
+.stf__page .md-block {
+    display: block !important;
+    flex: none !important;
+    margin-bottom: 10px !important;
+    padding: 2px 4px !important;
+    cursor: default;
+}
+
+.stf__page h1,
+.stf__page h2,
+.stf__page h3,
+.stf__page h4 {
+    margin-top: 10px !important;
+    margin-bottom: 6px !important;
+}
+
+.stf__page p,
+.stf__page li {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+}
+
+/* Override StPageFlip internal wrapper to fit container */
+.stf__wrapper {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Footer */
+.md-book-footer,
+.pt-book-footer {
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 0;
+    flex-shrink: 0;
+    /* Faintly visible so the page number + shortcut hint are discoverable;
+       full opacity on hover. */
+    opacity: 0.45;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+    pointer-events: none;
+    /* Let clicks pass through when invisible */
+}
+
+.pt-book-hint {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.85;
+    user-select: none;
+}
+
+.md-book-layout:hover .md-book-footer,
+.pt-book-layout:hover .pt-book-footer,
+.md-book-footer:hover,
+.pt-book-footer:hover {
+    opacity: 1;
+    pointer-events: auto;
+    /* Enable clicks when visible */
+}
+
+.md-book-progress-container,
+.pt-book-progress-container {
+    width: calc(100% - 80px);
+    max-width: 600px;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    cursor: grab;
+    overflow: visible;
+    position: relative;
+    transition: height 0.15s;
+}
+
+.md-book-progress-container:hover,
+.md-book-progress-container.dragging,
+.pt-book-progress-container:hover,
+.pt-book-progress-container.dragging {
+    height: 8px;
+}
+
+.md-book-progress-container.dragging,
+.pt-book-progress-container.dragging {
+    cursor: grabbing;
+}
+
+.md-book-progress-bar,
+.pt-book-progress-bar {
+    height: 100%;
+    background: var(--primary-color);
+    width: 0%;
+    transition: width 0.1s ease-out;
+    border-radius: 3px;
+}
+
+.md-book-progress-thumb,
+.pt-book-progress-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+    transition: transform 0.1s, left 0.1s ease-out;
+    z-index: 2;
+}
+
+.md-book-progress-thumb:hover,
+.pt-book-progress-thumb:hover {
+    transform: translate(-50%, -50%) scale(1.3);
+}
+
+.md-book-progress-container.dragging .md-book-progress-thumb,
+.pt-book-progress-container.dragging .pt-book-progress-thumb {
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(1.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.md-book-page-info,
+.pt-book-page-info {
+    font-size: 10px;
+    color: var(--text-color-muted, #8e8e93);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+}
+
+/* Search highlights inside book pages */
+.pt-book-page mark,
+.plain-text-page mark {
+    background-color: rgba(255, 235, 59, 0.55);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.pt-book-page mark.search-active,
+.plain-text-page mark.search-active {
+    background-color: #ff9800;
+    color: #1e1e1e !important;
+}
+
+/* Override shiki/token inline span colors so active-hit text stays readable */
+.pt-book-page mark.search-active *,
+.plain-text-page mark.search-active * {
+    color: #1e1e1e !important;
+}
+
+/* Book Mode Enhancements */
+.md-book-layout,
+.md-book-page-container,
+.md-book-flipbook,
+.pt-book-layout,
+.pt-book-page-container,
+.pt-book-flipbook,
+.stf__parent,
+.stf__wrapper,
+.stf__block,
+.stf__page,
+.plain-text-page,
+.md-body {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* Prevent shadows from blocking selection or clicks */
+.stf__outerShadow,
+.stf__innerShadow,
+.stf__hardShadow,
+.stf__hardInnerShadow {
+    pointer-events: none !important;
+}
+
+/* Match editor font setting dynamically */
+.stf__page {
+    font-size: var(--editor-font-size) !important;
+    line-height: var(--editor-line-height-px, 22px) !important;
+}
+
+/* Horizontal scrollbar for long lines */
+.stf__page pre,
+.stf__page code {
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-x: auto !important;
+    font-family: inherit !important;
+}
+
+/* CodeMirror-style .tok-* token classes for BookMode syntax highlighting */
+.stf__page .tok-keyword        { color: #c678dd; }
+.stf__page .tok-atom           { color: #d19a66; }
+.stf__page .tok-number         { color: #d19a66; }
+.stf__page .tok-def            { color: #61afef; }
+.stf__page .tok-variableName   { color: #e06c75; }
+.stf__page .tok-typeName       { color: #e5c07b; }
+.stf__page .tok-className      { color: #e5c07b; }
+.stf__page .tok-propertyName   { color: #e06c75; }
+.stf__page .tok-function       { color: #61afef; }
+.stf__page .tok-string         { color: #98c379; }
+.stf__page .tok-comment        { color: #5c6370; font-style: italic; }
+.stf__page .tok-tagName        { color: #e06c75; }
+.stf__page .tok-attributeName  { color: #d19a66; }
+.stf__page .tok-operator       { color: #56b6c2; }
+.stf__page .tok-punctuation    { color: #abb2bf; }
+.stf__page .tok-bracket        { color: #abb2bf; }
+.stf__page .tok-meta           { color: #61afef; }
+.stf__page .tok-labelName      { color: #e06c75; }
+.stf__page .tok-self           { color: #e06c75; }
+.stf__page .tok-heading        { color: #e06c75; font-weight: bold; }
+.stf__page .tok-emphasis       { font-style: italic; }
+.stf__page .tok-strong         { font-weight: bold; }
+.stf__page .tok-link           { color: #61afef; text-decoration: underline; }
+.stf__page .tok-invalid        { color: #fff; background: #e06c75; }
+
+/* Light theme overrides for .tok-* classes */
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-keyword        { color: #a626a4; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-atom           { color: #986801; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-number         { color: #986801; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-def            { color: #4078f2; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-variableName   { color: #e45649; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-typeName       { color: #c18401; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-className      { color: #c18401; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-propertyName   { color: #e45649; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-function       { color: #4078f2; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-string         { color: #50a14f; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-comment        { color: #a0a1a7; font-style: italic; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-tagName        { color: #e45649; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-attributeName  { color: #986801; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-operator       { color: #0184bc; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-punctuation    { color: #383a42; }
+body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-bracket        { color: #383a42; }
+
+
+/* ============================================================
+   LargeFileView — read-only virtualized viewer for huge files
+   ============================================================ */
+.lfv-root {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    outline: none;
+}
+
+.lfv-banner {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background-color: var(--bg-color-secondary, #252526);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    flex-wrap: wrap;
+}
+
+.lfv-info {
+    opacity: 0.85;
+    white-space: nowrap;
+}
+
+.lfv-banner input {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    outline: none;
+}
+
+.lfv-line-input {
+    width: 70px;
+}
+
+.lfv-find-input {
+    width: 160px;
+}
+
+.lfv-find-status {
+    opacity: 0.7;
+    font-size: 11px;
+    min-width: 60px;
+}
+
+.lfv-edit-btn {
+    margin-left: auto;
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.lfv-edit-btn:hover {
+    opacity: 1;
+    background: var(--bg-active, rgba(255, 255, 255, 0.06));
+}
+
+.lfv-body {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.lfv-gutter {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    background-color: var(--header-bg);
+    border-right: 1px solid var(--border-color);
+    color: var(--gutter-color, var(--text-color-muted));
+    overflow: hidden;
+    z-index: 2;
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    font-size: var(--editor-font-size, 14px);
+    user-select: none;
+}
+
+.lfv-gutter-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    will-change: transform;
+}
+
+.lfv-num {
+    text-align: right;
+    padding-right: 8px;
+    line-height: 1.5;
+    box-sizing: border-box;
+}
+
+.lfv-num-active {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.lfv-viewport {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+    outline: none;
+}
+
+.lfv-sizer {
+    width: 1px;
+    flex: none;
+}
+
+.lfv-rows {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 100%;
+    width: max-content;
+    will-change: transform;
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    font-size: var(--editor-font-size, 14px);
+    tab-size: 3;
+}
+
+.lfv-line {
+    white-space: pre;
+    line-height: 1.5;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+.lfv-line-active {
+    background-color: rgba(100, 100, 100, 0.18);
+}
+
+.lfv-line-loading {
+    opacity: 0.3;
+}
+
+.lfv-line mark {
+    background-color: var(--search-highlight-bg, #ffd54f);
+    color: #000;
+    border-radius: 2px;
+}
+
+/* ============================================================
+   LargeFileEditView — sliding-window editor for huge files
+   ============================================================ */
+.lfe-root {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.lfe-banner {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background-color: var(--bg-color-secondary, #252526);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    flex-wrap: wrap;
+}
+
+.lfe-info {
+    opacity: 0.85;
+    white-space: nowrap;
+}
+
+.lfe-find-input {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    outline: none;
+    width: 160px;
+}
+
+.lfe-find-status {
+    opacity: 0.7;
+    font-size: 11px;
+    min-width: 60px;
+}
+
+.lfe-save-btn {
+    margin-left: auto;
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.85;
+}
+
+.lfe-save-btn:hover {
+    opacity: 1;
+    background: var(--bg-active, rgba(255, 255, 255, 0.06));
+}
+
+.lfe-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.lfe-gutter {
+    flex: 0 0 auto;
+    background-color: var(--header-bg);
+    border-right: 1px solid var(--border-color);
+    color: var(--gutter-color, var(--text-color-muted));
+    overflow: hidden;
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    font-size: var(--editor-font-size, 14px);
+    user-select: none;
+}
+
+.lfe-num {
+    text-align: right;
+    padding-right: 8px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+.lfe-line-probe {
+    line-height: 1.5;
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    font-size: var(--editor-font-size, 14px);
+}
+
+.lfe-textarea {
+    flex: 1;
+    border: 0;
+    outline: none;
+    resize: none;
+    margin: 0;
+    padding: 0 10px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--editor-font-family, 'Consolas', monospace);
+    font-size: var(--editor-font-size, 14px);
+    line-height: 1.5;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 3;
+}
+
+/* Global Search Match Colors to override syntax highlighting */
+.cm-searchMatch,
+.cm-searchMatch * {
+    background-color: rgba(255, 255, 0, 0.8) !important;
+    color: black !important;
+}
+
+.cm-searchMatch.cm-searchMatch-selected,
+.cm-searchMatch.cm-searchMatch-selected * {
+    background-color: rgba(255, 152, 0, 0.8) !important;
+    outline: 1.5px solid #ff6d00 !important;
+    outline-offset: -1px;
+    color: black !important;
+}
+/* ============================================================
+   CodeMirror whitespace markers (shown when whitespace display is on)
+   ============================================================ */
+.cm-tab {
+    position: relative;
+}
+.cm-tab::before {
+    content: attr(data-display); /* → */
+    position: absolute;
+    left: 1px;
+    top: 0;
+    color: var(--text-color);
+    opacity: 0.28;
+    pointer-events: none;
+}
+.cm-fullWidthSpace {
+    position: relative;
+}
+.cm-fullWidthSpace::before {
+    content: attr(data-display); /* □ */
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: var(--text-color);
+    opacity: 0.32;
+    pointer-events: none;
+}
+.cm-newline {
+    color: var(--text-color);
+    opacity: 0.3;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ── Editor (CodeMirror) selection ─────────────────────────────────────────
+   Theme-aware, translucent selection so light mode isn't a heavy dark block.
+   `!important` beats CM6's injected theme layer. The native ::selection is made
+   transparent so it doesn't stack on top of the drawSelection layer (which was
+   darkening the highlight). */
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+    background-color: var(--cm-selection-bg, rgba(51, 144, 255, 0.18)) !important;
+}
+.cm-editor .cm-content ::selection {
+    background-color: transparent !important;
+}
+
+/* ── Editor top-right toolbar (Book Mode / Vim / …): one consistent style ──── */
+.cm-view-toolbar {
+    position: absolute;
+    top: 10px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.cm-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    line-height: 1;
+    padding: 5px 11px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    opacity: 0.85;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: opacity .12s, background .12s, border-color .12s;
+}
+.cm-toolbar-btn:hover { opacity: 1; border-color: var(--primary-color); }
+.cm-toolbar-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); opacity: 1; }
+.cm-tb-icon { flex-shrink: 0; opacity: 0.9; }
+.cm-toolbar-btn.active .cm-tb-icon { opacity: 1; }
+/* Vim badge uses a monospace face for its mode text but shares the button look. */
+.cm-vim-badge { font-family: var(--editor-font-family, monospace); }
+
+/* Search scrollbar ruler (CodeMirror): clickable strip of match ticks. */
+.cm-search-scrollbar-marks {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.cm-search-scrollbar-marks:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 14%, transparent);
+}
+
+/* Markdown toolbar now reuses the shared .cm-view-toolbar / .cm-toolbar-btn
+   (see “Editor top-right toolbar” below), so the old absolutely-positioned
+   pills are gone. Keep the selector as a no-op safety net in case any stale
+   element still carries the old class. */
+.md-view-mode-toggle { display: none !important; }
+.md-export-btn, .md-backlink-btn { display: none !important; }
+
+/* The markdown toolbar sits over the content; give it a touch more separation
+   from the top edge so it never overlaps the first block's text. */
+.markdown-mode > .cm-view-toolbar {
+    top: 12px;
+    right: 18px;
+}
+
+/* ── View usage hint (bottom-right, minimizable) ─────────────────────────── */
+/* Shown for the structured views (Markdown / CSV / Structure): a small,
+   semi-transparent panel that reminds you of the view's shortcuts. Can be
+   minimized to a tiny 💡 tab; the collapsed state persists per view type. */
+.view-usage-hint {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 60;
+    max-width: 240px;
+    background: color-mix(in srgb, var(--bg-color, #1e1e22) 82%, transparent);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 8px;
+    padding: 8px 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+    backdrop-filter: blur(4px);
+    font-size: 11px;
+    color: var(--text-color, #ccc);
+    user-select: none;
+    opacity: 0.78;
+    transition: opacity 0.15s ease;
+}
+.view-usage-hint:hover {
+    opacity: 1;
+}
+.view-usage-hint .view-usage-min {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: none;
+    border: none;
+    color: var(--text-color-muted, #999);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.view-usage-hint .view-usage-min:hover {
+    background: color-mix(in srgb, var(--primary-color, #4a9eff) 20%, transparent);
+    color: var(--text-color, #eee);
+}
+.view-usage-hint .view-usage-title {
+    font-weight: 600;
+    font-size: 11px;
+    margin-bottom: 6px;
+    padding-right: 20px;
+    color: var(--primary-color, #4a9eff);
+}
+.view-usage-hint .view-usage-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 3px 0;
+    line-height: 1.5;
+}
+.view-usage-hint kbd {
+    font-family: var(--editor-font-family, monospace);
+    font-size: 10px;
+    background: color-mix(in srgb, var(--primary-color, #4a9eff) 14%, transparent);
+    border: 1px solid var(--border-color, #555);
+    border-radius: 3px;
+    padding: 0 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.view-usage-hint.minimized {
+    padding: 0;
+    max-width: 30px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.view-usage-hint.minimized .view-usage-min {
+    position: static;
+    display: block;
+    width: 30px;
+    height: 28px;
+    font-size: 13px;
+    text-align: center;
+}
+.view-usage-hint.minimized .view-usage-body {
+    display: none;
+}
+
+/* ── Relative-link hover preview ─────────────────────────────────────────── */
+/* Floating popup that shows the linked file's contents when you hover a
+   relative markdown link ([file](other.md)) in the rendered view. */
+.md-link-preview-popup {
+    position: fixed;
+    z-index: 3000;
+    width: min(420px, 70vw);
+    max-height: 55vh;
+    overflow: hidden;
+    background: var(--bg-color, #1e1e1e);
+    color: var(--text-color, #ccc);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+}
+.md-link-preview-head {
+    padding: 6px 12px;
+    font-weight: 600;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border-color, #333);
+    background: color-mix(in srgb, var(--primary-color, #4a9eff) 12%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+.md-link-preview-body {
+    padding: 8px 12px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11px;
+    max-height: 40vh;
+}
+.md-link-preview-body img {
+    max-width: 100%;
+    max-height: 32vh;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+    border-radius: 4px;
+}
+
+/* --- HTML preview (split beside the CodeMirror editor) --- */
+.cm-html-splitbar {
+    flex: 0 0 5px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.12s ease;
+}
+.cm-html-splitbar:hover,
+.cm-html-splitbar.dragging { background: var(--primary-color); opacity: 0.55; }
+
+.cm-html-preview-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    /* Generous right padding keeps the controls clear of the floating
+       .cm-view-toolbar, which is absolutely positioned over this corner. */
+    padding: 5px 10px 5px 12px;
+    padding-right: 220px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+}
+.html-preview-frame { flex: 1; min-height: 0; }
+.cm-toolbar-btn.cm-html-preview-btn.active {
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}

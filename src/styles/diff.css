@@ -1,0 +1,590 @@
+/* --- Diff Editor Premium UI (VS Code Style) --- */
+
+#diff-container {
+    flex: 1;
+    display: flex;
+    background: var(--bg-color);
+    overflow: hidden;
+    position: relative;
+    font-family: var(--editor-font-family);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Toolbar */
+.diff-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.diff-toolbar-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+    font-size: 13px;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.diff-toolbar-title strong {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.diff-toolbar-actions {
+    display: flex;
+    gap: 10px;
+    /* Without this the default `stretch` makes height-less children (the
+       summary, the nav group) span the full bar, so their text sits higher
+       than the fixed-height buttons next to them. */
+    align-items: center;
+}
+
+/* Primary Button */
+.diff-primary-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--primary-color);
+    color: #ffffff;
+    border: 1px solid transparent;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.diff-primary-btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.diff-primary-btn:active {
+    transform: translateY(0);
+}
+
+/* Pane Headers */
+.diff-panes-header {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.diff-header-pane {
+    flex: 1;
+    padding: 6px 16px;
+}
+
+.diff-header-left {
+    border-right: 2px solid rgba(128, 128, 128, 0.3);
+}
+
+/* Panes */
+.diff-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: auto;
+}
+
+.diff-pane.original {
+    border-right: 2px solid rgba(128, 128, 128, 0.3);
+}
+
+/* Flat + overlay: inherit the global thumb behaviour (hidden until hover /
+   scroll), just keep the slightly wider track this pane used. */
+.diff-pane::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.diff-pane::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 0;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+.diff-pane:hover::-webkit-scrollbar-thumb,
+.diff-pane.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.26));
+}
+
+.diff-pane::-webkit-scrollbar-thumb:hover,
+.diff-pane::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-hover, rgba(0, 0, 0, 0.42));
+}
+
+.diff-content {
+    min-width: fit-content;
+    padding-bottom: 20px;
+}
+
+/* Lines and Gutter */
+.diff-line {
+    display: flex;
+    min-height: 20px;
+    width: 100%;
+}
+
+.diff-gutter {
+    width: 45px;
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+    color: rgba(128, 128, 128, 0.6);
+    text-align: right;
+    padding-right: 10px;
+    border-right: 1px solid var(--border-color);
+    user-select: none;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.diff-code {
+    flex: 1;
+    padding-left: 12px;
+    white-space: pre;
+    position: relative;
+    cursor: text;
+}
+
+/* Ensure Shiki's span.line has no extra margin/padding */
+.diff-code .line {
+    padding: 0 !important;
+    margin: 0 !important;
+    text-indent: 0 !important;
+    display: inline-block; /* Prevent flex behavior inheritance if any */
+}
+
+/* Hunk Containers */
+.diff-hunk-container {
+    position: relative;
+    margin-bottom: -1px;
+}
+
+.diff-hunk-container.accepted {
+    /* No outer background, let the line colors speak */
+}
+
+.diff-hunk-container.rejected {
+    opacity: 0.65;
+    transition: opacity 0.3s ease;
+}
+.diff-hunk-container.rejected .diff-line.diff-remove {
+    background-color: rgba(248, 81, 73, 0.08);
+}
+.diff-hunk-container.rejected .diff-line.diff-add {
+    background-color: rgba(46, 160, 67, 0.08);
+}
+body.theme-light .diff-hunk-container.rejected .diff-line.diff-remove {
+    background-color: rgba(248, 81, 73, 0.06);
+}
+body.theme-light .diff-hunk-container.rejected .diff-line.diff-add {
+    background-color: rgba(46, 160, 67, 0.06);
+}
+
+/* Action Bar */
+.diff-hunk-actions {
+    position: sticky;
+    top: 0;
+    height: auto;
+    width: 100%;
+    z-index: 100;
+    pointer-events: none;
+    display: flex;
+    justify-content: flex-end;
+    padding: 2px 8px 0 0;
+    min-height: 28px;
+}
+
+/* Invisible left-pane clone of the (right-pane only) Accept/Reject bar. It is a
+   full structural copy so its height always matches; only the painting and the
+   interaction are suppressed. */
+.diff-hunk-actions-spacer {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.diff-action-bar {
+    position: sticky;
+    right: 8px;
+    top: 2px;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--sidebar-bg);
+    padding: 3px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    height: 28px;
+    box-sizing: border-box;
+    align-self: flex-end;
+    flex-shrink: 0;
+}
+
+.diff-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 24px;
+    line-height: 1;
+    box-sizing: border-box;
+}
+
+.diff-btn:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+
+/* Whitespace toggles: flat "pressed" state so the persisted choice is obvious
+   at a glance. (Both the ignore-whitespace and show-whitespace buttons.) */
+.diff-btn.diff-ws-btn.active,
+.diff-btn.diff-ws-view-btn.active {
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.diff-btn.active.accept-btn {
+    background: rgba(46, 160, 67, 0.18);
+    color: #3fb950;
+    border-color: rgba(46, 160, 67, 0.4);
+    box-shadow: 0 1px 4px rgba(46, 160, 67, 0.15);
+}
+
+.diff-btn.active.reject-btn {
+    background: rgba(248, 81, 73, 0.18);
+    color: #f85149;
+    border-color: rgba(248, 81, 73, 0.4);
+    box-shadow: 0 1px 4px rgba(248, 81, 73, 0.15);
+}
+
+/* Line Colors (Dark Themes Default) */
+.diff-line.diff-add {
+    background-color: rgba(46, 160, 67, 0.2);
+}
+.diff-line.diff-add .diff-gutter {
+    background-color: rgba(46, 160, 67, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.diff-line.diff-remove {
+    background-color: rgba(248, 81, 73, 0.2);
+}
+.diff-line.diff-remove .diff-gutter {
+    background-color: rgba(248, 81, 73, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Light Theme Colors */
+body.theme-light .diff-line.diff-add {
+    background-color: rgba(46, 160, 67, 0.15);
+}
+body.theme-light .diff-line.diff-add .diff-gutter {
+    background-color: rgba(46, 160, 67, 0.1);
+}
+
+body.theme-light .diff-line.diff-remove {
+    background-color: rgba(248, 81, 73, 0.15);
+}
+body.theme-light .diff-line.diff-remove .diff-gutter {
+    background-color: rgba(248, 81, 73, 0.1);
+}
+
+/* Empty Lines (Spacers) */
+.empty-line {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 10px,
+        rgba(0, 0, 0, 0.3) 10px,
+        rgba(0, 0, 0, 0.3) 20px
+    );
+}
+
+body.theme-light .empty-line {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.05),
+        rgba(0, 0, 0, 0.05) 10px,
+        rgba(0, 0, 0, 0.1) 10px,
+        rgba(0, 0, 0, 0.1) 20px
+    );
+}
+
+.empty-line .diff-gutter {
+    color: transparent;
+    background-color: transparent !important;
+}
+
+/* Gutter +/- signs */
+.diff-gutter-sign {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.diff-sign-add {
+    color: #3fb950;
+}
+
+.diff-sign-remove {
+    color: #f85149;
+}
+
+.diff-gutter-num {
+    font-size: 11px;
+    opacity: 0.55;
+}
+
+/* Light theme overrides */
+body.theme-light .diff-sign-add {
+    color: #1a7f37;
+}
+body.theme-light .diff-sign-remove {
+    color: #cf222e;
+}
+
+/* Inline Word Diff Colors */
+.diff-word-add {
+    background-color: rgba(46, 160, 67, 0.45);
+    border-radius: 2px;
+}
+.diff-word-remove {
+    background-color: rgba(248, 81, 73, 0.45);
+    border-radius: 2px;
+}
+
+/* Detailed Navigation Focus */
+.diff-line.diff-focus-active {
+    outline: 2px solid #58a6ff;
+    outline-offset: -2px;
+    background-color: rgba(88, 166, 255, 0.15) !important;
+    transition: all 0.2s ease;
+}
+span.diff-focus-active {
+    outline: 2px solid #58a6ff;
+    background-color: #58a6ff !important;
+    color: #fff !important;
+    transition: all 0.2s ease;
+}
+
+/* --- Free-form Text Compare View (CompareView) --- */
+.compare-view {
+    height: 100%;
+    overflow: hidden;
+}
+
+.compare-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-color);
+    overflow: hidden;
+}
+
+.compare-input-panel {
+    display: flex;
+    gap: 1px;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--border-color);
+}
+
+.compare-input-col {
+    flex: 1 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-color);
+}
+
+.compare-input-label {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, var(--text-color));
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.compare-input {
+    flex: 1;
+    width: 100%;
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 8px 12px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--editor-font-family);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+    overflow: auto;
+    box-sizing: border-box;
+}
+
+.compare-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex: 0 0 auto;
+}
+
+.compare-btn {
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.compare-btn:hover {
+    background: var(--hover-bg, rgba(128,128,128,0.15));
+}
+
+.compare-btn-primary {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    border-color: transparent;
+    font-weight: 600;
+}
+
+.compare-btn-primary:hover {
+    filter: brightness(1.1);
+}
+
+/* ============================================================================
+   Diff: change summary, minimap and whitespace markers
+   ========================================================================== */
+
+/* --- Toolbar summary (+12 / -5 / N blocks) --- */
+.diff-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--editor-font-family, monospace);
+    white-space: nowrap;
+}
+.diff-sum-add { color: #3fb950; }
+.diff-sum-del { color: #f85149; }
+.diff-sum-blocks { color: var(--text-secondary); font-weight: 400; }
+.diff-sum-none { color: var(--text-secondary); font-weight: 400; }
+
+/* --- Minimap: change distribution over the whole file --- */
+.diff-minimap {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    z-index: 60;
+    cursor: pointer;
+    background: transparent;
+    border-left: 1px solid var(--border-color);
+}
+.diff-minimap-mark {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    min-height: 2px;
+    border-radius: 1px;
+    pointer-events: none;
+}
+.diff-minimap-mark.is-add { background: rgba(63, 185, 80, 0.85); }
+.diff-minimap-mark.is-del { background: rgba(248, 81, 73, 0.85); }
+.diff-minimap-viewport {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
+    pointer-events: none;
+    min-height: 6px;
+}
+
+/* Keep the panes clear of the minimap strip. */
+#diff-container > .diff-pane:last-of-type {
+    margin-right: 12px;
+}
+
+/* --- Whitespace markers ---
+   The span still contains the REAL space/tab, so column alignment and
+   copy/paste are untouched. The span holds only whitespace, so painting it
+   directly (background image) is safe and — unlike an absolutely positioned
+   ::before on an inline box — renders reliably at any font size. */
+.diff-ws-mark {
+    white-space: pre;
+}
+.diff-ws-mark.is-space {
+    background-image: radial-gradient(circle at center, var(--diff-ws-color, rgba(128, 128, 128, 0.75)) 1.1px, transparent 1.4px);
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.diff-ws-mark.is-tab {
+    background-image: linear-gradient(to right, var(--diff-ws-color, rgba(128, 128, 128, 0.6)) 0 100%);
+    background-repeat: no-repeat;
+    background-size: calc(100% - 4px) 1px;
+    background-position: 2px center;
+}
+
+/* Shortcut hint chip inside a toolbar button. */
+.diff-btn-key {
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.6;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 4px;
+    line-height: 1.4;
+    white-space: nowrap;
+}

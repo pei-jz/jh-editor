@@ -1,0 +1,55 @@
+/* Terminal Panel Styles */
+
+#terminal-panel {
+    display: none;
+    flex-direction: column;
+    min-height: 100px;
+    max-height: 80vh;
+    height: 250px; /* Default height */
+    background-color: var(--bg-color-secondary, #1e1e1e);
+    border-top: 1px solid var(--border-color);
+    position: relative;
+    z-index: 5;
+}
+
+#terminal-header {
+    flex-shrink: 0;
+}
+
+#terminal-container {
+    flex: 1;
+    overflow: hidden; /* xterm.js handles its own scrolling */
+    background-color: #000;
+    padding: 5px;
+    position: relative;
+}
+
+/* Make sure xterm viewport fills the container */
+.xterm-viewport {
+    background-color: transparent !important;
+}
+
+.xterm {
+    height: 100%;
+    width: 100%;
+}
+
+.xterm .xterm-screen {
+    height: 100%;
+    width: 100%;
+}
+
+/* Horizontal resizer for the terminal panel */
+.resizer-horizontal {
+    height: 4px;
+    background-color: transparent;
+    cursor: row-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.resizer-horizontal:hover,
+.resizer-horizontal.resizing {
+    background-color: var(--primary-color);
+}

@@ -1,0 +1,691 @@
+/* Simple Modern Theme & Layout Phase 7 */
+:root {
+    --bg-color: #f8f9fa;
+    /* NOTE: --border-color set below; kept translucent for a softer, refined look */
+    --sidebar-bg: #ffffff;
+    --header-bg: #f1f3f5;
+    --border-color: rgba(0, 0, 0, 0.09);
+    --text-color: #343a40;
+    --primary-color: #0d6efd;
+    --active-tab-bg: #fff;
+    --active-tab-border: #0d6efd;
+    --hover-color: #f1f3f5;
+    /* Lighter hover (Gray 100) */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --radius: 6px;
+
+    --bg-color-secondary: #f3f4f6;
+    /* Light gray for headers */
+
+    --explorer-width: 250px;
+    --explorer-width: 250px;
+    --outline-width: 250px;
+
+    /* Syntax Highlighting (Light Default - VS Code Light+) */
+    --hl-keyword: #0000ff;
+    --hl-control-flow: #af00db;
+    --hl-built-in: #267f99;
+    --hl-literal: #0000ff;
+    --hl-string: #a31515;
+    --hl-comment: #008000;
+    --hl-function: #795e26;
+    --hl-variable: #001080;
+    --hl-number: #098658;
+    --hl-operator: #000000;
+
+    /* Font Settings */
+    --font-main: system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Helvetica Neue", sans-serif;
+    --font-mono: 'HackGen Console', 'HackGen', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Hack', 'Consolas', 'BIZ UDGothic', 'BIZ UDゴシック', monospace;
+    --editor-font-family: var(--font-mono);
+    --editor-font-size: 11.5pt;
+
+    /* Missing variables fallback */
+    --bg-active: #e2e6ea;
+    --text-secondary: #6c757d;
+    --accent-color: var(--primary-color);
+    --table-header-bg: var(--bg-color-secondary);
+
+    /* UI element colors */
+    --gutter-color: #237893;
+    --tab-inactive-color: #6c757d;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(13, 110, 253, 0.1);
+    --text-secondary: #6c757d;
+
+    /* Markdown Premium Styles */
+    --code-color: #d63384;
+    --code-bg: rgba(175, 184, 193, 0.2);
+    --code-border: rgba(175, 184, 193, 0.4);
+    --blockquote-bg: rgba(13, 110, 253, 0.05);
+
+    /* Selection Colors (Light mode default) */
+    --selection-bg: #add6ff;
+    --selection-color: #000000;
+    /* CodeMirror editor selection layer — translucent so it stays light on a
+       light background (an opaque/heavy value read as a dark block). Dark themes
+       override below. Light themes inherit this. */
+    --cm-selection-bg: rgba(51, 144, 255, 0.18);
+
+    /* Git Status Colors */
+    --git-modified-color: #b07d2b; /* Darker orange for light mode readability */
+    --git-staged-color: #2ea043;
+    --git-untracked-color: #2ea043;
+}
+
+body.theme-dark {
+    --bg-color: #1e1e1e;
+    --sidebar-bg: #252526;
+    --header-bg: #252526;
+    --border-color: rgba(255, 255, 255, 0.09);
+    --text-color: #d4d4d4;
+    /* VS Code default - softer than pure white, reduces haloing */
+    --primary-color: #3794ff;
+    --active-tab-bg: #1e1e1e;
+    --active-tab-border: #3794ff;
+    --hover-color: #2a2d2e;
+    --bg-color-secondary: #252526;
+    --bg-active: #37373d;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+    /* Syntax Highlighting (Refined for clarity) */
+    --hl-keyword: #569cd6;
+    /* VS Code blue - easier on the eyes than neon cyan */
+    --hl-control-flow: #c586c0;
+    /* Soft purple-pink */
+    --hl-built-in: #4ec9b0;
+    /* Teal */
+    --hl-literal: #569cd6;
+    /* Blue */
+    --hl-string: #ce9178;
+    /* Warm coral/orange */
+    --hl-comment: #6a9955;
+    /* Soft green - standard VS Code */
+    --hl-function: #dcdcaa;
+    /* Warm yellow */
+    --hl-variable: #9cdcfe;
+    /* Light blue for identifiers */
+    --hl-number: #b5cea8;
+    /* Soft green for numbers */
+    --hl-operator: #d4d4d4;
+    --table-header-bg: #323233;
+
+    /* UI element colors */
+    --gutter-color: #858585;
+    --tab-inactive-color: #858585;
+    --tree-item-color: #cccccc;
+    --tree-item-active-bg: rgba(55, 148, 255, 0.12);
+    --text-secondary: #858585;
+
+    /* Markdown Premium Styles */
+    --code-color: #ff7b72;
+    --code-bg: rgba(255, 123, 114, 0.1);
+    --code-border: rgba(255, 123, 114, 0.25);
+    --blockquote-bg: rgba(55, 148, 255, 0.08);
+
+    /* Selection Colors (Dark mode) */
+    --selection-bg: #264f78;
+    --selection-color: #ffffff;
+    --cm-selection-bg: rgba(88, 166, 255, 0.32);
+
+    /* Git Status Colors */
+    --git-modified-color: #e2c08d;
+    --git-staged-color: #81b88b;
+    --git-untracked-color: #73c991;
+}
+
+/* Midnight Theme (Deep Blue/Purple) */
+body.theme-midnight {
+    --bg-color: #0f111a;
+    --sidebar-bg: #1a1c25;
+    --header-bg: #1a1c25;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-color: #c5cbe0;
+    /* Brighter text for Midnight */
+    --primary-color: #c792ea;
+    /* Pale Purple */
+    --active-tab-bg: #0f111a;
+    --active-tab-border: #c792ea;
+    --hover-color: #292d3e;
+    --bg-color-secondary: #090b10;
+    --bg-active: #1a1c25;
+    /* Darker active color for Midnight */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+    /* Syntax Highlighting (Midnight - Dracula-ish) */
+    --hl-keyword: #ff92d0;
+    /* Brighter Pink */
+    --hl-control-flow: #ff92d0;
+    --hl-built-in: #a3f7ff;
+    /* Brighter Cyan */
+    --hl-literal: #d6b5ff;
+    /* Brighter Purple */
+    /* Brighter Purple */
+    --hl-string: #ce9178;
+    /* VSCode Orange - Better Contrast */
+    --hl-comment: #8797c2;
+    --hl-comment: #8797c2;
+    /* Lighter Comment */
+    --hl-function: #8affaa;
+    /* Brighter Green */
+    --hl-variable: #ffffff;
+    /* White for vars to stand out */
+    --hl-number: #d6b5ff;
+    --hl-operator: #ffffff;
+    --table-header-bg: #1a1c25;
+
+    /* UI element colors */
+    --gutter-color: #676e95;
+    --tab-inactive-color: #676e95;
+    --tree-item-color: #a6accd;
+    --tree-item-active-bg: rgba(199, 146, 234, 0.12);
+    --text-secondary: #676e95;
+
+    /* Markdown Premium Styles */
+    --code-color: #ff92d0;
+    --code-bg: rgba(255, 146, 208, 0.1);
+    --code-border: rgba(255, 146, 208, 0.25);
+    --blockquote-bg: rgba(199, 146, 234, 0.08);
+
+    /* Selection Colors (Midnight mode) */
+    --selection-bg: #3d3460;
+    --selection-color: #ffffff;
+    --cm-selection-bg: rgba(130, 130, 220, 0.34);
+
+    /* Git Status Colors */
+    --git-modified-color: #e2c08d;
+    --git-staged-color: #81b88b;
+    --git-untracked-color: #73c991;
+}
+
+/* Latte Theme (Warm Light) */
+body.theme-latte {
+    --bg-color: #eff1f5;
+    --sidebar-bg: #e6e9ef;
+    --header-bg: #e6e9ef;
+    --border-color: rgba(0, 0, 0, 0.09);
+    --text-color: #4c4f69;
+    --primary-color: #ea76cb;
+    /* Pinkish */
+    --active-tab-bg: #eff1f5;
+    --active-tab-border: #ea76cb;
+    --hover-color: #dce0e8;
+    --bg-color-secondary: #dce0e8;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --table-header-bg: #dce0e8;
+
+    /* UI element colors */
+    --gutter-color: #8c8fa1;
+    --tab-inactive-color: #8c8fa1;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(234, 118, 203, 0.1);
+    --text-secondary: #8c8fa1;
+
+    /* Markdown Premium Styles */
+    --code-color: #ea76cb;
+    --code-bg: rgba(234, 118, 203, 0.1);
+    --code-border: rgba(234, 118, 203, 0.25);
+    --blockquote-bg: rgba(234, 118, 203, 0.08);
+
+    /* Selection Colors (Latte mode) */
+    --selection-bg: #ea76cb40;
+    --selection-color: #000000;
+
+    /* Git Status Colors */
+    --git-modified-color: #b07d2b;
+    --git-staged-color: #2ea043;
+    --git-untracked-color: #2ea043;
+}
+
+/* Solarized Dark Theme (Enhanced contrast) */
+body.theme-solarized-dark {
+    --bg-color: #002b36;
+    --sidebar-bg: #073642;
+    --header-bg: #073642;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-color: #b0bec5;
+    /* Brighter than base1 for clear readability */
+    --primary-color: #268bd2;
+    --active-tab-bg: #002b36;
+    --active-tab-border: #268bd2;
+    --hover-color: #073642;
+    --bg-color-secondary: #073642;
+    --bg-active: #0a4050;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+    /* Syntax Highlighting (Solarized - Boosted) */
+    --hl-keyword: #a0c400;
+    /* Bright green */
+    --hl-control-flow: #e8601f;
+    /* Bright orange */
+    --hl-built-in: #36d4c8;
+    /* Bright cyan */
+    --hl-literal: #5eaff2;
+    /* Bright blue */
+    --hl-string: #36d4c8;
+    /* Bright cyan */
+    --hl-comment: #6d8a90;
+    /* Visible gray-blue */
+    --hl-function: #ddb62b;
+    /* Bright yellow */
+    --hl-variable: #c0cccc;
+    /* Bright off-white */
+    --hl-number: #e04a94;
+    /* Bright magenta */
+    --hl-operator: #b0bec5;
+    --table-header-bg: #073642;
+
+    /* UI element colors */
+    --gutter-color: #6d8a90;
+    --tab-inactive-color: #6d8a90;
+    --tree-item-color: #b0bec5;
+    --tree-item-active-bg: rgba(38, 139, 210, 0.15);
+    --text-secondary: #6d8a90;
+
+    /* Markdown Premium Styles */
+    --code-color: #2aa198;
+    --code-bg: rgba(42, 161, 152, 0.1);
+    --code-border: rgba(42, 161, 152, 0.25);
+    --blockquote-bg: rgba(38, 139, 210, 0.08);
+
+    /* Selection Colors (Solarized Dark mode) */
+    --selection-bg: #274642;
+    --selection-color: #ffffff;
+    --cm-selection-bg: rgba(88, 166, 255, 0.26);
+
+    /* Git Status Colors */
+    --git-modified-color: #e2c08d;
+    --git-staged-color: #81b88b;
+    --git-untracked-color: #73c991;
+}
+
+/* Solarized Light Theme */
+body.theme-solarized-light {
+    --bg-color: #fdf6e3;
+    --sidebar-bg: #eee8d5;
+    --header-bg: #eee8d5;
+    --border-color: rgba(0, 0, 0, 0.09);
+    --text-color: #657b83;
+    --primary-color: #268bd2;
+    --active-tab-bg: #fdf6e3;
+    --active-tab-border: #268bd2;
+    --hover-color: #eee8d5;
+    --bg-color-secondary: #eee8d5;
+    --bg-active: #ddd6c1;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+    /* Syntax Highlighting (Solarized Light) */
+    --hl-keyword: #859900;
+    --hl-control-flow: #cb4b16;
+    --hl-built-in: #2aa198;
+    --hl-literal: #268bd2;
+    --hl-string: #2aa198;
+    --hl-comment: #93a1a1;
+    --hl-function: #b58900;
+    --hl-variable: #586e75;
+    --hl-number: #d33682;
+    --hl-operator: #657b83;
+    --table-header-bg: #eee8d5;
+
+    /* UI element colors */
+    --gutter-color: #93a1a1;
+    --tab-inactive-color: #93a1a1;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(38, 139, 210, 0.1);
+    --text-secondary: #93a1a1;
+
+    /* Markdown Premium Styles */
+    --code-color: #cb4b16;
+    --code-bg: rgba(203, 75, 22, 0.08);
+    --code-border: rgba(203, 75, 22, 0.2);
+    --blockquote-bg: rgba(38, 139, 210, 0.05);
+
+    /* Selection Colors (Solarized Light mode) */
+    --selection-bg: #eee8d5;
+    --selection-color: #000000;
+
+    /* Git Status Colors */
+    --git-modified-color: #b58900; /* Solarized yellow */
+    --git-staged-color: #859900; /* Solarized green */
+    --git-untracked-color: #859900;
+}
+
+/* --- Dark Mode UI Elements (Buttons, Inputs, Checkboxes) --- */
+body.theme-dark button,
+body.theme-midnight button,
+body.theme-solarized-dark button,
+body.theme-dark select,
+body.theme-midnight select,
+body.theme-solarized-dark select,
+body.theme-dark input[type="text"],
+body.theme-midnight input[type="text"],
+body.theme-solarized-dark input[type="text"],
+body.theme-dark input[type="password"],
+body.theme-midnight input[type="password"],
+body.theme-solarized-dark input[type="password"] {
+    background-color: #3c3c3c;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    color-scheme: dark;
+}
+
+body.theme-solarized-dark button,
+body.theme-solarized-dark select,
+body.theme-solarized-dark input[type="text"],
+body.theme-solarized-dark input[type="password"] {
+    background-color: #073642;
+    color: #93a1a1;
+    border: 1px solid #0a4050;
+}
+
+body.theme-dark button:hover,
+body.theme-midnight button:hover,
+body.theme-solarized-dark button:hover {
+    background-color: #4a4a4a;
+}
+
+body.theme-solarized-dark button:hover {
+    background-color: #0a4050;
+}
+
+body.theme-dark input[type="checkbox"],
+body.theme-midnight input[type="checkbox"],
+body.theme-solarized-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+
+/* Fix Explorer Search Contrast */
+body.theme-dark #explorer-search,
+body.theme-midnight #explorer-search {
+    background-color: #3c3c3c;
+    color: #ffffff;
+    border: 1px solid #555;
+}
+
+body.theme-solarized-dark #explorer-search {
+    background-color: #073642;
+    color: #93a1a1;
+    border: 1px solid #0a4050;
+}
+
+body.theme-dark #explorer-search::placeholder,
+body.theme-midnight #explorer-search::placeholder,
+body.theme-solarized-dark #explorer-search::placeholder {
+    color: #aaa;
+}
+
+/* UI Refinement: Header Margins */
+/* Add spacing between headers and content */
+.pane-header,
+#explorer-search-container {
+    margin-bottom: 8px;
+    /* Breathing room */
+}
+
+/* Specific to Explorer Search Container as it acts as header now */
+#explorer-search-container {
+    padding-bottom: 8px;
+    /* internal padding */
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Settings Modal Specifics to fix "Hard to read text" */
+.form-group label {
+    margin-bottom: 5px;
+    display: block;
+    font-weight: 500;
+}
+
+body.theme-dark .modal-content input,
+body.theme-midnight .modal-content input,
+body.theme-dark .modal-content select,
+body.theme-midnight .modal-content select {
+    color: #fff !important;
+    /* Force white text in modals for dark themes */
+}
+
+.settings-option label {
+    color: var(--text-color);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Ensure modal content uses theme colors */
+.settings-modal-content,
+.modal-content {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+/* Fix for Select dropdown options in dark mode (browser dependent but helpful) */
+body.theme-dark option,
+body.theme-midnight option {
+    background-color: #3c3c3c;
+    color: #e0e0e0;
+}
+
+/* ============================================================================
+   ✒️ Paper theme — handwritten memo on aged paper.
+   Ported from the Task app (JHProjectManager). Task uses [data-theme="paper"]
+   with its own variable names; here it's re-expressed as `body.theme-paper`
+   over JHEditor's variables. Code surfaces intentionally stay monospace — only
+   the surrounding UI chrome adopts the handwriting font.
+   ========================================================================== */
+body.theme-paper {
+    /* Aged-paper palette */
+    --bg-color: #f3e9d0;          /* the sheet you write on (editor) */
+    --sidebar-bg: #e7dab9;        /* the desk */
+    --header-bg: #e7dab9;
+    --border-color: #cbb98d;
+    --text-color: #243049;        /* ink */
+    --primary-color: #b23a48;     /* red pen */
+    --active-tab-bg: #f3e9d0;
+    --active-tab-border: #b23a48;
+    --hover-color: #ecdfbf;
+    --bg-color-secondary: #ede0c2;
+    --bg-active: #ecdfbf;
+    --shadow-sm: 0 1px 2px rgba(90, 65, 25, 0.12);
+    --radius: 6px;
+    --table-header-bg: #ecdfbf;
+
+    /* Syntax highlighting — ink on paper */
+    --hl-keyword: #a0304f;        /* crimson ink */
+    --hl-control-flow: #8a3ca0;   /* purple ink */
+    --hl-built-in: #2f6f6a;       /* teal ink */
+    --hl-literal: #a0304f;
+    --hl-string: #5f7d4f;         /* green ink */
+    --hl-comment: #9a8f77;        /* pencil */
+    --hl-function: #b5761f;       /* brown ink */
+    --hl-variable: #35507a;       /* blue ink */
+    --hl-number: #6b8fbf;
+    --hl-operator: #6d6350;
+
+    /* UI element colors */
+    --gutter-color: #a5946b;
+    --tab-inactive-color: #8a7c5f;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(178, 58, 72, 0.10);
+    --text-secondary: #6d6350;    /* pencil */
+
+    /* Markdown Premium Styles */
+    --code-color: #93313c;
+    --code-bg: rgba(178, 58, 72, 0.08);
+    --code-border: rgba(178, 58, 72, 0.20);
+    --blockquote-bg: rgba(120, 90, 40, 0.06);
+
+    /* Selection */
+    --selection-bg: rgba(178, 58, 72, 0.22);
+    --selection-color: #243049;
+    --cm-selection-bg: rgba(178, 58, 72, 0.18);
+
+    /* Git Status Colors */
+    --git-modified-color: #c98a2e; /* amber ink */
+    --git-staged-color: #5f7d4f;   /* green ink */
+    --git-untracked-color: #5f7d4f;
+
+    /* Handwriting font (desk chrome only; code stays monospace below). */
+    --font-hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
+
+    /* Paper decoration toggles — the Subtle variant overrides only these. */
+    --paper-chrome-font: var(--font-hand);
+    --paper-rule-color: rgba(90, 120, 170, 0.16);
+    --paper-rule-size: 27px;
+    --paper-margin-color: rgba(178, 58, 72, 0.45);
+    --paper-vignette: rgba(120, 90, 40, 0.16);
+}
+
+/* ── Paper — Subtle: cleaner recycled paper, a textbook serif (Mincho) instead
+   of handwriting, ruled lines + red margin off. Shares all the decorative CSS
+   below via the --paper-* toggles (mirrors the Task app's design). ── */
+body.theme-paper-subtle {
+    --bg-color: #fbf7ec;          /* fresh recycled sheet (editor) */
+    --sidebar-bg: #f4efe3;        /* desk */
+    --header-bg: #efe8d7;
+    --border-color: #e2dac6;
+    --text-color: #33372e;
+    --primary-color: #a6685a;     /* muted terracotta */
+    --active-tab-bg: #fbf7ec;
+    --active-tab-border: #a6685a;
+    --hover-color: #f0ead9;
+    --bg-color-secondary: #efe8d7;
+    --bg-active: #f0ead9;
+    --shadow-sm: 0 1px 2px rgba(90, 65, 25, 0.10);
+    --radius: 6px;
+    --table-header-bg: #efe8d7;
+
+    /* Syntax highlighting — softer ink on clean paper */
+    --hl-keyword: #8f574a;
+    --hl-control-flow: #7d5aa0;
+    --hl-built-in: #3a726d;
+    --hl-literal: #8f574a;
+    --hl-string: #5f7d4f;
+    --hl-comment: #a49c88;
+    --hl-function: #b07d2b;
+    --hl-variable: #5f7593;
+    --hl-number: #7d92b0;
+    --hl-operator: #7a7566;
+
+    --gutter-color: #b6a988;
+    --tab-inactive-color: #a49c88;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(166, 104, 90, 0.10);
+    --text-secondary: #7a7566;
+
+    --code-color: #8f574a;
+    --code-bg: rgba(166, 104, 90, 0.08);
+    --code-border: rgba(166, 104, 90, 0.20);
+    --blockquote-bg: rgba(120, 90, 40, 0.05);
+
+    --selection-bg: rgba(166, 104, 90, 0.20);
+    --selection-color: #33372e;
+    --cm-selection-bg: rgba(166, 104, 90, 0.16);
+
+    --git-modified-color: #c08a3e;
+    --git-staged-color: #5f7d4f;
+    --git-untracked-color: #5f7d4f;
+
+    /* Textbook serif (Mincho); decorations toned down / off. */
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --paper-chrome-font: var(--font-textbook);
+    --paper-rule-color: transparent;   /* no ruled lines */
+    --paper-rule-size: 27px;
+    --paper-margin-color: transparent; /* no red margin */
+    --paper-vignette: rgba(120, 90, 40, 0.08);
+}
+
+/* ── Shared paper decorations (both Bold and Subtle, driven by --paper-* ── */
+
+/* The "desk": aged paper with a soft vignette behind everything. */
+body.theme-paper,
+body.theme-paper-subtle {
+    background:
+        radial-gradient(140% 120% at 20% -10%, rgba(255, 250, 235, 0.5), transparent 60%),
+        radial-gradient(160% 140% at 115% 120%, var(--paper-vignette), transparent 55%),
+        var(--sidebar-bg);
+}
+
+/* Themed chrome font (handwriting for Bold, Mincho serif for Subtle) on tabs,
+   tree, headers, buttons, modals… */
+body.theme-paper #explorer,
+body.theme-paper #tab-bar,
+body.theme-paper #status-bar,
+body.theme-paper .git-panel-v2,
+body.theme-paper .explorer-tab,
+body.theme-paper .modal-content,
+body.theme-paper .settings-modal-content,
+body.theme-paper button,
+body.theme-paper-subtle #explorer,
+body.theme-paper-subtle #tab-bar,
+body.theme-paper-subtle #status-bar,
+body.theme-paper-subtle .git-panel-v2,
+body.theme-paper-subtle .explorer-tab,
+body.theme-paper-subtle .modal-content,
+body.theme-paper-subtle .settings-modal-content,
+body.theme-paper-subtle button {
+    font-family: var(--paper-chrome-font);
+    letter-spacing: 0.2px;
+}
+
+/* …but keep code, inputs and numeric fields monospace/sans for legibility. */
+body.theme-paper .cm-editor,
+body.theme-paper .cm-content,
+body.theme-paper .stf__page,
+body.theme-paper textarea,
+body.theme-paper input,
+body.theme-paper select,
+body.theme-paper .block-cm,
+body.theme-paper .md-block pre,
+body.theme-paper .md-body pre,
+body.theme-paper code,
+body.theme-paper-subtle .cm-editor,
+body.theme-paper-subtle .cm-content,
+body.theme-paper-subtle .stf__page,
+body.theme-paper-subtle textarea,
+body.theme-paper-subtle input,
+body.theme-paper-subtle select,
+body.theme-paper-subtle .block-cm,
+body.theme-paper-subtle .md-block pre,
+body.theme-paper-subtle .md-body pre,
+body.theme-paper-subtle code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+/* Ruled notebook lines behind rendered Markdown (transparent for Subtle). */
+body.theme-paper .md-body,
+body.theme-paper .stf__page.md-body,
+body.theme-paper-subtle .md-body,
+body.theme-paper-subtle .stf__page.md-body {
+    background-image:
+        repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));
+    background-attachment: local;
+}
+
+/* Notebook margin down the explorer's right edge (transparent for Subtle). */
+body.theme-paper #explorer,
+body.theme-paper-subtle #explorer {
+    border-right: 2px solid var(--paper-margin-color);
+}
+
+/* Warm paper shadow on floating surfaces. */
+body.theme-paper .modal-content,
+body.theme-paper .settings-modal-content,
+body.theme-paper .git-commit-detail-panel,
+body.theme-paper .search-modal,
+body.theme-paper-subtle .modal-content,
+body.theme-paper-subtle .settings-modal-content,
+body.theme-paper-subtle .git-commit-detail-panel,
+body.theme-paper-subtle .search-modal {
+    box-shadow: 0 3px 12px rgba(90, 65, 25, 0.2);
+}
+
+/* Dropdown options readable on paper. */
+body.theme-paper option { background-color: #f3e9d0; color: #243049; }
+body.theme-paper-subtle option { background-color: #fbf7ec; color: #33372e; }
