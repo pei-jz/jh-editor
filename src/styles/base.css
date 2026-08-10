@@ -1,0 +1,136 @@
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-main, system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Helvetica Neue", sans-serif);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+    font-size: 10pt;
+    text-rendering: optimizeLegibility;
+}
+
+/* Scrollbars are defined once, further down (“Scrollbar Styling”). */
+
+/* Force default arrow on scrollbars, preventing text selection beam */
+::-webkit-scrollbar,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-thumb {
+    cursor: default !important;
+}
+
+#app {
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+/* --- Compact Mode --- */
+body.display-mode-compact {
+    font-size: 13px;
+}
+
+body.display-mode-compact .md-block {
+    padding: 2px 6px;
+    margin-bottom: 2px;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+body.display-mode-compact .md-block h1,
+body.display-mode-compact .md-block h2,
+body.display-mode-compact .md-block h3 {
+    margin: 0.2em 0;
+}
+
+body.display-mode-compact table th,
+body.display-mode-compact table td {
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+/* Ensure Close Preview is clickable */
+.close-preview {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 5px;
+    z-index: 20;
+    position: relative;
+    color: #fff;
+}
+
+.close-preview:hover {
+    color: #ffaaaa;
+}
+
+body.display-mode-compact table td {
+    padding: 4px 8px;
+}
+
+body.display-mode-compact p {
+    margin: 0.3em 0;
+}
+
+/* --- Scrollbar Styling (flat, overlay-style) ---------------------------------
+   The track keeps its width so nothing reflows, but the thumb is fully
+   transparent until you hover the scrollable area or actively scroll it
+   (`.is-scrolling` is toggled from JS). Flat = no radius, no border ring. */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Hidden by default. */
+::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 0;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    transition: background-color 0.18s ease;
+}
+
+/* Revealed on hover over the scrollable element, while scrolling, and while
+   dragging the thumb itself. */
+:hover::-webkit-scrollbar-thumb,
+.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.28));
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-hover, rgba(0, 0, 0, 0.45));
+}
+
+/* Firefox: thin overlay-ish bar (no per-state control available). */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.28)) transparent;
+}
+
+/* Per-theme thumb colours (flat, no borders). */
+:root {
+    --scrollbar-thumb: rgba(0, 0, 0, 0.26);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.42);
+}
+
+body.theme-dark,
+body.theme-midnight,
+body.theme-solarized-dark {
+    --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+}
+
+body.theme-paper,
+body.theme-paper-subtle {
+    --scrollbar-thumb: rgba(120, 90, 40, 0.30);
+    --scrollbar-thumb-hover: rgba(120, 90, 40, 0.50);
+}

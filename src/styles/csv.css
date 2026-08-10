@@ -1,0 +1,343 @@
+/* Remove redundant Visual Table Editor definitions below, as they are now consolidated above */
+
+/* Toggle Mode Button (Flat, text-like, bottom aligned) */
+.toggle-mode-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #6c757d;
+    /* Muted text color */
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+    margin-top: 10px;
+    /* Space from table */
+    width: 100%;
+    /* Full width or auto? User said bottom, imply block? Let's treat as action button */
+    justify-content: center;
+}
+
+.toggle-mode-btn:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.toggle-mode-btn .shortcut-hint {
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-left: 5px;
+}
+
+.visual-table-editor th,
+.visual-table-editor td {
+    border: 1px solid var(--border-color);
+    padding: 0;
+}
+
+.visual-table-editor input {
+    width: 100%;
+    border: none;
+    padding: 8px;
+    background: transparent;
+    color: var(--text-color);
+    outline: none;
+    font-family: inherit;
+}
+
+.visual-table-editor input:focus {
+    background: var(--bg-color-secondary);
+}
+
+.th-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 4px;
+}
+
+.visual-table-editor th .th-wrapper input {
+    font-weight: bold;
+}
+
+.table-control-btn {
+    border: none;
+    background: var(--bg-color-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.table-control-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.delete-col,
+.delete-row {
+    color: #ef476f;
+}
+
+.delete-col:hover,
+.delete-row:hover {
+    background: #ef476f;
+    color: white;
+}
+
+.add-col,
+.add-row {
+    background: var(--secondary-color);
+    color: white;
+    width: auto;
+    padding: 0 10px;
+}
+
+/* CSV Editor */
+.csv-editor-container {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    margin: 0;
+    padding: 0;
+}
+
+#editor-content.csv-mode {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.csv-editor-wrapper {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+}
+
+.csv-row-strip {
+    background-color: var(--bg-active);
+    z-index: 50;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.csv-corner {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-active);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.csv-corner:hover {
+    background-color: var(--hover-color);
+}
+
+.csv-grid-virtual-container {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    background-color: var(--bg-color);
+}
+
+.virtual-spacer {
+    pointer-events: none;
+}
+
+.csv-grid {
+    border-collapse: collapse;
+    border-spacing: 0;
+    table-layout: fixed;
+    background-color: var(--bg-color);
+    /* width is set explicitly in JS now */
+    margin: 0;
+    padding: 0;
+    font-family: var(--editor-font-family);
+    font-size: 12px;
+    user-select: none;
+}
+
+.csv-grid th,
+.csv-grid td {
+    box-sizing: border-box !important;
+    border: 1px solid var(--border-color);
+    padding: 0 4px !important;
+    max-width: 0;
+    /* Force to respect colgroup rules and enable proper ellipsis */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: none;
+    font-size: 12px;
+    height: 28px !important;
+    line-height: 26px !important;
+    vertical-align: middle;
+    background-color: var(--bg-color); /* Ensure td has bg so it doesn't show spacer */
+}
+
+.csv-grid th {
+    background-color: var(--table-header-bg);
+    color: var(--text-color);
+    font-weight: 600;
+    z-index: 10;
+    text-align: left;
+}
+
+body.theme-dark .csv-grid th,
+body.theme-midnight .csv-grid th {
+    background-color: var(--bg-color-secondary);
+}
+
+.row-header {
+    background-color: var(--bg-active) !important;
+    color: var(--text-color);
+    font-weight: bold;
+    text-align: center;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+    position: relative;
+    cursor: default;
+}
+
+.row-indices-table {
+    border-right: none !important;
+}
+
+.csv-header-fixed {
+    z-index: 40;
+}
+
+.row-resizer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    cursor: row-resize;
+    z-index: 100;
+}
+
+.row-resizer:hover {
+    background: rgba(0, 120, 215, 0.2);
+}
+
+.col-header {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+.col-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 100;
+    background: transparent;
+}
+
+.col-resizer:hover {
+    background: rgba(0, 0, 255, 0.2);
+}
+
+.selected-cell {
+    background-color: rgba(13, 110, 253, 0.2) !important;
+    outline: 3px solid rgba(13, 110, 253, 0.6);
+    outline-offset: -1px;
+    border: none !important;
+}
+
+/* The active cell: where typing / F2 / row-col ops act. Kept visible inside a
+   range selection (e.g. after Shift+Space) the way a spreadsheet does. */
+.active-cell {
+    outline: 3px solid var(--primary-color) !important;
+    outline-offset: -1px;
+    position: relative;
+    z-index: 1;
+}
+.selected-cell.active-cell {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+.selected-header {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+.csv-grid td:focus {
+    border: 2px solid var(--primary-color);
+    background-color: var(--hover-color);
+}
+
+.csv-grid td[contenteditable="true"] {
+    user-select: text;
+    cursor: text;
+}
+
+/* --- Refactored JS Inline Styles --- */
+.csv-text-editor-fallback {
+    position: absolute;
+    display: none;
+    resize: none;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    font-family: monospace;
+    padding: 10px;
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+    z-index: 1005;
+    white-space: pre;
+    overflow: auto;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.csv-jump-display {
+    position: fixed;
+    bottom: 10px;
+    right: 20px;
+    background-color: rgba(0,0,0,0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: monospace;
+    display: none;
+    z-index: 100002;
+}
+
+.csv-overlay-editor {
+    position: absolute;
+    display: none;
+    resize: none;
+    font-family: monospace;
+    padding: 6px;
+    box-sizing: border-box;
+    border: 2px solid var(--primary-color);
+    outline: none;
+    z-index: 1000;
+    white-space: pre;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}

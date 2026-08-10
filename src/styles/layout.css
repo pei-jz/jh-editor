@@ -1,0 +1,890 @@
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 15px;
+    cursor: pointer;
+    transition: background 0.1s;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.file-item:hover {
+    background-color: var(--hover-color);
+}
+
+.file-item.active {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--primary-color);
+    border-right: 3px solid var(--primary-color);
+}
+
+.file-children {
+    padding-left: 15px;
+}
+
+/* --- Resizers --- */
+.resizer {
+    width: 6px;
+    /* Overlay the pane boundary with negative margins so the drag strip adds no
+       visible gap. Stays invisible; only the col-resize cursor hints at it. */
+    margin: 0 -3px;
+    background-color: transparent;
+    cursor: col-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.resizer-horizontal {
+    height: 4px;
+    background-color: transparent;
+    cursor: row-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+/* Invisible by default (and on hover); show only a faint line while actively
+   dragging, so there's feedback but no distracting bar/gap otherwise. */
+.resizer.resizing,
+.resizer-horizontal.resizing {
+    background-color: var(--primary-color);
+    opacity: 0.5;
+}
+
+#horizontal-main {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* --- Center Pane: Editor --- */
+#editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
+#tab-bar {
+    display: flex;
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 5px 0 0; /* Flush-left: no gap before the first tab; room for buttons on the right */
+    height: 40px;
+    align-items: center;
+    flex-shrink: 0;
+    position: relative;
+}
+
+#tabs-container {
+    display: flex;
+    overflow-x: hidden; /* Changed from auto to hidden to hide native scrollbar */
+    overflow-y: hidden;
+    flex: 1;
+    scrollbar-width: none; /* Hide scrollbar in Firefox */
+    scroll-behavior: smooth; /* Smooth scrolling for methods like scrollBy */
+}
+
+#tabs-container::-webkit-scrollbar {
+    display: none; /* Hide scrollbar in Chrome/Safari */
+}
+
+.tab-nav-btn {
+    width: 24px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color);
+    font-size: 14px;
+    opacity: 0.6;
+    transition: all 0.2s;
+    user-select: none;
+    z-index: 10;
+}
+
+.tab-nav-btn:hover {
+    opacity: 1;
+    background-color: var(--hover-color);
+}
+
+.tab-nav-btn.hidden {
+    display: none;
+}
+
+.tab {
+    padding: 8px 16px;
+    cursor: pointer;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--tab-inactive-color);
+    /* Theme-adaptive inactive tab text */
+    transition: all 0.15s ease;
+    border-radius: var(--radius) var(--radius) 0 0;
+    flex-shrink: 0;
+    max-width: 200px;
+}
+
+.tab:hover {
+    background-color: var(--hover-color);
+}
+
+.tab.active {
+    background-color: var(--active-tab-bg);
+    color: var(--text-color);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.tab-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tab-close {
+    font-size: 12px;
+    padding: 2px;
+    border-radius: 50%;
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+.tab-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+#new-tab-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+#new-tab-btn:hover {
+    color: var(--primary-color);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Search Modal Overlay  (Google-bar style)
+   ═══════════════════════════════════════════════════════ */
+.search-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 2000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 14vh;
+    box-sizing: border-box;
+}
+
+.search-modal {
+    background: var(--header-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    width: 620px;
+    max-width: 92vw;
+    padding: 16px 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: searchModalIn 0.15s ease;
+}
+
+@keyframes searchModalIn {
+    from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)     scale(1);    }
+}
+
+/* Find input + close button row */
+.search-modal-find-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-modal-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-color-muted, #8e8e93);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.search-modal-close-btn:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+
+/* Options row (below find input) */
+.search-modal-opts-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 2px;
+    flex-wrap: wrap;
+}
+
+.search-opt-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.search-opt-hint {
+    font-size: 10px;
+    color: var(--text-color-muted, #8e8e93);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+.search-opt-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border-color);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+/* Replace row */
+.search-modal-replace-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: searchReplaceIn 0.15s ease;
+}
+
+.search-replace-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Generic flex row */
+.search-modal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-modal-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: var(--bg-color);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 12px;
+    gap: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    min-width: 0;
+}
+.search-modal-input-wrap:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.18);
+}
+
+#find-input,
+#replace-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-color);
+    font-size: 15px;
+    padding: 10px 0;
+    min-width: 0;
+    font-family: var(--editor-font-family, monospace);
+}
+
+.search-count-badge {
+    font-size: 11px;
+    color: var(--text-color-muted, #8e8e93);
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: right;
+}
+
+/* Option buttons row */
+.search-modal-opts {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.search-opt-btn {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 9px;
+    min-width: 32px;
+    text-align: center;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    line-height: 1;
+}
+.search-opt-btn:hover {
+    background: var(--hover-color);
+    border-color: var(--primary-color);
+}
+.search-opt-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+.search-replace-btn {
+    padding: 5px 12px;
+    font-size: 11px;
+}
+
+/* Replace row slide-in */
+.search-replace-row {
+    animation: searchReplaceIn 0.15s ease;
+}
+@keyframes searchReplaceIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* Hint bar */
+.search-modal-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-color-muted, #8e8e93);
+    padding-top: 4px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 2px;
+}
+.search-modal-hints kbd {
+    display: inline-block;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: inherit;
+    color: var(--text-color);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Search Status Bar  (bottom of editor, while searching)
+   ═══════════════════════════════════════════════════════ */
+.search-status-bar {
+    height: 30px;
+    background: var(--header-bg);
+    border-top: 1.5px solid var(--primary-color);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-color);
+    flex-shrink: 0;
+    animation: searchBarIn 0.15s ease;
+}
+@keyframes searchBarIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0);  }
+}
+
+.search-status-icon {
+    font-size: 12px;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.search-status-query {
+    font-family: var(--editor-font-family, monospace);
+    font-size: 12px;
+    color: var(--primary-color);
+    font-weight: 600;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.search-status-count {
+    font-size: 11px;
+    color: var(--text-color-muted, #8e8e93);
+    min-width: 52px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.search-status-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.1s, background 0.1s;
+    flex-shrink: 0;
+}
+.search-status-btn:hover {
+    opacity: 1;
+    background: var(--hover-color);
+}
+.search-status-clear {
+    color: var(--text-color-muted, #8e8e93);
+    font-size: 12px;
+}
+.search-status-spacer { flex: 1; }
+
+#toolbar {
+    height: 48px;
+    padding: 0 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+#toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#toolbar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 10px;
+    overflow: hidden;
+}
+
+#current-file {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#file-directory {
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#toolbar-actions button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 6px 10px;
+    margin-left: 0;
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    color: var(--text-color);
+    display: flex;
+    /* Ensure icon centers */
+    align-items: center;
+    justify-content: center;
+}
+
+#toolbar-actions button:hover {
+    background-color: var(--hover-color);
+}
+
+#editor-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    width: 100%;
+}
+/* --- Layout Fixes --- */
+#editor-container {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100%;
+}
+
+#toolbar {
+    width: 100%;
+    flex-shrink: 0;
+    min-height: 48px !important;
+    display: flex !important;
+    z-index: 10;
+    position: relative;
+    background-color: var(--header-bg);
+    /* Ensure background is opaque */
+    border-bottom: 1px solid var(--border-color);
+}
+
+#tab-bar {
+    width: 100%;
+    flex-shrink: 0;
+}
+
+#editor-content {
+    flex: 1;
+    width: 100%;
+    /* Default scroll for Markdown */
+    overflow-y: auto;
+}
+
+
+th {
+    background-color: var(--hover-color);
+}
+
+/* Plain Text Editor Mode */
+.plain-text-editor {
+    width: 100%;
+    height: 100%;
+    padding: 3px 3px 50px 3px;
+    /* Add huge padding at bottom to ensure clearance over horizontal scrollbar */
+    border: none;
+    resize: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-color);
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    cursor: text;
+}
+
+/* --- Status Bar --- */
+#status-bar {
+    height: 22px;
+    background-color: var(--header-bg);
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    flex-shrink: 0;
+    user-select: none;
+    z-index: 100;
+    border-top: 1px solid var(--border-color);
+}
+
+#status-bar .status-left,
+#status-bar .status-right {
+    display: flex;
+    align-items: center;
+}
+
+/* Whitespace-display toggle indicator (status bar) */
+#status-whitespace {
+    opacity: 0.45;
+    padding: 0 2px;
+    border-radius: 3px;
+    transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+#status-whitespace:hover {
+    opacity: 0.8;
+}
+
+#status-whitespace.active {
+    opacity: 1;
+    color: var(--primary-color, #4a9edd);
+    font-weight: bold;
+}
+
+/* --- Welcome Screen --- */
+#welcome-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.welcome-container {
+    text-align: center;
+    max-width: 600px;
+    width: 100%;
+    padding: 40px;
+}
+
+.welcome-container h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+.welcome-container .subtitle {
+    font-size: 1.2rem;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-bottom: 2rem;
+}
+
+.welcome-actions {
+    margin-bottom: 3rem;
+}
+
+.primary-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.primary-btn:hover {
+    filter: brightness(1.1);
+}
+
+.recent-workspaces {
+    text-align: left;
+    background: var(--bg-color-secondary);
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.recent-workspaces h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+#recent-workspaces-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recent-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    transition: background 0.1s;
+}
+
+.recent-item:hover {
+    background-color: var(--hover-color);
+    color: var(--primary-color);
+}
+
+.recent-item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recent-item-newwin {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: inherit;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: var(--radius);
+    transition: opacity 0.1s, background 0.1s;
+}
+
+.recent-item:hover .recent-item-newwin {
+    opacity: 0.6;
+}
+
+.recent-item-newwin:hover {
+    opacity: 1;
+    background-color: var(--active-color, var(--hover-color));
+}
+
+.no-recents {
+    color: var(--text-color);
+    opacity: 0.5;
+    font-style: italic;
+    opacity: 0.5;
+    font-style: italic;
+    padding: 5px;
+}
+
+
+
+/* Fix Layout Structure to avoid "崩れている" (Broken Layout) */
+/* We want #app to be a flex column with full height */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    /* Prevent body scroll */
+}
+
+/* Adjust Main Layout Height */
+/* It should take remaining space */
+#main-layout {
+    /* height: calc(100vh - 30px) !important; */
+    height: auto !important;
+    /* Let flex handle it */
+    flex: 1;
+    width: 100%;
+    display: flex;
+    overflow: hidden;
+    /* Prevent internal scroll leaks */
+    min-height: 0;
+}
+
+.split-pane {
+    min-height: 0;
+    height: 100%;
+}
+
+.tree-container {
+    min-height: 0;
+}
+
+/* ── Split editor ───────────────────────────────────────────────────────────
+   The secondary pane used to be styled purely by inline attributes in
+   index.html, which renderEditor() strips before mounting a view. Giving it the
+   same stylesheet rules as the primary pane keeps it laid out no matter what
+   the view does to the container. */
+
+#editor-container-right {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+#editor-content-right {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+}
+
+#tab-bar-right {
+    flex-shrink: 0;
+}
+
+/* Which pane has focus. Subtle on purpose — a full border would fight with the
+   view chrome that already lives at the top of every pane. */
+#editor-wrapper .editor-pane.active > #tab-bar,
+#editor-wrapper .editor-pane.active > #tab-bar-right {
+    box-shadow: inset 0 2px 0 0 var(--primary-color);
+}
+
+/* ── Tab drag & drop ─────────────────────────────────────────────────────── */
+
+.tab[draggable="true"] {
+    /* Without this the browser starts a text selection instead of a drag when
+       the pointer lands on the label. */
+    user-select: none;
+}
+
+.tab.tab-dragging {
+    opacity: 0.45;
+}
+
+/* Insertion caret. Drawn with a box-shadow so it costs no layout and cannot
+   shift the strip while the pointer moves across it. */
+.tab.tab-drop-before {
+    box-shadow: inset 2px 0 0 0 var(--primary-color);
+}
+
+.tab.tab-drop-after {
+    box-shadow: inset -2px 0 0 0 var(--primary-color);
+}
+
+#tabs-container.pane-drop-target,
+#tabs-container-right.pane-drop-target {
+    background-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+.pane-drop-target {
+    outline: 2px dashed var(--primary-color);
+    outline-offset: -4px;
+}
+
+/* Dropping here creates (or targets) the right-hand pane. */
+.pane-drop-split {
+    box-shadow: inset -6px 0 0 0 color-mix(in srgb, var(--primary-color) 60%, transparent);
+}
+
+/* While a tab is being dragged the pane bodies must be the drop targets. Their
+   contents — CodeMirror above all — install their own drag handling and would
+   otherwise swallow the drop (and try to insert the payload as text). */
+body.tab-drag-active #editor-content > *,
+body.tab-drag-active #editor-content-right > * {
+    pointer-events: none;
+}
