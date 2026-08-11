@@ -125,6 +125,88 @@ describe('MarkdownView block cursor anchoring', () => {
         expect(view.selectBlock).not.toHaveBeenCalledWith(0);
     });
 
+    describe('_renderVisibleBlocks first-paint fallback', () => {
+        it('renders blocks that overlap the container viewport (with margin)', () => {
+            view.container.innerHTML = '';
+            const blocks = ['# One', 'Two', 'Three', 'Four'];
+            view.blocksData = blocks;
+            // Emulate the render() DOM: one .md-block per block.
+            const divs = blocks.map((_, i) => {
+                const d = document.createElement('div');
+                d.className = 'md-block md-body';
+                d.dataset.index = String(i);
+                d.style.minHeight = '20px';
+                view.container.appendChild(d);
+                return d;
+            });
+            // Container at (0, 0, 400, 600). Blocks laid out top→bottom.
+            const sizes = [0, 20, 40, 60, 80, 100, 120, 140];
+            const fakeRects = new Map(divs.map((d, i) => [d, { top: i * 20, bottom: (i + 1) * 20 }]));
+            view.container.getBoundingClientRect = () => ({ top: 0, bottom: 600, left: 0, right: 400, width: 400, height: 600 });
+            divs.forEach((d) => {
+                d.getBoundingClientRect = () => {
+                    const r = fakeRects.get(d);
+                    return { ...r, left: 0, right: 400, width: 400, height: 20 };
+                };
+            });
+            // clientWidth/Height must be non-zero or the guard bails.
+            Object.defineProperty(view.container, 'clientWidth', { value: 400, configurable: true });
+            Object.defineProperty(view.container, 'clientHeight', { value: 600, configurable: true });
+
+            // Only the in-viewport blocks get rendered; far below the margin stay unrendered.
+            view._renderVisibleBlocks();
+            // In-viewport (0..600 + 300 margin = up to block ~45): blocks 0..14 visible.
+            // jsdom has no marked, so _renderBlockInternal falls back to textContent.
+            expect(divs[0].dataset.rendered).toBe('true');
+            expect(divs[1].dataset.rendered).toBe('true');
+        });
+
+        it('skips blocks already rendered and does not double-render', () => {
+            view.container.innerHTML = '';
+            const blocks = ['a', 'b'];
+            view.blocksData = blocks;
+            const divs = blocks.map((_, i) => {
+                const d = document.createElement('div');
+                d.className = 'md-block md-body';
+                d.dataset.index = String(i);
+                view.container.appendChild(d);
+                return d;
+            });
+            Object.defineProperty(view.container, 'clientWidth', { value: 400, configurable: true });
+            Object.defineProperty(view.container, 'clientHeight', { value: 600, configurable: true });
+            view.container.getBoundingClientRect = () => ({ top: 0, bottom: 600, left: 0, right: 400 });
+            divs.forEach((d, i) => {
+                d.getBoundingClientRect = () => ({ top: i * 20, bottom: (i + 1) * 20, left: 0, right: 400 });
+            });
+            divs[1].dataset.rendered = 'true';
+            divs[1].textContent = 'already-rendered';
+
+            view._renderVisibleBlocks();
+
+            expect(divs[0].dataset.rendered).toBe('true');
+            // The pre-rendered block was NOT overwritten.
+            expect(divs[1].textContent).toBe('already-rendered');
+        });
+
+        it('does nothing while the container is not laid out (zero size)', () => {
+            view.container.innerHTML = '';
+            view.blocksData = ['a'];
+            const div = document.createElement('div');
+            div.className = 'md-block md-body';
+            div.dataset.index = '0';
+            view.container.appendChild(div);
+            // Zero client sizes → guard returns before touching the block.
+            Object.defineProperty(view.container, 'clientWidth', { value: 0, configurable: true });
+            Object.defineProperty(view.container, 'clientHeight', { value: 0, configurable: true });
+            view.container.getBoundingClientRect = () => ({ top: 0, bottom: 600, left: 0, right: 400 });
+            div.getBoundingClientRect = () => ({ top: 0, bottom: 20, left: 0, right: 400 });
+
+            view._renderVisibleBlocks();
+
+            expect(div.dataset.rendered).toBeUndefined();
+        });
+    });
+
     describe('block-nav keys vs. modal overlays', () => {
         beforeEach(() => {
             // Scroll mode: the block-nav handler is installed by render().

@@ -271,6 +271,18 @@ export class MarkdownView extends BaseView {
         if (savedTop) {
             requestAnimationFrame(() => { if (this.container) this.container.scrollTop = savedTop; });
         }
+
+        // First-paint fallback: the IntersectionObserver above is the lazy
+        // path, but its INITIAL callback can be missed when render() runs
+        // synchronously inside a keydown handler (Ctrl+Shift+E view switch):
+        // the freshly created blocks haven't laid out yet, so they report
+        // isIntersecting=false and stay blank until the first pointer/key
+        // event re-triggers the observer. Force-render the blocks that are
+        // already on screen so the view is never empty on first paint.
+        setTimeout(() => {
+            if (State.markdownViewMode === 'book') return;
+            this._renderVisibleBlocks();
+        }, 0);
     }
 
     _splitIntoBlocks(content) {
@@ -363,6 +375,28 @@ export class MarkdownView extends BaseView {
                 console.error('Markdown block render error', e);
             }
         }
+    }
+
+    /**
+     * First-paint fallback for the lazy IntersectionObserver rendering (see
+     * render()). Renders every block whose bounds overlap the container's
+     * viewport (with the same 300px margin the observer uses). Blocks already
+     * rendered via the observer are skipped, so this is idempotent.
+     */
+    _renderVisibleBlocks() {
+        const container = this.container;
+        if (!container || !container.isConnected) return;
+        // Not laid out yet (hidden pane / tab mid-transition): leave it to the
+        // IntersectionObserver, which fires once the container gets a size.
+        if (container.clientWidth === 0 && container.clientHeight === 0) return;
+        const cRect = container.getBoundingClientRect();
+        container.querySelectorAll('.md-block').forEach((div) => {
+            if (div.dataset.rendered) return;
+            const r = div.getBoundingClientRect();
+            if (r.bottom >= cRect.top - 300 && r.top <= cRect.bottom + 300) {
+                this._renderBlockInternal(div);
+            }
+        });
     }
 
     enterEditMode(blockElement, originalText, blockIndex) {
