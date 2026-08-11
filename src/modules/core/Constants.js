@@ -83,7 +83,8 @@ export const EL = {
         panes: {
             general: document.getElementById('settings-general'),
             agent: document.getElementById('settings-agent'),
-            keybindings: document.getElementById('settings-keybindings')
+            keybindings: document.getElementById('settings-keybindings'),
+            templates: document.getElementById('settings-templates')
         },
         agent: {
             container: document.getElementById('agent-settings-container')

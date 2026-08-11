@@ -98,6 +98,32 @@ export class StructureEditor {
         this.container.appendChild(this.elements.root);
 
         this.bindEvents();
+        this.focus();
+    }
+
+    /**
+     * Give the tree keyboard focus so the arrow keys work right away.
+     *
+     * The keydown listener lives on `elements.root`, so it only ever fired once
+     * the user had clicked inside the tree. Opening the file from the explorer
+     * or by clicking its tab leaves focus on the explorer row / the tab strip /
+     * <body>, and every arrow key silently did nothing. Mirrors CsvEditor's
+     * initial focus, including its "don't steal focus from the explorer" guard
+     * so keyboard navigation there keeps working.
+     */
+    focus() {
+        setTimeout(() => {
+            const root = this.elements && this.elements.root;
+            if (!root || !root.isConnected) return;
+            const active = document.activeElement;
+            if (active && typeof active.closest === 'function') {
+                if (active.closest('#explorer') || active.closest('#file-explorer')
+                    || active.closest('.virtual-explorer-host')) return;
+                if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'
+                    || active.isContentEditable) return;
+            }
+            root.focus({ preventScroll: true });
+        }, 50);
     }
 
     destroy() {
@@ -116,6 +142,35 @@ export class StructureEditor {
         if (this.elements.viewport) {
             this.elements.viewport.addEventListener('scroll', () => this.render());
         }
+
+        // Safety net for the same problem focus() solves: focus can end up
+        // outside the tree at any time (closing a modal, the source pane
+        // re-rendering, a click on the tab strip), and the root-bound listener
+        // then never sees the key. Handle it at the window level and bow out
+        // whenever something else legitimately owns the arrows.
+        this._windowKeyHandler = (e) => {
+            const root = this.elements && this.elements.root;
+            if (!root || !root.isConnected || root.offsetParent === null) return;
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(e.key)) return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            // The explorer stamps the arrow keys it owns (VirtualExplorer
+            // .handleKeyDown); its virtual list detaches the focused row, so
+            // the target/activeElement checks below can't see it — the stamp can.
+            if (e.__explorerKeyDown) return;
+            const t = e.target;
+            // Inside the tree already → the root listener handles it.
+            if (t && typeof t.closest === 'function' && root.contains(t)) return;
+            const owners = '#explorer, #file-explorer, .virtual-explorer-host, .cm-editor, #search-panel, '
+                + '.tab-search-overlay, .ai-review-overlay, .settings-modal, .modal-overlay, .node-source-editor';
+            const claimed = (el) => !!(el && typeof el.closest === 'function' && el.closest(owners));
+            if (claimed(t) || claimed(document.activeElement)) return;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+
+            this.handleKeyDown(e);
+        };
+        window.addEventListener('keydown', this._windowKeyHandler, true);
     }
 
     unbindEvents() {
@@ -123,6 +178,10 @@ export class StructureEditor {
             this.elements.root.removeEventListener('click', this.handleClick);
             this.elements.root.removeEventListener('dblclick', this.handleDoubleClick);
             this.elements.root.removeEventListener('keydown', this.handleKeyDown);
+        }
+        if (this._windowKeyHandler) {
+            window.removeEventListener('keydown', this._windowKeyHandler, true);
+            this._windowKeyHandler = null;
         }
     }
 
@@ -545,6 +604,7 @@ export class StructureEditor {
             }
         }
         if (e.key === 'ArrowLeft') {
+            e.preventDefault();
             if (this.state.selectedNodeId) {
                 const node = this.findNodeInternal(this.model, this.state.selectedNodeId);
                 if (node && this.state.expandedNodes.has(node.id)) {
@@ -589,27 +649,51 @@ export class StructureEditor {
     }
 
     navigateSelection(direction) {
-        // Collect visible nodes in order
-        const visibleNodes = [];
-        const traverse = (n) => {
-            visibleNodes.push(n.id);
-            if (n.children && n.children.length > 0 && this.state.expandedNodes.has(n.id)) {
-                n.children.forEach(traverse);
-            }
-        };
-        traverse(this.model);
+        // Walk the list the user actually SEES. render() builds it via
+        // flattenVisibleNodes, which folds a node whose only child is text into
+        // a leaf — a raw model walk would step onto those hidden text nodes and
+        // the selection would appear to freeze for a keypress.
+        const visibleNodes = (Array.isArray(this.visibleNodes) && this.visibleNodes.length > 0)
+            ? this.visibleNodes.map((v) => v.node.id)
+            : [];
+        if (visibleNodes.length === 0) {
+            const traverse = (n) => {
+                visibleNodes.push(n.id);
+                if (n.children && n.children.length > 0 && this.state.expandedNodes.has(n.id)) {
+                    n.children.forEach(traverse);
+                }
+            };
+            traverse(this.model);
+        }
 
         const currentIndex = visibleNodes.indexOf(this.state.selectedNodeId);
-        const newIndex = currentIndex + direction;
+        // Nothing selected yet (currentIndex === -1): start at the top rather
+        // than jumping `direction` rows past it.
+        let newIndex = currentIndex < 0 ? 0 : currentIndex + direction;
+        // PageUp/PageDown near the ends should land on the first/last row
+        // instead of doing nothing.
+        if (currentIndex >= 0 && Math.abs(direction) > 1) {
+            newIndex = Math.max(0, Math.min(visibleNodes.length - 1, newIndex));
+        }
 
         if (newIndex >= 0 && newIndex < visibleNodes.length) {
             this.state.selectedNodeId = visibleNodes[newIndex];
+            // Keep the row on screen BEFORE re-rendering: the list is
+            // virtualized, so a row outside the scrolled range isn't in the DOM
+            // at all and scrollIntoView() on it silently did nothing — pressing
+            // ↓ past the bottom of the viewport looked like the keys had
+            // stopped working.
+            const vp = this.elements.viewport;
+            if (vp) {
+                const top = newIndex * this.rowHeight;
+                const bottom = top + this.rowHeight;
+                if (top < vp.scrollTop) {
+                    vp.scrollTop = top;
+                } else if (bottom > vp.scrollTop + vp.clientHeight) {
+                    vp.scrollTop = bottom - vp.clientHeight;
+                }
+            }
             this.render();
-            // Scroll into view
-            setTimeout(() => {
-                const el = this.elements.root.querySelector(`[data-id="${this.state.selectedNodeId}"]`);
-                if (el) el.scrollIntoView({ block: 'nearest' });
-            }, 0);
 
             // Trigger Selection Change with same logic
             if (this.onSelectionChange) {

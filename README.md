@@ -124,7 +124,7 @@ npm run tauri build
 ## 📁 Project Structure
 
 ```
-JHEditor/
+jh-editor/
 ├── src/                          # Frontend source
 │   ├── modules/
 │   │   ├── ai/                   # AI Agent, LLM Service, MCP, Panel

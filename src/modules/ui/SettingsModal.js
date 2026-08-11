@@ -4,6 +4,7 @@ import { EL } from '../core/Constants.js';
 import { State } from '../core/Store.js';
 import { Toast } from './Toast.js';
 import { terminalManager } from './TerminalManager.js';
+import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -207,6 +208,7 @@ export function initSettingsModal() {
                     // Only load if not already initialized to prevent wiping unsaved changes
                     if (target === 'agent' && !agent.container.innerHTML) loadAgentSettings();
                     if (target === 'keybindings' && !document.getElementById('shortcut-list-container').innerHTML) loadKeybindingSettings();
+                    if (target === 'templates') renderTemplateSettings();
                 }
             };
         });
@@ -517,6 +519,135 @@ export function initSettingsModal() {
         });
 
         container.appendChild(table);
+    };
+
+    // --- Markdown Templates ---
+    const renderTemplateSettings = () => {
+        const container = document.getElementById('md-template-settings-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="font-weight:bold; margin-bottom:8px; font-size:1.05em; color:var(--primary-color);">Markdown Templates</div>
+            <div class="settings-description" style="margin-bottom:14px; font-size:12px; opacity:0.8;">
+                Templates are offered when creating a new Markdown file (Ctrl+N → Markdown).
+                Every template except Blank can be deleted; deleted built-ins can be restored below.
+                Your own templates are stored in this browser/profile.
+            </div>
+            <div style="margin-bottom:16px;">
+                <button id="md-tpl-toggle-btn" class="primary-btn" style="padding:6px 18px;">+ Add Template</button>
+            </div>
+            <div id="md-tpl-form" style="display:none; margin-bottom:16px;">
+                <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Register a new template</div>
+                <div style="margin-bottom:10px;">
+                    <label for="md-tpl-name" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Name</label>
+                    <input type="text" id="md-tpl-name" maxlength="60" placeholder="e.g. Weekly Report" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label for="md-tpl-content" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Content</label>
+                    <textarea id="md-tpl-content" placeholder="# Title\n\n…" style="width:100%; max-width:520px; min-height:160px; font-family:var(--font-mono, monospace); font-size:12px; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px; resize:vertical; box-sizing:border-box;"></textarea>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="md-tpl-add-btn" class="primary-btn" style="padding:6px 18px;">Register</button>
+                    <button id="md-tpl-cancel-btn" class="primary-btn" style="padding:6px 18px; background:none; color:var(--text-color); border:1px solid var(--border-color);">Cancel</button>
+                </div>
+            </div>
+            <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Templates</div>
+            <div id="md-tpl-list" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;"></div>
+            <div id="md-tpl-hidden-wrap" style="display:none;">
+                <div style="font-weight:bold; margin-bottom:6px; font-size:0.9em; opacity:0.8;">Deleted built-in templates</div>
+                <div id="md-tpl-hidden-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+            </div>
+        `;
+
+        const listEl = container.querySelector('#md-tpl-list');
+        const renderList = () => {
+            const all = MarkdownTemplates.getAll();
+            listEl.innerHTML = '';
+            all.forEach(t => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-color-secondary, var(--bg-color));';
+                const firstLine = (t.content.split('\n').find(l => l.trim()) || '(blank)').slice(0, 60);
+                row.innerHTML = `
+                    <span style="font-weight:600; font-size:12px;">${t.name}</span>
+                    <span style="font-size:10px; opacity:0.6; border:1px solid currentColor; border-radius:3px; padding:0 5px;">${t.builtin ? 'built-in' : 'user'}</span>
+                    <span style="flex:1; font-size:11px; opacity:0.6; font-family:var(--font-mono, monospace); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${firstLine.replace(/</g, '&lt;')}</span>
+                `;
+                if (MarkdownTemplates.isDeletable(t.id)) {
+                    const del = document.createElement('button');
+                    del.textContent = 'Delete';
+                    del.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:#d9534f; border:1px solid #d9534f; border-radius:4px;';
+                    del.onclick = () => {
+                        MarkdownTemplates.remove(t.id);
+                        renderList();
+                        Toast.info(`Template "${t.name}" deleted.`);
+                    };
+                    row.appendChild(del);
+                }
+                listEl.appendChild(row);
+            });
+            renderHiddenList();
+        };
+
+        // Built-in templates the user deleted can be brought back here.
+        const hiddenWrap = container.querySelector('#md-tpl-hidden-wrap');
+        const hiddenListEl = container.querySelector('#md-tpl-hidden-list');
+        const renderHiddenList = () => {
+            const hidden = MarkdownTemplates.getHiddenBuiltinTemplates();
+            hiddenWrap.style.display = hidden.length ? '' : 'none';
+            hiddenListEl.innerHTML = '';
+            hidden.forEach(t => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:6px 10px; border:1px dashed var(--border-color); border-radius:6px; opacity:0.8;';
+                row.innerHTML = `
+                    <span style="font-weight:600; font-size:12px;">${t.name}</span>
+                    <span style="font-size:10px; opacity:0.6; border:1px solid currentColor; border-radius:3px; padding:0 5px;">built-in</span>
+                    <span style="flex:1;"></span>
+                `;
+                const restore = document.createElement('button');
+                restore.textContent = 'Restore';
+                restore.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:var(--primary-color); border:1px solid var(--primary-color); border-radius:4px;';
+                restore.onclick = () => {
+                    MarkdownTemplates.restoreBuiltin(t.id);
+                    renderList();
+                    Toast.success(`Template "${t.name}" restored.`);
+                };
+                row.appendChild(restore);
+                hiddenListEl.appendChild(row);
+            });
+        };
+        renderList();
+
+        const nameInput = container.querySelector('#md-tpl-name');
+        const contentInput = container.querySelector('#md-tpl-content');
+        const formWrap = container.querySelector('#md-tpl-form');
+        const toggleBtn = container.querySelector('#md-tpl-toggle-btn');
+
+        // The register form is collapsed by default; the "+ Add Template"
+        // button reveals it (and hides itself), Cancel collapses it again.
+        toggleBtn.onclick = () => {
+            formWrap.style.display = '';
+            toggleBtn.style.display = 'none';
+            nameInput.focus();
+        };
+        container.querySelector('#md-tpl-cancel-btn').onclick = () => {
+            nameInput.value = '';
+            contentInput.value = '';
+            formWrap.style.display = 'none';
+            toggleBtn.style.display = '';
+        };
+        container.querySelector('#md-tpl-add-btn').onclick = () => {
+            try {
+                const saved = MarkdownTemplates.add(nameInput.value, contentInput.value);
+                nameInput.value = '';
+                contentInput.value = '';
+                formWrap.style.display = 'none';
+                toggleBtn.style.display = '';
+                renderList();
+                Toast.success(`Template "${saved.name}" registered.`);
+            } catch (err) {
+                Toast.error(err.message || String(err));
+            }
+        };
     };
 
     const loadKeybindingSettings = () => {

@@ -1,5 +1,5 @@
 [package]
-name = "jh_Editor"
+name = "jh_editor"
 version = "0.1.0"
 description = "J.H Editor- A block-based Markdown editor"
 authors = ["J.H Editor Team"]

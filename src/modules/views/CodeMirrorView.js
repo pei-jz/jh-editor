@@ -615,8 +615,10 @@ export class CodeMirrorView {
             })
         ];
 
-        // Language Support
-        const langExt = this._getLanguageExtension(this.file?.path);
+        // Language Support — fall back to the file NAME for unsaved drafts
+        // (path is null for "Untitled.md"), otherwise they open without any
+        // syntax highlighting until first saved to disk.
+        const langExt = this._getLanguageExtension(this.file?.path || this.file?.name);
         if (langExt) extensions.push(langExt);
 
         // Restore the previous editor state (including undo/redo history and

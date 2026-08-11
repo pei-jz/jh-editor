@@ -1835,12 +1835,13 @@ export async function formatCurrentFile() {
 export async function createNewFileAction() {
     // Phase 3: Split Logic
     // "Global Ctrl+N / Tab + -> New Tab (Draft) -> Save (Ctrl+S) -> Prompt Path"
-    // Ask for the file type first (txt / md); the picker calls back with the ext.
-    NewFileModal.show((ext) => { createNewFileOfType(ext); });
+    // Ask for the file type first (txt / md); the picker calls back with the ext
+    // and, for Markdown, the content of the template chosen in the modal.
+    NewFileModal.show((ext, templateContent) => { createNewFileOfType(ext, templateContent); });
 }
 
 /** Create the in-memory draft tab for the chosen extension. */
-export async function createNewFileOfType(ext = 'txt') {
+export async function createNewFileOfType(ext = 'txt', initialContent = '') {
     // Generate a default "Untitled.txt", "Untitled-1.txt", etc.
     let count = 1;
     let filename = `Untitled.${ext}`;
@@ -1849,13 +1850,19 @@ export async function createNewFileOfType(ext = 'txt') {
         count++;
     }
 
+    const isMd = ext === 'md' || ext === 'markdown';
+
     // Create a new "file" object in memory without a path
     const file = {
         name: filename,
         path: null, // Indicates it's a new file not on disk
-        content: '',
+        content: initialContent || '',
         encoding: 'UTF-8',
         isDirty: true,
+        // New Markdown drafts open in the plain text view with markdown syntax
+        // highlighting (CodeMirrorView picks the language from file.name even
+        // though path is null). Ctrl+Shift+E flips to the Markdown block view.
+        ...(isMd ? { viewMode: 'text' } : {}),
         // history: ... initialized by view
     };
 
@@ -1977,7 +1984,10 @@ export async function saveCurrentFile() {
 // Markdown-specific block methods (delegated to currentView)
 export function focusEditor(options = {}) {
     const currentView = getCurrentView();
-    if (currentView instanceof MarkdownView || currentView instanceof CodeMirrorView) {
+    // Any view that knows how to take focus gets it (Ctrl+2). Restricting this
+    // to Markdown/CodeMirror left the structured views (JSON/XML tree, …)
+    // unreachable from the keyboard.
+    if (currentView && typeof currentView.focus === 'function') {
         currentView.focus();
         if (options.toStart) {
             if (currentView.textarea) {
