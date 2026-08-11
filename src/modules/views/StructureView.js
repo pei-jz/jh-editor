@@ -245,6 +245,14 @@ export class StructureView extends BaseView {
         })();
     }
 
+    /**
+     * Focus the tree (Ctrl+2 / focusEditor). Without this the view inherited
+     * BaseView's no-op focus() and the keyboard never reached the tree.
+     */
+    focus() {
+        if (this.editor && typeof this.editor.focus === 'function') this.editor.focus();
+    }
+
     renderRightPane(container) {
         if (!this.currentSelectedNode || !this.parser) return;
         

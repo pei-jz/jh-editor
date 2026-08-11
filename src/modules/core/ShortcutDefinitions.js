@@ -48,7 +48,13 @@ export const SHORTCUTS = {
         { key: ' ', ctrl: true, cmd: 'app:inline-ai', description: 'Inline AI Edit' },
         { key: 'd', ctrl: true, shift: true, cmd: 'app:diff', description: 'Compare with File' },
         { key: 'd', ctrl: true, alt: true, cmd: 'app:open-compare', description: 'Compare Text (empty diff)' },
-        { key: 'w', ctrl: true, alt: true, cmd: 'app:toggle-whitespace', description: 'Toggle Whitespace Markers' }
+        { key: 'w', ctrl: true, alt: true, cmd: 'app:toggle-whitespace', description: 'Toggle Whitespace Markers' },
+        // Cycle tabs from ANYWHERE (markdown block view, explorer, editor…).
+        // These used to live only in the EDITOR scope, so while a markdown
+        // block had focus (MARKDOWN_BLOCK scope) or the explorer was focused
+        // they silently did nothing. GLOBAL makes them always available.
+        { key: 'Tab', ctrl: true, cmd: 'editor:next-tab', description: 'Next Tab' },
+        { key: 'Tab', ctrl: true, shift: true, cmd: 'editor:prev-tab', description: 'Previous Tab' }
     ],
 
     EXPLORER: [
@@ -68,8 +74,6 @@ export const SHORTCUTS = {
     ],
 
     EDITOR: [
-        { key: 'Tab', ctrl: true, cmd: 'editor:next-tab', description: 'Next Tab' },
-        { key: 'Tab', ctrl: true, shift: true, cmd: 'editor:prev-tab', description: 'Previous Tab' },
         { key: 'F12', cmd: 'editor:go-to-definition', description: 'Go to Definition' },
         { key: 'F12', shift: true, cmd: 'editor:find-references', description: 'Find References' },
         { key: '\\', ctrl: true, cmd: 'editor:split-right', description: 'Split Editor Right' },

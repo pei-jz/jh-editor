@@ -2293,7 +2293,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jh_Editor"
+name = "jh_editor"
 version = "0.1.0"
 dependencies = [
  "calamine",

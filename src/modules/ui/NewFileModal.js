@@ -1,6 +1,11 @@
 // Ctrl+N: pick the type of the new file before creating it.
-// Flat, keyboard-first picker: ←/→ (or ↑/↓ and Tab) move, Enter confirms,
-// the number keys / the type's letter jump straight to it, Esc cancels.
+// Flat, keyboard-first picker: ←/→ move between the format cards, Enter
+// confirms, the number keys / the type's letter jump straight to it, Esc
+// cancels. For Markdown files a template list is shown as well (↑/↓ or Tab
+// walk it, Enter confirms the highlighted template), and new templates can
+// be registered straight from the modal.
+
+import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
 
 const TYPES = [
     {
@@ -54,12 +59,87 @@ function _injectStyles() {
         border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; line-height: 1.4;
     }
     #new-file-overlay .nf-foot { font-size: 11px; opacity: 0.55; }
+
+    /* Markdown template picker */
+    #new-file-overlay .nf-tpl { display: none; flex-direction: column; gap: 6px; }
+    #new-file-overlay .nf-tpl.visible { display: flex; }
+    #new-file-overlay .nf-tpl-label { font-size: 11px; font-weight: 600; opacity: 0.7; }
+    #new-file-overlay .nf-tpl-head { display: flex; align-items: center; gap: 6px; }
+    #new-file-overlay .nf-tpl-spacer { flex: 1; }
+    #new-file-overlay .nf-tpl-btn {
+        padding: 4px 10px; font-size: 11px; cursor: pointer; white-space: nowrap;
+        background: var(--bg-color); color: var(--text-color);
+        border: 1px solid var(--border-color); border-radius: 4px;
+    }
+    #new-file-overlay .nf-tpl-btn:hover { background: var(--hover-color); }
+    #new-file-overlay .nf-tpl-btn.nf-tpl-del { color: #d9534f; border-color: #d9534f; background: none; }
+    #new-file-overlay .nf-tpl-btn.nf-tpl-del:hover { background: color-mix(in srgb, #d9534f 12%, transparent); }
+    #new-file-overlay .nf-tpl-list {
+        display: flex; flex-direction: column; gap: 2px;
+        max-height: 180px; overflow-y: auto;
+        border: 1px solid var(--border-color); border-radius: 4px;
+        background: var(--bg-color-secondary, var(--bg-color));
+    }
+    #new-file-overlay .nf-tpl-item {
+        display: flex; align-items: center; gap: 8px; text-align: left;
+        padding: 5px 10px; font-size: 12px; cursor: pointer;
+        background: none; color: var(--text-color);
+        border: none; border-radius: 0;
+    }
+    #new-file-overlay .nf-tpl-item:hover { background: var(--hover-color); }
+    #new-file-overlay .nf-tpl-item.sel {
+        background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+        outline: 1px solid var(--primary-color); outline-offset: -1px;
+    }
+    #new-file-overlay .nf-tpl-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #new-file-overlay .nf-tpl-item-key {
+        font-size: 10px; opacity: 0.5; font-family: var(--font-mono, monospace);
+        border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; line-height: 1.4;
+    }
+    #new-file-overlay .nf-tpl-item-badge {
+        font-size: 9px; opacity: 0.6;
+        border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; line-height: 1.4;
+    }
+    #new-file-overlay .nf-tpl-preview {
+        max-height: 120px; overflow: auto; margin: 0;
+        padding: 8px 10px; font-size: 11px; font-family: var(--font-mono, monospace);
+        background: var(--bg-color-secondary, var(--bg-color));
+        border: 1px solid var(--border-color); border-radius: 4px;
+        white-space: pre-wrap; opacity: 0.85;
+    }
+    #new-file-overlay .nf-tpl-preview:empty { display: none; }
+
+    /* Register-template inline form (rendered above the template list so a
+       long list never pushes the "+ New" form out of view) */
+    #new-file-overlay .nf-reg { display: none; flex-direction: column; gap: 6px; }
+    #new-file-overlay .nf-reg.visible { display: flex; }
+    #new-file-overlay .nf-reg input[type="text"], #new-file-overlay .nf-reg textarea {
+        width: 100%; padding: 6px 8px; font-size: 12px; box-sizing: border-box;
+        background: var(--bg-color); color: var(--text-color);
+        border: 1px solid var(--border-color); border-radius: 4px;
+        font-family: var(--font-mono, monospace);
+    }
+    #new-file-overlay .nf-reg textarea { min-height: 90px; resize: vertical; }
+    #new-file-overlay .nf-reg-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    #new-file-overlay .nf-reg-actions button {
+        padding: 5px 12px; font-size: 11px; cursor: pointer;
+        background: var(--bg-color); color: var(--text-color);
+        border: 1px solid var(--border-color); border-radius: 4px;
+    }
+    #new-file-overlay .nf-reg-actions button.primary {
+        background: var(--primary-color); color: #fff; border-color: var(--primary-color);
+    }
+    #new-file-overlay .nf-reg-actions button:hover { filter: brightness(1.1); }
     `;
     document.head.appendChild(style);
 }
 
 export const NewFileModal = {
-    /** @param {(ext: string) => void} onPick */
+    /**
+     * @param {(ext: string, templateContent?: string) => void} onPick
+     *   Called with the chosen extension; for Markdown the selected template's
+     *   content is passed as the second argument ('' when blank/none).
+     */
     show(onPick) {
         _injectStyles();
         const existing = document.getElementById('new-file-overlay');
@@ -79,6 +159,125 @@ export const NewFileModal = {
         const grid = document.createElement('div');
         grid.className = 'nf-grid';
 
+        // ── Markdown template picker ──────────────────────────────────────
+        // The register form sits ABOVE the list: with many templates the list
+        // would otherwise push the "+ New" form out of view.
+        const tplWrap = document.createElement('div');
+        tplWrap.className = 'nf-tpl';
+        tplWrap.innerHTML = `
+            <div class="nf-reg">
+                <div class="nf-tpl-label">Register Template</div>
+                <input type="text" class="nf-reg-name" placeholder="Template name" maxlength="60">
+                <textarea class="nf-reg-content" placeholder="# Template content (Markdown)"></textarea>
+                <div class="nf-reg-actions">
+                    <button type="button" class="nf-reg-cancel">Cancel</button>
+                    <button type="button" class="primary nf-reg-save">Save Template</button>
+                </div>
+            </div>
+            <div class="nf-tpl-head">
+                <div class="nf-tpl-label">Template</div>
+                <span class="nf-tpl-spacer"></span>
+                <button type="button" class="nf-tpl-btn nf-tpl-del" title="Delete the selected template">Delete</button>
+                <button type="button" class="nf-tpl-btn nf-tpl-new" title="Register a new template">+ New</button>
+            </div>
+            <div class="nf-tpl-list" role="listbox"></div>
+            <pre class="nf-tpl-preview"></pre>
+        `;
+        const regWrap = tplWrap.querySelector('.nf-reg');
+        const regName = regWrap.querySelector('.nf-reg-name');
+        const regContent = regWrap.querySelector('.nf-reg-content');
+        const tplList = tplWrap.querySelector('.nf-tpl-list');
+        const tplPreview = tplWrap.querySelector('.nf-tpl-preview');
+        const tplDelBtn = tplWrap.querySelector('.nf-tpl-del');
+        const tplNewBtn = tplWrap.querySelector('.nf-tpl-new');
+
+        // Keyboard-selectable template list state.
+        let tplItems = [];
+        let tplIndex = 0;
+        const selectedTemplateId = () => (tplItems[tplIndex] ? tplItems[tplIndex].id : null);
+
+        const updateTemplateUI = () => {
+            const tpl = MarkdownTemplates.getById(selectedTemplateId());
+            tplPreview.textContent = tpl ? tpl.content : '';
+            // Everything except the Blank built-in can be deleted.
+            tplDelBtn.style.display = (tpl && MarkdownTemplates.isDeletable(tpl.id)) ? '' : 'none';
+        };
+
+        const setTplSel = (i, { scroll = true } = {}) => {
+            if (!tplItems.length) { tplIndex = 0; return; }
+            tplIndex = ((i % tplItems.length) + tplItems.length) % tplItems.length;
+            tplList.querySelectorAll('.nf-tpl-item').forEach((el, n) => {
+                el.classList.toggle('sel', n === tplIndex);
+            });
+            if (scroll) {
+                const selEl = tplList.querySelectorAll('.nf-tpl-item')[tplIndex];
+                // jsdom (and very old engines) lack scrollIntoView — guard it.
+                if (selEl && typeof selEl.scrollIntoView === 'function') {
+                    selEl.scrollIntoView({ block: 'nearest' });
+                }
+            }
+            updateTemplateUI();
+        };
+
+        const refreshTemplates = (selectId) => {
+            tplItems = MarkdownTemplates.getAll();
+            tplList.innerHTML = '';
+            tplItems.forEach((t, n) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'nf-tpl-item';
+                item.setAttribute('role', 'option');
+                item.innerHTML =
+                    `<span class="nf-tpl-item-key">${n + 1}</span>` +
+                    `<span class="nf-tpl-item-name"></span>` +
+                    `<span class="nf-tpl-item-badge">${t.builtin ? 'built-in' : 'user'}</span>`;
+                item.querySelector('.nf-tpl-item-name').textContent = t.name;
+                item.onclick = () => { setTplSel(n, { scroll: false }); pick(selected); };
+                item.onmouseenter = () => setTplSel(n, { scroll: false });
+                tplList.appendChild(item);
+            });
+            const target = (selectId && tplItems.some(t => t.id === selectId))
+                ? tplItems.findIndex(t => t.id === selectId)
+                : 0;
+            setTplSel(target, { scroll: false });
+        };
+
+        tplNewBtn.onclick = () => {
+            regWrap.classList.add('visible');
+            regName.value = '';
+            regContent.value = '';
+            regName.focus();
+        };
+        regWrap.querySelector('.nf-reg-cancel').onclick = () => {
+            regWrap.classList.remove('visible');
+        };
+        regWrap.querySelector('.nf-reg-save').onclick = () => {
+            try {
+                const saved = MarkdownTemplates.add(regName.value, regContent.value);
+                regWrap.classList.remove('visible');
+                refreshTemplates(saved.id);
+            } catch (err) {
+                if (window.showToast) window.showToast(err.message || String(err));
+                else alert(err.message || err);
+            }
+        };
+        tplDelBtn.onclick = () => {
+            const tpl = MarkdownTemplates.getById(selectedTemplateId());
+            if (!tpl || !MarkdownTemplates.isDeletable(tpl.id)) return;
+            MarkdownTemplates.remove(tpl.id);
+            refreshTemplates();
+        };
+        // Keep typing inside the form from triggering modal-level key jumps.
+        // The modal-level key handler runs on document in the CAPTURE phase, so
+        // it fires before a bubble-phase stopPropagation() on this form could
+        // ever run — intercept the keys in the capture phase here instead.
+        const stopFormKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); regWrap.classList.remove('visible'); return; }
+            e.stopPropagation();
+        };
+        regName.addEventListener('keydown', stopFormKey, true);
+        regContent.addEventListener('keydown', stopFormKey, true);
+
         let selected = 0;
         const cards = TYPES.map((t, i) => {
             const card = document.createElement('button');
@@ -97,16 +296,20 @@ export const NewFileModal = {
 
         const foot = document.createElement('div');
         foot.className = 'nf-foot';
-        foot.textContent = '← → select · Enter confirm · Esc cancel';
+        foot.textContent = '← → format · ↑ ↓ / Tab template · Enter confirm · Esc cancel';
 
-        box.append(head, grid, foot);
+        box.append(head, grid, tplWrap, foot);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
+
+        refreshTemplates();
 
         const setSel = (i) => {
             selected = (i + cards.length) % cards.length;
             cards.forEach((c, n) => c.classList.toggle('sel', n === selected));
             cards[selected].focus({ preventScroll: true });
+            // The template picker only applies to Markdown.
+            tplWrap.classList.toggle('visible', TYPES[selected].ext === 'md');
         };
 
         const close = () => {
@@ -117,22 +320,54 @@ export const NewFileModal = {
         const pick = (i) => {
             const type = TYPES[i];
             close();
-            if (type && typeof onPick === 'function') onPick(type.ext);
+            if (type && typeof onPick === 'function') {
+                if (type.ext === 'md') {
+                    const tpl = MarkdownTemplates.getById(selectedTemplateId());
+                    onPick(type.ext, tpl ? tpl.content : '');
+                } else {
+                    onPick(type.ext);
+                }
+            }
         };
 
         const onKey = (e) => {
+            // Typing inside the register form must not trigger the card
+            // key-jumps (e.g. "m" would pick Markdown). Only ignore keys
+            // whose target is a form field INSIDE this modal; a field of the
+            // editor behind the modal (e.g. CodeMirror's hidden textarea)
+            // must still be swallowed below so it never reacts while the
+            // modal is open.
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')
+                && overlay.contains(t)) {
+                return;
+            }
+            const tplVisible = tplWrap.classList.contains('visible');
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
             if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(selected); return; }
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
-                e.preventDefault(); e.stopPropagation(); setSel(selected + 1); return;
+            // ← / → always switch between the format cards.
+            if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setSel(selected + 1); return; }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); setSel(selected - 1); return; }
+            // ↑ / ↓ (and Tab) walk the template list when it is visible, so a
+            // template can be chosen without the mouse; otherwise they keep
+            // moving between the format cards.
+            if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+                e.preventDefault(); e.stopPropagation();
+                if (tplVisible) setTplSel(tplIndex + 1); else setSel(selected + 1);
+                return;
             }
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
-                e.preventDefault(); e.stopPropagation(); setSel(selected - 1); return;
+            if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+                e.preventDefault(); e.stopPropagation();
+                if (tplVisible) setTplSel(tplIndex - 1); else setSel(selected - 1);
+                return;
             }
             // Number / first-letter jump (1, 2 … or t / m).
             const k = e.key.toLowerCase();
             const idx = TYPES.findIndex(t => t.key === k || t.ext[0] === k);
-            if (idx >= 0) { e.preventDefault(); e.stopPropagation(); pick(idx); }
+            if (idx >= 0) { e.preventDefault(); e.stopPropagation(); pick(idx); return; }
+            // Any other key (F5, PageUp/Down, Home/End, …) must not leak
+            // through to the editor/tab behind this modal either — swallow it.
+            e.stopPropagation();
         };
 
         document.addEventListener('keydown', onKey, true);

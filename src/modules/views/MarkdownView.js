@@ -137,6 +137,10 @@ export class MarkdownView extends BaseView {
         const blocks = this._splitIntoBlocks(content);
         this.blocksData = blocks;
 
+        // Re-anchor the (global) block cursor on THIS document before anything
+        // reads it — see _syncSelectionToFile.
+        this._syncSelectionToFile(blocks.length);
+
         // Toggle View Mode Button — unified `.cm-view-toolbar` look (same as the
         // plain-text editor's toolbar) instead of the old absolute-positioned
         // `.md-view-mode-toggle` pills, which overlapped each other.
@@ -657,7 +661,10 @@ export class MarkdownView extends BaseView {
         };
 
         const cancelAndClose = async () => {
-            if (textarea.value !== originalText) {
+            // Warn whenever the edits would be lost — for the table editor the
+            // textarea alone does not reflect cell edits, so serialize it too.
+            const currentContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+            if (currentContent !== originalText) {
                 const choice = await confirmDiscardChange();
                 if (choice !== 'YES') return;
             }
@@ -1111,6 +1118,13 @@ export class MarkdownView extends BaseView {
     }
 
     focus() {
+        // Book mode: focusing must not turn a page. Falling back to block 0
+        // (the old behaviour when nothing was selected) flipped the book back
+        // to the very first page.
+        if (!this._isSelectionOnCurrentSpread()) {
+            this._selectFirstBlockOfPage(this.pageFlipInstance.getCurrentPageIndex());
+            return;
+        }
         let index = State.vimState.selectedIndex;
         if (index < 0) index = 0;
         this.selectBlock(index);
@@ -1123,7 +1137,60 @@ export class MarkdownView extends BaseView {
         this.render(content, this.file);
     }
 
+    /**
+     * The block cursor (State.vimState.selectedIndex) is GLOBAL — a single
+     * value shared by every tab. Opening another document therefore inherits
+     * whatever index the previous one was on, and the first ↑/↓ then moves
+     * relative to that FOREIGN block: in book mode selectBlock() flips the book
+     * to the page holding it (pressing ↓ on page 1 jumped to some other page),
+     * in scroll mode it scrolls somewhere unrelated. Clicking a block first
+     * hid the bug because the click re-anchored the cursor.
+     *
+     * So: when the file being rendered is not the one this view instance last
+     * rendered, restore that file's own cursor (_mdSelBlock, saved in
+     * destroy()) — or none at all — and clamp it to this document's blocks
+     * (+1 for the trailing "+ Add Block" phantom).
+     */
+    _syncSelectionToFile(blockCount) {
+        const path = this.file ? (this.file.path || this.file.name || '') : '';
+        if (this._selFilePath !== path) {
+            const saved = (this.file && typeof this.file._mdSelBlock === 'number')
+                ? this.file._mdSelBlock : -1;
+            State.vimState.selectedIndex = saved;
+            this._selFilePath = path;
+        }
+        const idx = State.vimState.selectedIndex;
+        if (typeof idx !== 'number' || isNaN(idx) || idx < 0 || idx > blockCount) {
+            State.vimState.selectedIndex = -1;
+        }
+    }
+
+    /**
+     * Is the block cursor sitting on the spread the book is currently showing?
+     * Returns true outside book mode (there are no pages to be off).
+     */
+    _isSelectionOnCurrentSpread() {
+        if (State.markdownViewMode !== 'book') return true;
+        if (!this.pageFlipInstance || !Array.isArray(this.pages)) return true;
+        const sel = State.vimState.selectedIndex;
+        if (sel < 0) return false;
+        const selPage = this.pages.findIndex((p) => p.some((b) => b && b.index === sel));
+        if (selPage < 0) return false;
+        const left = this.pageFlipInstance.getCurrentPageIndex();
+        return selPage === left
+            || (this.pageFlipInstance.getOrientation() === 'landscape' && selPage === left + 1);
+    }
+
     navigateBlock(direction) {
+        // Safety net for the same staleness _syncSelectionToFile guards against
+        // (a re-split after resize/edit can also strand the cursor on a page
+        // that is no longer showing): never move relative to a block the reader
+        // cannot see — that would flip the book away from the current page.
+        // Land on the visible page first; the next press moves from there.
+        if (!this._isSelectionOnCurrentSpread()) {
+            this._selectFirstBlockOfPage(this.pageFlipInstance.getCurrentPageIndex());
+            return;
+        }
         let current = State.vimState.selectedIndex;
         if (current === undefined || current === null) current = -1;
         this.selectBlock(current + direction);
@@ -1158,8 +1225,17 @@ export class MarkdownView extends BaseView {
             if (e.__explorerKeyDown) return;
             // Only while this view is the visible one.
             if (!this.container || !this.container.isConnected || this.container.offsetParent === null) return;
-            // Never steal keys from an editor / input / the block-edit modal.
-            if (document.querySelector('#md-block-edit-overlay, #mermaid-helper-overlay, #jh-lightbox')) return;
+            // Never steal keys from an editor / input / a modal that is open on
+            // top (the block-edit modal, the new-file picker, ...). When a
+            // modal is up, the keys belong to it — especially ↑/↓, which the
+            // new-file modal uses to walk the template list while the markdown
+            // view behind it would otherwise move the block selection.
+            // (.tab-search-overlay covers the goto-line / grep / file-search
+            // pickers too, which all reuse that class.)
+            if (document.querySelector('#md-block-edit-overlay, #mermaid-helper-overlay, #jh-lightbox, #new-file-overlay, .tab-search-overlay')) return;
+            // Same when focus itself sits inside one of those overlays.
+            if (document.activeElement && typeof document.activeElement.closest === 'function' &&
+                document.activeElement.closest('#md-block-edit-overlay, #mermaid-helper-overlay, #jh-lightbox, #new-file-overlay, .tab-search-overlay')) return;
             const t = e.target;
             // The explorer OWNS the arrow keys: its rows live in #file-list, a
             // descendant of #explorer. Judge by the EVENT TARGET, not by
@@ -1472,12 +1548,33 @@ export class MarkdownView extends BaseView {
 
         this.container.appendChild(layoutDiv);
 
-        // Initialize StPageFlip
+        // Initialize StPageFlip.
+        // startPage opens the book directly on the saved page (loadFromHTML
+        // calls show(startPage) synchronously), so the first paint is already
+        // the restored page — no visible "first page, then flip" jump.
+        //
+        // Prefer the page that actually holds the selected block (restored from
+        // _mdSelBlock by _syncSelectionToFile). The bare page number
+        // (_mdBookPage) can silently point at different content once the page
+        // split changes (resize / edit), which is what made a mid-book click
+        // appear to "jump to the next page". Fall back to the saved page
+        // number only when no block anchor was recorded.
+        let startPage = (typeof this.currentPageIndex === 'number'
+            && this.currentPageIndex >= 0
+            && this.currentPageIndex < this.pages.length)
+            ? this.currentPageIndex
+            : 0;
+        const anchorBlock = State.vimState.selectedIndex;
+        if (anchorBlock >= 0 && Array.isArray(this.pages)) {
+            const anchorPage = this.pages.findIndex((p) => p.some((b) => b && b.index === anchorBlock));
+            if (anchorPage >= 0) startPage = anchorPage;
+        }
         try {
             this.pageFlipInstance = new PageFlip(bookDiv, {
                 width: singlePageWidth,
                 height: singlePageHeight,
                 size: 'fixed',
+                startPage: startPage,
                 maxWidth: 3000,
                 minHeight: 100,
                 maxHeight: 3000,
@@ -1518,12 +1615,11 @@ export class MarkdownView extends BaseView {
                 layoutDiv.focus();
             }, true);
 
-            // Jump to saved page
-            if (this.currentPageIndex > 0 && this.currentPageIndex < this.pages.length) {
-                setTimeout(() => {
-                    try { this.pageFlipInstance.flip(this.currentPageIndex); } catch (e) { /* ignore */ }
-                }, 100);
-            }
+            // The saved page was already applied via startPage (above) before
+            // loadFromHTML, so no post-init flip is needed. Keep the field in
+            // sync with what the library actually shows (show() snaps an odd
+            // page number to its spread's left page).
+            this.currentPageIndex = this.pageFlipInstance.getCurrentPageIndex();
 
             // Sync page index on flip event
             this.pageFlipInstance.on('flip', (e) => {
@@ -1671,9 +1767,28 @@ export class MarkdownView extends BaseView {
         // to the page holding the target block).
         this._installBlockNavKeys();
 
-        // Focus the current page/block on render
+        // Put the cursor on the page that is actually showing. The block anchor
+        // (_syncSelectionToFile → this file's own _mdSelBlock) normally sits on
+        // the restored page, so it is simply re-highlighted. When it doesn't —
+        // no anchor recorded, or the page split moved it after a resize/edit —
+        // the cursor is parked on the first block of the visible page instead
+        // of being left pointing at a page the reader can't see: otherwise the
+        // next ↑/↓ would move relative to that invisible block and flip the
+        // book away from where the reader is. No flip ever happens here.
         setTimeout(() => {
-            this.focus();
+            if (!Array.isArray(this.pages) || !this.pageFlipInstance) return;
+            const anchor = State.vimState.selectedIndex;
+            const left = this.currentPageIndex || 0;
+            if (anchor >= 0) {
+                const selPage = this.pages.findIndex((p) => p.some((b) => b && b.index === anchor));
+                const orientation = this.pageFlipInstance.getOrientation();
+                const onSpread = selPage === left || (orientation === 'landscape' && selPage === left + 1);
+                if (onSpread) {
+                    this.selectBlock(anchor);
+                    return;
+                }
+            }
+            this._selectFirstBlockOfPage(left);
         }, 150);
     }
 
@@ -1792,7 +1907,19 @@ export class MarkdownView extends BaseView {
         // the same viewport (scroll mode) / page (book mode).
         if (this.file) {
             try {
+                // Remember the block cursor PER FILE. The live cursor is global
+                // (one value for all tabs), so without this the next document
+                // opened would inherit this one's index — see
+                // _syncSelectionToFile.
+                const sel = State.vimState.selectedIndex;
+                this.file._mdSelBlock = (typeof sel === 'number' && sel >= 0) ? sel : -1;
                 if (State.markdownViewMode === 'book') {
+                    // Anchor the saved page to the SELECTED BLOCK, not just the
+                    // current spread's left page. The page split (_splitIntoPages)
+                    // depends on the container height and content, so a bare page
+                    // number can point at different content after a re-render
+                    // (resize / edit). Remembering which block the user was on lets
+                    // _renderBookMode restore the page that actually holds it.
                     this.file._mdBookPage = this.currentPageIndex || 0;
                 } else if (this.container) {
                     this.file._mdScrollTop = this.container.scrollTop;
