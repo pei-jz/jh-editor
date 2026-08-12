@@ -479,7 +479,14 @@ export class CodeMirrorView {
             right.append(pvHead, this._htmlFrame);
             split.append(left, bar, right);
 
-            _makeSplitDrag(bar, left, split);
+            // Restore a previously dragged split width (per-file, this session)
+            // instead of rebuilding at the 50/50 default on every render.
+            if (this.file && this.file._htmlSplitPos != null) {
+                const max = split.getBoundingClientRect().width - 180;
+                left.style.flex = `0 0 ${Math.min(Math.max(180, this.file._htmlSplitPos), Math.max(180, max))}px`;
+            }
+
+            _makeSplitDrag(bar, left, split, this.file);
             host = left;
         } else {
             this._htmlFrame = null;
@@ -1786,15 +1793,22 @@ export class CodeMirrorView {
 /**
  * Drag `bar` to resize `left` within `container`. Sizes are applied as a flex
  * basis so the preview pane simply takes whatever is left over.
+ *
+ * Uses pointer capture: while dragging, every pointer event is retargeted to
+ * the bar, so moving the cursor over the preview <iframe> (which swallows
+ * plain mousemove/mouseup) keeps the drag alive and guarantees the release is
+ * seen. Without it the splitter stuck in "dragging" near the left edge and
+ * could not be dragged back right across the iframe.
  */
-function _makeSplitDrag(bar, left, container) {
-    bar.addEventListener('mousedown', (e) => {
+function _makeSplitDrag(bar, left, container, file) {
+    bar.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         e.preventDefault();
         let last = e.clientX;
         const prevSel = document.body.style.userSelect;
         document.body.style.userSelect = 'none';
         bar.classList.add('dragging');
+        bar.setPointerCapture(e.pointerId);
         const move = (ev) => {
             const w = left.getBoundingClientRect().width + (ev.clientX - last);
             last = ev.clientX;
@@ -1804,10 +1818,18 @@ function _makeSplitDrag(bar, left, container) {
         const up = () => {
             bar.classList.remove('dragging');
             document.body.style.userSelect = prevSel;
-            window.removeEventListener('mousemove', move);
-            window.removeEventListener('mouseup', up);
+            bar.removeEventListener('pointermove', move);
+            bar.removeEventListener('pointerup', up);
+            bar.removeEventListener('pointercancel', up);
+            if (bar.hasPointerCapture && bar.hasPointerCapture(e.pointerId)) {
+                bar.releasePointerCapture(e.pointerId);
+            }
+            // Persist the split width so a re-render (e.g. switching tabs and
+            // back) rebuilds the split where the user left it, not at 50/50.
+            if (file) file._htmlSplitPos = left.getBoundingClientRect().width;
         };
-        window.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', up);
+        bar.addEventListener('pointermove', move);
+        bar.addEventListener('pointerup', up);
+        bar.addEventListener('pointercancel', up);
     });
 }
