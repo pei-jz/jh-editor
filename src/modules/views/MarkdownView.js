@@ -964,13 +964,17 @@ export class MarkdownView extends BaseView {
         document.body.appendChild(overlay);
 
         // Splitter: resize the source pane, preview takes the remainder.
-        split.addEventListener('mousedown', (e) => {
+        // Pointer capture keeps the drag (and its release) targeted at the bar
+        // even when the cursor crosses the preview pane, so it can't get stuck
+        // "dragging" near an edge the way plain mousemove/mouseup listeners could.
+        split.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault();
             let last = e.clientX;
             const prevSel = document.body.style.userSelect;
             document.body.style.userSelect = 'none';
             split.classList.add('dragging');
+            split.setPointerCapture(e.pointerId);
             const move = (ev) => {
                 const w = left.getBoundingClientRect().width + (ev.clientX - last);
                 last = ev.clientX;
@@ -980,11 +984,16 @@ export class MarkdownView extends BaseView {
             const up = () => {
                 split.classList.remove('dragging');
                 document.body.style.userSelect = prevSel;
-                window.removeEventListener('mousemove', move);
-                window.removeEventListener('mouseup', up);
+                split.removeEventListener('pointermove', move);
+                split.removeEventListener('pointerup', up);
+                split.removeEventListener('pointercancel', up);
+                if (split.hasPointerCapture && split.hasPointerCapture(e.pointerId)) {
+                    split.releasePointerCapture(e.pointerId);
+                }
             };
-            window.addEventListener('mousemove', move);
-            window.addEventListener('mouseup', up);
+            split.addEventListener('pointermove', move);
+            split.addEventListener('pointerup', up);
+            split.addEventListener('pointercancel', up);
         });
 
         overlay.addEventListener('mousedown', (e) => {
