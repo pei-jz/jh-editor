@@ -89,21 +89,35 @@ export function toggleWhitespace() {
 }
 
 export function openDiffEditor(original, modified, filePath, onApply, onChange, onSave, diffOptions) {
-    const fileName = filePath ? filePath.split(/[\\/]/).pop() : 'temp';
+    // Normalize: null/undefined content (e.g. created-only files) would crash
+    // the DiffEditor (it calls .length on both strings).
+    original = original ?? '';
+    modified = modified ?? '';
+    const fileName = filePath ? String(filePath).split(/[\\/]/).pop() : 'temp';
     const virtualPath = `diff://${filePath || 'temp'}`;
     const opts = diffOptions || {};
 
     // "Apply & Save" button: apply the result and dismiss the diff tab.
+    // The diff lives in `pane` (possibly the right split pane), so the close
+    // must target that pane's own tab list — State.activeTabIndex belongs to
+    // the OTHER pane when the right pane is active.
     const makeApply = (fileRef) => (finalText) => {
         fileRef.isDirty = false;
         if (onApply) onApply(finalText);
-        closeTab(State.activeTabIndex);
+        const idx = openFiles.indexOf(fileRef);
+        if (idx >= 0) closeTab(idx, pane);
+        else closeTab(State.activeTabIndex, pane);
     };
 
+    // Open in the ACTIVE pane: the diff tab must be visible where the user is
+    // looking. `State.openFiles` (left) is the fallback when no split is active.
+    const pane = activePane();
+    const openFiles = paneFiles(pane);
+
     // Check if diff tab for this file already exists
-    const existingIndex = State.openFiles.findIndex(f => f.path === virtualPath);
+    const existingIndex = openFiles.findIndex(f => f.path === virtualPath);
     if (existingIndex >= 0) {
-        const ex = State.openFiles[existingIndex];
+        const ex = openFiles[existingIndex];
         ex.originalContent = original;
         ex.modifiedContent = modified;
         ex.isDirty = true;
@@ -111,12 +125,12 @@ export function openDiffEditor(original, modified, filePath, onApply, onChange, 
         ex.onSave = onSave;
         ex.onApply = makeApply(ex);
         if (diffOptions) ex.diffOptions = diffOptions;
-        setActiveTab(existingIndex);
+        setActiveTab(existingIndex, pane);
         return;
     }
 
     const file = {
-        name: opts.compareMode ? `Diff: ${fileName}` : `Diff: ${fileName}`,
+        name: `Diff: ${fileName}`,
         path: virtualPath,
         content: '',
         type: 'diff',
@@ -139,8 +153,8 @@ export function openDiffEditor(original, modified, filePath, onApply, onChange, 
     file.onApply = makeApply(file);
 
     // Add to open files and set active
-    State.openFiles.push(file);
-    setActiveTab(State.openFiles.length - 1);
+    openFiles.push(file);
+    setActiveTab(openFiles.length - 1, pane);
 }
 
 // Apply a merged diff result back to the file being edited: update the open

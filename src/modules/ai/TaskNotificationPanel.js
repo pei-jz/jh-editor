@@ -654,8 +654,8 @@ export class TaskNotificationPanel {
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 8px;">
                                     ${modifiedFiles.map((f, fIdx) => {
-                                        const filePath = typeof f === 'string' ? f : f.path;
-                                        const basename = filePath.split(/[\\/]/).pop();
+                                        const filePath = typeof f === 'string' ? f : (f.path || '');
+                                        const basename = filePath.split(/[\\/]/).pop() || '?';
                                         const hasRichContent = typeof f === 'object' && f.original !== undefined && f.current !== undefined;
                                         return `
                                             <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
@@ -665,7 +665,7 @@ export class TaskNotificationPanel {
                                                 </div>
                                                 <div style="display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px;">
                                                     <button class="tnp-btn-file-open" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">📂 Open</button>
-                                                    ${hasRichContent ? `
+                                                    ${filePath ? `
                                                         <button class="tnp-btn-file-diff" data-task-id="${task.id}" data-file-idx="${fIdx}" style="padding: 4px 10px; font-size: 11px; background: var(--primary-color); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 500;">🔍 Diff</button>
                                                     ` : ''}
                                                 </div>
@@ -797,7 +797,8 @@ export class TaskNotificationPanel {
                 const fileIdx = parseInt(btn.dataset.fileIdx, 10);
                 const task = this.tasks.find(t => t.id === taskId);
                 if (task && task.modifiedFiles && task.modifiedFiles[fileIdx]) {
-                    const f = task.modifiedFiles[fileIdx];
+                    let f = task.modifiedFiles[fileIdx];
+                    if (typeof f === 'string') f = { path: f };
                     const openDiff = () => {
                         if (window.app && window.app.openDiffEditor) {
                             window.app.openDiffEditor(f.original, f.current, f.path);
@@ -813,8 +814,14 @@ export class TaskNotificationPanel {
                         this._fetchTaskDetail(taskId)
                             .then(detail => {
                                 this._fetchingTaskDiff[taskId] = false;
-                                if (detail && detail.modified_files && detail.modified_files[fileIdx]) {
-                                    const rich = detail.modified_files[fileIdx];
+                                // Match by PATH, not index: history `file_modified`
+                                // entries ({path} only) and the persisted
+                                // `modified_files` array can be in a different order.
+                                let rich = null;
+                                if (detail && Array.isArray(detail.modified_files) && f.path) {
+                                    rich = detail.modified_files.find(m => m.path === f.path) || null;
+                                }
+                                if (rich) {
                                     if (window.app && window.app.openDiffEditor) {
                                         window.app.openDiffEditor(rich.original ?? null, rich.current ?? '', rich.path || f.path);
                                     }
