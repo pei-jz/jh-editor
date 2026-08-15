@@ -23,6 +23,7 @@ export class TaskNotificationPanel {
         this.hostUrl = '';
         this.token = '';
         this.activeTabId = 'new-task';
+        this._fetchingTaskDiff = {};
     }
 
     init(parentElement, file = null) {
@@ -119,6 +120,32 @@ export class TaskNotificationPanel {
         }
     }
 
+    /** Fetch a single task's full detail (GET /tasks/:id) — includes the
+     *  persisted `modified_files` [{path, original, current}] needed to open a
+     *  diff for a task whose list entry only carried file paths. */
+    async _fetchTaskDetail(taskId) {
+        try {
+            const res = await fetch(`${this.hostUrl}/api/tasks/${encodeURIComponent(taskId)}`, {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            if (!res.ok) return null;
+            const detail = await res.json();
+            // Cache back into the local task so re-renders don't re-fetch.
+            const task = this.tasks.find(t => t.id === taskId);
+            if (task && Array.isArray(detail.modified_files) && detail.modified_files.length > 0) {
+                task.modifiedFiles = detail.modified_files.map(m => ({
+                    path: m.path,
+                    original: m.original ?? null,
+                    current: m.current ?? ''
+                }));
+            }
+            return detail;
+        } catch (e) {
+            console.warn('Failed to fetch task detail:', e);
+            return null;
+        }
+    }
+
     async _fetchTasks() {
         try {
             const res = await fetch(`${this.hostUrl}/api/tasks`, {
@@ -156,6 +183,18 @@ export class TaskNotificationPanel {
         task.modifiedFiles = [];
         task.finalResponse = '';
         task.errorMessage = '';
+
+        // History tasks come from GET /tasks, which strips `logs` but now carries
+        // the persisted `modified_files` ([{path, original, current}]) added by the
+        // Rust TaskInfo. Prefer it when present so completed history tasks can
+        // still re-open their diffs without a detail fetch.
+        if (Array.isArray(task.modified_files) && task.modified_files.length > 0) {
+            task.modifiedFiles = task.modified_files.map(m => ({
+                path: m.path,
+                original: m.original ?? null,
+                current: m.current ?? ''
+            }));
+        }
 
         if (!task.logs || !Array.isArray(task.logs)) return;
 
@@ -759,8 +798,34 @@ export class TaskNotificationPanel {
                 const task = this.tasks.find(t => t.id === taskId);
                 if (task && task.modifiedFiles && task.modifiedFiles[fileIdx]) {
                     const f = task.modifiedFiles[fileIdx];
-                    if (window.app && window.app.openDiffEditor) {
-                        window.app.openDiffEditor(f.original, f.current, f.path);
+                    const openDiff = () => {
+                        if (window.app && window.app.openDiffEditor) {
+                            window.app.openDiffEditor(f.original, f.current, f.path);
+                        }
+                    };
+                    // History tasks may have a file LIST but not the rich
+                    // original/current content (older persisted history, or the
+                    // list came from `file_modified` events). Fetch the task
+                    // detail on demand — GET /tasks/:id now returns the
+                    // persisted `modified_files` — and retry with the real diff.
+                    if ((f.original === undefined || f.current === undefined) && !this._fetchingTaskDiff[taskId]) {
+                        this._fetchingTaskDiff[taskId] = true;
+                        this._fetchTaskDetail(taskId)
+                            .then(detail => {
+                                this._fetchingTaskDiff[taskId] = false;
+                                if (detail && detail.modified_files && detail.modified_files[fileIdx]) {
+                                    const rich = detail.modified_files[fileIdx];
+                                    if (window.app && window.app.openDiffEditor) {
+                                        window.app.openDiffEditor(rich.original ?? null, rich.current ?? '', rich.path || f.path);
+                                    }
+                                    return;
+                                }
+                                // Fall back to whatever we have (e.g. created-only files).
+                                if (f.current !== undefined) openDiff();
+                            })
+                            .catch(() => { this._fetchingTaskDiff[taskId] = false; if (f.current !== undefined) openDiff(); });
+                    } else {
+                        openDiff();
                     }
                 }
             };
