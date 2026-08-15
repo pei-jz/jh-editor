@@ -4,8 +4,10 @@ import * as Diff from 'diff';
 export class DiffEditor {
     constructor(container, originalContent, modifiedContent, filePath, onApply, options = {}) {
         this.container = container;
-        this.originalContent = originalContent;
-        this.modifiedContent = modifiedContent;
+        // Guard against null/undefined content (e.g. created-only files whose
+        // `original` is null): downstream code calls .length on both strings.
+        this.originalContent = originalContent ?? '';
+        this.modifiedContent = modifiedContent ?? '';
         this.filePath = filePath || '';
         this.onApply = onApply;
         // Fired on every accept/reject so the source editing file can mirror the

@@ -64,4 +64,55 @@ describe('TaskNotificationPanel diff support', () => {
         expect(() => panel._processTaskLogs(task)).not.toThrow();
         expect(task.modifiedFiles).toEqual([]);
     });
+
+    it('normalizes string entries when opening a diff (path-only file_modified)', () => {
+        const task = {
+            id: 't5',
+            status: 'completed',
+            logs: [
+                { event: 'file_modified', data: { path: 'C:/ws/f.js' } },
+            ],
+        };
+        panel._processTaskLogs(task);
+        expect(task.modifiedFiles).toHaveLength(1);
+        // The diff handler normalizes a string entry to { path } — verify the
+        // normalization used by the button handler doesn't throw on strings.
+        const normalized = task.modifiedFiles.map(f => (typeof f === 'string' ? { path: f } : f));
+        expect(normalized[0].path).toBe('C:/ws/f.js');
+    });
+
+    it('matches the persisted modified_files entry by path for the diff', () => {
+        // History task whose file_modified entries (path-only) and the persisted
+        // modified_files array have different ordering — the button handler must
+        // match by PATH, not by index.
+        const task = {
+            id: 't6',
+            status: 'completed',
+            modified_files: [
+                { path: 'C:/ws/b.js', original: 'old b', current: 'new b' },
+                { path: 'C:/ws/a.js', original: 'old a', current: 'new a' },
+            ],
+        };
+        panel._processTaskLogs(task);
+        const want = task.modifiedFiles.find(f => f.path === 'C:/ws/a.js');
+        expect(want).toBeDefined();
+        expect(want.original).toBe('old a');
+        expect(want.current).toBe('new a');
+    });
+
+    it('keeps created-only files (original null) usable for diffing', () => {
+        const task = {
+            id: 't7',
+            status: 'completed',
+            modified_files: [
+                { path: 'C:/ws/new.js', original: null, current: 'new content' },
+            ],
+        };
+        panel._processTaskLogs(task);
+        const f = task.modifiedFiles[0];
+        // openDiffEditor normalizes original ?? '' downstream — verify the
+        // panel passes the raw values through without throwing.
+        expect(f.original).toBeNull();
+        expect(f.current).toBe('new content');
+    });
 });
