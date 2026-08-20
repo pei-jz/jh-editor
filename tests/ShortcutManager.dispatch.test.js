@@ -255,6 +255,26 @@ describe('ShortcutManager — dispatch', () => {
             expect(action).toHaveBeenCalledOnce();
         });
 
+        // The CSV grid edits a cell in an overlay <textarea> (F2). Ctrl+Z there
+        // must undo the typing, not roll back the grid model underneath it.
+        it('lets the CSV cell editor handle Ctrl+Z natively', () => {
+            const action = vi.fn();
+            sm.register({ key: 'z', ctrl: true, cmd: 'app:undo', scope: 'GLOBAL', action });
+            sm.setScope('CSV_EDIT');
+            const ta = document.createElement('textarea');
+            ta.className = 'csv-overlay-editor';
+            sm.handleKeyDown(key({ key: 'z', ctrlKey: true, target: ta }));
+            expect(action).not.toHaveBeenCalled();
+        });
+
+        it('still runs Ctrl+Z on the CSV grid itself', () => {
+            const action = vi.fn();
+            sm.register({ key: 'z', ctrl: true, cmd: 'app:undo', scope: 'GLOBAL', action });
+            sm.setScope('CSV');
+            sm.handleKeyDown(key({ key: 'z', ctrlKey: true, target: document.createElement('div') }));
+            expect(action).toHaveBeenCalledOnce();
+        });
+
         it('leaves clipboard keys to the table editor in MARKDOWN_TABLE scope', () => {
             const action = vi.fn();
             sm.register({ key: 'c', ctrl: true, cmd: 'app:copy', scope: 'MARKDOWN_TABLE', action });

@@ -800,7 +800,15 @@ class CsvView {
         this.renderHeader(); // Update header highlights
     }
 
-    scrollToCell(r, c) {
+    /**
+     * Bring cell (r, c) into view.
+     *
+     * `axis` restricts which direction may scroll: 'v' / 'h' / 'both'.
+     * Extending a selection vertically must not touch the horizontal scroll —
+     * after Shift+Space the selection's focus column is the LAST column, so
+     * scrolling to it flung the grid to the far right on every Shift+↑/↓.
+     */
+    scrollToCell(r, c, axis = 'both') {
         // Calculate position
         // Row pos
         const top = r * this.rowHeight;
@@ -816,11 +824,15 @@ class CsvView {
         const currentHeight = this.gridContainer.clientHeight;
         const headerOffset = 32;
 
-        if (top < currentTop) {
-            this.gridContainer.scrollTop = top;
-        } else if (top + this.rowHeight + headerOffset > currentTop + currentHeight) {
-            this.gridContainer.scrollTop = top + this.rowHeight + headerOffset - currentHeight;
+        if (axis !== 'h') {
+            if (top < currentTop) {
+                this.gridContainer.scrollTop = top;
+            } else if (top + this.rowHeight + headerOffset > currentTop + currentHeight) {
+                this.gridContainer.scrollTop = top + this.rowHeight + headerOffset - currentHeight;
+            }
         }
+
+        if (axis === 'v') return;
 
         // Horizontal scroll
         let colX = 0;
@@ -1527,7 +1539,7 @@ class CsvController {
             }
 
             this.view.refreshSelection();
-            this.view.scrollToCell(nextR, c);
+            this.view.scrollToCell(nextR, c, e.shiftKey ? 'v' : 'both');
         }
         else if (e.key === 'Delete' || e.key === 'Backspace') {
             this.model.saveState(); // Save state before bulk delete
@@ -1671,7 +1683,14 @@ class CsvController {
         }
 
         this.view.refreshSelection();
-        this.view.scrollToCell(currR, currC);
+        if (shift && (dr !== 0 || dc !== 0)) {
+            // Extending a range: follow the focus only along the axis it moved
+            // on. Keeps the viewport put on a full-row selection (Shift+Space)
+            // walked up/down, and on a full-column selection walked left/right.
+            this.view.scrollToCell(currR, currC, dr !== 0 ? 'v' : 'h');
+        } else {
+            this.view.scrollToCell(currR, currC);
+        }
     }
 
     deleteSelection() {
@@ -1943,7 +1962,16 @@ class CsvController {
     }
 
     isEditingField() {
-        return document.activeElement.tagName === 'TD' && document.activeElement.isContentEditable;
+        const el = document.activeElement;
+        if (!el) return false;
+        // F2 / double-click editing happens in the overlay <textarea>, not in a
+        // contentEditable TD any more. Without this the document-level copy /
+        // paste handlers below hijacked Ctrl+C / Ctrl+V while a cell was being
+        // edited and clobbered the grid selection instead of the typed text.
+        if (this.overlayEditor && el === this.overlayEditor) return true;
+        const tag = el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+        return el.isContentEditable === true;
     }
 
     // --- Jump ---
