@@ -1390,50 +1390,183 @@ export class MarkdownView extends BaseView {
         }
     }
 
-    _splitIntoPages(blocks, pageHeight = 600) {
-        const blocksWithIndex = blocks.map((text, idx) => ({ text, index: idx }));
-        
-        const pages = [];
-        let currentPage = [];
-        
-        const lh = this._measureLineHeight();
-        // Count-based packing (the original behaviour). Pages are dense and a
-        // page that overflows simply scrolls (.stf__page has overflow-y:auto) —
-        // this avoids the near-blank pages that height-estimate pagination
-        // produced when it broke early before tall blocks/headings.
-        const blocksPerPage = Math.max(5, Math.floor((pageHeight - 80) / (lh * 2.2))) || 8;
-        const halfPageLimit = Math.floor(blocksPerPage / 2);
+    /** Vertical padding of .stf__page (30px top + 30px bottom, see editor.css). */
+    static get PAGE_PADDING_V() { return 60; }
+    /** Horizontal padding of .stf__page (48px each side). */
+    static get PAGE_PADDING_H() { return 96; }
+    /** Blocks whose real height only exists after an async load / render. */
+    static get TALL_BLOCK_RE() { return /!\[[^\]]*\]\(|<img|```\s*mermaid/; }
 
-        for (let i = 0; i < blocksWithIndex.length; i++) {
-            const item = blocksWithIndex[i];
-            const trimmed = item.text.trim();
-            const isHeadingOrHR = trimmed.startsWith('#') || trimmed === '---' || trimmed.startsWith('---');
-
-            // If it's a heading/HR and the page is already more than half full,
-            // break so the heading starts at the top of the next page.
-            if (isHeadingOrHR && currentPage.length >= halfPageLimit) {
-                pages.push(currentPage);
-                currentPage = [];
-            }
-
-            currentPage.push(item);
-
-            if (currentPage.length >= blocksPerPage) {
-                pages.push(currentPage);
-                currentPage = [];
-            }
-        }
-        
-        if (currentPage.length > 0) {
-            pages.push(currentPage);
-        }
-        
-        if (pages.length === 0) {
-            pages.push([]);
-        }
-        return pages;
+    _isHeadingBlock(text) {
+        return /^#{1,6}\s/.test(text.trim());
     }
 
+    /**
+     * Rough height of a block when it cannot be measured for real (no DOM width
+     * yet, or `marked` not loaded). Counts wrapped source lines and scales
+     * headings up; image/diagram blocks get a floor so they aren't treated as
+     * free.
+     */
+    _estimateBlockHeight(text, lh, charsPerLine) {
+        const trimmed = text.trim();
+        let lines = 0;
+        for (const line of text.split('\n')) {
+            lines += Math.max(1, Math.ceil((line.length || 1) / charsPerLine));
+        }
+        let h = lines * lh;
+        if (/^#{1,2}\s/.test(trimmed)) h *= 1.7;
+        else if (/^#{3,6}\s/.test(trimmed)) h *= 1.3;
+        if (MarkdownView.TALL_BLOCK_RE.test(text)) h = Math.max(h, 220);
+        return h + 12; // .md-block margin-bottom + padding
+    }
+
+    /**
+     * Real rendered height of every block, measured in an off-screen probe that
+     * carries the same classes and width as a book page — so the numbers match
+     * what the page will actually show.
+     *
+     * Cached per (content width, block source): _renderBookMode re-runs on every
+     * resize and after every block edit.
+     */
+    _measureBlockHeights(blocks, pageWidth) {
+        const lh = this._measureLineHeight();
+        const contentWidth = pageWidth - MarkdownView.PAGE_PADDING_H;
+
+        // No usable width (hidden pane) or no markdown parser → estimate.
+        if (!(contentWidth > 40) || typeof marked === 'undefined') {
+            const fontSize = parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--editor-font-size')) || 14;
+            const charsPerLine = Math.max(20, Math.floor(Math.max(contentWidth, 400) / (fontSize * 0.55)));
+            return blocks.map((t) => this._estimateBlockHeight(t, lh, charsPerLine));
+        }
+
+        if (!this._blockHeightCache || this._blockHeightCacheWidth !== contentWidth) {
+            this._blockHeightCache = new Map();
+            this._blockHeightCacheWidth = contentWidth;
+        }
+        const cache = this._blockHeightCache;
+        if (cache.size > 4000) cache.clear();
+
+        const todo = [];
+        const heights = new Array(blocks.length);
+        blocks.forEach((text, i) => {
+            if (cache.has(text)) heights[i] = cache.get(text);
+            else todo.push(i);
+        });
+
+        if (todo.length) {
+            const probe = document.createElement('div');
+            probe.className = 'stf__page md-body md-book-measure';
+            probe.setAttribute('aria-hidden', 'true');
+            probe.style.cssText = 'position:fixed;left:-100000px;top:0;visibility:hidden;'
+                + 'pointer-events:none;height:auto;max-height:none;overflow:visible;'
+                + 'width:' + pageWidth + 'px;';
+            document.body.appendChild(probe);
+            try {
+                // Build every block first, read heights after: one layout pass.
+                const els = todo.map((i) => {
+                    const el = document.createElement('div');
+                    el.className = 'md-block md-body';
+                    el.style.minHeight = '1.5em';
+                    try {
+                        el.innerHTML = this._parseMarkdown(blocks[i]);
+                    } catch (e) {
+                        el.textContent = blocks[i];
+                    }
+                    probe.appendChild(el);
+                    return el;
+                });
+                todo.forEach((i, k) => {
+                    // +10 for `.stf__page .md-block { margin-bottom: 10px }`
+                    let h = els[k].offsetHeight + 10;
+                    if (!(h > 10)) {
+                        h = this._estimateBlockHeight(blocks[i], lh, Math.max(20, Math.floor(contentWidth / 8)));
+                    }
+                    // Images and mermaid diagrams have no layout height until
+                    // they load / render — reserve a plausible box instead.
+                    if (MarkdownView.TALL_BLOCK_RE.test(blocks[i])) h = Math.max(h, 220);
+                    heights[i] = h;
+                    cache.set(blocks[i], h);
+                });
+            } finally {
+                probe.remove();
+            }
+        }
+        return heights;
+    }
+
+    /**
+     * Pack blocks into pages by measured height instead of by block count.
+     *
+     * The old count-based packing ignored how tall a block actually is, so a
+     * page could end on a lone heading whose body started on the next page, and
+     * a page holding a few long blocks overflowed and had to be scrolled. This
+     * fills each page up to its real height and applies two typographic rules:
+     *
+     *   - orphan control: a heading never ends a page — it needs room for
+     *     itself plus the start of the block that follows, or it moves on;
+     *   - chapter breaks: an H1/H2 landing on an already mostly-full page opens
+     *     the next page instead.
+     */
+    _splitIntoPages(blocks, pageHeight = 600, pageWidth = 0) {
+        const items = blocks.map((text, idx) => ({ text, index: idx }));
+        if (items.length === 0) return [[]];
+
+        const usable = Math.max(160, pageHeight - MarkdownView.PAGE_PADDING_V);
+        const heights = this._measureBlockHeights(blocks, pageWidth);
+        const lh = this._measureLineHeight();
+        // A heading must be followed by at least this much of its body.
+        const FOLLOW_RESERVE = lh * 2;
+        // Below this fill ratio, breaking would leave an ugly near-blank page.
+        const SPARSE_RATIO = 0.35;
+        // An H1/H2 opens a new page once the current one is this full.
+        const CHAPTER_RATIO = 0.7;
+
+        const pages = [];
+        let page = [];
+        let used = 0;
+        const flush = () => {
+            if (page.length) { pages.push(page); page = []; used = 0; }
+        };
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const h = heights[i];
+            const trimmed = item.text.trim();
+
+            // A block taller than a whole page can't be split: give it a page of
+            // its own (it scrolls), unless the current page is still so empty
+            // that breaking would waste it.
+            if (h > usable) {
+                if (page.length && used > usable * SPARSE_RATIO) flush();
+                page.push(item);
+                used += h;
+                flush();
+                continue;
+            }
+
+            if (this._isHeadingBlock(item.text)) {
+                // Reserve room for the heading AND the start of what follows, so
+                // the heading can never be stranded at the bottom of a page.
+                const next = heights[i + 1];
+                const need = h + (next === undefined ? 0 : Math.min(next, FOLLOW_RESERVE));
+                const isChapter = /^#{1,2}\s/.test(trimmed);
+                if (page.length && (used + need > usable
+                    || (isChapter && used > usable * CHAPTER_RATIO))) {
+                    flush();
+                }
+            } else if (page.length && used + h > usable) {
+                flush();
+            }
+
+            page.push(item);
+            used += h;
+        }
+
+        flush();
+        if (pages.length === 0) pages.push([]);
+        return pages;
+    }
     _renderBookMode(blocks) {
         // Ensure path and page index are updated BEFORE early returns or ResizeObserver
         if (this.currentPageIndex === undefined || this.currentPageIndex === null || this._lastFilePath !== this.file?.path) {
@@ -1500,7 +1633,7 @@ export class MarkdownView extends BaseView {
         const singlePageWidth = Math.round(bookWidth / 2);
         const singlePageHeight = Math.round(bookHeight);
 
-        this.pages = this._splitIntoPages(blocks, bookHeight);
+        this.pages = this._splitIntoPages(blocks, bookHeight, singlePageWidth);
         
         if (this.currentPageIndex >= this.pages.length) {
             this.currentPageIndex = Math.max(0, this.pages.length - 1);

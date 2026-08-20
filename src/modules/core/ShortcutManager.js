@@ -239,6 +239,15 @@ export class ShortcutManager {
                     return; // Let browser handle it naturally
                 }
             }
+            // While a CSV cell is being edited (F2 opens an overlay <textarea>)
+            // undo/redo belong to the text field, not to the grid model —
+            // otherwise Ctrl+Z threw away the previous grid edit mid-typing.
+            if (this.currentScope === 'CSV_EDIT' && (match.cmd === 'app:undo' || match.cmd === 'app:redo')) {
+                const target = e.target;
+                if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+                    return; // Let browser handle it naturally
+                }
+            }
 
             if (typeof match.action === 'function') {
                 if (this.currentScope === 'MARKDOWN_TABLE' &&
