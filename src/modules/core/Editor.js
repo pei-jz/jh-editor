@@ -25,6 +25,7 @@ import { SearchResultsView } from '../views/SearchResultsView.js';
 import { DirDiffView } from '../views/DirDiffView.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
+import { RecentFiles } from '../utils/RecentFiles.js';
 import {
     activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex,
     findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace,
@@ -890,6 +891,9 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
     if (pendingOpens.has(resolvedPath)) return;
     pendingOpens.add(resolvedPath);
 
+    // Remember real files for quick re-open (command palette / recent list).
+    try { RecentFiles.recordFile(resolvedPath); } catch (_) { /* non-critical */ }
+
     try {
         const stats = await FS.getFileStats(resolvedPath);
 
@@ -1118,6 +1122,8 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
     setActiveTab(State.openFiles.length - 1);
 };
 window.app.getCurrentView = getCurrentView;
+window.app.getActiveFile = getActiveFile;
+window.app.getCurrentDir = () => State.currentDir;
 window.app.refreshExplorer = () => loadExplorer(true);
 window.app.toggleViewMode = () => {
     editorActions['app:toggle-view-mode']({ preventDefault: () => { } });
@@ -1236,9 +1242,12 @@ export async function closeTab(index, pane = activePane()) {
     const newActiveIdx = activeIndexAfterRemoval(index, activeIdx, openFiles.length);
     setPaneActiveIndex(pane, newActiveIdx);
 
-    // An empty secondary pane has nothing to show and would keep stealing focus
-    // from the left one, so fold the split back up.
-    if (!isLeft && openFiles.length === 0 && State.splitMode) {
+    // A pane with nothing in it has nothing to show and keeps stealing focus,
+    // so fold the split back up. This has to cover the PRIMARY pane too: an
+    // empty left pane above a full right one looks like a broken window — a
+    // stray welcome message stacked on top of the real editor — and there is no
+    // obvious way to get out of it.
+    if (openFiles.length === 0 && State.splitMode) {
         closeSplit();
         return;
     }
@@ -1758,14 +1767,16 @@ function applySplitOrientation(direction) {
     if (right) {
         right.style.borderLeft = vertical ? 'none' : '1px solid var(--border-color)';
         right.style.borderTop = vertical ? '1px solid var(--border-color)' : 'none';
-        // A stacked pane needs its height floor released, and vice versa.
-        right.style.minWidth = vertical ? '' : '0';
-        right.style.minHeight = vertical ? '0' : '';
     }
-    const left = EL.editorContainer;
-    if (left) {
-        left.style.minWidth = vertical ? '' : '0';
-        left.style.minHeight = vertical ? '0' : '';
+    // Both floors, both panes, whichever way they are stacked. A flex item
+    // defaults to min-width/min-height:auto, which refuses to shrink below its
+    // CONTENT — so a wide line or a book-mode page blew the pane out sideways
+    // and pushed the whole window into horizontal overflow. Releasing one floor
+    // because the split turned was simply wrong: the cross axis needs it too.
+    for (const pane of [EL.editorContainer, right]) {
+        if (!pane) continue;
+        pane.style.minWidth = '0';
+        pane.style.minHeight = '0';
     }
 }
 
@@ -2506,8 +2517,13 @@ export async function restoreSession() {
             }
         }
         if (State.rightOpenFiles.length > 0) {
-            // seed:false — the pane already has its own tabs.
-            splitEditor({ seed: false });
+            // seed:false — the pane already has its own tabs. The saved value
+            // is the DIRECTION, not a boolean: reopening a vertical split as a
+            // horizontal one was a silent downgrade.
+            splitEditor({
+                seed: false,
+                direction: session.splitMode === 'vertical' ? 'vertical' : 'horizontal',
+            });
             const rIdx = Number.isInteger(session.rightActiveIndex)
                 ? Math.min(Math.max(session.rightActiveIndex, 0), State.rightOpenFiles.length - 1)
                 : 0;

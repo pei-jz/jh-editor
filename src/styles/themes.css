@@ -1140,8 +1140,15 @@ body.theme-kakejiku .titlebar-btn.titlebar-close:hover {
 
 /* Inactive tabs on the mount: pale ink. Active tab keeps the indigo mount and
    takes the vermillion seal as its top border. */
+/* An inactive tab is part of the mount, not a chip laid on it: transparent so
+   the brocade of #tab-bar shows through behind the pale ink. */
 body.theme-kakejiku .tab {
+    background-color: transparent;
     color: var(--tab-inactive-color);
+}
+body.theme-kakejiku .tab:hover {
+    background-color: #46567c;
+    color: #ffffff;
 }
 body.theme-kakejiku .tab.active {
     background-color: var(--active-tab-bg);
@@ -1150,14 +1157,24 @@ body.theme-kakejiku .tab.active {
 
 /* The explorer's Files/Git tab strip is the brocade (indigo) — pale labels and
    the brocade weave. */
+/* The Files / Git strip is mounting too — it only carried the brocade texture,
+   so it inherited the now-light --header-bg underneath and stranded its own
+   pale ink on it. */
 body.theme-kakejiku .explorer-tabs {
+    background-color: var(--mount-bg-2);
     background-image: var(--donsu);
 }
 body.theme-kakejiku .explorer-tab {
     color: #eef1f6;
+    /* The base rule dims these to .65, which on the indigo mount drops the
+       label to ~3:1. The ink is already muted; it does not need dimming too. */
+    opacity: 0.92;
 }
+/* The active chip is the honji showing through the mounting, so it is light.
+   The seal vermillion read 3.3:1 on it — deepened just enough to clear the bar
+   while still reading as the seal. */
 body.theme-kakejiku .explorer-tab.active {
-    color: var(--primary-color);
+    color: #8f2e24;
 }
 
 /* Explorer hover: the tree sits on the honji (light), so hovering must paint a

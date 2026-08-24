@@ -30,6 +30,10 @@ import GitPanel from '../ui/GitPanel.js';
 import { lspClient } from '../lsp/LspClient.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { initJhEditorMcp, runJhaiIntent } from '../ai/JhAiMcp.js';
+import { NotesPanel } from '../ui/NotesPanel.js';
+import { aiChatPanel } from '../ui/AiChatPanel.js';
+import { SelectionActions } from '../ui/SelectionActions.js';
+import { DailyNotes } from '../utils/DailyNotes.js';
 
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
@@ -358,6 +362,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (EL.newFileBtn) EL.newFileBtn.addEventListener('click', createNewFileAction);
     if (EL.newTabBtn) EL.newTabBtn.addEventListener('click', createNewFileAction);
     if (EL.saveBtn) EL.saveBtn.addEventListener('click', saveCurrentFile);
+
+    // Title bar: Notes button opens the quick-notes panel; Ctrl+Click opens
+    // today's daily note instead (both are reachable without the command palette).
+    const notesBtn = document.getElementById('notes-btn');
+    if (notesBtn) {
+        notesBtn.addEventListener('click', (e) => {
+            if (e.ctrlKey || e.metaKey) DailyNotes.openToday();
+            else NotesPanel.open();
+        });
+        notesBtn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            DailyNotes.openToday();
+        });
+    }
+
     if (EL.openFolderBtn) {
         EL.openFolderBtn.onclick = async () => {
             try {
@@ -470,6 +489,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.app.openAgentTasksTab();
             }
         },
+        'app:new-note': () => NotesPanel.open({ create: true }),
+        'app:open-notes': () => NotesPanel.open(),
+        'app:toggle-ai-chat': () => aiChatPanel.toggle(),
+        'app:summarize-selection': () => SelectionActions.summarize(),
+        'app:translate-selection': () => SelectionActions.translate(),
+        'app:rephrase-selection': () => SelectionActions.rephrase(),
+        'app:daily-note': () => DailyNotes.openToday(),
         'app:git-panel': () => {
             const btn = document.getElementById('toggle-git-btn');
             if (btn) btn.click();
@@ -534,6 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             shortcuts.register({ ...s, action: globalActions[s.cmd] });
         }
     });
+
 
     // Status-bar whitespace toggle: click to show/hide CR/LF/TAB markers.
     const whitespaceIndicator = document.getElementById('status-whitespace');

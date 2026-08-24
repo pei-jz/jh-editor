@@ -94,6 +94,7 @@
     </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
     <div id="titlebar-right-tools">
+      <button id="notes-btn" class="titlebar-tool-btn" title="Notes (Quick Notes / Daily Note)">🗒️</button>
       <button id="settings-btn" class="titlebar-tool-btn" title="Settings">⚙️</button>
     </div>
     <div class="titlebar-controls">
@@ -268,11 +269,16 @@
              <span style="color: var(--primary-color);">🐚</span> TERMINAL
           </div>
           <div style="display: flex; gap: 8px;">
+            <button id="new-terminal-btn" class="terminal-new-btn" title="New terminal">+</button>
+            <select id="terminal-shell-select" title="Shell for the next terminal" style="background: var(--bg-color-secondary); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 3px; font-size: 10px; padding: 1px 4px; text-transform: none; font-weight: normal;"></select>
             <button id="clear-terminal-btn" title="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">🗑️</button>
             <button id="close-terminal-btn" title="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">✖</button>
           </div>
         </div>
-        <div id="terminal-container" style="flex: 1; overflow: hidden; padding: 0; background-color: #000;"></div>
+        <div id="terminal-body" style="flex: 1; display: flex; min-height: 0;">
+          <div id="terminal-container" style="flex: 1; min-width: 0; overflow: hidden; padding: 0; background-color: #000;"></div>
+          <div id="terminal-session-list" class="terminal-list"></div>
+        </div>
       </div>
       </div>
       <!-- Status Bar -->
@@ -311,6 +317,7 @@
           <div class="settings-tab" data-tab="agent">Agent</div>
           <div class="settings-tab" data-tab="keybindings">Keybindings</div>
           <div class="settings-tab" data-tab="templates">MD Templates</div>
+          <div class="settings-tab" data-tab="snippets">Snippets</div>
         </nav>
       </aside>
 
@@ -372,6 +379,12 @@
 
           <div id="settings-templates" class="settings-pane" style="display:none;">
             <div id="md-template-settings-container">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <div id="settings-snippets" class="settings-pane" style="display:none;">
+            <div id="snippet-settings-container">
               <!-- Injected by JS -->
             </div>
           </div>
