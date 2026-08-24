@@ -7,6 +7,7 @@ import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } 
 import { setDiagnostics, lintGutter } from '@codemirror/lint';
 import { highlightSelectionMatches, SearchQuery } from '@codemirror/search';
 import { Toast } from '../ui/Toast.js';
+import { isDarkTheme as isAppThemeDark } from '../utils/ThemeInfo.js';
 
 // Languages
 import { javascript } from '@codemirror/lang-javascript';
@@ -1065,10 +1066,7 @@ export class CodeMirrorView {
     }
 
     _isDarkTheme() {
-        const c = document.body.classList;
-        return c.contains('theme-dark') || c.contains('theme-midnight')
-            || c.contains('theme-solarized-dark') || c.contains('theme-nord')
-            || c.contains('dark-mode');
+        return isAppThemeDark();
     }
 
     // Insert text at the caret (replacing any selection). Used by the AI tools

@@ -149,6 +149,12 @@ body.theme-sumi-e {
     --scrollbar-thumb-hover: rgba(60, 50, 35, 0.42);
 }
 
+/* Hanging Scroll scrolls on the light sheet, not on the indigo mounting. */
+body.theme-kakejiku {
+    --scrollbar-thumb: rgba(43, 47, 54, 0.28);
+    --scrollbar-thumb-hover: rgba(43, 47, 54, 0.45);
+}
+
 /* ── Git comparison result: a dense, collapsible file tree ────────────────────
    A branch comparison routinely lists hundreds of files; a flat list of them is
    a scroll hunt, so the rows are compact and every directory folds away. */

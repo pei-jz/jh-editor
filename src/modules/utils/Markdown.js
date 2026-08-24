@@ -1,5 +1,6 @@
 
 import { SyntaxHighlighter } from './SyntaxHighlighter.js';
+import { isDarkTheme } from './ThemeInfo.js';
 
 export function configureMarkdown() {
     // Dependency Check
@@ -47,7 +48,7 @@ export function initMermaid() {
         return;
     }
     try {
-        const isDark = document.body.classList.contains('theme-dark') || document.body.classList.contains('theme-midnight') || document.body.classList.contains('theme-solarized-dark');
+        const isDark = isDarkTheme();
         mermaid.initialize({
             startOnLoad: false,
             securityLevel: 'loose',
@@ -117,9 +118,7 @@ export async function renderMermaid(container = document) {
 
     _mermaidQueue = _mermaidQueue.then(async () => {
         try {
-            const isDark = document.body.classList.contains('theme-dark')
-                || document.body.classList.contains('theme-midnight')
-                || document.body.classList.contains('theme-solarized-dark');
+            const isDark = isDarkTheme();
             mermaid.initialize({
                 startOnLoad: false,
                 securityLevel: 'loose',
