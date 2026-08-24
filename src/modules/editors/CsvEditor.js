@@ -1269,12 +1269,20 @@ class CsvController {
             this.editingState = { r, c };
             const val = initialVal !== null ? initialVal : this.model.getValue(r, c);
 
-            // Find the rendered cell DOM element
-            const cells = this.view.contentTableTBody.querySelectorAll('tr td');
-            // Since we know the render range startR, we can find the exact index
-            const visibleRowIdx = r - this.view.renderState.startR;
-            const tdIdx = visibleRowIdx * this.model.getColCount() + c;
-            const td = cells[tdIdx];
+            // Find the rendered cell DOM element by its coordinates. Counting
+            // `tr td` positions cannot work: COLUMNS are virtualized too, so a
+            // row holds only the visible slice (plus a colSpan padding cell
+            // when it starts past column 0), never getColCount() cells.
+            const findTd = () => this.view.contentTableTBody
+                .querySelector('td[data-r="' + r + '"][data-c="' + c + '"]');
+
+            let td = findTd();
+            if (!td && this.view.scroller) {
+                // scrollToCell() above may not have re-rendered the virtual
+                // window yet — the scroll event is queued. Force it.
+                this.view.scroller.onScroll();
+                td = findTd();
+            }
 
             if (!td) {
                 console.warn('CsvEditor: Target TD not found for editing, aborting.');
@@ -1547,38 +1555,14 @@ class CsvController {
             this.debouncedSave();
         }
         else if (e.key === 'F2') {
-            // Edit current cell
-            // Need ref to TD.
-            // Virtual Grid: TD might not exist if out of view!
-            // If out of view, we jump to it first.
             // F2 edits the ACTIVE cell, not the selection's focus corner.
+            // startEditing() owns the scroll-into-view and the (virtualized)
+            // cell lookup. This used to re-implement the lookup as
+            // `tr.children[c + 1]`, assuming a row-number cell at index 0 — but
+            // the row numbers live in their own table, so the +1 ran off the end
+            // of the row and F2 silently did nothing on the LAST column.
             const end = this.view.cursor;
-            this.view.scrollToCell(end.r, end.c);
-            // Wait for scroll/render?
-            setTimeout(() => {
-                // Find cell
-                const r = end.r - this.view.renderState.startR; // Relative index in rendered rows
-                // Logic is complex because renderRows clears table.
-                // We can traverse contentTable.
-                // This is tricky with virtualization.
-                // Let's rely on standard events if possible or querySelector efficiently.
-                // Row index in contentTable is r.
-                // contentTable.children[r] ?
-                // No, contentTable children are only the visible rows.
-                // So index is `end.r - renderedStart`.
-
-                const rowIndex = end.r - this.view.renderState.startR;
-                if (rowIndex >= 0 && rowIndex < this.view.contentTable.rows.length) {
-                    const tr = this.view.contentTable.rows[rowIndex];
-                    const td = tr.children[end.c]; // 0 is header? No, row header is 0. Data start 1.
-                    // Assuming we have Row Header in content table? Yes.
-                    if (tr.children[end.c + 1]) {
-                        const cell = tr.children[end.c + 1];
-                        // Trigger edit
-                        this.handleCellDblClick(end.r, end.c, cell, {});
-                    }
-                }
-            }, 50);
+            this.startEditing(end.r, end.c);
         }
     }
 
@@ -1600,6 +1584,16 @@ class CsvController {
         else if (key === 'ArrowRight') dc = 1;
         else if (key === 'Enter') dr = shift ? -1 : 1;
         else if (key === 'Tab') dc = shift ? -1 : 1;
+
+        // Ctrl+Shift+Arrow walks the data edge along the ACTIVE cell's column
+        // (or row), not along the selection's focus corner. After Shift+Space
+        // the focus sits in the LAST column, so scanning there found a
+        // different edge than the plain Ctrl+Arrow the user takes as the
+        // reference point.
+        if (shift && ctrl) {
+            if (dr !== 0) currC = this.view.cursor.c;
+            else if (dc !== 0) currR = this.view.cursor.r;
+        }
 
         if (ctrl && key.startsWith('Arrow')) {
             // Ctrl Jump Logic
@@ -1675,7 +1669,13 @@ class CsvController {
 
         if (shift) {
             // Extend the rectangle; the active cell stays put (Excel behaviour).
-            this.view.selection.end = { r: currR, c: currC };
+            // Only the axis that was actually pressed may move — otherwise
+            // Ctrl+Shift+↓ on a full-row selection (Shift+Space) collapsed it
+            // back to a single column.
+            this.view.selection.end = {
+                r: dr !== 0 ? currR : this.view.selection.end.r,
+                c: dc !== 0 ? currC : this.view.selection.end.c
+            };
         } else {
             this.view.cursor = { r: currR, c: currC };
             this.view.selection.start = { r: currR, c: currC };

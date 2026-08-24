@@ -1,4 +1,5 @@
 import { EL } from '../core/Constants.js';
+import { showConfirm } from './Dialog.js';
 
 /* --- Input Modal --- */
 /* --- Input Modal --- */
@@ -268,30 +269,27 @@ export function setupDraggablePreview() {
     });
 }
 
+/**
+ * The block editor is closing with unsaved edits.
+ *
+ * This route has no save path — the modal has its own Save button — so the only
+ * real question is whether to throw the edits away. The old wording asked "Do
+ * you want to save them?" while answering YES closed WITHOUT saving; the labels
+ * now say what the buttons actually do.
+ *
+ * @returns {Promise<'YES'|'NO'>} 'YES' = discard and close, 'NO' = keep editing
+ */
 export async function confirmDiscardChange() {
-    try {
-        const { ask } = await import('@tauri-apps/plugin-dialog');
-        const yes = await ask('You have unsaved changes. Do you want to save them?', {
+    const discard = await showConfirm(
+        'You have unsaved changes. Discard them and close the editor?',
+        {
             title: 'Unsaved Changes',
-            kind: 'warning'
-        });
-        // 'YES_NO_CANCEL' logic mapping needs care.
-        // Tauri 'ask' is boolean (Yes/No).
-        // If we want Yes/No/Cancel, we might need 'message' with custom buttons or just stick to boolean for now.
-
-        // If user says 'Yes' -> Save. 
-        // If user says 'No' -> Discard? Or Cancel? 
-        // Typically: Yes=Save, No=Discard, Cancel=Abort.
-        // Tauri 'ask' returns true/false.
-        // Let's assume True = Save (Yes), False = ??? (No or Cancel?)
-
-        // Use confirm/cancel paradigm for now:
-        // "Do you want to discard changes?" -> Yes(Discard), No(Keep editing).
-
-        return yes ? 'YES' : 'NO';
-    } catch (e) {
-        return confirm('Save changes?') ? 'YES' : 'NO';
-    }
+            kind: 'warning',
+            okLabel: 'Discard',
+            cancelLabel: 'Keep Editing',
+        }
+    );
+    return discard ? 'YES' : 'NO';
 }
 
 /* --- Tab Switcher Logic --- */

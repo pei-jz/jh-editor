@@ -72,7 +72,12 @@ function saveSettings() {
 }
 
 function loadSettings() {
-    const theme = localStorage.getItem('theme') || 'dark';
+    let theme = localStorage.getItem('theme') || 'dark';
+    // See index.html: Paper (Subtle) folded into Ink Brush.
+    if (theme === 'paper-subtle') {
+        theme = 'sumi-e';
+        localStorage.setItem('theme', theme);
+    }
     const compact = localStorage.getItem('settings_compact');
 
     // Apply Theme (Centralized)

@@ -533,7 +533,8 @@ body.theme-paper {
     /* Handwriting font (desk chrome only; code stays monospace below). */
     --font-hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
 
-    /* Paper decoration toggles — the Subtle variant overrides only these. */
+    /* Paper decoration toggles: the ruled sheet, the red margin, the
+       vignette. Set one to transparent to switch that decoration off. */
     --paper-chrome-font: var(--font-hand);
     --paper-rule-color: rgba(90, 120, 170, 0.16);
     --paper-rule-size: 27px;
@@ -541,78 +542,17 @@ body.theme-paper {
     --paper-vignette: rgba(120, 90, 40, 0.16);
 }
 
-/* ── Paper — Subtle: cleaner recycled paper, a textbook serif (Mincho) instead
-   of handwriting, ruled lines + red margin off. Shares all the decorative CSS
-   below via the --paper-* toggles (mirrors the Task app's design). ── */
-body.theme-paper-subtle {
-    --bg-color: #fbf7ec;          /* fresh recycled sheet (editor) */
-    --sidebar-bg: #f4efe3;        /* desk */
-    --header-bg: #efe8d7;
-    --border-color: #e2dac6;
-    --text-color: #33372e;
-    --primary-color: #a6685a;     /* muted terracotta */
-    --active-tab-bg: #fbf7ec;
-    --active-tab-border: #a6685a;
-    --hover-color: #f0ead9;
-    --bg-color-secondary: #efe8d7;
-    --bg-active: #f0ead9;
-    --shadow-sm: 0 1px 2px rgba(90, 65, 25, 0.10);
-    --radius: 6px;
-    --table-header-bg: #efe8d7;
-
-    /* Syntax highlighting — softer ink on clean paper */
-    --hl-keyword: #8f574a;
-    --hl-control-flow: #7d5aa0;
-    --hl-built-in: #3a726d;
-    --hl-literal: #8f574a;
-    --hl-string: #5f7d4f;
-    --hl-comment: #a49c88;
-    --hl-function: #b07d2b;
-    --hl-variable: #5f7593;
-    --hl-number: #7d92b0;
-    --hl-operator: #7a7566;
-
-    --gutter-color: #b6a988;
-    --tab-inactive-color: #a49c88;
-    --tree-item-color: var(--text-color);
-    --tree-item-active-bg: rgba(166, 104, 90, 0.10);
-    --text-secondary: #7a7566;
-
-    --code-color: #8f574a;
-    --code-bg: rgba(166, 104, 90, 0.08);
-    --code-border: rgba(166, 104, 90, 0.20);
-    --blockquote-bg: rgba(120, 90, 40, 0.05);
-
-    --selection-bg: rgba(166, 104, 90, 0.20);
-    --selection-color: #33372e;
-    --cm-selection-bg: rgba(166, 104, 90, 0.16);
-
-    --git-modified-color: #c08a3e;
-    --git-staged-color: #5f7d4f;
-    --git-untracked-color: #5f7d4f;
-
-    /* Textbook serif (Mincho); decorations toned down / off. */
-    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
-    --paper-chrome-font: var(--font-textbook);
-    --paper-rule-color: transparent;   /* no ruled lines */
-    --paper-rule-size: 27px;
-    --paper-margin-color: transparent; /* no red margin */
-    --paper-vignette: rgba(120, 90, 40, 0.08);
-}
-
-/* ── Shared paper decorations (both Bold and Subtle, driven by --paper-* ── */
+/* ── Paper decorations, driven by the --paper-* toggles ── */
 
 /* The "desk": aged paper with a soft vignette behind everything. */
-body.theme-paper,
-body.theme-paper-subtle {
+body.theme-paper {
     background:
         radial-gradient(140% 120% at 20% -10%, rgba(255, 250, 235, 0.5), transparent 60%),
         radial-gradient(160% 140% at 115% 120%, var(--paper-vignette), transparent 55%),
         var(--sidebar-bg);
 }
 
-/* Themed chrome font (handwriting for Bold, Mincho serif for Subtle) on tabs,
-   tree, headers, buttons, modals… */
+/* Handwriting on the desk chrome — tabs, tree, headers, buttons, modals… */
 body.theme-paper #explorer,
 body.theme-paper #tab-bar,
 body.theme-paper #status-bar,
@@ -620,15 +560,7 @@ body.theme-paper .git-panel-v2,
 body.theme-paper .explorer-tab,
 body.theme-paper .modal-content,
 body.theme-paper .settings-modal-content,
-body.theme-paper button,
-body.theme-paper-subtle #explorer,
-body.theme-paper-subtle #tab-bar,
-body.theme-paper-subtle #status-bar,
-body.theme-paper-subtle .git-panel-v2,
-body.theme-paper-subtle .explorer-tab,
-body.theme-paper-subtle .modal-content,
-body.theme-paper-subtle .settings-modal-content,
-body.theme-paper-subtle button {
+body.theme-paper button {
     font-family: var(--paper-chrome-font);
     letter-spacing: 0.2px;
 }
@@ -643,34 +575,21 @@ body.theme-paper select,
 body.theme-paper .block-cm,
 body.theme-paper .md-block pre,
 body.theme-paper .md-body pre,
-body.theme-paper code,
-body.theme-paper-subtle .cm-editor,
-body.theme-paper-subtle .cm-content,
-body.theme-paper-subtle .stf__page,
-body.theme-paper-subtle textarea,
-body.theme-paper-subtle input,
-body.theme-paper-subtle select,
-body.theme-paper-subtle .block-cm,
-body.theme-paper-subtle .md-block pre,
-body.theme-paper-subtle .md-body pre,
-body.theme-paper-subtle code {
+body.theme-paper code {
     font-family: var(--editor-font-family) !important;
     letter-spacing: normal;
 }
 
-/* Ruled notebook lines behind rendered Markdown (transparent for Subtle). */
+/* Ruled notebook lines behind rendered Markdown (off when --paper-rule-color is transparent). */
 body.theme-paper .md-body,
-body.theme-paper .stf__page.md-body,
-body.theme-paper-subtle .md-body,
-body.theme-paper-subtle .stf__page.md-body {
+body.theme-paper .stf__page.md-body {
     background-image:
         repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));
     background-attachment: local;
 }
 
-/* Notebook margin down the explorer's right edge (transparent for Subtle). */
-body.theme-paper #explorer,
-body.theme-paper-subtle #explorer {
+/* Notebook margin down the explorer's right edge (off when --paper-rule-color is transparent). */
+body.theme-paper #explorer {
     border-right: 2px solid var(--paper-margin-color);
 }
 
@@ -678,14 +597,609 @@ body.theme-paper-subtle #explorer {
 body.theme-paper .modal-content,
 body.theme-paper .settings-modal-content,
 body.theme-paper .git-commit-detail-panel,
-body.theme-paper .search-modal,
-body.theme-paper-subtle .modal-content,
-body.theme-paper-subtle .settings-modal-content,
-body.theme-paper-subtle .git-commit-detail-panel,
-body.theme-paper-subtle .search-modal {
+body.theme-paper .search-modal {
     box-shadow: 0 3px 12px rgba(90, 65, 25, 0.2);
 }
 
 /* Dropdown options readable on paper. */
 body.theme-paper option { background-color: #f3e9d0; color: #243049; }
-body.theme-paper-subtle option { background-color: #fbf7ec; color: #33372e; }
+
+/* ============================================================================
+   🎋 Bamboo Slip theme — 簡牘古文 (bamboo-ancient)
+   Ported from jh-ai-agent (src/styles/dashboard.css, :root[data-theme="bamboo-ancient"]).
+   That app uses --bg-primary / --accent / --border tokens; here the same
+   palette is re-expressed over JHEditor's variables as `body.theme-bamboo-ancient`,
+   exactly the way the Paper theme was ported from the Task app.
+
+   An unearthed bamboo-slip manuscript: charred near-black dark brown, faint
+   ivory ink, and a bronze-verdigris (銅青) accent. The desk is a bundle of
+   vertically bound slats — `--grain` (fibre noise) over `--slip` (slats +
+   binding cords). Reading surfaces get the fibre grain ONLY: the slat lines
+   would run straight through prose and code.
+   ========================================================================== */
+body.theme-bamboo-ancient {
+    /* Surfaces — charred bamboo slips */
+    --bg-color: #3a2e1e;            /* the slip you write on (editor) */
+    --sidebar-bg: #2f2518;          /* the desk */
+    --header-bg: #2f2518;
+    --border-color: #6b5a3c;        /* old bamboo, darkened */
+    --text-color: #e8e0cc;          /* faint ivory ink */
+    --primary-color: #7fc4b8;       /* 銅青 — the patina of unearthed bronzes */
+    --active-tab-bg: #3a2e1e;
+    --active-tab-border: #7fc4b8;
+    --hover-color: rgba(92, 76, 50, 0.45);
+    --bg-color-secondary: #463a26;
+    --bg-active: #5c4c32;
+    --radius: 6px;
+    --table-header-bg: #463a26;
+
+    /* Shadows — deep, like a bundle resting on a dark shelf */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.55);
+
+    /* Syntax highlighting — ivory ink with verdigris and gold-leaf accents */
+    --hl-keyword: #7fc4b8;          /* verdigris */
+    --hl-control-flow: #d2a0c4;     /* faded cinnabar-purple */
+    --hl-built-in: #8fc9a8;         /* jade */
+    --hl-literal: #7fc4b8;
+    --hl-string: #ddb277;           /* aged ochre */
+    --hl-comment: #a89d84;          /* worn away, but still legible (4.9:1) */
+    --hl-function: #e0c87a;         /* gold leaf */
+    --hl-variable: #c2b89f;
+    --hl-number: #b7d19a;
+    --hl-operator: #e8e0cc;
+
+    /* UI element colors */
+    --gutter-color: #a89d84;
+    --tab-inactive-color: #a89d84;
+    --tree-item-color: #c2b89f;
+    --tree-item-active-bg: rgba(127, 196, 184, 0.14);
+    --text-secondary: #a89d84;
+
+    /* Markdown Premium Styles */
+    --code-color: #e0b878;
+    --code-bg: rgba(224, 184, 120, 0.10);
+    --code-border: rgba(224, 184, 120, 0.25);
+    --blockquote-bg: rgba(127, 196, 184, 0.08);
+
+    /* Selection */
+    --selection-bg: rgba(127, 196, 184, 0.28);
+    --selection-color: #f4eeda;
+    --cm-selection-bg: rgba(127, 196, 184, 0.24);
+
+    /* Git Status Colors — kept distinct from the verdigris accent so a failure
+       never reads as "the app is emphasising this". */
+    --git-modified-color: #d9a44a;
+    --git-staged-color: #86c68a;
+    --git-untracked-color: #86c68a;
+
+    /* A classical serif rather than handwriting; chrome only (see below). */
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --bamboo-chrome-font: var(--font-textbook);
+
+    /* Bamboo fibre grain (faint fractal noise). */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4 0.06' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.09'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
+    /* A bundle of vertically bound slats + two binding cords. */
+    --slip: linear-gradient(180deg,transparent 0%,transparent 17%,rgba(0,0,0,0.55) 17%,rgba(0,0,0,0.55) calc(17% + 3px),rgba(220,205,160,0.08) calc(17% + 4px),transparent calc(17% + 6px),transparent 82%,rgba(0,0,0,0.55) 82%,rgba(0,0,0,0.55) calc(82% + 3px),rgba(220,205,160,0.08) calc(82% + 4px),transparent calc(82% + 6px),transparent 100%),repeating-linear-gradient(90deg,transparent 0px,transparent 42px,rgba(0,0,0,0.65) 42px,rgba(0,0,0,0.65) 46px),repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0px,rgba(0,0,0,0) 5px,rgba(220,205,160,0.10) 14px,rgba(255,255,255,0) 24px,rgba(0,0,0,0.15) 38px,rgba(0,0,0,0.35) 46px),radial-gradient(130% 95% at 50% 42%,rgba(225,205,165,0.04) 0%,rgba(0,0,0,0) 42%,rgba(0,0,0,0.6) 100%);
+}
+
+/* The desk: a bundle of bound slats behind the whole app. */
+body.theme-bamboo-ancient {
+    background: var(--grain), var(--slip), var(--sidebar-bg);
+}
+
+/* #explorer paints --sidebar-bg over the body, so the slats are layered back
+   on top of it — that panel is where the texture actually reads. */
+body.theme-bamboo-ancient #explorer {
+    background-image: var(--grain), var(--slip);
+}
+
+/* Reading surfaces get the fibre grain only. The slat lines are 4px of near
+   black every 46px; behind prose they cut straight through the text. */
+body.theme-bamboo-ancient .md-body,
+body.theme-bamboo-ancient .stf__page {
+    background-image: var(--grain);
+    background-attachment: local;
+}
+
+/* Mincho serif on the chrome… */
+body.theme-bamboo-ancient #explorer,
+body.theme-bamboo-ancient #tab-bar,
+body.theme-bamboo-ancient #status-bar,
+body.theme-bamboo-ancient .git-panel-v2,
+body.theme-bamboo-ancient .explorer-tab,
+body.theme-bamboo-ancient .modal-content,
+body.theme-bamboo-ancient .settings-modal-content,
+body.theme-bamboo-ancient button {
+    font-family: var(--bamboo-chrome-font);
+    letter-spacing: 0;
+}
+
+/* …but code, inputs and numeric fields stay monospace for legibility. */
+body.theme-bamboo-ancient .cm-editor,
+body.theme-bamboo-ancient .cm-content,
+body.theme-bamboo-ancient .stf__page,
+body.theme-bamboo-ancient textarea,
+body.theme-bamboo-ancient input,
+body.theme-bamboo-ancient select,
+body.theme-bamboo-ancient .block-cm,
+body.theme-bamboo-ancient .md-block pre,
+body.theme-bamboo-ancient .md-body pre,
+body.theme-bamboo-ancient code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+/* Form controls — bamboo's own darks, not the generic dark-theme greys. */
+body.theme-bamboo-ancient button,
+body.theme-bamboo-ancient select,
+body.theme-bamboo-ancient input[type="text"],
+body.theme-bamboo-ancient input[type="password"] {
+    background-color: #463a26;
+    color: #e8e0cc;
+    border: 1px solid #6b5a3c;
+    color-scheme: dark;
+}
+
+body.theme-bamboo-ancient button:hover {
+    background-color: #5c4c32;
+}
+
+body.theme-bamboo-ancient input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+
+body.theme-bamboo-ancient #explorer-search {
+    background-color: #463a26;
+    color: #e8e0cc;
+    border: 1px solid #6b5a3c;
+}
+
+body.theme-bamboo-ancient #explorer-search::placeholder {
+    color: #a89d84;
+}
+
+body.theme-bamboo-ancient .modal-content input,
+body.theme-bamboo-ancient .modal-content select {
+    color: #e8e0cc !important;
+}
+
+/* Floating surfaces rest on the deep bundle shadow. */
+body.theme-bamboo-ancient .modal-content,
+body.theme-bamboo-ancient .settings-modal-content,
+body.theme-bamboo-ancient .git-commit-detail-panel,
+body.theme-bamboo-ancient .search-modal {
+    box-shadow: var(--shadow-lg);
+}
+
+body.theme-bamboo-ancient option {
+    background-color: #463a26;
+    color: #e8e0cc;
+}
+
+
+/* ============================================================================
+   🖌 Sumi-e — 水墨・朱印 (sumi-e)
+   From docs/design/editor-theme-proposal.html. Unbleached washi, sumi-black
+   text, vermillion seal as the single accent — the light-side companion to the
+   Bamboo / Paper family. Chrome takes the Mincho serif; --grain is reused as a
+   faint paper fibre (weaker than bamboo's, which was tuned for a dark slip).
+
+   The proposal's muted tone (#9a958a) measured 2.74:1 against the paper and its
+   gutter 2.07:1 — well under the 4.5:1 readable threshold, so comments and line
+   numbers are darkened to #706b5d (4.88:1). Everything else is the palette as
+   proposed.
+   ========================================================================== */
+body.theme-sumi-e {
+    --bg-color: #f7f5f0;            /* unbleached washi (editor) */
+    --sidebar-bg: #ece8df;          /* the desk */
+    --header-bg: #efece3;
+    --border-color: #d8d2c4;
+    --text-color: #1c1c1c;          /* sumi ink */
+    --primary-color: #c73e3a;       /* 朱 — the seal's vermillion */
+    --active-tab-bg: #f7f5f0;
+    --active-tab-border: #c73e3a;
+    --hover-color: #e9e4d8;
+    --bg-color-secondary: #efece3;
+    --bg-active: #e9e4d8;
+    --radius: 6px;
+    --table-header-bg: #efece3;
+    --shadow-sm: 0 1px 2px rgba(60, 50, 35, 0.10);
+    --shadow-md: 0 3px 10px rgba(60, 50, 35, 0.14);
+    --shadow-lg: 0 8px 26px rgba(60, 50, 35, 0.18);
+
+    /* Syntax — indigo, vermillion and aubergine inks on paper */
+    --hl-keyword: #2f4f7f;          /* 藍 indigo */
+    --hl-control-flow: #7d5aa0;
+    --hl-built-in: #3a726d;
+    --hl-literal: #2f4f7f;
+    --hl-string: #a63a34;           /* 朱 */
+    --hl-comment: #706b5d;          /* 淡墨, lifted to 4.9:1 */
+    --hl-function: #4a3f6b;
+    --hl-variable: #3a3a3a;
+    --hl-number: #7a6a4f;
+    --hl-operator: #1c1c1c;
+
+    --gutter-color: #706b5d;
+    --tab-inactive-color: #706b5d;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(199, 62, 58, 0.10);
+    --text-secondary: #706b5d;
+
+    --code-color: #a63a34;
+    --code-bg: rgba(199, 62, 58, 0.08);
+    --code-border: rgba(199, 62, 58, 0.20);
+    --blockquote-bg: rgba(28, 28, 28, 0.04);
+
+    --selection-bg: rgba(199, 62, 58, 0.20);
+    --selection-color: #1c1c1c;
+    --cm-selection-bg: rgba(199, 62, 58, 0.16);
+
+    --git-modified-color: #a8791f;
+    --git-staged-color: #4a7a4a;
+    --git-untracked-color: #4a7a4a;
+
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --sumi-chrome-font: var(--font-textbook);
+    /* Washi fibre: tighter and far fainter than the bamboo grain. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
+}
+
+/* Paper fibre on the desk and the reading surfaces. */
+body.theme-sumi-e {
+    background: var(--grain), var(--sidebar-bg);
+}
+
+body.theme-sumi-e #explorer,
+body.theme-sumi-e .md-body,
+body.theme-sumi-e .stf__page {
+    background-image: var(--grain);
+}
+
+/* Mincho on the chrome… */
+body.theme-sumi-e #explorer,
+body.theme-sumi-e #tab-bar,
+body.theme-sumi-e #status-bar,
+body.theme-sumi-e .git-panel-v2,
+body.theme-sumi-e .explorer-tab,
+body.theme-sumi-e .modal-content,
+body.theme-sumi-e .settings-modal-content,
+body.theme-sumi-e button {
+    font-family: var(--sumi-chrome-font);
+    letter-spacing: 0;
+}
+
+/* …code, inputs and numeric fields stay monospace. */
+body.theme-sumi-e .cm-editor,
+body.theme-sumi-e .cm-content,
+body.theme-sumi-e .stf__page,
+body.theme-sumi-e textarea,
+body.theme-sumi-e input,
+body.theme-sumi-e select,
+body.theme-sumi-e .block-cm,
+body.theme-sumi-e .md-block pre,
+body.theme-sumi-e .md-body pre,
+body.theme-sumi-e code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+body.theme-sumi-e option { background-color: #f7f5f0; color: #1c1c1c; }
+
+/* ============================================================================
+   ❄ Nord — 北極の青 (nord)
+   From docs/design/editor-theme-proposal.html. The canonical low-saturation
+   arctic blue-grey; calm contrast for long sessions.
+
+   Nord's own comment colour (#616e88, "nord3 brightened") measures 2.43:1 here
+   and its purple 4.41:1 — both under the readable threshold, so the muted tones
+   are lifted to #94a2bd (4.9:1) and the purple to #bd9ab6 (5.0:1). The rest is
+   Nord as specified.
+   ========================================================================== */
+body.theme-nord {
+    --bg-color: #2e3440;            /* nord0 */
+    --sidebar-bg: #3b4252;          /* nord1 */
+    --header-bg: #343b49;
+    --border-color: #434c5e;        /* nord2 */
+    --text-color: #eceff4;          /* nord6 */
+    --primary-color: #88c0d0;       /* nord8 — frost */
+    --active-tab-bg: #2e3440;
+    --active-tab-border: #88c0d0;
+    --hover-color: #3b4252;
+    --bg-color-secondary: #3b4252;
+    --bg-active: #434c5e;
+    --radius: 6px;
+    --table-header-bg: #3b4252;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.36);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.45);
+
+    /* Syntax — the Frost and Aurora families */
+    --hl-keyword: #81a1c1;          /* nord9 */
+    --hl-control-flow: #bd9ab6;     /* nord15, lifted to 5.0:1 */
+    --hl-built-in: #8fbcbb;         /* nord7 */
+    --hl-literal: #81a1c1;
+    --hl-string: #a3be8c;           /* nord14 */
+    --hl-comment: #94a2bd;          /* nord3 brightened further, 4.9:1 */
+    --hl-function: #88c0d0;
+    --hl-variable: #d8dee9;         /* nord4 */
+    --hl-number: #bd9ab6;
+    --hl-operator: #eceff4;
+
+    --gutter-color: #94a2bd;
+    --tab-inactive-color: #94a2bd;
+    --tree-item-color: #d8dee9;
+    --tree-item-active-bg: rgba(136, 192, 208, 0.14);
+    --text-secondary: #94a2bd;
+
+    --code-color: #ebcb8b;          /* nord13 */
+    --code-bg: rgba(235, 203, 139, 0.10);
+    --code-border: rgba(235, 203, 139, 0.25);
+    --blockquote-bg: rgba(136, 192, 208, 0.08);
+
+    --selection-bg: rgba(136, 192, 208, 0.28);
+    --selection-color: #eceff4;
+    --cm-selection-bg: rgba(136, 192, 208, 0.24);
+
+    --git-modified-color: #ebcb8b;
+    --git-staged-color: #a3be8c;
+    --git-untracked-color: #a3be8c;
+}
+
+/* Form controls in Nord's own greys, not the generic dark-theme ones. */
+body.theme-nord button,
+body.theme-nord select,
+body.theme-nord input[type="text"],
+body.theme-nord input[type="password"] {
+    background-color: #3b4252;
+    color: #eceff4;
+    border: 1px solid #4c566a;
+    color-scheme: dark;
+}
+
+body.theme-nord button:hover { background-color: #434c5e; }
+
+body.theme-nord input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+
+body.theme-nord #explorer-search {
+    background-color: #3b4252;
+    color: #eceff4;
+    border: 1px solid #4c566a;
+}
+
+body.theme-nord #explorer-search::placeholder { color: #94a2bd; }
+
+body.theme-nord .modal-content input,
+body.theme-nord .modal-content select { color: #eceff4 !important; }
+
+body.theme-nord option { background-color: #3b4252; color: #eceff4; }
+
+/* ============================================================================
+   🖼 Kakejiku — 掛軸（画軸）
+   From docs/design/editor-theme-material-proposal.html. A hanging scroll:
+   the honji (本紙, the picture/sheet you write on) is a pale moon-white silk;
+   the hyousou (表装, the mount) is deep indigo brocade (緞子); a silver
+   ichimonji and an ebony roller cap the top and bottom; a vermillion seal
+   (朱印) is the single accent. The explorer keeps the honji colour for
+   readability and is edged with the brocade indigo instead of painted with it.
+
+   The one structural exception to the other themes: the SHEET (editor) is
+   light and the MOUNT (tabs / titlebar / status bar / outline) is dark, so the
+   palette variables that follow --bg-color around (--text-color on the light
+   sheet) can't also paint the dark mount. The mount therefore overrides its
+   own text colours explicitly below rather than inheriting --text-color.
+   ========================================================================== */
+body.theme-kakejiku {
+    /* Honji — moon-white silk (the editor surface) */
+    --bg-color: #e8edf1;
+    /* Hyousou — indigo brocade (sidebar/header base, overridden per-face below) */
+    --sidebar-bg: #33415f;
+    --header-bg: #3a4868;
+    --border-color: #56648a;
+    /* Ink on the honji (dark, for the light sheet) */
+    --text-color: #2b2f36;
+    /* The seal's vermillion */
+    --primary-color: #c14a3d;
+    --active-tab-bg: #4a5a82;
+    --active-tab-border: #c14a3d;
+    --hover-color: #2b3650;
+    --bg-color-secondary: #eef1f4;
+    --bg-active: #4a5a82;
+    --radius: 6px;
+    --table-header-bg: #e2e7ec;
+
+    --shadow-sm: 0 1px 2px rgba(30, 35, 50, 0.14);
+    --shadow-md: 0 3px 10px rgba(30, 35, 50, 0.20);
+    --shadow-lg: 0 8px 26px rgba(30, 35, 50, 0.30);
+
+    /* Syntax — ink on moon-white silk */
+    --hl-keyword: #2f5f8a;          /* indigo ink */
+    --hl-control-flow: #7a4a7a;
+    --hl-built-in: #3a7a6a;
+    --hl-literal: #2f5f8a;
+    --hl-string: #a63a34;           /* vermillion */
+    --hl-comment: #9aa3ae;
+    --hl-function: #5a6a8a;
+    --hl-variable: #2b2f36;
+    --hl-number: #6a6a2f;
+    --hl-operator: #2b2f36;
+
+    --gutter-color: #9aa4b2;
+    --tab-inactive-color: #c7cede;  /* pale ink on the indigo mount */
+    --tree-item-color: #2b2f36;     /* the explorer sits on the honji */
+    --tree-item-active-bg: rgba(193, 74, 61, 0.08);
+    --text-secondary: #6a7078;      /* secondary ink on the honji */
+
+    --code-color: #a63a34;
+    --code-bg: rgba(193, 74, 61, 0.08);
+    --code-border: rgba(193, 74, 61, 0.20);
+    --blockquote-bg: rgba(47, 95, 138, 0.06);
+
+    --selection-bg: rgba(193, 74, 61, 0.20);
+    --selection-color: #2b2f36;
+    --cm-selection-bg: rgba(193, 74, 61, 0.16);
+
+    --git-modified-color: #b07d2b;
+    --git-staged-color: #3a7a6a;
+    --git-untracked-color: #3a7a6a;
+
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --kakejiku-chrome-font: var(--font-textbook);
+
+    /* Fine silk weave on the honji (thread-like crosshatch, fainter than paper). */
+    --silk: repeating-linear-gradient(0deg, rgba(90,105,120,0.035) 0 1px, rgba(255,255,255,0.05) 1px 2px, transparent 2px 4px),
+            repeating-linear-gradient(90deg, rgba(90,105,120,0.035) 0 1px, rgba(255,255,255,0.05) 1px 2px, transparent 2px 4px);
+
+    /* The mount's brocade weave (緞子・菱文) — silver damask on the indigo
+       brocade faces (tabs / titlebar / status bar / explorer tab strip). */
+    --donsu: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='none' stroke='%23aeb8d0' stroke-opacity='0.15' stroke-width='1'%3E%3Cpath d='M28 6 L50 28 L28 50 L6 28 Z'/%3E%3Cpath d='M28 16 L40 28 L28 40 L16 28 Z'/%3E%3C/g%3E%3Cg fill='%23aeb8d0' fill-opacity='0.12'%3E%3Ccircle cx='28' cy='28' r='3'/%3E%3Ccircle cx='6' cy='6' r='2'/%3E%3Ccircle cx='50' cy='6' r='2'/%3E%3Ccircle cx='6' cy='50' r='2'/%3E%3Ccircle cx='50' cy='50' r='2'/%3E%3C/g%3E%3C/svg%3E");
+
+}
+
+/* The desk: pale moon-white silk with a soft sheen. */
+body.theme-kakejiku {
+    background: var(--silk),
+        var(--bg-color);
+}
+
+/* The explorer is the honji itself — keep the light sheet, edge it in brocade. */
+body.theme-kakejiku #explorer {
+    background-color: var(--bg-color);
+    background-image: var(--silk);
+    border-right: 2px solid var(--sidebar-bg);
+    color: var(--text-color);
+}
+
+/* Reading surfaces (markdown preview / book pages) get the silk. */
+body.theme-kakejiku .md-body,
+body.theme-kakejiku .stf__page {
+    background-image: var(--silk);
+    background-position: 0 0;
+    background-size: auto;
+    background-repeat: repeat;
+    background-attachment: local;
+    background-color: var(--bg-color);
+}
+
+/* The mount (tabs / titlebar / status bar / outline header / git header) is
+   indigo brocade. Its text must not inherit the honji's dark ink. */
+body.theme-kakejiku #tab-bar,
+body.theme-kakejiku #tab-bar-right,
+body.theme-kakejiku #custom-titlebar,
+body.theme-kakejiku #status-bar,
+body.theme-kakejiku .outline-header,
+body.theme-kakejiku .git-v2-repo,
+body.theme-kakejiku .git-v2-header {
+    background-color: var(--header-bg);
+    background-image: var(--donsu);
+    color: #eef1f6;
+}
+
+/* Titlebar buttons and the new-tab button carry their own explicit
+   var(--text-color) (dark ink), so pull them back to pale ink on the brocade. */
+body.theme-kakejiku .titlebar-btn,
+body.theme-kakejiku .titlebar-tool-btn,
+body.theme-kakejiku #new-tab-btn {
+    color: #eef1f6;
+}
+body.theme-kakejiku .titlebar-btn:hover,
+body.theme-kakejiku .titlebar-tool-btn:hover,
+body.theme-kakejiku #new-tab-btn:hover {
+    color: #ffffff;
+}
+body.theme-kakejiku .titlebar-btn.titlebar-close:hover {
+    color: #ffffff;
+}
+
+/* Inactive tabs on the mount: pale ink. Active tab keeps the indigo mount and
+   takes the vermillion seal as its top border. */
+body.theme-kakejiku .tab {
+    color: var(--tab-inactive-color);
+}
+body.theme-kakejiku .tab.active {
+    background-color: var(--active-tab-bg);
+    color: #ffffff;
+}
+
+/* The explorer's Files/Git tab strip is the brocade (indigo) — pale labels and
+   the brocade weave. */
+body.theme-kakejiku .explorer-tabs {
+    background-image: var(--donsu);
+}
+body.theme-kakejiku .explorer-tab {
+    color: #eef1f6;
+}
+body.theme-kakejiku .explorer-tab.active {
+    color: var(--primary-color);
+}
+
+/* Explorer hover: the tree sits on the honji (light), so hovering must paint a
+   light highlight — not the mount's dark indigo, which swallows the ink text. */
+body.theme-kakejiku .tree-item:hover,
+body.theme-kakejiku .git-file-item:hover,
+body.theme-kakejiku .git-tree-item:hover,
+body.theme-kakejiku .outline-item:hover,
+body.theme-kakejiku .git-cmp-dir:hover,
+body.theme-kakejiku .git-cmp-file:hover {
+    background-color: #dbe2ea;
+}
+
+/* Outline / Git items inherit the light honji too. */
+body.theme-kakejiku #outline-container,
+body.theme-kakejiku .git-panel-v2 {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Mincho serif on the chrome… */
+body.theme-kakejiku #explorer,
+body.theme-kakejiku #tab-bar,
+body.theme-kakejiku #status-bar,
+body.theme-kakejiku .git-panel-v2,
+body.theme-kakejiku .explorer-tab,
+body.theme-kakejiku .modal-content,
+body.theme-kakejiku .settings-modal-content,
+body.theme-kakejiku button {
+    font-family: var(--kakejiku-chrome-font);
+    letter-spacing: 0.3px;
+}
+
+/* …code, inputs and numeric fields stay monospace. */
+body.theme-kakejiku .cm-editor,
+body.theme-kakejiku .cm-content,
+body.theme-kakejiku .stf__page,
+body.theme-kakejiku textarea,
+body.theme-kakejiku input,
+body.theme-kakejiku select,
+body.theme-kakejiku .block-cm,
+body.theme-kakejiku .md-block pre,
+body.theme-kakejiku .md-body pre,
+body.theme-kakejiku code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+/* The mount is dark; form controls on it keep pale ink, but inputs sitting on
+   the honji (editor-adjacent) use dark ink. Overrides below are scoped to the
+   mount faces only so the light sheet stays readable. */
+body.theme-kakejiku #status-bar,
+body.theme-kakejiku #status-bar * {
+    color: #eef1f6;
+}
+body.theme-kakejiku #status-bar #status-whitespace.active,
+body.theme-kakejiku #status-bar #status-vim-mode {
+    color: var(--primary-color);
+}
+
+/* Dropdown options on the pale silk. */
+body.theme-kakejiku option {
+    background-color: #e8edf1;
+    color: #2b2f36;
+}

@@ -8,6 +8,7 @@ import { showCustomInput, showCustomConfirm, showNewFileModal } from '../ui/Moda
 import { shortcuts } from './ShortcutManager.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { save } from '@tauri-apps/plugin-dialog';
+import { showAlert } from '../ui/Dialog.js';
 import { invoke } from '@tauri-apps/api/core';
 
 let openFileCallback = null;
@@ -618,14 +619,14 @@ class VirtualExplorer {
                 const newPath = FS.joinPath(parent, newName);
                 try {
                     if (await FS.exists(newPath)) {
-                        alert('File exists!');
+                        showAlert('File exists!', { title: 'Rename', kind: 'warning' });
                         return;
                     }
                     await FS.rename(item.path, newPath);
                     if (this.dirCache) this.dirCache.delete(parent);
                     await loadExplorer();
                 } catch (err) {
-                    alert('Rename failed: ' + err);
+                    showAlert('Rename failed: ' + err, { title: 'Rename', kind: 'error' });
                 }
             }
         };
@@ -1136,7 +1137,8 @@ async function handleNewFile(dir) {
 
     try {
         if (await FS.exists(targetPath)) {
-            return alert('File already exists at that location.');
+            await showAlert('File already exists at that location.', { title: 'New File', kind: 'warning' });
+            return;
         }
 
         // Use the specified encoding
@@ -1147,7 +1149,7 @@ async function handleNewFile(dir) {
         if (openFileCallback) openFileCallback(targetPath);
 
     } catch (err) {
-        alert('Failed to create file: ' + err);
+        showAlert('Failed to create file: ' + err, { title: 'New File', kind: 'error' });
     }
 }
 
@@ -1155,7 +1157,10 @@ async function handleNewFolder(dir) {
     const name = await showCustomInput('New Folder', 'Enter folder name:');
     if (!name) return;
     const targetPath = FS.joinPath(dir, name);
-    if (await FS.exists(targetPath)) return alert('Exists!');
+    if (await FS.exists(targetPath)) {
+        await showAlert('Exists!', { title: 'New Folder', kind: 'warning' });
+        return;
+    }
     await FS.createDirectory(targetPath);
     await loadExplorer(true); // Force Refresh
 }
@@ -1216,7 +1221,7 @@ async function handlePaste(targetDir) {
             }
             if (clipboardAction.type === 'cut') clipboardAction = null;
             await loadExplorer(true);
-        } catch (e) { alert(e.message); }
+        } catch (e) { showAlert(e.message, { title: 'Explorer', kind: 'error' }); }
     } else {
         const files = await FS.pasteFiles();
         if (files && files.length > 0) {
@@ -1266,7 +1271,7 @@ async function handleDropEvent(e, targetDir) {
     }
 
     if (errors.length > 0) {
-        alert('Move failed:\n' + errors.join('\n'));
+        showAlert('Move failed:\n' + errors.join('\n'), { title: 'Move', kind: 'error' });
     }
 
     // Clear cut clipboard if we moved the cut items

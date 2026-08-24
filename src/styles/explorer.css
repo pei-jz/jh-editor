@@ -383,15 +383,38 @@ body.theme-solarized-dark .tree-icon {
     flex-direction: column;
 }
 
+/* HISTORY is the section that absorbs the leftover height. Without this the
+   sections keep their natural height and the remainder of the scrolling content
+   area sits below them as dead space — with the section's own bottom border
+   stranded in the middle of it, which read as an empty box. */
+#git-section-history {
+    flex: 1 1 auto;
+}
+
 /* Commit detail shown BELOW the history graph (not over it), so selecting a
-   commit no longer hides the history. */
+   commit no longer hides the history. Height is draggable (see
+   .git-detail-resizer) and persisted; both this and the divider stay hidden
+   until a commit is actually selected. */
 .git-commit-detail-panel {
     flex-shrink: 0;
-    max-height: 45%;
+    height: 40%;
+    min-height: 60px;
     overflow-y: auto;
-    border-top: 2px solid var(--border-color);
     background: var(--bg-color-secondary, var(--sidebar-bg));
     font-size: 12px;
+}
+
+.git-detail-resizer {
+    flex-shrink: 0;
+    height: 5px;
+    cursor: row-resize;
+    background: var(--border-color);
+    transition: background 0.15s ease;
+}
+
+.git-detail-resizer:hover,
+.git-detail-resizer.resizing {
+    background: var(--primary-color);
 }
 
 .git-section {

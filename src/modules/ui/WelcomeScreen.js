@@ -1,4 +1,5 @@
 import { exists } from '../utils/FileSystem.js';
+import { showAlert } from './Dialog.js';
 
 const EL = {
     screen: document.getElementById('welcome-screen'),
@@ -47,7 +48,7 @@ async function selectWorkspace(path, callback) {
         addToRecents(path);
         callback(path);
     } else {
-        alert('Path not found: ' + path);
+        showAlert('Path not found: ' + path, { title: 'Open Workspace', kind: 'error' });
         removeFromRecents(path);
         renderRecents(callback);
     }

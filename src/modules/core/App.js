@@ -34,7 +34,8 @@ import { initJhEditorMcp, runJhaiIntent } from '../ai/JhAiMcp.js';
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ask, open } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
+import { showConfirm } from '../ui/Dialog.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -822,7 +823,7 @@ function setupCloseListener() {
                 // Prevent closing immediately
                 event.preventDefault();
 
-                const discard = await ask('You have unsaved changes. Quit and discard them?', {
+                const discard = await showConfirm('You have unsaved changes. Quit and discard them?', {
                     title: 'Unsaved Changes',
                     kind: 'warning',
                     okLabel: 'Quit (Discard)',

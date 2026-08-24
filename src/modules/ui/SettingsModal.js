@@ -5,6 +5,7 @@ import { State } from '../core/Store.js';
 import { Toast } from './Toast.js';
 import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
+import { showConfirm } from './Dialog.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -660,8 +661,8 @@ export function initSettingsModal() {
 
         const resetBtn = document.getElementById('reset-shortcuts-btn');
         if (resetBtn) {
-            resetBtn.onclick = () => {
-                if (confirm('Reset all shortcuts to default?')) {
+            resetBtn.onclick = async () => {
+                if (await showConfirm('Reset all shortcuts to default?', { title: 'Shortcuts' })) {
                     shortcuts.resetToDefaults();
                     renderKeybindings();
                 }
@@ -678,10 +679,16 @@ export function initSettingsModal() {
 }
 
 export function applyTheme(theme) {
-    document.body.classList.remove('theme-dark', 'theme-midnight', 'theme-latte', 'theme-solarized-dark', 'theme-solarized-light', 'theme-paper', 'theme-paper-subtle');
+    document.body.classList.remove('theme-dark', 'theme-midnight', 'theme-latte', 'theme-solarized-dark', 'theme-solarized-light', 'theme-paper', 'theme-bamboo-ancient',
+        'theme-sumi-e', 'theme-nord', 'theme-kakejiku');
     if (theme && theme !== 'light') {
         document.body.classList.add(`theme-${theme}`);
     }
+
+    // CodeMirror resolves its syntax palette when the view is BUILT, so without
+    // this the open editors keep the previous theme's token colours until the
+    // tab is reopened. CodeMirrorView listens and reconfigures in place.
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
     
     // Update terminal theme if initialized (with a small delay to ensure CSS classes are applied)
     setTimeout(() => {

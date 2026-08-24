@@ -37,6 +37,7 @@ import { shortcuts } from './ShortcutManager.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { pluginManager } from './PluginManager.js';
 import { initDefaultPlugins } from './ViewPlugins.js';
+import { showAlert, showConfirm } from '../ui/Dialog.js';
 
 // Initialize Plugins
 initDefaultPlugins();
@@ -347,8 +348,7 @@ export async function closeAllTabs(action = 'prompt') {
             }
         }
     } else if (action === 'prompt' && hasDirty) {
-        const { ask } = await import('@tauri-apps/plugin-dialog');
-        const proceed = await ask('Some files have unsaved changes. Close all tabs and discard them?', {
+        const proceed = await showConfirm('Some files have unsaved changes. Close all tabs and discard them?', {
             title: 'Unsaved Changes',
             kind: 'warning',
             okLabel: 'Discard & Close',
@@ -567,8 +567,14 @@ export function renderEditor(targetPane = null) {
         // bottom-right corner (View モードの使い方 — users forget the keys).
         if (plugin) addViewUsageHint(container, file);
         // Plain-text (CodeMirror) views have no built-in hint panel, but when
-        // vim mode is on we still show the vi command palette in the corner.
-        else if (localStorage.getItem('settings_editorVim') === 'true') addViewUsageHint(container, file);
+        // vi mode is on we still show the vi command palette in the corner.
+        // `isTextEditor` has to be told, not guessed from the extension: a .md
+        // or .csv file opened in TEXT mode is a CodeMirror editor, and inferring
+        // the model from the file name showed it the "Markdown View" / "Table
+        // View" block hints while vi was actually running.
+        else if (localStorage.getItem('settings_editorVim') === 'true') {
+            addViewUsageHint(container, file, { isTextEditor: true });
+        }
 
         if (isLeft) leftView = view;
         else rightView = view;
@@ -580,7 +586,7 @@ export function renderEditor(targetPane = null) {
  * be minimized to a tiny tab. Shown only for the structured views (Markdown /
  * CSV / Structure). The collapsed state persists per view type.
  */
-export function addViewUsageHint(container, file) {
+export function addViewUsageHint(container, file, options = {}) {
     if (!container || container.querySelector('.view-usage-hint')) return;
     // Anchor the absolute-positioned panel to THIS container (the editor pane).
     container.style.position = 'relative';
@@ -594,8 +600,12 @@ export function addViewUsageHint(container, file) {
     // editing model. `settings_vimMode` = the Markdown block vi navigation
     // (Vim.js); `settings_editorVim` = the full CodeMirror vim keymap that
     // Ctrl+Alt+V / the toolbar badge toggles.
-    const mdVi = isMd && localStorage.getItem('settings_vimMode') === 'true';
-    const cmVi = !isMd && !isCsv && localStorage.getItem('settings_editorVim') === 'true';
+    // `options.isTextEditor` marks the CodeMirror view. Without it the choice
+    // was made from the file extension, so vi mode on a .md / .csv file in text
+    // mode never got its palette.
+    const isTextEditor = options.isTextEditor === true;
+    const cmVi = isTextEditor && localStorage.getItem('settings_editorVim') === 'true';
+    const mdVi = !isTextEditor && isMd && localStorage.getItem('settings_vimMode') === 'true';
     if (mdVi) {
         title = 'Vim (vi) Mode · Markdown';
         lines = [
@@ -608,14 +618,30 @@ export function addViewUsageHint(container, file) {
         ];
     } else if (cmVi) {
         title = 'Vim (vi) Mode';
+        // Grouped roughly as move → select → edit → replace → file. The counted
+        // forms (3yy, v3l, 3w) are spelled out rather than left implicit: the
+        // "prefix a number" idea is the one thing that is not guessable from a
+        // list of single letters.
         lines = [
             ['h / j / k / l', 'move cursor'],
-            ['i / a / o', 'insert mode'],
-            ['dd / yy / p', 'delete / copy / paste line'],
+            ['w / b / e', 'word forward / back / end'],
             ['gg / G', 'file start / end'],
             ['0 / $', 'line start / end'],
+            ['v / V / Ctrl+V', 'select char / line / block'],
+            ['viw', 'select the word'],
+            ['v3l / v3w', 'select next 3 chars / words'],
+            ['V3j', 'select 3 lines down'],
+            ['yy / 3yy', 'copy line / 3 lines'],
+            ['dd / 3dd', 'cut line / 3 lines'],
+            ['p / P', 'paste after / before'],
+            ['i / a / o', 'insert mode'],
+            ['r / R', 'replace one char / overwrite'],
+            ['ciw / cw', 'change the word'],
+            [':s/a/b/g', 'replace in this line'],
+            [':%s/a/b/g', 'replace in the file'],
+            [':%s/a/b/gc', '…asking each time'],
             ['u / Ctrl+R', 'undo / redo'],
-            ['/', 'search'],
+            ['/ / n / N', 'search / next / previous'],
             [':w', 'save'],
             ['Esc', 'back to normal']
         ];
@@ -657,6 +683,14 @@ export function addViewUsageHint(container, file) {
     minBtn.title = wasMin ? 'Show usage hints' : 'Minimize hints';
     minBtn.textContent = wasMin ? '💡' : '—';
 
+    // Close, like the shortcut guide's ✕: gone for now, back next time this
+    // view is rendered. Deliberately NOT persisted — minimize (—) is the
+    // sticky one, so closing can never leave the hints unreachable.
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'view-usage-close';
+    closeBtn.title = 'Close hints';
+    closeBtn.textContent = '✕';
+
     const body = document.createElement('div');
     body.className = 'view-usage-body';
     const head = document.createElement('div');
@@ -673,7 +707,12 @@ export function addViewUsageHint(container, file) {
         row.append(kk, dd);
         body.appendChild(row);
     });
-    panel.append(minBtn, body);
+    panel.append(minBtn, closeBtn, body);
+
+    closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        panel.remove();
+    });
 
     minBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -686,6 +725,40 @@ export function addViewUsageHint(container, file) {
 
     container.appendChild(panel);
 }
+
+/**
+ * Rebuild the bottom-right hint panel in both panes.
+ *
+ * vi mode is toggled at RUNTIME (Ctrl+Alt+V, or the toolbar badge) but the
+ * panel is built during render — so without this the corner kept showing the
+ * hints for the mode you just left, or stayed empty when you turned vi on.
+ *
+ * Only panes that already show a hint, or that host a CodeMirror editor (the
+ * one place vi runs), are touched: everything else must not sprout a panel.
+ */
+export function refreshViewUsageHints() {
+    const panes = [
+        [EL.editorContent, State.openFiles[State.activeTabIndex]],
+        [EL.editorContentRight, State.rightOpenFiles[State.rightActiveTabIndex]],
+    ];
+    for (const [container, file] of panes) {
+        if (!container || !file) continue;
+        const existing = container.querySelector('.view-usage-hint');
+        const isTextEditor = !!container.querySelector('.cm-editor-wrapper');
+        if (!existing && !isTextEditor) continue;
+
+        if (existing) existing.remove();
+        if (isTextEditor) {
+            if (localStorage.getItem('settings_editorVim') === 'true') {
+                addViewUsageHint(container, file, { isTextEditor: true });
+            }
+        } else {
+            addViewUsageHint(container, file);
+        }
+    }
+}
+
+window.addEventListener('vimModeChanged', refreshViewUsageHints);
 
 
 
@@ -731,7 +804,10 @@ const extendedEditorActions = {
         }
     },
     'editor:split-right': () => {
-        splitEditor();
+        splitEditor({ direction: 'horizontal' });
+    },
+    'editor:split-down': () => {
+        splitEditor({ direction: 'vertical' });
     },
     'editor:close-split': () => {
         closeSplit();
@@ -749,6 +825,17 @@ SHORTCUTS.EDITOR.forEach(s => {
         shortcuts.register({ ...s, action: extendedEditorActions[s.cmd], scope: 'EDITOR' });
     }
 });
+
+// The pane-splitting commands moved from the EDITOR scope to GLOBAL (see
+// ShortcutDefinitions) so they also fire from a markdown block, the CSV grid or
+// the explorer. Their actions live in extendedEditorActions, which the GLOBAL
+// pass above only reads from `editorActions` — register them explicitly.
+['editor:split-right', 'editor:split-down', 'editor:close-split', 'editor:focus-other-pane']
+    .forEach((cmd) => {
+        if (extendedEditorActions[cmd]) {
+            shortcuts.register({ cmd, scope: 'GLOBAL', action: extendedEditorActions[cmd] });
+        }
+    });
 
 // --- File & Tab Management ---
 
@@ -1129,9 +1216,8 @@ export async function closeTab(index, pane = activePane()) {
     const isVirtualTab = file.type === 'diff' || file.type === 'compare' || file.type === 'agent';
 
     if (file.isDirty && !isVirtualTab) {
-        const { ask } = await import('@tauri-apps/plugin-dialog');
         const displayName = file.path ? file.path.split(/[\\/]/).pop() : 'Untitled';
-        const discard = await ask(`"${displayName}" has unsaved changes.\nDiscard them and close?`, {
+        const discard = await showConfirm(`"${displayName}" has unsaved changes.\nDiscard them and close?`, {
             title: 'Unsaved Changes',
             kind: 'warning',
             okLabel: 'Discard & Close',
@@ -1555,13 +1641,34 @@ export function reorderTab(fromIndex, toIndex, pane) {
     updateToolbar();
 }
 
+/**
+ * Open (or re-orient) the second editor pane.
+ *
+ * @param {object}  [options]
+ * @param {'horizontal'|'vertical'} [options.direction]
+ *        'horizontal' = side by side, 'vertical' = stacked. Calling this while
+ *        already split in the OTHER direction flips the layout instead of
+ *        doing nothing, so Ctrl+\\ / Ctrl+Alt+\\ toggle between the two.
+ * @param {boolean} [options.seed]  clone the active tab into the new pane
+ */
 export function splitEditor(options = {}) {
-    const { seed = true } = options;
-    if (State.splitMode) return;
-    State.splitMode = 'horizontal';
+    const { seed = true, direction = 'horizontal' } = options;
+    if (State.splitMode === direction) return;
+
+    const reorienting = !!State.splitMode;
+    State.splitMode = direction;
+    applySplitOrientation(direction);
 
     if (EL.editorContainerRight) EL.editorContainerRight.style.display = 'flex';
     if (EL.editorSplitResizer) EL.editorSplitResizer.style.display = 'block';
+
+    if (reorienting) {
+        // Panes and tabs stay exactly as they are — only the axis changed.
+        renderTabs();
+        renderEditor();
+        updateToolbar();
+        return;
+    }
 
     if (seed && State.rightOpenFiles.length === 0 && State.openFiles.length > 0 && State.activeTabIndex >= 0) {
         const activeFile = State.openFiles[State.activeTabIndex];
@@ -1604,6 +1711,7 @@ export function closeSplit() {
 /** Reset split state + chrome. Does not touch the tab lists. */
 function teardownSplit() {
     State.splitMode = false;
+    applySplitOrientation(null);
     State.activePane = 'left';
     State.rightOpenFiles = [];
     State.rightActiveTabIndex = -1;
@@ -1627,6 +1735,40 @@ function teardownSplit() {
 
 let splitResizerBound = false;
 
+/**
+ * Point the wrapper, the divider and the pane borders along the split axis.
+ * `null` restores the unsplit (horizontal) defaults.
+ */
+function applySplitOrientation(direction) {
+    const wrapper = document.getElementById('editor-wrapper');
+    const vertical = direction === 'vertical';
+    if (wrapper) {
+        wrapper.style.flexDirection = vertical ? 'column' : 'row';
+        wrapper.classList.toggle('split-vertical', vertical);
+    }
+    const resizer = EL.editorSplitResizer;
+    if (resizer) {
+        // The divider is a flex item: it must be thin along the split axis and
+        // stretch across the other one.
+        resizer.style.width = vertical ? '100%' : '4px';
+        resizer.style.height = vertical ? '4px' : '';
+        resizer.style.cursor = vertical ? 'row-resize' : 'col-resize';
+    }
+    const right = EL.editorContainerRight;
+    if (right) {
+        right.style.borderLeft = vertical ? 'none' : '1px solid var(--border-color)';
+        right.style.borderTop = vertical ? '1px solid var(--border-color)' : 'none';
+        // A stacked pane needs its height floor released, and vice versa.
+        right.style.minWidth = vertical ? '' : '0';
+        right.style.minHeight = vertical ? '0' : '';
+    }
+    const left = EL.editorContainer;
+    if (left) {
+        left.style.minWidth = vertical ? '' : '0';
+        left.style.minHeight = vertical ? '0' : '';
+    }
+}
+
 function setupSplitResizer() {
     const resizer = EL.editorSplitResizer;
     const leftPane = EL.editorContainer;
@@ -1641,7 +1783,7 @@ function setupSplitResizer() {
 
     resizer.addEventListener('mousedown', (e) => {
         isResizing = true;
-        document.body.style.cursor = 'col-resize';
+        document.body.style.cursor = State.splitMode === 'vertical' ? 'row-resize' : 'col-resize';
         e.preventDefault();
     });
 
@@ -1651,13 +1793,16 @@ function setupSplitResizer() {
         const wrapper = document.getElementById('editor-wrapper');
         if (!wrapper) return;
         const wrapperRect = wrapper.getBoundingClientRect();
-        const pointerX = e.clientX - wrapperRect.left;
-        const totalWidth = wrapperRect.width;
+        // Measure along whichever axis the panes are stacked on.
+        const vertical = State.splitMode === 'vertical';
+        const pointer = vertical ? e.clientY - wrapperRect.top : e.clientX - wrapperRect.left;
+        const total = vertical ? wrapperRect.height : wrapperRect.width;
+        if (!total) return;
 
-        const leftWidthPercent = (pointerX / totalWidth) * 100;
-        if (leftWidthPercent > 10 && leftWidthPercent < 90) {
-            leftPane.style.flex = `${leftWidthPercent}`;
-            rightPane.style.flex = `${100 - leftWidthPercent}`;
+        const firstPercent = (pointer / total) * 100;
+        if (firstPercent > 10 && firstPercent < 90) {
+            leftPane.style.flex = `${firstPercent}`;
+            rightPane.style.flex = `${100 - firstPercent}`;
         }
     });
 
@@ -1711,8 +1856,7 @@ export async function setupWatcher(file) {
                         if (diskContent !== file.content) {
                             isPrompting = true;
                             file.stats = curStats;
-                            const { confirm } = await import('@tauri-apps/plugin-dialog');
-                            const reload = await confirm(`File "${file.path}" has been changed on disk. Reload?`, { title: 'File Changed', kind: 'warning' });
+                            const reload = await showConfirm(`File "${file.path}" has been changed on disk. Reload?`, { title: 'File Changed', kind: 'warning', okLabel: 'Reload' });
                             if (reload) {
                                 openFile(file.path, file.encoding);
                             }
@@ -1839,10 +1983,10 @@ export async function formatCurrentFile() {
             }
         } catch (err) {
             console.error('Formatting error:', err);
-            alert('Formatting failed: ' + err.message);
+            showAlert('Formatting failed: ' + err.message, { title: 'Format', kind: 'error' });
         }
     } else {
-        alert('Formatting not supported for this file type.');
+        showAlert('Formatting not supported for this file type.', { title: 'Format', kind: 'info' });
     }
 }
 
@@ -1974,7 +2118,7 @@ export async function saveCurrentFile() {
             try { dropDraft(file); } catch (_) { /* non-critical */ }
         } catch (err) {
             console.error('Editor: Failed to save file:', err);
-            alert(`Save failed: ${err.message || err}`);
+            showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
             return;
         }
 

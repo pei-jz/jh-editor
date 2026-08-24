@@ -237,6 +237,100 @@ describe('ShortcutManager — dispatch', () => {
         });
     });
 
+    // Excel-style range-to-edge selection. The matcher compares ctrl AND shift,
+    // so the ctrl-only and shift-only CSV arrow entries did NOT cover the combo
+    // and Ctrl+Shift+Arrow fell through to nothing at all.
+    describe('CSV scope arrows', () => {
+        const dispatched = (ev) => {
+            const seen = vi.fn();
+            window.addEventListener('shortcutTriggered', seen);
+            sm.setScope('CSV');
+            sm.handleKeyDown(ev);
+            window.removeEventListener('shortcutTriggered', seen);
+            return seen.mock.calls.map((c) => c[0].detail.command);
+        };
+
+        it('routes Ctrl+Shift+Arrow to csv:nav', () => {
+            for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+                expect(dispatched(key({ key: k, ctrlKey: true, shiftKey: true })))
+                    .toEqual(['csv:nav']);
+            }
+        });
+
+        it('still routes the plain, ctrl-only and shift-only arrows', () => {
+            expect(dispatched(key({ key: 'ArrowDown' }))).toEqual(['csv:nav']);
+            expect(dispatched(key({ key: 'ArrowDown', ctrlKey: true }))).toEqual(['csv:nav']);
+            expect(dispatched(key({ key: 'ArrowDown', shiftKey: true }))).toEqual(['csv:nav']);
+        });
+    });
+
+    // Ctrl+\ split. Two things used to break it: the commands lived in the
+    // EDITOR scope (so a markdown block or the explorer never saw them), and the
+    // matcher compared e.key, which is not a backslash on a JIS keyboard.
+    describe('editor split', () => {
+        const dispatched = (ev, scope) => {
+            const seen = vi.fn();
+            window.addEventListener('shortcutTriggered', seen);
+            sm.setScope(scope);
+            sm.handleKeyDown(ev);
+            window.removeEventListener('shortcutTriggered', seen);
+            return seen.mock.calls.map((c) => c[0].detail.command);
+        };
+
+        it('splits from any scope, not just EDITOR', () => {
+            for (const scope of ['GLOBAL', 'EDITOR', 'MARKDOWN_BLOCK', 'CSV', 'EXPLORER']) {
+                expect(dispatched(key({ key: '\\', ctrlKey: true, code: 'Backslash' }), scope))
+                    .toEqual(['editor:split-right']);
+            }
+        });
+
+        it('maps the modifiers to the four pane commands', () => {
+            const bs = (over) => key({ key: '\\', ctrlKey: true, code: 'Backslash', ...over });
+            expect(dispatched(bs({}), 'GLOBAL')).toEqual(['editor:split-right']);
+            expect(dispatched(bs({ altKey: true }), 'GLOBAL')).toEqual(['editor:split-down']);
+            expect(dispatched(bs({ shiftKey: true }), 'GLOBAL')).toEqual(['editor:focus-other-pane']);
+            expect(dispatched(key({ key: 'w', ctrlKey: true, shiftKey: true }), 'GLOBAL'))
+                .toEqual(['editor:close-split']);
+        });
+
+        // JIS keyboards report the ￥ / ろ keys as '¥' or '_', never a backslash.
+        it('recognises the backslash key by e.code on non-US layouts', () => {
+            for (const code of ['IntlYen', 'IntlRo']) {
+                expect(dispatched(key({ key: '¥', ctrlKey: true, code }), 'GLOBAL'))
+                    .toEqual(['editor:split-right']);
+            }
+        });
+
+        it('does not treat an unrelated key as the backslash', () => {
+            expect(dispatched(key({ key: 'b', ctrlKey: true, code: 'KeyB' }), 'GLOBAL'))
+                .not.toContain('editor:split-right');
+        });
+    });
+
+    // A themed modal dialog owns the keyboard while it is open. This listener is
+    // on window in the CAPTURE phase and registers at module load, so the dialog
+    // cannot stop it from its own handler — the guard has to live here.
+    describe('modal dialog guard', () => {
+        afterEach(() => {
+            document.querySelectorAll('.app-dialog-overlay').forEach((o) => o.remove());
+        });
+
+        it('ignores every key while a dialog is open', () => {
+            const action = vi.fn();
+            sm.register({ key: 'Escape', cmd: 'test:close', scope: 'GLOBAL', action });
+            const dlg = document.createElement('div');
+            dlg.className = 'app-dialog-overlay';
+            document.body.appendChild(dlg);
+
+            sm.handleKeyDown(key({ key: 'Escape' }));
+            expect(action).not.toHaveBeenCalled();
+
+            dlg.remove();
+            sm.handleKeyDown(key({ key: 'Escape' }));
+            expect(action).toHaveBeenCalledOnce();
+        });
+    });
+
     describe('clipboard passthrough', () => {
         it('lets a plain input handle Ctrl+C natively', () => {
             const action = vi.fn();
@@ -265,6 +359,25 @@ describe('ShortcutManager — dispatch', () => {
             ta.className = 'csv-overlay-editor';
             sm.handleKeyDown(key({ key: 'z', ctrlKey: true, target: ta }));
             expect(action).not.toHaveBeenCalled();
+        });
+
+        // The markdown block editor is a CodeMirror view (contentEditable, not a
+        // textarea) with its own history keymap — app:undo would either roll
+        // back the document under it or, with no view.undo(), do nothing.
+        it('lets the markdown block editor handle Ctrl+Z natively', () => {
+            const action = vi.fn();
+            sm.register({ key: 'z', ctrl: true, cmd: 'app:undo', scope: 'GLOBAL', action });
+            const host = document.createElement('div');
+            host.className = 'block-editor block-cm';
+            const content = document.createElement('div');
+            content.className = 'cm-content';
+            content.contentEditable = 'true';
+            host.appendChild(content);
+            document.body.appendChild(host);
+            sm.setScope('MARKDOWN');
+            sm.handleKeyDown(key({ key: 'z', ctrlKey: true, target: content }));
+            expect(action).not.toHaveBeenCalled();
+            host.remove();
         });
 
         it('still runs Ctrl+Z on the CSV grid itself', () => {

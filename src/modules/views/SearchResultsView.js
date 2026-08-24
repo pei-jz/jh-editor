@@ -17,6 +17,13 @@ export class SearchResultsView {
         this.singleFile = !!file.singleFile;
         this._groups = new Map();   // path -> { linesDiv, countEl, count, dirChain }
         this._dirNodes = new Map(); // dirRel -> { childrenEl, countEl, count }
+        // Collapsed state lives on the MODEL, not the view: switching tabs
+        // destroys and rebuilds the view, which used to re-expand everything
+        // the user had folded away.
+        if (!(file._srCollapsedDirs instanceof Set)) file._srCollapsedDirs = new Set();
+        if (!(file._srCollapsedFiles instanceof Set)) file._srCollapsedFiles = new Set();
+        this._collapsedDirs = file._srCollapsedDirs;
+        this._collapsedFiles = file._srCollapsedFiles;
         this._total = 0;
         this._done = !!file._done;
         this._truncated = !!file._truncated;
@@ -176,11 +183,17 @@ export class SearchResultsView {
         head.append(caret, nameEl, countEl);
         const childrenEl = document.createElement('div');
         childrenEl.className = 'sr-dir-children';
-        head.onclick = () => {
-            const hidden = childrenEl.style.display === 'none';
-            childrenEl.style.display = hidden ? 'block' : 'none';
-            caret.textContent = hidden ? '▾' : '▸';
+        const applyDirState = () => {
+            const collapsed = this._collapsedDirs.has(dirRel);
+            childrenEl.style.display = collapsed ? 'none' : 'block';
+            caret.textContent = collapsed ? '▸' : '▾';
         };
+        head.onclick = () => {
+            if (this._collapsedDirs.has(dirRel)) this._collapsedDirs.delete(dirRel);
+            else this._collapsedDirs.add(dirRel);
+            applyDirState();
+        };
+        applyDirState();
         dirDiv.append(head, childrenEl);
         parentChildren.appendChild(dirDiv);
         this._dirNodes.set(dirRel, { childrenEl, countEl, count: 0 });
@@ -218,11 +231,17 @@ export class SearchResultsView {
         head.append(caret, pathEl, countEl);
         const linesDiv = document.createElement('div');
         linesDiv.className = 'sr-lines';
-        head.onclick = () => {
-            const hidden = linesDiv.style.display === 'none';
-            linesDiv.style.display = hidden ? 'block' : 'none';
-            caret.textContent = hidden ? '▾' : '▸';
+        const applyFileState = () => {
+            const collapsed = this._collapsedFiles.has(path);
+            linesDiv.style.display = collapsed ? 'none' : 'block';
+            caret.textContent = collapsed ? '▸' : '▾';
         };
+        head.onclick = () => {
+            if (this._collapsedFiles.has(path)) this._collapsedFiles.delete(path);
+            else this._collapsedFiles.add(path);
+            applyFileState();
+        };
+        applyFileState();
         fileDiv.append(head, linesDiv);
         parentChildren.appendChild(fileDiv);
         g = { linesDiv, countEl, count: 0, dirChain: this._dirChain(dirRel) };
