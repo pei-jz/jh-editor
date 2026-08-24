@@ -12,6 +12,7 @@ import { InlineAI } from '../ui/InlineAI.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { Navigation } from '../utils/Navigation.js';
+import { showAlert } from '../ui/Dialog.js';
 
 const debounce = (func, wait) => {
     let timeout;
@@ -323,7 +324,7 @@ export class StructureView extends BaseView {
                 this.updateNode(this.currentSelectedNode.id, newNode);
             }
         } catch (err) {
-            alert('Invalid format: ' + err.message);
+            showAlert('Invalid format: ' + err.message, { title: 'Structure', kind: 'error' });
             console.error(err);
         }
     }
@@ -549,7 +550,7 @@ export class StructureView extends BaseView {
                 if (this.onRenderTabs) this.onRenderTabs();
             } catch (e) {
                 console.error('StructureView: Stringify failed during updateNode', e);
-                alert('Failed to generate source: ' + e.message);
+                showAlert('Failed to generate source: ' + e.message, { title: 'Structure', kind: 'error' });
             }
         }
     }

@@ -5,12 +5,25 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { EL } from '../core/Constants.js';
+import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
+import { ContextMenu } from './ContextMenu.js';
 
 // This window's PTY events are named per-window so no other window's terminal
 // receives them (Tauri v2 global `listen` sees events regardless of emit target).
 const WIN_LABEL = (() => { try { return getCurrentWindow().label; } catch (_) { return 'main'; } })();
 const PTY_OUTPUT_EVENT = `pty_output::${WIN_LABEL}`;
 const PTY_CLOSED_EVENT = `pty_closed::${WIN_LABEL}`;
+
+/**
+ * Quote a dropped path so a shell sees it as one argument. Paths with spaces are
+ * the whole point of doing this; anything already quoted is left alone.
+ */
+function quoteForShell(path) {
+    const p = String(path);
+    if (!/[\s'"`]/.test(p)) return p;
+    if (/^".*"$/.test(p) || /^'.*'$/.test(p)) return p;
+    return '"' + p.replace(/"/g, '\\"') + '"';
+}
 
 class TerminalManager {
     constructor() {
@@ -58,17 +71,38 @@ class TerminalManager {
             }
         });
 
-        // Enable standard Copy (Ctrl+C) when there is a selection
+        // Clipboard + selection keys. Everything goes through the Tauri
+        // clipboard plugin: document.execCommand('copy') does nothing here
+        // because xterm draws to a canvas and keeps no DOM selection to copy.
         this.term.attachCustomKeyEventHandler((arg) => {
-            if (arg.ctrlKey && arg.shiftKey && arg.code === 'KeyC') {
-                document.execCommand('copy');
+            if (arg.type !== 'keydown') return true;
+            const ctrl = arg.ctrlKey || arg.metaKey;
+            if (!ctrl) return true;
+
+            // Ctrl+Shift+C always copies; plain Ctrl+C copies only when there is
+            // a selection and otherwise falls through as SIGINT, which is what
+            // every terminal does.
+            if (arg.code === 'KeyC' && (arg.shiftKey || this.term.hasSelection())) {
+                arg.preventDefault();
+                this.copySelection();
                 return false;
             }
-            if (arg.ctrlKey && arg.code === 'KeyC' && this.term.hasSelection()) {
-                return false; 
+            // Ctrl+V and Ctrl+Shift+V paste. preventDefault stops the webview's
+            // own paste from ALSO reaching xterm's hidden textarea (double text).
+            if (arg.code === 'KeyV') {
+                arg.preventDefault();
+                this.pasteFromClipboard();
+                return false;
+            }
+            if (arg.shiftKey && arg.code === 'KeyA') {
+                arg.preventDefault();
+                this.term.selectAll();
+                return false;
             }
             return true;
         });
+
+        this.bindClipboardAndDrop();
 
         // Listen for data from backend -> write to terminal
         const unlistenOutput = await listen(PTY_OUTPUT_EVENT, (event) => {
@@ -109,7 +143,7 @@ class TerminalManager {
         const isLatte = document.body.classList.contains('theme-latte');
         const isSolarizedLight = document.body.classList.contains('theme-solarized-light');
         const isPaper = document.body.classList.contains('theme-paper');
-        const isPaperSubtle = document.body.classList.contains('theme-paper-subtle');
+        const isBamboo = document.body.classList.contains('theme-bamboo-ancient');
 
         let bg = style.getPropertyValue('--bg-color').trim();
         let fg = style.getPropertyValue('--text-color').trim();
@@ -135,9 +169,9 @@ class TerminalManager {
         } else if (isPaper) {
             bg = bg || '#f3e9d0';
             fg = fg || '#243049';
-        } else if (isPaperSubtle) {
-            bg = bg || '#fbf7ec';
-            fg = fg || '#33372e';
+        } else if (isBamboo) {
+            bg = bg || '#3a2e1e';
+            fg = fg || '#e8e0cc';
         }
 
         const finalBg = bg || '#1e1e1e';
@@ -164,6 +198,97 @@ class TerminalManager {
 
         // Redraw to ensure changes are visible
         this.term.refresh(0, this.term.rows - 1);
+    }
+
+    /** Copy the current selection. No-op when nothing is selected. */
+    async copySelection() {
+        if (!this.term || !this.term.hasSelection()) return;
+        const text = this.term.getSelection();
+        if (!text) return;
+        try {
+            await writeText(text);
+        } catch (e) {
+            console.warn('Terminal copy failed:', e);
+        }
+    }
+
+    /** Paste the clipboard into the shell. */
+    async pasteFromClipboard() {
+        if (!this.term) return;
+        let text = '';
+        try {
+            text = await readText();
+        } catch (e) {
+            console.warn('Terminal paste failed:', e);
+            return;
+        }
+        if (text) this.pasteText(text);
+    }
+
+    /**
+     * Send text to the shell as if it had been pasted.
+     *
+     * term.paste() (rather than write_to_pty directly) is deliberate: it applies
+     * bracketed-paste when the shell asked for it and normalises CRLF, so a
+     * multi-line paste doesn't fire a stray extra Enter.
+     */
+    pasteText(text) {
+        if (!this.term || !text) return;
+        this.term.paste(String(text).replace(/\r\n/g, '\n'));
+    }
+
+    /**
+     * Clipboard/selection UI that isn't a key: the right-click menu, middle-click
+     * paste, and dropping files to insert their full paths.
+     */
+    bindClipboardAndDrop() {
+        const host = EL.terminal.container;
+        if (!host) return;
+
+        host.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            ContextMenu.show(e, [
+                { label: 'Copy  (Ctrl+Shift+C)', action: () => this.copySelection() },
+                { label: 'Paste  (Ctrl+V)', action: () => this.pasteFromClipboard() },
+                { type: 'separator' },
+                { label: 'Select All  (Ctrl+Shift+A)', action: () => this.term?.selectAll() },
+                { label: 'Clear', action: () => this.term?.clear() },
+            ]);
+        });
+
+        // Middle-click paste, the X11 convention people reach for out of habit.
+        host.addEventListener('mousedown', (e) => {
+            if (e.button !== 1) return;
+            e.preventDefault();
+            this.pasteFromClipboard();
+        });
+
+        // Dropping a file types its full path — the terminal is where you want
+        // the path, not the contents. stopPropagation keeps App.js's global
+        // file-drop handler from opening the file as a tab instead.
+        host.addEventListener('dragover', (e) => {
+            if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        host.addEventListener('drop', (e) => {
+            const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+            if (!files.length) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // WebView2 exposes the real path on File.path (non-standard but
+            // reliable there); elsewhere only the name is available.
+            const text = files
+                .map((f) => f.path || f.name)
+                .filter(Boolean)
+                .map(quoteForShell)
+                .join(' ');
+            if (text) this.pasteText(text);
+            this.term?.focus();
+        });
     }
 
     bindEvents() {

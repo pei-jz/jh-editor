@@ -48,7 +48,13 @@
   <script>
     // Immediate Theme Application (Sync)
     try {
-      const theme = localStorage.getItem('theme') || 'dark';
+      let theme = localStorage.getItem('theme') || 'dark';
+      // Paper (Subtle) was removed: its sheet was 6 RGB units from Ink Brush's,
+      // i.e. the same paper twice. Move anyone still on it across.
+      if (theme === 'paper-subtle') {
+        theme = 'sumi-e';
+        localStorage.setItem('theme', theme);
+      }
       if (theme && theme !== 'light') {
         document.documentElement.classList.add('theme-' + theme);
         // Also update critical CSS to match specific theme if needed
@@ -57,7 +63,10 @@
         if (theme === 'solarized-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#002b36; }';
         if (theme === 'solarized-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#fdf6e3; }';
         if (theme === 'paper') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e7dab9; }';
-        if (theme === 'paper-subtle') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#f4efe3; }';
+        if (theme === 'bamboo-ancient') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#2f2518; }';
+        if (theme === 'sumi-e') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ece8df; }';
+        if (theme === 'nord') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#3b4252; }';
+        if (theme === 'kakejiku') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e8edf1; }';
       } else {
         document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ffffff; }';
       }
@@ -324,7 +333,10 @@
                 <option value="solarized-dark">Solarized Dark</option>
                 <option value="solarized-light">Solarized Light</option>
                 <option value="paper">Paper</option>
-                <option value="paper-subtle">Paper (Subtle)</option>
+                <option value="bamboo-ancient">Bamboo Slip</option>
+                <option value="sumi-e">Ink Brush</option>
+                <option value="nord">Nord</option>
+                <option value="kakejiku">Hanging Scroll</option>
               </select>
             </div>
             <div class="settings-option">

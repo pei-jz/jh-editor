@@ -13,6 +13,7 @@
  */
 
 import { State } from '../core/Store.js';
+import { showAlert } from '../ui/Dialog.js';
 
 export class TaskNotificationPanel {
     constructor() {
@@ -276,7 +277,7 @@ export class TaskNotificationPanel {
 
             if (!res.ok) {
                 const errText = await res.text();
-                alert(`Failed to create task: ${errText}`);
+                showAlert(`Failed to create task: ${errText}`, { title: 'Task', kind: 'error' });
                 return;
             }
 
@@ -310,7 +311,7 @@ export class TaskNotificationPanel {
             this._renderTaskList();
 
         } catch (e) {
-            alert(`Agent Error: ${e.message}`);
+            showAlert(`Agent Error: ${e.message}`, { title: 'Agent', kind: 'error' });
         }
     }
 

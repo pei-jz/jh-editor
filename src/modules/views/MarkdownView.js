@@ -11,6 +11,7 @@ import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import * as MdAssets from '../utils/MarkdownAssets.js';
 import { MermaidHelper } from '../ui/MermaidHelper.js';
+import { showAlert } from '../ui/Dialog.js';
 import { enableLightbox } from '../ui/Lightbox.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
@@ -558,9 +559,7 @@ export class MarkdownView extends BaseView {
                     tableContainer.style.display = 'block';
                     syncTableToText();
                 } else {
-                    import('@tauri-apps/plugin-dialog').then(({ message }) => {
-                        message('Current text is not recognized as a valid table.', { title: 'Invalid Table', kind: 'info' });
-                    });
+                    showAlert('Current text is not recognized as a valid table.', { title: 'Invalid Table', kind: 'info' });
                     isTableMode = false;
                 }
             } else {
@@ -1397,6 +1396,30 @@ export class MarkdownView extends BaseView {
     /** Blocks whose real height only exists after an async load / render. */
     static get TALL_BLOCK_RE() { return /!\[[^\]]*\]\(|<img|```\s*mermaid/; }
 
+    /**
+     * How much room a heading really needs: itself, any headings stacked
+     * directly under it, and the first block of actual content below them.
+     *
+     * Looking only ONE block ahead let `## Section` pass its check against a
+     * small `### Sub`, which then broke away with its tall table and left
+     * `## Section` at the foot of the page above a blank sheet.
+     */
+    _headingGroupHeight(items, heights, i) {
+        let total = 0;
+        let j = i;
+        while (j < items.length && this._isHeadingBlock(items[j].text)) {
+            total += heights[j];
+            j++;
+        }
+        if (j < items.length) total += heights[j];
+        return total;
+    }
+
+    /** Does this page so far contain nothing but headings? */
+    _pageIsOnlyHeadings(page) {
+        return page.length > 0 && page.every((b) => this._isHeadingBlock(b.text));
+    }
+
     _isHeadingBlock(text) {
         return /^#{1,6}\s/.test(text.trim());
     }
@@ -1498,15 +1521,33 @@ export class MarkdownView extends BaseView {
     /**
      * Pack blocks into pages by measured height instead of by block count.
      *
-     * The old count-based packing ignored how tall a block actually is, so a
-     * page could end on a lone heading whose body started on the next page, and
-     * a page holding a few long blocks overflowed and had to be scrolled. This
-     * fills each page up to its real height and applies two typographic rules:
+     * The governing constraint is that BOOK MODE TURNS PAGES — it does not
+     * scroll for you. Anything past the bottom of a sheet is content the reader
+     * turns straight past, so a page is never deliberately overfilled:
      *
+     *   - a block that does not fit starts the next page;
      *   - orphan control: a heading never ends a page — it needs room for
-     *     itself plus the start of the block that follows, or it moves on;
+     *     itself plus the WHOLE block that follows, or it moves on with it.
+     *     Reserving only the first couple of lines was not enough: blocks are
+     *     atomic, so a heading followed by a table that did not fit kept its
+     *     place and the table went over, leaving the heading above a hole.
+     *     That look-ahead is one block deep, so a LATER heading breaking away
+     *     could still abandon an earlier one — _liftTrailingHeadings sweeps
+     *     afterwards and makes the guarantee absolute;
+     *   - and a page never holds headings alone: if the block after them
+     *     cannot fit, it comes along anyway. That is the one deliberate spill,
+     *     and it is bounded by the height of the headings above it.
      *   - chapter breaks: an H1/H2 landing on an already mostly-full page opens
-     *     the next page instead.
+     *     the next page instead;
+     *   - a block taller than a whole sheet cannot be helped: it gets a page of
+     *     its own and scrolls. A short lead-in (its heading, an intro line) is
+     *     kept with it rather than left behind on a near-empty page.
+     *
+     * An earlier revision packed pages up to two thirds full even when the next
+     * block would spill, on the grounds that a scroll beat a half-empty page.
+     * That put an entire reference document over the fold — nine pages in ten —
+     * and turning the page silently skipped the tail of each one. Orphan
+     * control alone gives the dense pages that were actually wanted.
      */
     _splitIntoPages(blocks, pageHeight = 600, pageWidth = 0) {
         const items = blocks.map((text, idx) => ({ text, index: idx }));
@@ -1514,14 +1555,13 @@ export class MarkdownView extends BaseView {
 
         const usable = Math.max(160, pageHeight - MarkdownView.PAGE_PADDING_V);
         const heights = this._measureBlockHeights(blocks, pageWidth);
-        const lh = this._measureLineHeight();
-        // A heading must be followed by at least this much of its body.
-        const FOLLOW_RESERVE = lh * 2;
-        // Below this fill ratio, breaking would leave an ugly near-blank page.
-        const SPARSE_RATIO = 0.35;
         // An H1/H2 opens a new page once the current one is this full.
         const CHAPTER_RATIO = 0.7;
+        // A giant block keeps company this small; more than this deserves to
+        // finish its own page first.
+        const MAX_LEAD_IN = usable * 0.4;
 
+        const onlyHeadings = (p) => this._pageIsOnlyHeadings(p);
         const pages = [];
         let page = [];
         let used = 0;
@@ -1534,11 +1574,11 @@ export class MarkdownView extends BaseView {
             const h = heights[i];
             const trimmed = item.text.trim();
 
-            // A block taller than a whole page can't be split: give it a page of
-            // its own (it scrolls), unless the current page is still so empty
-            // that breaking would waste it.
+            // Taller than the sheet: nothing can make this fit, so it takes a
+            // page of its own. Keep a short lead-in (the heading that
+            // introduces it) rather than stranding it on the page before.
             if (h > usable) {
-                if (page.length && used > usable * SPARSE_RATIO) flush();
+                if (used > MAX_LEAD_IN) flush();
                 page.push(item);
                 used += h;
                 flush();
@@ -1546,16 +1586,20 @@ export class MarkdownView extends BaseView {
             }
 
             if (this._isHeadingBlock(item.text)) {
-                // Reserve room for the heading AND the start of what follows, so
-                // the heading can never be stranded at the bottom of a page.
-                const next = heights[i + 1];
-                const need = h + (next === undefined ? 0 : Math.min(next, FOLLOW_RESERVE));
+                // Room for the heading AND all of what follows: a block is
+                // atomic, so reserving a line or two proved meaningless against
+                // a 400px table — the heading stayed and the table went over.
+                const need = this._headingGroupHeight(items, heights, i);
                 const isChapter = /^#{1,2}\s/.test(trimmed);
-                if (page.length && (used + need > usable
-                    || (isChapter && used > usable * CHAPTER_RATIO))) {
-                    flush();
-                }
-            } else if (page.length && used + h > usable) {
+                if (isChapter && used > usable * CHAPTER_RATIO) flush();
+                // …but not away from the headings that introduce it: a run of
+                // headings travels together, and flushing here would leave the
+                // outer one alone on a page of its own.
+                else if (used + need > usable && !onlyHeadings(page)) flush();
+            } else if (used > 0 && used + h > usable && !onlyHeadings(page)) {
+                // Breaking here would leave the page holding nothing but the
+                // headings that introduce this block. Take the spill instead:
+                // it is at most the height of those headings.
                 flush();
             }
 
@@ -1565,8 +1609,34 @@ export class MarkdownView extends BaseView {
 
         flush();
         if (pages.length === 0) pages.push([]);
-        return pages;
+        return this._liftTrailingHeadings(pages);
     }
+
+    /**
+     * No page may end on a heading (the last one aside — nothing follows it).
+     *
+     * The packing loop reserves room for a heading plus the block after it, but
+     * it only looks one block ahead. Given `## Section` / `### Sub` / a tall
+     * table, the outer heading passes its check against the small inner one,
+     * then the inner one breaks away with the table — abandoning `## Section`
+     * at the foot of the page above three quarters of a blank sheet.
+     *
+     * Sweeping afterwards makes the rule unconditional: any run of headings at
+     * the end of a page joins the page after it. A page left empty by the
+     * sweep held nothing but those headings and is dropped.
+     */
+    _liftTrailingHeadings(pages) {
+        for (let i = 0; i < pages.length - 1; i++) {
+            const page = pages[i];
+            let cut = page.length;
+            while (cut > 0 && this._isHeadingBlock(page[cut - 1].text)) cut--;
+            if (cut === page.length) continue;
+            pages[i + 1].unshift(...page.splice(cut));
+        }
+        const kept = pages.filter((p) => p.length > 0);
+        return kept.length ? kept : [[]];
+    }
+
     _renderBookMode(blocks) {
         // Ensure path and page index are updated BEFORE early returns or ResizeObserver
         if (this.currentPageIndex === undefined || this.currentPageIndex === null || this._lastFilePath !== this.file?.path) {
@@ -1800,6 +1870,7 @@ export class MarkdownView extends BaseView {
             // Sync page index on flip event
             this.pageFlipInstance.on('flip', (e) => {
                 this.currentPageIndex = e.data;
+                this._resetSpreadScroll(e.data);
                 this._updateBookFooter(progressBar, pageInfo);
                 // Move the selection onto the page that is now showing, so
                 // Alt+←/→ then ↑/↓ continues from here instead of from wherever
@@ -2014,6 +2085,23 @@ export class MarkdownView extends BaseView {
                 };
             }
         });
+    }
+
+    /**
+     * Put the spread starting at `leftIndex` back at its top.
+     *
+     * A page can be taller than the sheet (see _splitIntoPages), so .stf__page
+     * scrolls — and that offset lives on the element, so it survives being
+     * flipped away from. Turning back to a page you had scrolled dropped you
+     * into its middle instead of its start, which is what made page turning
+     * look broken once overflowing pages became common.
+     */
+    _resetSpreadScroll(leftIndex) {
+        if (!this.container) return;
+        for (const i of [leftIndex, leftIndex + 1]) {
+            const el = this.container.querySelector(`.stf__page[data-page-index="${i}"]`);
+            if (el) el.scrollTop = 0;
+        }
     }
 
     navigatePage(direction) {

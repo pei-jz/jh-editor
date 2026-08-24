@@ -54,7 +54,15 @@ export const SHORTCUTS = {
         // block had focus (MARKDOWN_BLOCK scope) or the explorer was focused
         // they silently did nothing. GLOBAL makes them always available.
         { key: 'Tab', ctrl: true, cmd: 'editor:next-tab', description: 'Next Tab' },
-        { key: 'Tab', ctrl: true, shift: true, cmd: 'editor:prev-tab', description: 'Previous Tab' }
+        { key: 'Tab', ctrl: true, shift: true, cmd: 'editor:prev-tab', description: 'Previous Tab' },
+        // Splitting is GLOBAL for the same reason tab cycling is: these used to
+        // sit in the EDITOR scope, so Ctrl+\ did nothing whenever focus was on
+        // a markdown block, the CSV grid or the explorer — which is most of the
+        // time in a document-oriented editor.
+        { key: '\\', ctrl: true, cmd: 'editor:split-right', description: 'Split Editor Right' },
+        { key: '\\', ctrl: true, alt: true, cmd: 'editor:split-down', description: 'Split Editor Down' },
+        { key: 'w', ctrl: true, shift: true, cmd: 'editor:close-split', description: 'Close Split Pane' },
+        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' }
     ],
 
     EXPLORER: [
@@ -76,9 +84,6 @@ export const SHORTCUTS = {
     EDITOR: [
         { key: 'F12', cmd: 'editor:go-to-definition', description: 'Go to Definition' },
         { key: 'F12', shift: true, cmd: 'editor:find-references', description: 'Find References' },
-        { key: '\\', ctrl: true, cmd: 'editor:split-right', description: 'Split Editor Right' },
-        { key: 'w', ctrl: true, shift: true, cmd: 'editor:close-split', description: 'Close Split Pane' },
-        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' },
 
         // ── Documentation-only ──────────────────────────────────────────────
         // No `cmd` on purpose: these keys are handled by CodeMirror's own keymap
@@ -110,6 +115,14 @@ export const SHORTCUTS = {
         { key: 'ArrowDown', ctrl: true, cmd: 'csv:nav', description: 'Jump to Data Edge' },
         { key: 'ArrowLeft', ctrl: true, cmd: 'csv:nav', description: 'Jump to Data Edge' },
         { key: 'ArrowRight', ctrl: true, cmd: 'csv:nav', description: 'Jump to Data Edge' },
+        // Ctrl+Shift+Arrow extends the selection all the way to the data edge —
+        // the same cell a plain Ctrl+Arrow would land on. Without these entries
+        // the combo matched nothing (the matcher compares ctrl AND shift), so
+        // Excel-style range-to-edge selection silently did nothing.
+        { key: 'ArrowUp', ctrl: true, shift: true, cmd: 'csv:nav', description: 'Select to Data Edge' },
+        { key: 'ArrowDown', ctrl: true, shift: true, cmd: 'csv:nav' },
+        { key: 'ArrowLeft', ctrl: true, shift: true, cmd: 'csv:nav' },
+        { key: 'ArrowRight', ctrl: true, shift: true, cmd: 'csv:nav' },
         { key: 'ArrowUp', shift: true, cmd: 'csv:nav', description: 'Select Up' },
         { key: 'ArrowDown', shift: true, cmd: 'csv:nav', description: 'Select Down' },
         { key: 'ArrowLeft', shift: true, cmd: 'csv:nav', description: 'Select Left' },

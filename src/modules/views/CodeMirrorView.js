@@ -1,10 +1,12 @@
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
 import { EditorView, Decoration, MatchDecorator, ViewPlugin, WidgetType, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, hoverTooltip } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, insertTab, indentLess, undo, redo, historyField } from '@codemirror/commands';
-import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit, defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit, defaultHighlightStyle, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics, lintGutter } from '@codemirror/lint';
 import { highlightSelectionMatches, SearchQuery } from '@codemirror/search';
+import { Toast } from '../ui/Toast.js';
 
 // Languages
 import { javascript } from '@codemirror/lang-javascript';
@@ -301,34 +303,99 @@ function makeNewlinePlugin(glyph) {
     );
 }
 
+/**
+ * A CodeMirror highlight style built from the app theme's own --hl-* variables.
+ *
+ * Used by themes that ship a palette tuned to their own background. oneDark is
+ * not an option for those: it is a full THEME, so it would repaint the editor
+ * its own blue-grey and throw the theme's background away.
+ */
+/**
+ * Themes that carry their own syntax palette. Listed rather than inferred: every
+ * theme defines --hl-*, but switching the older ones off oneDark / the CM
+ * default would change how they look, which is not this list's job.
+ */
+const PALETTE_THEMES = ['theme-bamboo-ancient', 'theme-sumi-e', 'theme-nord', 'theme-kakejiku'];
+
+function themeHighlightStyle() {
+    const cs = getComputedStyle(document.body);
+    const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+    return HighlightStyle.define([
+        { tag: [t.keyword, t.modifier, t.self, t.null], color: v('--hl-keyword', '#569cd6') },
+        { tag: [t.controlKeyword, t.moduleKeyword], color: v('--hl-control-flow', '#c586c0') },
+        { tag: [t.typeName, t.className, t.namespace, t.standard(t.name)], color: v('--hl-built-in', '#4ec9b0') },
+        { tag: [t.bool, t.atom, t.literal], color: v('--hl-literal', '#569cd6') },
+        { tag: [t.string, t.special(t.string), t.regexp, t.escape], color: v('--hl-string', '#ce9178') },
+        { tag: [t.comment, t.lineComment, t.blockComment, t.docComment],
+            color: v('--hl-comment', '#6a9955'), fontStyle: 'italic' },
+        { tag: [t.function(t.variableName), t.function(t.propertyName), t.macroName],
+            color: v('--hl-function', '#dcdcaa') },
+        { tag: [t.variableName, t.propertyName, t.attributeName], color: v('--hl-variable', '#9cdcfe') },
+        { tag: [t.number, t.integer, t.float], color: v('--hl-number', '#b5cea8') },
+        { tag: [t.operator, t.punctuation, t.separator, t.bracket, t.derefOperator],
+            color: v('--hl-operator', '#d4d4d4') },
+        { tag: t.heading, color: v('--hl-keyword', '#569cd6'), fontWeight: 'bold' },
+        { tag: [t.link, t.url], color: v('--primary-color', '#3794ff'), textDecoration: 'underline' },
+        { tag: t.strong, fontWeight: 'bold' },
+        { tag: t.emphasis, fontStyle: 'italic' },
+        { tag: t.invalid, color: '#f14c4c' },
+    ]);
+}
+
 // Full-line range covering the current selection (whole lines).
 function selectedLineRange(state) {
     const sel = state.selection.main;
     return { from: state.doc.lineAt(sel.from).from, to: state.doc.lineAt(sel.to).to };
 }
 
-// Alt+A — sort the selected lines ascending (natural/numeric-aware).
-function sortSelectedLines(view) {
+// Alt+A alternates direction: the first press sorts ascending, the next
+// descending, and so on — a second press is how you ask for the reverse.
+// Module-level so the toggle survives the command's own re-entry; it is
+// deliberately NOT per-selection, so ↑↓ on the same block keeps flipping.
+let _sortAscending = false;
+
+// Alt+A — sort the selected lines (natural/numeric-aware), alternating
+// ascending / descending on each press.
+export function sortSelectedLines(view) {
     const { from, to } = selectedLineRange(view.state);
     const lines = view.state.doc.sliceString(from, to).split('\n');
     if (lines.length < 2) return false;
-    lines.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    _sortAscending = !_sortAscending;
+    const dir = _sortAscending ? 1 : -1;
+    lines.sort((a, b) => dir * a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     const joined = lines.join('\n');
     view.dispatch({ changes: { from, to, insert: joined }, selection: { anchor: from, head: from + joined.length } });
+    Toast.show(_sortAscending ? '昇順に並べ替えました' : '降順に並べ替えました', 'info', 1600);
     return true;
 }
 
 // Alt+M — remove duplicate lines within the selection (keeps first occurrence).
-function dedupeSelectedLines(view) {
+// Reports what it actually did: a silent edit on a long selection leaves you
+// unsure whether anything was removed at all.
+export function dedupeSelectedLines(view) {
     const { from, to } = selectedLineRange(view.state);
     const lines = view.state.doc.sliceString(from, to).split('\n');
     if (lines.length < 2) return false;
-    const seen = new Set();
+    const counts = new Map();
     const out = [];
-    for (const l of lines) { if (!seen.has(l)) { seen.add(l); out.push(l); } }
-    if (out.length === lines.length) return false; // nothing removed
+    for (const l of lines) {
+        const n = counts.get(l) || 0;
+        counts.set(l, n + 1);
+        if (n === 0) out.push(l);
+    }
+    const removed = lines.length - out.length;
+    if (removed === 0) {
+        Toast.show('重複行はありませんでした', 'info', 1600);
+        return false;
+    }
+    // "kinds" = distinct values that occurred more than once — the number of
+    // groups collapsed, as opposed to the number of lines deleted.
+    let kinds = 0;
+    for (const n of counts.values()) if (n > 1) kinds++;
     const joined = out.join('\n');
     view.dispatch({ changes: { from, to, insert: joined }, selection: { anchor: from, head: from + joined.length } });
+    Toast.show(`重複 ${kinds} 種類・${removed} 行を削除しました（${lines.length} → ${out.length} 行）`,
+        'success', 3500);
     return true;
 }
 
@@ -346,6 +413,12 @@ export class CodeMirrorView {
         // Full Vim (vi) mode for the text editor — toggled with Ctrl+Alt+V and
         // persisted so new tabs inherit it.
         this.vimCompartment = new Compartment();
+        // Syntax colours depend on the app theme, which can change while the
+        // editor is mounted — keep them reconfigurable instead of baked in.
+        this.syntaxCompartment = new Compartment();
+        // Bound once so add/removeEventListener always see the same reference —
+        // it is attached when the editor is built and detached in destroy().
+        this._onThemeChanged = () => this._applySyntaxTheme();
         this.vimEnabled = localStorage.getItem('settings_editorVim') === 'true';
 
         // Book Mode specific
@@ -591,7 +664,7 @@ export class CodeMirrorView {
             jhTheme,
             // Follow the app theme: oneDark for dark themes, the default light
             // highlight style otherwise (so a light theme isn't stuck dark).
-            this._isDarkTheme() ? oneDark : syntaxHighlighting(defaultHighlightStyle),
+            this.syntaxCompartment.of(this._syntaxExtension()),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged) {
                     const newContent = update.state.doc.toString();
@@ -650,6 +723,10 @@ export class CodeMirrorView {
             state,
             parent: editorContainer
         });
+
+        // Follow theme switches while this editor is on screen. Re-adding the
+        // same reference is a no-op in the DOM, so this cannot double-register.
+        window.addEventListener('themeChanged', this._onThemeChanged);
 
         // Restore the previous scroll position (saved in destroy()) after the
         // editor has laid out, so returning to a tab keeps the same viewport.
@@ -721,6 +798,13 @@ export class CodeMirrorView {
     setVimEnabled(enabled) {
         this.vimEnabled = !!enabled;
         localStorage.setItem('settings_editorVim', this.vimEnabled ? 'true' : 'false');
+        // The bottom-right usage hint has to swap to (or away from) the vi
+        // command palette. Announced as an event rather than called directly:
+        // Editor.js already imports this module, so the reverse import would
+        // close a cycle — and the toolbar badge toggles vi through here too.
+        window.dispatchEvent(new CustomEvent('vimModeChanged', {
+            detail: { enabled: this.vimEnabled },
+        }));
         if (this.editorView) {
             this.editorView.dispatch({
                 effects: this.vimCompartment.reconfigure(this.vimEnabled ? vim() : [])
@@ -954,10 +1038,37 @@ export class CodeMirrorView {
     }
 
     // Mirrors the dark-theme detection used elsewhere (ShikiHighlighter, etc).
+    /**
+     * Which syntax palette this theme wants.
+     *
+     * PALETTE_THEMES ship a full --hl-* set tuned to their own background, so
+     * that is what the editor uses. oneDark is not an option for them: it is a
+     * whole theme and would repaint the background its own blue-grey. CM's
+     * defaultHighlightStyle is built for LIGHT backgrounds — on bamboo its dark
+     * purples and reds measured 1.4-2.0:1, which is what made the code
+     * unreadable. Every other theme keeps exactly what it had.
+     */
+    _syntaxExtension() {
+        const c = document.body.classList;
+        if (PALETTE_THEMES.some((t) => c.contains(t))) {
+            return syntaxHighlighting(themeHighlightStyle());
+        }
+        return this._isDarkTheme() ? oneDark : syntaxHighlighting(defaultHighlightStyle);
+    }
+
+    /** Swap the syntax palette in place after a theme change. */
+    _applySyntaxTheme() {
+        if (!this.editorView) return;
+        this.editorView.dispatch({
+            effects: this.syntaxCompartment.reconfigure(this._syntaxExtension()),
+        });
+    }
+
     _isDarkTheme() {
         const c = document.body.classList;
         return c.contains('theme-dark') || c.contains('theme-midnight')
-            || c.contains('theme-solarized-dark') || c.contains('dark-mode');
+            || c.contains('theme-solarized-dark') || c.contains('theme-nord')
+            || c.contains('dark-mode');
     }
 
     // Insert text at the caret (replacing any selection). Used by the AI tools
@@ -1481,6 +1592,7 @@ export class CodeMirrorView {
             }
             this.editorView.destroy();
             this.editorView = null;
+            window.removeEventListener('themeChanged', this._onThemeChanged);
         }
         if (this.pageFlipInstance) {
             try { this.pageFlipInstance.destroy(); } catch (e) { }

@@ -189,6 +189,12 @@ export class ShortcutManager {
         // Skip if recording a new shortcut in settings
         if (window._isRecordingShortcut) return;
 
+        // A themed modal dialog (Dialog.js) owns the keyboard while it is open.
+        // It cannot stop this listener by itself: this one is on WINDOW in the
+        // capture phase and registers at module load, so it always runs first —
+        // Escape would close the dialog AND a tab behind it.
+        if (document.querySelector('.app-dialog-overlay')) return;
+
         // Inline rename input (explorer F2) owns Enter/Escape/typing itself:
         // Enter must COMMIT the rename, not match explorer:nav (which would
         // open the file) or any GLOBAL shortcut. Let the keydown reach the
@@ -212,10 +218,18 @@ export class ShortcutManager {
         const alt = e.altKey;
         const eventKey = key.toLowerCase();
 
+        // The backslash lives on a different physical key per layout, and a JIS
+        // keyboard reports the ￥/ろ keys as '¥' or '_' rather than '\'. Match
+        // e.code as well so Ctrl+\ (split editor) works on every layout — the
+        // same layout-independence the F-key fallback above provides.
+        const isBackslashKey = eventKey === '\\'
+            || (e.code === 'Backslash' || e.code === 'IntlYen' || e.code === 'IntlRo');
+
         const matches = this.shortcuts.filter(s => {
             if (!s.key) return false;
             const shortcutKey = s.key.toLowerCase();
-            return eventKey === shortcutKey &&
+            const keyMatches = shortcutKey === '\\' ? isBackslashKey : eventKey === shortcutKey;
+            return keyMatches &&
                 !!s.ctrl === ctrl &&
                 !!s.shift === shift &&
                 !!s.alt === alt &&
@@ -239,14 +253,21 @@ export class ShortcutManager {
                     return; // Let browser handle it naturally
                 }
             }
-            // While a CSV cell is being edited (F2 opens an overlay <textarea>)
-            // undo/redo belong to the text field, not to the grid model —
-            // otherwise Ctrl+Z threw away the previous grid edit mid-typing.
-            if (this.currentScope === 'CSV_EDIT' && (match.cmd === 'app:undo' || match.cmd === 'app:redo')) {
+            // Undo/redo belong to the focused editor whenever that editor keeps
+            // its own history: the CSV cell overlay (<textarea>, native undo)
+            // and the markdown block editor (CodeMirror's historyKeymap).
+            // Routing them to app:undo instead rolled back the DOCUMENT under
+            // the cursor — or, with no view.undo(), did nothing at all.
+            if (match.cmd === 'app:undo' || match.cmd === 'app:redo') {
                 const target = e.target;
-                if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-                    return; // Let browser handle it naturally
-                }
+                const isTextField = target
+                    && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+                if (this.currentScope === 'CSV_EDIT' && isTextField) return;
+                // The visual markdown table keeps its own history over the cell
+                // grid — see TableEditor.undo().
+                if (this.currentScope === 'MARKDOWN_TABLE') return;
+                if (target && typeof target.closest === 'function'
+                    && target.closest('.block-editor')) return;
             }
 
             if (typeof match.action === 'function') {

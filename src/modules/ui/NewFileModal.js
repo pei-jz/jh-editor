@@ -6,6 +6,7 @@
 // be registered straight from the modal.
 
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
+import { showAlert } from './Dialog.js';
 
 const TYPES = [
     {
@@ -258,7 +259,7 @@ export const NewFileModal = {
                 refreshTemplates(saved.id);
             } catch (err) {
                 if (window.showToast) window.showToast(err.message || String(err));
-                else alert(err.message || err);
+                else showAlert(err.message || err, { title: 'New File', kind: 'error' });
             }
         };
         tplDelBtn.onclick = () => {

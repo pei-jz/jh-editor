@@ -391,24 +391,16 @@ body.theme-dark .visual-table-editor .range-selected {
 }
 
 .md-block table:not(.visual-table-editor) th {
-    background-color: var(--header-bg, #f8f9fa);
-    color: var(--header-text, #2d3436);
+    /* Straight from the theme's own tokens.
+       This used to read `var(--header-text, #2d3436)`, with --header-text
+       defined only for an ALLOWLIST of themes (dark / midnight / solarized-*).
+       Every theme added since — bamboo-ancient, sumi-e, nord, paper — fell
+       through to the hardcoded near-black, which on a dark header measured
+       1.14:1 and made the header row all but invisible. --text-color and
+       --table-header-bg exist for exactly this and every theme sets them. */
+    background-color: var(--table-header-bg);
+    color: var(--text-color);
     font-weight: 600;
-}
-
-/* Correct Theme-aware Colors (Matching active classes on body) */
-body.theme-dark .md-block table:not(.visual-table-editor) th,
-body.theme-midnight .md-block table:not(.visual-table-editor) th,
-body.theme-solarized-dark .md-block table:not(.visual-table-editor) th {
-    --header-bg: var(--bg-color-secondary, #252526);
-    --header-text: var(--text-color, #d4d4d4);
-}
-
-body.theme-light .md-block table:not(.visual-table-editor) th,
-body.theme-latte .md-block table:not(.visual-table-editor) th,
-body.theme-solarized-light .md-block table:not(.visual-table-editor) th {
-    --header-bg: var(--bg-color-secondary, #f3f4f6);
-    --header-text: var(--text-color, #343a40);
 }
 
 /* Live Preview modal (markdown block editing): tables rendered here live in
@@ -2341,7 +2333,12 @@ body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page
     right: 14px;
     bottom: 14px;
     z-index: 60;
-    max-width: 240px;
+    max-width: 260px;
+    /* The vi palette is long (movement, selection, edit, replace). Cap it so a
+       tall list scrolls inside the panel instead of running off the top of the
+       pane. */
+    max-height: 60vh;
+    overflow-y: auto;
     background: color-mix(in srgb, var(--bg-color, #1e1e22) 82%, transparent);
     border: 1px solid var(--border-color, #444);
     border-radius: 8px;
@@ -2373,6 +2370,29 @@ body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page
 .view-usage-hint .view-usage-min:hover {
     background: color-mix(in srgb, var(--primary-color, #4a9eff) 20%, transparent);
     color: var(--text-color, #eee);
+}
+
+/* Close (✕) sits to the LEFT of the minimize button, in the same corner. The
+   minimized panel is just the 💡 badge, so the ✕ is hidden there. */
+.view-usage-hint .view-usage-close {
+    position: absolute;
+    top: 4px;
+    right: 24px;
+    background: none;
+    border: none;
+    color: var(--text-color-muted, #999);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.view-usage-hint .view-usage-close:hover {
+    background: color-mix(in srgb, var(--primary-color, #4a9eff) 20%, transparent);
+    color: var(--text-color, #eee);
+}
+.view-usage-hint.minimized .view-usage-close {
+    display: none;
 }
 .view-usage-hint .view-usage-title {
     font-weight: 600;

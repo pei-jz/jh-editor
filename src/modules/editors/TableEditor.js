@@ -1,4 +1,68 @@
 export const TableEditor = {
+    /**
+     * Undo history for the visual table editor.
+     *
+     * `data` is a 2D array the editor mutates IN PLACE (the caller keeps the
+     * same reference and serialises it on every change), so the history stores
+     * JSON snapshots and restores them into that same array rather than
+     * swapping it out.
+     *
+     * Keyed on the array identity: internal re-renders pass the same `data`
+     * and must not reset anything, while opening another table passes a fresh
+     * array from parse() and should start over.
+     */
+    _history: null,
+
+    _ensureHistory(data) {
+        if (this._history && this._history.data === data) return this._history;
+        this._history = { data, stack: [JSON.stringify(data)], index: 0 };
+        return this._history;
+    },
+
+    /**
+     * Record the state AFTER a mutation. No-op when nothing actually changed.
+     *
+     * `coalesceKey` collapses a run of related changes into ONE entry — typing
+     * in a cell fires per keystroke, and an undo per character is not what
+     * anybody means by undo. The first keystroke pushes a new entry (so undo
+     * returns to the text as it was); the rest overwrite it.
+     */
+    _pushHistory(data, coalesceKey = null) {
+        const h = this._ensureHistory(data);
+        const snap = JSON.stringify(data);
+        if (h.stack[h.index] === snap) return;
+        // Editing after an undo discards the redo tail, as everywhere else.
+        h.stack.length = h.index + 1;
+        if (coalesceKey && h.coalesceKey === coalesceKey && h.index > 0) {
+            h.stack[h.index] = snap;
+        } else {
+            h.stack.push(snap);
+            h.index = h.stack.length - 1;
+        }
+        h.coalesceKey = coalesceKey;
+        if (h.stack.length > 200) { h.stack.shift(); h.index--; }
+    },
+
+    /** Copy a snapshot back into `data` without replacing the array itself. */
+    _restore(data, snapshot) {
+        data.length = 0;
+        for (const row of snapshot) data.push(row.slice());
+    },
+
+    _step(container, data, onChange, delta) {
+        const h = this._ensureHistory(data);
+        const next = h.index + delta;
+        if (next < 0 || next >= h.stack.length) return false;
+        h.index = next;
+        this._restore(data, JSON.parse(h.stack[next]));
+        this.render(container, data, onChange);
+        if (onChange) onChange();
+        return true;
+    },
+
+    undo(container, data, onChange) { return this._step(container, data, onChange, -1); },
+    redo(container, data, onChange) { return this._step(container, data, onChange, 1); },
+
     // Helper to identify if a line is a markdown table separator
     isSeparatorLine(line) {
         if (!line) return false;
@@ -121,6 +185,18 @@ export const TableEditor = {
 
     // Render interactive UI
     render(container, data, onChange) {
+        // Seeds on a fresh table; a no-op for the re-renders that follow every
+        // mutation (same `data` reference).
+        this._ensureHistory(data);
+
+        // Every mutation path ends by telling the caller the table changed, so
+        // the history records itself there — a push per handler would be one
+        // more thing to forget when a handler is added.
+        const notify = (coalesceKey = null) => {
+            this._pushHistory(data, coalesceKey);
+            if (onChange) onChange();
+        };
+
         container.innerHTML = '';
         const table = document.createElement('table');
         table.className = 'visual-table-editor';
@@ -226,7 +302,7 @@ export const TableEditor = {
             input.oninput = (e) => {
                 data[r][c] = e.target.value;
                 textSpan.textContent = e.target.value;
-                onChange();
+                notify(`cell:${r}:${c}`);
             };
 
             input.onkeydown = (e) => {
@@ -267,7 +343,7 @@ export const TableEditor = {
                         this.render(container, data, onChange);
                         setTimeout(() => updateSelection(this._state.activeRow + 1, this._state.activeCol), 0);
                     }
-                    onChange();
+                    notify();
                     return;
                 }
                 if (e.key === '-' || e.code === 'Minus') {
@@ -277,18 +353,42 @@ export const TableEditor = {
                             data.forEach(row => row.splice(this._state.activeCol, 1));
                             this.render(container, data, onChange);
                             updateSelection(this._state.activeRow, Math.min(this._state.activeCol, data[0].length - 1));
-                            onChange();
+                            notify();
                         }
                     } else {
                         if (data.length > 1) {
                             data.splice(this._state.activeRow, 1);
                             this.render(container, data, onChange);
                             updateSelection(Math.min(this._state.activeRow, data.length - 1), this._state.activeCol);
-                            onChange();
+                            notify();
                         }
                     }
                     return;
                 }
+            }
+
+            // Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z). ShortcutManager lets these
+            // through in the MARKDOWN_TABLE scope precisely so the grid can
+            // undo its own edits — app:undo would reach for the document
+            // instead, which is why nothing happened here at all.
+            if (isCtrl && e.key && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isShift) this.redo(container, data, onChange);
+                else this.undo(container, data, onChange);
+                setTimeout(() => this.focusCell(container,
+                    Math.min(this._state.activeRow, data.length - 1),
+                    Math.min(this._state.activeCol, (data[0] || []).length - 1)), 0);
+                return;
+            }
+            if (isCtrl && e.key && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.redo(container, data, onChange);
+                setTimeout(() => this.focusCell(container,
+                    Math.min(this._state.activeRow, data.length - 1),
+                    Math.min(this._state.activeCol, (data[0] || []).length - 1)), 0);
+                return;
             }
 
             if (isCtrl && e.code === 'Space') {
@@ -318,7 +418,7 @@ export const TableEditor = {
                         data.push(new Array(cols).fill(''));
                         this.render(container, data, onChange);
                         setTimeout(() => updateSelection(this._state.activeRow + 1, 0), 0);
-                        onChange();
+                        notify();
                     } else if (this._state.activeCol === data[0].length - 1) {
                         updateSelection(this._state.activeRow + 1, 0);
                     } else {
@@ -350,7 +450,7 @@ export const TableEditor = {
                 if (target) {
                     target.value = e.key;
                     data[this._state.activeRow][this._state.activeCol] = e.key;
-                    onChange();
+                    notify();
                 }
                 return;
             }
@@ -403,7 +503,7 @@ export const TableEditor = {
 
             if (modified) {
                 this.render(container, data, onChange);
-                onChange();
+                notify();
             }
             e.preventDefault();
             e.stopPropagation();

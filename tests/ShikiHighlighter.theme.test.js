@@ -20,7 +20,7 @@ describe('ShikiHighlighter — theme selection', () => {
         expect(ShikiHighlighter.getActiveTheme()).toBe('github-dark-high-contrast');
     });
 
-    it.each(['', 'theme-latte', 'theme-solarized-light', 'theme-paper', 'theme-paper-subtle'])(
+    it.each(['', 'theme-latte', 'theme-solarized-light', 'theme-paper'])(
         '"%s" is light', (cls) => {
             document.body.className = cls;
             expect(ShikiHighlighter.isDarkTheme()).toBe(false);

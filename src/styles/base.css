@@ -129,8 +129,102 @@ body.theme-solarized-dark {
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
 }
 
-body.theme-paper,
-body.theme-paper-subtle {
+body.theme-paper {
     --scrollbar-thumb: rgba(120, 90, 40, 0.30);
     --scrollbar-thumb-hover: rgba(120, 90, 40, 0.50);
+}
+
+body.theme-bamboo-ancient {
+    --scrollbar-thumb: rgba(232, 224, 204, 0.20);
+    --scrollbar-thumb-hover: rgba(232, 224, 204, 0.36);
+}
+
+body.theme-nord {
+    --scrollbar-thumb: rgba(236, 239, 244, 0.22);
+    --scrollbar-thumb-hover: rgba(236, 239, 244, 0.38);
+}
+
+body.theme-sumi-e {
+    --scrollbar-thumb: rgba(60, 50, 35, 0.26);
+    --scrollbar-thumb-hover: rgba(60, 50, 35, 0.42);
+}
+
+/* ── Git comparison result: a dense, collapsible file tree ────────────────────
+   A branch comparison routinely lists hundreds of files; a flat list of them is
+   a scroll hunt, so the rows are compact and every directory folds away. */
+.git-cmp-tree {
+    font-size: 11.5px;
+    line-height: 1.35;
+}
+
+.git-cmp-dir,
+.git-cmp-file {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-right: 10px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.git-cmp-dir:hover,
+.git-cmp-file:hover {
+    background: var(--hover-color);
+}
+
+.git-cmp-caret {
+    width: 9px;
+    flex-shrink: 0;
+    font-size: 9px;
+    opacity: 0.7;
+}
+
+.git-cmp-dir-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.git-cmp-dir-name::before {
+    content: '📁';
+    margin-right: 4px;
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.git-cmp-count {
+    margin-left: auto;
+    font-size: 10px;
+    opacity: 0.55;
+    font-weight: 400;
+}
+
+.git-cmp-status {
+    width: 11px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Added / Deleted / everything else (modified, renamed, copied…). */
+.git-cmp-status-A { color: var(--git-staged-color, #3fb950); }
+.git-cmp-status-D { color: var(--code-color, #f85149); }
+.git-cmp-status-M,
+.git-cmp-status-R,
+.git-cmp-status-C { color: var(--git-modified-color, #d29922); }
+
+.git-cmp-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--editor-font-family);
+}
+
+/* The branch switcher is a FilterSelect now, not a <select>. */
+.git-branch-dropdown-host {
+    flex: 1;
+    min-width: 0;
 }

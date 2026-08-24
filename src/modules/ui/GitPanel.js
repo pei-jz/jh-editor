@@ -1,7 +1,98 @@
 import { invoke } from '@tauri-apps/api/core';
-import { ask } from '@tauri-apps/plugin-dialog';
+import { showAlert, showConfirm, showDialog } from './Dialog.js';
+import { createFilterSelect } from './FilterSelect.js';
 import { State } from '../core/Store.js';
 import { ContextMenu } from './ContextMenu.js';
+
+/**
+ * Group flat `a/b/c.js` paths into a directory tree, collapsing runs of
+ * single-child directories into one node (`src/modules/ui` rather than three
+ * nested rows) — the way every file explorer shows a deep, sparse tree.
+ *
+ * Pure, so the shape can be tested without a repository.
+ *
+ * @param {Array<{path: string, status: string}>} files
+ * @returns {{name: string, path: string, dirs: object[], files: object[]}} root
+ */
+export function buildFileTree(files) {
+    const root = { name: '', path: '', dirs: [], files: [] };
+
+    for (const file of files) {
+        const parts = String(file.path || '').split('/').filter(Boolean);
+        const name = parts.pop();
+        if (!name) continue;
+        let node = root;
+        let sofar = '';
+        for (const part of parts) {
+            sofar = sofar ? `${sofar}/${part}` : part;
+            let next = node.dirs.find((d) => d.name === part);
+            if (!next) {
+                next = { name: part, path: sofar, dirs: [], files: [] };
+                node.dirs.push(next);
+            }
+            node = next;
+        }
+        node.files.push({ ...file, name });
+    }
+
+    // A directory whose only child is another directory is shown as one row.
+    const collapse = (node) => {
+        node.dirs.forEach(collapse);
+        while (node.dirs.length === 1 && node.files.length === 0 && node !== root) {
+            const only = node.dirs[0];
+            node.name = `${node.name}/${only.name}`;
+            node.path = only.path;
+            node.dirs = only.dirs;
+            node.files = only.files;
+        }
+    };
+    collapse(root);
+    return root;
+}
+
+/** Total files under a tree node, including every nested directory. */
+function countFiles(node) {
+    return node.files.length + node.dirs.reduce((n, d) => n + countFiles(d), 0);
+}
+
+/**
+ * Which revision the LEFT side of a branch comparison should actually use.
+ *
+ * `base...head` (three-dot) is what review tools mean by "compare branches":
+ * only what happened on `head` since the two diverged. But when `head` is
+ * already contained in `base` — comparing a tag against the branch that moved
+ * past it, say — the merge base IS `head`, so the three-dot diff is empty by
+ * definition and reads as a broken comparison. Fall back to the direct diff
+ * there, and say why.
+ *
+ * Pure so the rule can be tested without a repository.
+ *
+ * @param {object} o
+ * @param {string} o.base           left ref as the user picked it
+ * @param {string} o.head           right ref ('' = working tree)
+ * @param {boolean} o.useMergeBase  the "common ancestor" checkbox
+ * @param {string} o.mergeBase      resolved merge-base commit ('' if none)
+ * @param {string} o.headCommit     commit `head` points at
+ * @returns {{fromRev: string, fromLabel: string, note: string}}
+ */
+export function resolveCompareBase({ base, head, useMergeBase, mergeBase, headCommit }) {
+    if (!useMergeBase || head === '') {
+        return { fromRev: base, fromLabel: base, note: '' };
+    }
+    if (!mergeBase) {
+        return {
+            fromRev: base, fromLabel: base,
+            note: 'No common ancestor; showing the direct comparison.',
+        };
+    }
+    if (mergeBase === headCommit) {
+        return {
+            fromRev: base, fromLabel: base,
+            note: `${head} is already part of ${base}; showing the direct comparison.`,
+        };
+    }
+    return { fromRev: mergeBase, fromLabel: `${base} (merge-base)`, note: '' };
+}
 
 class GitPanel {
     constructor() {
@@ -15,9 +106,10 @@ class GitPanel {
             <div class="git-v2-header">
                 <div class="git-v2-branch">
                     <span class="git-icon">🌿</span>
-                    <select id="git-branch-select" class="git-branch-dropdown"></select>
+                    <div id="git-branch-select" class="git-branch-dropdown-host"></div>
                 </div>
                 <div class="git-v2-toolbar">
+                    <button id="git-compare-btn" title="Compare Branches">⇄</button>
                     <button id="git-fetch-btn" title="Fetch All">⟳</button>
                     <button id="git-pull-btn" title="Pull">⤓</button>
                     <button id="git-push-btn" title="Push">⤒</button>
@@ -65,7 +157,10 @@ class GitPanel {
                 </section>
             </div>
 
-            <!-- Commit detail panel (shown below the history, not over it) -->
+            <!-- Commit detail panel (shown below the history, not over it),
+                 with a divider to trade space between the two. Both are hidden
+                 until a commit is actually selected. -->
+            <div id="git-detail-resizer" class="git-detail-resizer" style="display:none;"></div>
             <div id="git-commit-detail-panel" class="git-commit-detail-panel" style="display:none;"></div>
 
             <!-- Commit Modal -->
@@ -92,6 +187,8 @@ class GitPanel {
         };
 
         this.element.querySelector('#git-refresh-btn').onclick = () => this.refresh();
+        this.element.querySelector('#git-compare-btn').onclick = () => this.compareBranches();
+        this._bindDetailResizer();
         this.element.querySelector('#git-fetch-btn').onclick = () => this.executeGit('git_fetch');
         this.element.querySelector('#git-pull-btn').onclick = () => this.executeGit('git_pull');
         this.element.querySelector('#git-push-btn').onclick = () => this.executeGit('git_push');
@@ -139,7 +236,7 @@ class GitPanel {
             const result = await invoke(command, { path: State.gitRoot });
             this.refresh();
         } catch (e) {
-            alert(`Git Error: ${e}`);
+            showAlert(`Git Error: ${e}`, { title: 'Git', kind: 'error' });
         }
     }
 
@@ -159,8 +256,78 @@ class GitPanel {
         }
     }
 
+    /**
+     * Let the divider trade height between the history and the detail pane.
+     *
+     * Bound once — the panel's markup is built once, and re-binding on every
+     * refresh would pile up live document listeners.
+     */
+    _bindDetailResizer() {
+        const resizer = this.element.querySelector('#git-detail-resizer');
+        const panel = this.element.querySelector('#git-commit-detail-panel');
+        if (!resizer || !panel || this._detailResizerBound) return;
+        this._detailResizerBound = true;
+
+        let dragging = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            dragging = true;
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'row-resize';
+            // Text selection while dragging turns the whole panel blue.
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            const root = this.element.getBoundingClientRect();
+            // Dragging UP grows the detail pane, which sits at the bottom.
+            const height = root.bottom - e.clientY;
+            const max = Math.max(80, root.height * 0.8);
+            const next = Math.round(Math.min(Math.max(height, 80), max));
+            panel.style.height = `${next}px`;
+            localStorage.setItem('git_detail_height', String(next));
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            resizer.classList.remove('resizing');
+            document.body.style.cursor = 'default';
+        });
+    }
+
+    /**
+     * Reveal the detail pane and its divider together.
+     *
+     * @returns {HTMLElement|null} the pane, ready to be filled.
+     */
+    _showDetailPanel() {
+        const panel = this.element.querySelector('#git-commit-detail-panel');
+        const resizer = this.element.querySelector('#git-detail-resizer');
+        if (!panel) return null;
+        panel.style.display = 'block';
+        if (resizer) resizer.style.display = 'block';
+        // Whatever height the divider was last dragged to.
+        const saved = parseInt(localStorage.getItem('git_detail_height'), 10);
+        if (saved > 0) panel.style.height = `${saved}px`;
+        return panel;
+    }
+
+    /** Nothing is selected: the pane and its divider go away entirely. */
+    _hideDetailPanel() {
+        const panel = this.element.querySelector('#git-commit-detail-panel');
+        const resizer = this.element.querySelector('#git-detail-resizer');
+        if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+        if (resizer) resizer.style.display = 'none';
+    }
+
     async refresh() {
         this._renderRepoSelector();
+        // The selection does not survive a reload of the log: a stale commit
+        // detail hanging below a freshly rendered history reads as "something
+        // is selected" when nothing is.
+        this._hideDetailPanel();
         
         // Show git init button if no git repo detected
         const contentEl = this.element.querySelector('.git-v2-content');
@@ -226,7 +393,7 @@ class GitPanel {
                     if (window.app?.gitPanel) window.app.gitPanel.refresh();
                     if (window.showToast) window.showToast('Initialized a Git repository');
                 } catch (e) {
-                    alert(`Git init failed: ${e}`);
+                    showAlert(`Git init failed: ${e}`, { title: 'Git', kind: 'error' });
                 }
             };
         }
@@ -265,25 +432,42 @@ class GitPanel {
             });
             const branches = output.split('\n').map(b => b.trim()).filter(b => b.length > 0);
             
-            const select = this.element.querySelector('#git-branch-select');
-            if (select) {
-                select.innerHTML = branches.map(b => `
-                    <option value="${b}" ${b === activeBranch ? 'selected' : ''}>${b}</option>
-                `).join('');
-                
-                select.onchange = async (e) => {
-                    const newBranch = e.target.value;
+            // A repo with dozens of branches makes a native dropdown a scroll
+            // hunt, so the switcher is a type-to-filter picker.
+            const host = this.element.querySelector('#git-branch-select');
+            if (host) {
+                const checkout = async (newBranch) => {
+                    if (!newBranch || newBranch === activeBranch) return;
                     try {
-                        await invoke('run_command', { 
-                            command: `git checkout ${newBranch}`, 
-                            cwd: State.gitRoot 
+                        await invoke('run_command', {
+                            command: `git checkout ${newBranch}`,
+                            cwd: State.gitRoot,
                         });
                         this.refresh();
                     } catch (err) {
-                        alert(`Checkout failed: ${err.message || err}`);
+                        showAlert(`Checkout failed: ${err.message || err}`,
+                            { title: 'Git', kind: 'error' });
                         this.refresh();
                     }
                 };
+
+                // Reuse the picker across refreshes so typing is not interrupted
+                // every time the status polls.
+                if (this._branchPicker && host.contains(this._branchPicker.element)) {
+                    this._branchPicker.setOptions([{ label: '', items: branches }]);
+                    this._branchPicker.setValue(activeBranch || branches[0] || '');
+                } else {
+                    host.innerHTML = '';
+                    this._branchPicker = createFilterSelect({
+                        items: branches,
+                        value: activeBranch || branches[0] || '',
+                        placeholder: 'branch…',
+                        title: 'Switch branch (type to filter)',
+                        onChange: checkout,
+                    });
+                    this._branchPicker.element.style.width = '100%';
+                    host.appendChild(this._branchPicker.element);
+                }
             }
         } catch (e) {
             console.error('Failed to load git branches:', e);
@@ -433,13 +617,13 @@ class GitPanel {
                             const confirmMsg = file.status === 'U' 
                                 ? `Are you sure you want to delete "${filename}"? This action cannot be undone.` 
                                 : `Are you sure you want to discard changes in "${filename}"? This will revert the file to the last committed state.`;
-                            const yes = await ask(confirmMsg, { title: 'Discard Changes', kind: 'warning' });
+                            const yes = await showConfirm(confirmMsg, { title: 'Discard Changes', kind: 'warning', okLabel: 'Discard' });
                             if (yes) {
                                 try {
                                     await invoke('git_discard', { path: State.gitRoot, file: file.path, status: file.status });
                                     this.refresh();
                                 } catch (err) {
-                                    alert(`Discard failed: ${err}`);
+                                    showAlert(`Discard failed: ${err}`, { title: 'Git', kind: 'error' });
                                 }
                             }
                         };
@@ -449,13 +633,13 @@ class GitPanel {
                     if (ignoreBtn) {
                         ignoreBtn.onclick = async (e) => {
                             e.stopPropagation();
-                            const yes = await ask(`Are you sure you want to add "${filename}" to .gitignore?`, { title: 'Ignore File' });
+                            const yes = await showConfirm(`Are you sure you want to add "${filename}" to .gitignore?`, { title: 'Ignore File', kind: 'info' });
                             if (yes) {
                                 try {
                                     await invoke('git_ignore', { path: State.gitRoot, file: file.path });
                                     this.refresh();
                                 } catch (err) {
-                                    alert(`Ignore failed: ${err}`);
+                                    showAlert(`Ignore failed: ${err}`, { title: 'Git', kind: 'error' });
                                 }
                             }
                         };
@@ -640,6 +824,165 @@ class GitPanel {
     }
 
     /** Compare two commits: fromEntry (older base) → toEntry. */
+    /**
+     * Every ref worth comparing: local branches first, then remote-tracking ones
+     * (`%(refname:short)` renders those as `origin/main`), then tags.
+     */
+    async _listRefs() {
+        const run = async (cmd) => {
+            try {
+                const out = await invoke('run_command', { command: cmd, cwd: State.gitRoot });
+                return String(out || '').split('\n').map((x) => x.trim()).filter(Boolean);
+            } catch (e) {
+                return [];
+            }
+        };
+        const local = await run('git branch --format=%(refname:short)');
+        const remote = (await run('git branch -r --format=%(refname:short)'))
+            // origin/HEAD is a symbolic pointer, not something to diff against.
+            .filter((r) => !r.endsWith('/HEAD'));
+        const tags = await run('git tag --sort=-creatordate');
+        return { local, remote, tags };
+    }
+
+    /** The commit a ref points at. `^{commit}` peels annotated tags. */
+    async _revCommit(ref) {
+        try {
+            const out = await invoke('run_command', {
+                command: `git rev-parse ${ref}^{commit}`, cwd: State.gitRoot,
+            });
+            return String(out || '').trim().split('\n')[0] || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    /**
+     * Compare two refs and list the files that differ.
+     *
+     * Defaults to the three-dot form (`base...compare`), which is what every
+     * review tool means by "compare branches": only what happened on the compare
+     * side since the two diverged, not the base's own newer commits. The merge
+     * base is resolved to a real hash up front so the file list and each file's
+     * diff are computed against exactly the same revision.
+     */
+    async compareBranches() {
+        if (!State.gitRoot) {
+            await showAlert('No Git repository is open.', { title: 'Compare', kind: 'info' });
+            return;
+        }
+
+        const { local, remote, tags } = await this._listRefs();
+        if (local.length + remote.length === 0) {
+            await showAlert('No branches to compare.', { title: 'Compare', kind: 'info' });
+            return;
+        }
+
+        const current = this.element.querySelector('#git-branch-select')?.value || local[0];
+        const form = document.createElement('div');
+        form.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;margin-top:4px;';
+
+        const groupsFor = (extra) => [
+            ...(extra ? [{ label: '', items: extra }] : []),
+            { label: 'Local', items: local },
+            { label: 'Remote', items: remote },
+            { label: 'Tags', items: tags },
+        ].filter((g) => g.items.length);
+
+        const label = (text) => {
+            const el = document.createElement('label');
+            el.textContent = text;
+            el.style.cssText = 'font-size:12px;color:var(--text-secondary);white-space:nowrap;';
+            return el;
+        };
+
+        // The working tree is only meaningful as the RIGHT side of a comparison.
+        const WORKING_TREE = 'Working Tree';
+        const baseSel = createFilterSelect({
+            groups: groupsFor(null), value: current, placeholder: 'base ref…',
+        });
+        const headSel = createFilterSelect({
+            groups: groupsFor([WORKING_TREE]),
+            value: remote.find((r) => r.endsWith('/' + current))
+                || local.find((b) => b !== current)
+                || WORKING_TREE,
+            placeholder: 'compare ref…',
+        });
+        baseSel.element.style.width = '100%';
+        headSel.element.style.width = '100%';
+
+        const mergeBaseRow = document.createElement('label');
+        mergeBaseRow.style.cssText = 'grid-column:1 / -1;display:flex;align-items:center;gap:7px;font-size:12px;';
+        const mergeBaseCb = document.createElement('input');
+        mergeBaseCb.type = 'checkbox';
+        mergeBaseCb.checked = true;
+        mergeBaseRow.append(mergeBaseCb,
+            Object.assign(document.createElement('span'),
+                { textContent: 'Compare from the common ancestor (base...compare)' }));
+
+        form.append(label('Base'), baseSel.element, label('Compare'), headSel.element, mergeBaseRow);
+
+        const go = await showDialog({
+            title: 'Compare Branches',
+            message: 'Pick the two refs to diff.',
+            kind: 'info',
+            // Ref names are long (`origin/feature/something-descriptive`) and
+            // there are two of them plus a label column.
+            width: 'min(620px, 92vw)',
+            content: form,
+            buttons: [
+                { label: 'Cancel', value: false, cancel: true },
+                { label: 'Compare', value: true, primary: true },
+            ],
+        });
+        if (!go) return;
+
+        const base = baseSel.getValue();
+        // '' is what git_diff_files reads as "the working tree".
+        const head = headSel.getValue() === WORKING_TREE ? '' : headSel.getValue();
+        if (base === head) {
+            await showAlert('Pick two different refs.', { title: 'Compare', kind: 'warning' });
+            return;
+        }
+
+        // The merge base only matters against a committed right-hand side.
+        const useMergeBase = mergeBaseCb.checked && head !== '';
+        let mergeBase = '';
+        let headCommit = '';
+        if (useMergeBase) {
+            try {
+                const mb = await invoke('run_command', {
+                    command: `git merge-base ${base} ${head}`, cwd: State.gitRoot,
+                });
+                mergeBase = String(mb || '').trim().split('\n')[0];
+                headCommit = await this._revCommit(head);
+            } catch (e) {
+                // Unrelated histories, or a ref git can't resolve.
+                console.warn('merge-base failed, using a direct diff:', e);
+            }
+        }
+        const { fromRev, fromLabel, note } = resolveCompareBase({
+            base, head, useMergeBase, mergeBase, headCommit,
+        });
+
+        try {
+            const files = await invoke('git_diff_files', {
+                path: State.gitRoot, fromRev, toRev: head,
+            });
+            this._showCompareFileList(
+                { rev: fromRev, short: base, label: fromLabel },
+                { rev: head, short: head || 'WT', label: head || 'Working Tree' },
+                files,
+                `${base} … ${head || 'Working Tree'}`,
+                note,
+            );
+        } catch (err) {
+            console.error('git_diff_files (branches) failed:', err);
+            await showAlert('Comparison failed: ' + (err && err.message ? err.message : err),
+                { title: 'Compare', kind: 'error' });
+        }
+    }
+
     async _compareCommits(fromEntry, toEntry) {
         try {
             const files = await invoke('git_diff_files', {
@@ -653,7 +996,7 @@ class GitPanel {
             );
         } catch (err) {
             console.error('git_diff_files (commits) failed:', err);
-            alert('Comparison failed: ' + (err && err.message ? err.message : err));
+            showAlert('Comparison failed: ' + (err && err.message ? err.message : err), { title: 'Compare', kind: 'error' });
         }
     }
 
@@ -671,7 +1014,7 @@ class GitPanel {
             );
         } catch (err) {
             console.error('git_diff_files (working tree) failed:', err);
-            alert('Comparison failed: ' + (err && err.message ? err.message : err));
+            showAlert('Comparison failed: ' + (err && err.message ? err.message : err), { title: 'Compare', kind: 'error' });
         }
     }
 
@@ -700,11 +1043,10 @@ class GitPanel {
     }
 
     /** File list for a two-revision comparison (reuses the commit file-list UI). */
-    _showCompareFileList(from, to, files, title) {
-        const panel = this.element.querySelector('#git-commit-detail-panel');
+    _showCompareFileList(from, to, files, title, note = '') {
+        const panel = this._showDetailPanel();
         if (!panel) return;
         panel.innerHTML = '';
-        panel.style.display = 'block';
 
         const listContainer = document.createElement('div');
         listContainer.className = 'git-commit-file-list-container';
@@ -714,30 +1056,81 @@ class GitPanel {
         header.innerHTML = `<span style="font-weight:600;font-size:12px;">⇄ ${title}</span>
             <span style="color:var(--text-secondary);font-size:11px;flex:1;text-align:right;">${files.length} files</span>
             <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close">✕</button>`;
-        header.querySelector('.git-commit-file-close').onclick = () => { panel.style.display = 'none'; panel.innerHTML = ''; };
+        header.querySelector('.git-commit-file-close').onclick = () => this._hideDetailPanel();
         listContainer.appendChild(header);
+
+        if (note) {
+            const hint = document.createElement('div');
+            hint.style.cssText = 'padding:6px 12px;font-size:11px;color:var(--text-secondary);'
+                + 'border-bottom:1px solid var(--border-color);';
+            hint.textContent = note;
+            listContainer.appendChild(hint);
+        }
 
         if (files.length === 0) {
             const empty = document.createElement('div');
             empty.style.cssText = 'padding:10px 12px;font-size:11px;color:var(--text-secondary);';
-            empty.textContent = 'No differences.';
+            empty.textContent = `No differences between ${from.label} and ${to.label}.`;
             listContainer.appendChild(empty);
+        } else {
+            const tree = document.createElement('div');
+            tree.className = 'git-cmp-tree';
+            this._renderCompareTree(tree, buildFileTree(files), from, to, 0);
+            listContainer.appendChild(tree);
         }
 
-        files.forEach(f => {
-            const item = document.createElement('div');
-            item.className = 'git-commit-file-item';
-            item.style.cssText = 'padding:5px 12px 5px 24px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;border-bottom:1px solid var(--border-color);';
-            const statusColor = f.status === 'A' ? '#3fb950' : f.status === 'D' ? '#f85149' : '#d29922';
-            item.innerHTML = `<span style="color:${statusColor};font-weight:600;font-size:10px;min-width:12px;">${f.status}</span>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-family);">${f.path}</span>`;
-            item.onmouseenter = () => item.style.background = 'var(--bg-color-hover, rgba(127,127,127,0.1))';
-            item.onmouseleave = () => item.style.background = '';
-            item.onclick = () => this._showCompareDiff(from, to, f.path);
-            listContainer.appendChild(item);
-        });
-
         panel.appendChild(listContainer);
+    }
+
+    /**
+     * One level of the comparison tree. Directories are collapsible; the rows
+     * are deliberately dense — a 245-file comparison is unusable as a flat list.
+     */
+    _renderCompareTree(host, node, from, to, depth) {
+        const pad = (d) => 8 + d * 12;
+
+        for (const dir of node.dirs) {
+            const row = document.createElement('div');
+            row.className = 'git-cmp-dir';
+            row.style.paddingLeft = `${pad(depth)}px`;
+            const caret = document.createElement('span');
+            caret.className = 'git-cmp-caret';
+            caret.textContent = '▾';
+            const name = document.createElement('span');
+            name.className = 'git-cmp-dir-name';
+            name.textContent = dir.name;
+            const count = document.createElement('span');
+            count.className = 'git-cmp-count';
+            count.textContent = String(countFiles(dir));
+            row.append(caret, name, count);
+
+            const children = document.createElement('div');
+            this._renderCompareTree(children, dir, from, to, depth + 1);
+
+            row.onclick = () => {
+                const hidden = children.style.display === 'none';
+                children.style.display = hidden ? '' : 'none';
+                caret.textContent = hidden ? '▾' : '▸';
+            };
+
+            host.append(row, children);
+        }
+
+        for (const file of node.files) {
+            const item = document.createElement('div');
+            item.className = 'git-cmp-file';
+            item.style.paddingLeft = `${pad(depth) + 12}px`;
+            item.title = file.path;
+            const status = document.createElement('span');
+            status.className = `git-cmp-status git-cmp-status-${file.status}`;
+            status.textContent = file.status;
+            const name = document.createElement('span');
+            name.className = 'git-cmp-file-name';
+            name.textContent = file.name;
+            item.append(status, name);
+            item.onclick = () => this._showCompareDiff(from, to, file.path);
+            host.appendChild(item);
+        }
     }
 
     async showCommitDiff(hash, message) {
@@ -767,12 +1160,11 @@ class GitPanel {
         const entry = (this._lastHistory || []).find(e => e.hash === hash);
         if (!entry) return;
 
-        const panel = this.element.querySelector('#git-commit-detail-panel');
+        const panel = this._showDetailPanel();
         if (!panel) return;
 
         // Fresh panel for the selected commit (shown below the history graph).
         panel.innerHTML = '';
-        panel.style.display = 'block';
 
         const detail = document.createElement('div');
         detail.className = 'git-commit-detail-container';
@@ -825,20 +1217,19 @@ class GitPanel {
             </div>
         `;
 
-        detail.querySelector('.git-commit-detail-close').onclick = () => { panel.style.display = 'none'; panel.innerHTML = ''; };
+        detail.querySelector('.git-commit-detail-close').onclick = () => this._hideDetailPanel();
 
         panel.appendChild(detail);
     }
 
     /** Show a clickable file list inside the Git panel for multi-file commits. */
     _showCommitFileList(hash, message, files) {
-        const panel = this.element.querySelector('#git-commit-detail-panel');
+        const panel = this._showDetailPanel();
         if (!panel) return;
 
         // Remove any existing file list (keep the detail info above it).
         const existing = panel.querySelector('.git-commit-file-list-container');
         if (existing) existing.remove();
-        panel.style.display = 'block';
 
         const listContainer = document.createElement('div');
         listContainer.className = 'git-commit-file-list-container';
@@ -940,7 +1331,7 @@ class GitPanel {
         const input = this.element.querySelector('#git-commit-input');
         const msg = input.value.trim();
         if (!msg) {
-            alert('Commit message is required');
+            showAlert('Commit message is required', { title: 'Commit', kind: 'warning' });
             return;
         }
 
@@ -950,7 +1341,7 @@ class GitPanel {
             this.element.querySelector('#git-commit-overlay').style.display = 'none';
             this.refresh();
         } catch (e) {
-            alert(`Commit failed: ${e}`);
+            showAlert(`Commit failed: ${e}`, { title: 'Commit', kind: 'error' });
         }
     }
 

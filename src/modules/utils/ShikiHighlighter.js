@@ -61,11 +61,14 @@ export const ShikiHighlighter = {
     /**
      * Whether the app is currently in a dark theme. Mirrors applyTheme()'s class
      * scheme: the default "light" theme adds NO class, light variants use
-     * theme-latte / theme-solarized-light, and only these three are dark.
+     * theme-latte / theme-solarized-light / theme-paper*, and only these four
+     * are dark.
      */
     isDarkTheme() {
         const c = document.body.classList;
-        return c.contains('theme-dark') || c.contains('theme-midnight') || c.contains('theme-solarized-dark');
+        return c.contains('theme-dark') || c.contains('theme-midnight')
+            || c.contains('theme-solarized-dark') || c.contains('theme-bamboo-ancient')
+            || c.contains('theme-nord');
     },
 
     /** The Shiki theme name matching the current app theme. */

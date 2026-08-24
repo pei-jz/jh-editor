@@ -1,5 +1,6 @@
 import { MERMAID_RECIPES, getRecipe, searchRecipes, detectDiagramType, toMarkdownBlock } from '../utils/MermaidRecipes.js';
 import * as Markdown from '../utils/Markdown.js';
+import { showConfirm } from './Dialog.js';
 
 /**
  * MermaidHelper — "I know what diagram I want, I just can't remember the syntax".
@@ -148,6 +149,11 @@ export const MermaidHelper = {
         _injectStyles();
         document.getElementById('mermaid-helper-overlay')?.remove();
 
+        // Whatever had the keyboard before this dialog took it — typically the
+        // markdown block editor. close() hands it back, otherwise dismissing
+        // the dialog left the block editor unfocused and typing went nowhere.
+        const returnFocusTo = document.activeElement;
+
         const overlay = document.createElement('div');
         overlay.id = 'mermaid-helper-overlay';
 
@@ -251,9 +257,12 @@ export const MermaidHelper = {
                 const btn = document.createElement('button');
                 btn.className = 'mh-type' + (r.id === selectedId ? ' sel' : '');
                 btn.innerHTML = `<span class="mh-type-name">${r.title}</span><span class="mh-type-desc">${r.subtitle}</span>`;
-                btn.onclick = () => {
+                btn.onclick = async () => {
                     // Replacing existing work should be deliberate.
-                    if (editor.value.trim() && !confirm('Replace the current content with this template?')) return;
+                    if (editor.value.trim()
+                        && !(await showConfirm('Replace the current content with this template?', {
+                            title: 'Mermaid', kind: 'warning', okLabel: 'Replace',
+                        }))) return;
                     editor.value = r.template;
                     selectedId = r.id;
                     renderTypeList();
@@ -331,6 +340,10 @@ export const MermaidHelper = {
             clearTimeout(previewTimer);
             document.removeEventListener('keydown', onKey, true);
             overlay.remove();
+            if (returnFocusTo && returnFocusTo.isConnected
+                && typeof returnFocusTo.focus === 'function') {
+                returnFocusTo.focus({ preventScroll: true });
+            }
         };
         const insert = () => {
             const code = editor.value.trim();
