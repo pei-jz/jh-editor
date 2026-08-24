@@ -44,6 +44,8 @@ import { highlightCode as cmHighlight } from '../utils/CMHighlighter.js';
 import { lspClient } from '../lsp/LspClient.js';
 import { InlineAI } from '../ui/InlineAI.js';
 import { Navigation } from '../utils/Navigation.js';
+import { createInlineCompletionExtension } from '../ui/InlineCompletion.js';
+import { snippetCompletionSource } from '../ui/Snippets.js';
 
 // Custom Theme to match JHEditor
 const jhTheme = EditorView.theme({
@@ -586,7 +588,7 @@ export class CodeMirrorView {
             indentOnInput(),
             bracketMatching(),
             closeBrackets(),
-            autocompletion({ override: [this._lspCompletionSource.bind(this)] }),
+            autocompletion({ override: [this._lspCompletionSource.bind(this), snippetCompletionSource()] }),
             this._lspHoverTooltip(),
             lintGutter(),
             this.lineWrappingCompartment.of(this.isLineWrapping ? EditorView.lineWrapping : []),
@@ -695,6 +697,13 @@ export class CodeMirrorView {
                 }
             })
         ];
+
+        // AI inline (ghost-text) completion — Copilot-style, Tab to accept.
+        try {
+            extensions.push(createInlineCompletionExtension({
+                getFile: () => ({ path: this.file?.path || null, name: this.file?.name || null }),
+            }));
+        } catch (_) { /* inline completion must never break the editor */ }
 
         // Language Support — fall back to the file NAME for unsaved drafts
         // (path is null for "Untitled.md"), otherwise they open without any

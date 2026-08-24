@@ -1,6 +1,15 @@
 import { State } from './Store.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
 
+/**
+ * Physical keys that can carry a backslash, and the characters they may report.
+ * A JIS keyboard puts it on ¥ (IntlYen) or ろ (IntlRo) and reports '¥' or '_'
+ * rather than a backslash, so the code alone is not enough and the key alone is
+ * not enough — both have to agree.
+ */
+const BACKSLASH_CODES = ['Backslash', 'IntlYen', 'IntlRo'];
+const BACKSLASH_CHARS = ['\\', '|', '¥', '｜', '_', 'unidentified', 'process'];
+
 export class ShortcutManager {
     constructor() {
         this.shortcuts = [];
@@ -222,8 +231,12 @@ export class ShortcutManager {
         // keyboard reports the ￥/ろ keys as '¥' or '_' rather than '\'. Match
         // e.code as well so Ctrl+\ (split editor) works on every layout — the
         // same layout-independence the F-key fallback above provides.
+        // The character still has to BE a backslash-ish one. Trusting e.code on
+        // its own fired the split on any key at those physical positions, which
+        // on a JIS layout dropped the editor into a split nobody asked for — and
+        // the session then restored that split on every launch.
         const isBackslashKey = eventKey === '\\'
-            || (e.code === 'Backslash' || e.code === 'IntlYen' || e.code === 'IntlRo');
+            || (BACKSLASH_CODES.includes(e.code) && BACKSLASH_CHARS.includes(eventKey));
 
         const matches = this.shortcuts.filter(s => {
             if (!s.key) return false;

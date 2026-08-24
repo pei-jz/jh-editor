@@ -57,6 +57,7 @@ pub fn run() {
             commands::parser::parse_structured_data,
             commands::parser::get_node_children,
             commands::pty::spawn_pty,
+            commands::pty::list_shells,
             commands::pty::stop_pty,
             commands::pty::write_to_pty,
             commands::pty::resize_pty,

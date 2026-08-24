@@ -5,6 +5,7 @@ import { State } from '../core/Store.js';
 import { Toast } from './Toast.js';
 import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
+import { Snippets } from './Snippets.js';
 import { showConfirm } from './Dialog.js';
 
 export function initSettingsModal() {
@@ -210,6 +211,7 @@ export function initSettingsModal() {
                     if (target === 'agent' && !agent.container.innerHTML) loadAgentSettings();
                     if (target === 'keybindings' && !document.getElementById('shortcut-list-container').innerHTML) loadKeybindingSettings();
                     if (target === 'templates') renderTemplateSettings();
+                    if (target === 'snippets') renderSnippetSettings();
                 }
             };
         });
@@ -668,6 +670,108 @@ export function initSettingsModal() {
                 }
             };
         }
+    };
+
+    // --- Snippets ---
+    const renderSnippetSettings = () => {
+        const container = document.getElementById('snippet-settings-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="font-weight:bold; margin-bottom:8px; font-size:1.05em; color:var(--primary-color);">Snippets</div>
+            <div class="settings-description" style="margin-bottom:14px; font-size:12px; opacity:0.8;">
+                Register a snippet, then type its prefix in the editor and press Tab to expand it.
+                A prefix is optional: snippets without one can still be kept here as reusable text.
+            </div>
+            <div style="margin-bottom:16px;">
+                <button id="snip-toggle-btn" class="primary-btn" style="padding:6px 18px;">+ Add Snippet</button>
+            </div>
+            <div id="snip-form" style="display:none; margin-bottom:16px;">
+                <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Register a new snippet</div>
+                <div style="margin-bottom:10px;">
+                    <label for="snip-name" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Name</label>
+                    <input type="text" id="snip-name" maxlength="60" placeholder="e.g. Log statement" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label for="snip-prefix" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Prefix (optional)</label>
+                    <input type="text" id="snip-prefix" maxlength="40" placeholder="e.g. lg" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label for="snip-body" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Body</label>
+                    <textarea id="snip-body" placeholder="console.log('hello');" style="width:100%; max-width:520px; min-height:140px; font-family:var(--font-mono, monospace); font-size:12px; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px; resize:vertical; box-sizing:border-box;"></textarea>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="snip-add-btn" class="primary-btn" style="padding:6px 18px;">Register</button>
+                    <button id="snip-cancel-btn" class="primary-btn" style="padding:6px 18px; background:none; color:var(--text-color); border:1px solid var(--border-color);">Cancel</button>
+                </div>
+            </div>
+            <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Snippets</div>
+            <div id="snip-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+        `;
+
+        const listEl = container.querySelector('#snip-list');
+        const renderList = () => {
+            const all = Snippets.getAll();
+            listEl.innerHTML = '';
+            if (all.length === 0) {
+                listEl.innerHTML = '<div style="padding:16px; text-align:center; opacity:0.5;">No snippets yet.</div>';
+                return;
+            }
+            all.forEach((s) => {
+                const row = document.createElement('div');
+                row.className = 'snippet-settings-row';
+                row.innerHTML = `
+                    <span class="snippet-name">${s.name.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
+                    <span class="snippet-prefix">${s.prefix ? s.prefix.replace(/&/g, '&amp;').replace(/</g, '&lt;') : '(no prefix)'}</span>
+                    <span class="snippet-body">${(s.body.split('\n')[0] || '').slice(0, 50).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
+                `;
+                const del = document.createElement('button');
+                del.className = 'snippet-del';
+                del.textContent = '×';
+                del.title = 'Delete snippet';
+                del.onclick = () => {
+                    Snippets.remove(s.id);
+                    renderList();
+                    Toast.info(`Snippet "${s.name}" deleted.`);
+                };
+                row.appendChild(del);
+                listEl.appendChild(row);
+            });
+        };
+        renderList();
+
+        const nameInput = container.querySelector('#snip-name');
+        const prefixInput = container.querySelector('#snip-prefix');
+        const bodyInput = container.querySelector('#snip-body');
+        const formWrap = container.querySelector('#snip-form');
+        const toggleBtn = container.querySelector('#snip-toggle-btn');
+
+        toggleBtn.onclick = () => {
+            formWrap.style.display = '';
+            toggleBtn.style.display = 'none';
+            nameInput.focus();
+        };
+        container.querySelector('#snip-cancel-btn').onclick = () => {
+            nameInput.value = '';
+            prefixInput.value = '';
+            bodyInput.value = '';
+            formWrap.style.display = 'none';
+            toggleBtn.style.display = '';
+        };
+        container.querySelector('#snip-add-btn').onclick = () => {
+            try {
+                const saved = Snippets.add(nameInput.value, prefixInput.value, bodyInput.value);
+                nameInput.value = '';
+                prefixInput.value = '';
+                bodyInput.value = '';
+                formWrap.style.display = 'none';
+                toggleBtn.style.display = '';
+                renderList();
+                Toast.success(`Snippet "${saved.name}" registered.`);
+            } catch (err) {
+                Toast.error(err.message || String(err));
+            }
+        };
     };
 
     window.addEventListener('click', (e) => {

@@ -25,23 +25,81 @@ function quoteForShell(path) {
     return '"' + p.replace(/"/g, '\\"') + '"';
 }
 
+/**
+ * Terminals are cheap but not free: each one is a shell process, a PTY and a
+ * full xterm canvas. Five is enough to work with and keeps the list readable
+ * without scrolling.
+ */
+const MAX_SESSIONS = 5;
+
 class TerminalManager {
     constructor() {
-        this.term = null;
-        this.fitAddon = null;
+        /**
+         * Running terminals, newest last.
+         * @type {Map<string, {id, term, fitAddon, host, unlisteners, ptyReady, shellId}>}
+         */
+        this.sessions = new Map();
+        this.activeId = null;
+        this._nextId = 1;
+
         this.isOpen = false;
-        this.ptyReady = false;
-        this.unlisteners = [];
+        this.unlisteners = [];   // window-level, not per session
         this.resizing = false;
         this.isExecuting = false;
         this.startY = 0;
         this.startHeight = 0;
     }
 
+    /* The class was written around one terminal. These keep every existing use
+       of this.term / this.fitAddon / this.ptyReady pointed at the active
+       session instead of at a single global one. */
+    get session() { return this.sessions.get(this.activeId) || null; }
+    get term() { return this.session ? this.session.term : null; }
+    get fitAddon() { return this.session ? this.session.fitAddon : null; }
+    get ptyReady() { return this.session ? this.session.ptyReady : false; }
+    set ptyReady(v) { if (this.session) this.session.ptyReady = v; }
+
     async init() {
         if (!EL.terminal.container) return;
+        this.bindEvents();
+        // Bound to the shared container, so it covers every session: the
+        // instances are children and their events bubble up here.
+        this.bindClipboardAndDrop();
+        await this.bindShellPicker();
+        // No terminal is started here. The shell a terminal runs is fixed at
+        // creation, so it has to be chosen before there is anything to run:
+        // the panel opens empty and you add one with the shell you want.
+        this.renderSessionList();
+    }
 
-        this.term = new Terminal({
+    /**
+     * Open another terminal and make it the active one.
+     *
+     * Each session owns its xterm, its container and its own PTY event
+     * listeners — the backend suffixes the event names with the terminal id, so
+     * one shell's output can never land in another's screen.
+     */
+    /**
+     * @param {string} [shellId] Which shell to run. Defaults to the one picked
+     *   in the header. It is fixed for the life of the terminal: a PTY is bound
+     *   to its process, so swapping the program underneath it is not a thing a
+     *   running terminal can do.
+     */
+    async createSession(shellId = this.shellId) {
+        if (this.sessions.size >= MAX_SESSIONS) {
+            this.renderSessionList();
+            return null;
+        }
+        const id = String(this._nextId++);
+
+        const host = document.createElement('div');
+        host.className = 'terminal-instance';
+        host.dataset.termId = id;
+        host.style.cssText = 'position:absolute; inset:0; display:none;';
+        EL.terminal.container.style.position = 'relative';
+        EL.terminal.container.appendChild(host);
+
+        const term = new Terminal({
             cursorBlink: true,
             theme: {
                 background: '#000000',
@@ -54,84 +112,208 @@ class TerminalManager {
             lineHeight: 1.1,
             rightClickSelectsWord: true,
         });
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(host);
 
-        this.fitAddon = new FitAddon();
-        this.term.loadAddon(this.fitAddon);
+        const session = { id, term, fitAddon, host, unlisteners: [], ptyReady: false,
+                          shellId, title: '' };
+        this.sessions.set(id, session);
 
-        this.term.open(EL.terminal.container);
-        this.fitAddon.fit();
+        // Shells announce their working directory (and often the running
+        // command) through OSC 0/2. That is what tells one terminal from
+        // another in the list, so no numbering is needed.
+        term.onTitleChange((title) => {
+            session.title = title || '';
+            this.renderSessionList();
+        });
 
-        // Handle terminal input -> send to backend
-        this.term.onData(async (data) => {
-            if (this.ptyReady) {
-                await invoke('write_to_pty', { data });
+        term.onData(async (data) => {
+            if (session.ptyReady) {
+                await invoke('write_to_pty', { data, id });
             } else if (data === '\r') {
-                this.term.write('\r\n\x1b[32mRestarting terminal...\x1b[0m\r\n');
-                await this.spawnPty();
+                term.write('\r\n\x1b[32mRestarting terminal...\x1b[0m\r\n');
+                await this.spawnPty(id);
             }
         });
 
-        // Clipboard + selection keys. Everything goes through the Tauri
-        // clipboard plugin: document.execCommand('copy') does nothing here
-        // because xterm draws to a canvas and keeps no DOM selection to copy.
-        this.term.attachCustomKeyEventHandler((arg) => {
-            if (arg.type !== 'keydown') return true;
-            const ctrl = arg.ctrlKey || arg.metaKey;
-            if (!ctrl) return true;
+        term.attachCustomKeyEventHandler((arg) => this.handleTerminalKey(arg, term));
 
-            // Ctrl+Shift+C always copies; plain Ctrl+C copies only when there is
-            // a selection and otherwise falls through as SIGINT, which is what
-            // every terminal does.
-            if (arg.code === 'KeyC' && (arg.shiftKey || this.term.hasSelection())) {
-                arg.preventDefault();
-                this.copySelection();
-                return false;
-            }
-            // Ctrl+V and Ctrl+Shift+V paste. preventDefault stops the webview's
-            // own paste from ALSO reaching xterm's hidden textarea (double text).
-            if (arg.code === 'KeyV') {
-                arg.preventDefault();
-                this.pasteFromClipboard();
-                return false;
-            }
-            if (arg.shiftKey && arg.code === 'KeyA') {
-                arg.preventDefault();
-                this.term.selectAll();
-                return false;
-            }
-            return true;
+        const out = await listen(`${PTY_OUTPUT_EVENT}::${id}`, (event) => {
+            if (event.payload) term.write(event.payload);
         });
-
-        this.bindClipboardAndDrop();
-
-        // Listen for data from backend -> write to terminal
-        const unlistenOutput = await listen(PTY_OUTPUT_EVENT, (event) => {
-            if (event.payload) {
-                this.term.write(event.payload);
-            }
-        });
-        this.unlisteners.push(unlistenOutput);
-
-        const unlistenClosed = await listen(PTY_CLOSED_EVENT, () => {
-            this.ptyReady = false;
-            // A workspace switch stops/respawns the PTY itself — don't close for that.
+        const closed = await listen(`${PTY_CLOSED_EVENT}::${id}`, () => {
+            session.ptyReady = false;
             if (this._restarting) return;
-            // The shell exited (e.g. the user typed `exit`): close the terminal
-            // panel. Reopening spawns a fresh terminal (show() resets + respawns
-            // because ptyReady is now false).
-            if (this.isOpen) this.hide();
+            // The shell exited (the user typed `exit`): drop that terminal. The
+            // panel only closes when the last one is gone.
+            this.closeSession(id);
         });
-        this.unlisteners.push(unlistenClosed);
+        session.unlisteners.push(out, closed);
 
-        // Bind UI events
-        this.bindEvents();
-
-        // Apply initial theme
+        this.activateSession(id);
         this.applyTheme();
+        this.renderSessionList();
+        if (this.isOpen) await this.spawnPty(id);
+        return id;
+    }
+
+    /** Show one terminal and hide the rest. */
+    activateSession(id) {
+        if (!this.sessions.has(id)) return;
+        this.activeId = id;
+        for (const s of this.sessions.values()) {
+            s.host.style.display = s.id === id ? 'block' : 'none';
+        }
+        this.renderSessionList();
+        setTimeout(() => {
+            this.fitAddon?.fit();
+            this.notifyResize();
+            this.term?.focus();
+        }, 0);
+    }
+
+    /** Kill one terminal. Closing the last one closes the panel. */
+    async closeSession(id) {
+        const session = this.sessions.get(id);
+        if (!session) return;
+        try { await invoke('stop_pty', { id }); } catch (e) { /* already gone */ }
+        for (const un of session.unlisteners) { try { un(); } catch (e) { /* ignore */ } }
+        try { session.term.dispose(); } catch (e) { /* ignore */ }
+        session.host.remove();
+        this.sessions.delete(id);
+
+        // An empty panel stays open: the X hides the view, and a shell exiting
+        // should not yank the view out from under you either.
+        if (this.sessions.size === 0) {
+            this.activeId = null;
+            this.renderSessionList();
+            return;
+        }
+        if (this.activeId === id) {
+            this.activateSession([...this.sessions.keys()].pop());
+        } else {
+            this.renderSessionList();
+        }
+    }
+
+    /** The shell's display name, e.g. "Git Bash" — never an index. */
+    sessionLabel(session) {
+        const shell = (this._shells || []).find((x) => x.id === session.shellId);
+        return shell?.name || 'Terminal';
+    }
+
+    /**
+     * What the shell reports as its title, trimmed to the tail that identifies
+     * it — the last path segment is what actually differs between two
+     * terminals in the same repository.
+     */
+    sessionDetail(session) {
+        const title = (session.title || '').trim();
+        if (!title) return session.ptyReady ? '' : 'exited';
+        const parts = title.split(/[/\\]/).filter(Boolean);
+        return parts.length > 1 ? parts.slice(-2).join('/') : title;
+    }
+
+    /**
+     * The running terminals, listed down the right-hand side of the panel.
+     *
+     * They were a row of numbered chips in the header, which was both hard to
+     * hit and meaningless — a number says nothing about which shell it is.
+     */
+    renderSessionList() {
+        const list = EL.terminal.sessionList;
+        if (!list) return;
+        list.innerHTML = '';
+
+        const full = this.sessions.size >= MAX_SESSIONS;
+        // The + lives beside the shell picker in the header, because the picker
+        // is what decides which shell it starts — separating them made the pair
+        // read as two unrelated controls.
+        const add = EL.terminal.newBtn;
+        if (add) {
+            add.disabled = full;
+            if (full) {
+                add.title = `Up to ${MAX_SESSIONS} terminals`;
+            } else {
+                const next = (this._shells || []).find((x) => x.id === this.shellId);
+                add.title = next ? `New ${next.name} terminal` : 'New terminal';
+            }
+        }
+
+        const head = document.createElement('div');
+        head.className = 'terminal-list-head';
+        const caption = document.createElement('span');
+        caption.textContent = `TERMINALS ${this.sessions.size}/${MAX_SESSIONS}`;
+        head.appendChild(caption);
+        list.appendChild(head);
+
+        for (const s of this.sessions.values()) {
+            const item = document.createElement('div');
+            item.className = 'terminal-list-item' + (s.id === this.activeId ? ' active' : '');
+            item.onclick = () => this.activateSession(s.id);
+
+            const text = document.createElement('div');
+            text.className = 'terminal-list-text';
+
+            const name = document.createElement('div');
+            name.className = 'terminal-list-name';
+            name.textContent = this.sessionLabel(s);
+            text.appendChild(name);
+
+            const detail = this.sessionDetail(s);
+            if (detail) {
+                const sub = document.createElement('div');
+                sub.className = 'terminal-list-detail';
+                sub.textContent = detail;
+                text.appendChild(sub);
+            }
+            item.appendChild(text);
+            item.title = s.title || this.sessionLabel(s);
+
+            // Every terminal is closable, the last one included: the panel's
+            // own X no longer kills anything, so this is the only way out.
+            const x = document.createElement('button');
+            x.className = 'terminal-list-close';
+            x.textContent = 'X';
+            x.title = 'Close this terminal';
+            x.onclick = (e) => { e.stopPropagation(); this.closeSession(s.id); };
+            item.appendChild(x);
+            list.appendChild(item);
+        }
+    }
+
+    /** Clipboard and selection keys, shared by every session's xterm. */
+    handleTerminalKey(arg, term) {
+        if (arg.type !== 'keydown') return true;
+        const ctrl = arg.ctrlKey || arg.metaKey;
+        if (!ctrl) return true;
+
+        // Ctrl+Shift+C always copies; plain Ctrl+C copies only when there is a
+        // selection and otherwise falls through as SIGINT, as every terminal does.
+        if (arg.code === 'KeyC' && (arg.shiftKey || term.hasSelection())) {
+            arg.preventDefault();
+            this.copySelection();
+            return false;
+        }
+        // preventDefault stops the webview's own paste from ALSO reaching
+        // xterm's hidden textarea (which would double the text).
+        if (arg.code === 'KeyV') {
+            arg.preventDefault();
+            this.pasteFromClipboard();
+            return false;
+        }
+        if (arg.shiftKey && arg.code === 'KeyA') {
+            arg.preventDefault();
+            term.selectAll();
+            return false;
+        }
+        return true;
     }
 
     applyTheme() {
         if (!this.term) return;
+        // Computed once below, then handed to every session.
 
         // Extract colors from CSS variables - use document.body where theme classes are applied
         const style = getComputedStyle(document.body);
@@ -177,7 +359,7 @@ class TerminalManager {
         const finalBg = bg || '#1e1e1e';
         const finalFg = fg || '#d4d4d4';
 
-        this.term.options.theme = {
+        const theme = {
             background: finalBg,
             foreground: finalFg,
             cursor: accent || '#0078d7',
@@ -187,6 +369,7 @@ class TerminalManager {
             // Brighten up the colors for dark themes to ensure visibility
             brightBlack: isDarkTheme || isSolarizedDark || isMidnight ? '#666666' : '#888888',
         };
+        for (const session of this.sessions.values()) session.term.options.theme = theme;
 
         // Sync terminal container background to prevent white flashes or borders
         if (EL.terminal.container) {
@@ -197,7 +380,9 @@ class TerminalManager {
         }
 
         // Redraw to ensure changes are visible
-        this.term.refresh(0, this.term.rows - 1);
+        for (const session of this.sessions.values()) {
+            session.term.refresh(0, session.term.rows - 1);
+        }
     }
 
     /** Copy the current selection. No-op when nothing is selected. */
@@ -294,8 +479,13 @@ class TerminalManager {
     bindEvents() {
         // Toggle terminal
         EL.terminal.toggleBtn?.addEventListener('click', () => this.toggle());
+        // Hiding only: the terminals keep running behind the closed panel, so
+        // reopening it puts you back where you were instead of at a new shell.
         EL.terminal.closeBtn?.addEventListener('click', () => this.hide());
         EL.terminal.clearBtn?.addEventListener('click', () => this.term?.clear());
+        // The shell picker is bound by init(), not here: two unsynchronised
+        // calls raced and bound the change listener twice.
+        EL.terminal.newBtn?.addEventListener('click', () => this.createSession());
 
         window.addEventListener('resize', () => {
             if (this.isOpen) {
@@ -343,6 +533,38 @@ class TerminalManager {
         });
     }
 
+    /**
+     * Fill the shell dropdown with what is installed and wire the change.
+     *
+     * Populated once, lazily: probing the filesystem on every terminal toggle
+     * would be wasted work, and a shell does not appear mid-session.
+     */
+    async bindShellPicker() {
+        const sel = EL.terminal.shellSelect;
+        if (!sel || sel.dataset.ready === '1') return;
+
+        const shells = await this.listShells();
+        // Kept so the session list can name a terminal by its shell.
+        this._shells = shells;
+        if (!shells.length) { sel.style.display = 'none'; return; }
+
+        sel.innerHTML = shells
+            .map((s) => `<option value="${s.id}">${s.name}</option>`)
+            .join('');
+        // An unknown or uninstalled saved shell falls back to the first one, so
+        // a machine that lost Git Bash still opens a terminal.
+        const saved = this.shellId;
+        sel.value = shells.some((s) => s.id === saved) ? saved : shells[0].id;
+        if (sel.value !== saved) localStorage.setItem('terminal_shell', sel.value);
+
+        sel.title = shells.find((s) => s.id === sel.value)?.path || 'Shell';
+        sel.addEventListener('change', () => {
+            sel.title = shells.find((s) => s.id === sel.value)?.path || 'Shell';
+            this.setShell(sel.value);
+        });
+        sel.dataset.ready = '1';
+    }
+
     async toggle() {
         this.isOpen ? this.hide() : await this.show();
     }
@@ -352,8 +574,10 @@ class TerminalManager {
         EL.terminal.resizer.style.display = 'block';
         this.isOpen = true;
         
+        this.renderSessionList();
         // Wait for DOM to update then fit
         setTimeout(async () => {
+            if (this.sessions.size === 0) return;   // the empty state is showing
             this.fitAddon?.fit();
             if (!this.ptyReady) {
                 // Fresh terminal on (re)open — clear any leftover output from a
@@ -370,15 +594,44 @@ class TerminalManager {
         this.isOpen = false;
     }
 
-    async spawnPty() {
+    /** The shell the user picked, or '' for the platform default. */
+    get shellId() {
+        return localStorage.getItem('terminal_shell') || '';
+    }
+
+    /**
+     * Switch shells and restart. The running shell has to go: a PTY is bound to
+     * its process, so there is no way to swap the program underneath it.
+     */
+    setShell(id) {
+        localStorage.setItem('terminal_shell', id || '');
+        this.renderSessionList();
+    }
+
+    /** Shells actually installed on this machine, as the backend found them. */
+    async listShells() {
         try {
-            await invoke('spawn_pty');
-            this.ptyReady = true;
-            this.notifyResize();
+            return await invoke('list_shells');
+        } catch (e) {
+            console.warn('Could not list shells:', e);
+            return [];
+        }
+    }
+
+    async spawnPty(id = this.activeId) {
+        const session = this.sessions.get(id);
+        if (!session) return false;
+        try {
+            // session.shellId, not the header's current pick: an existing
+            // terminal keeps its own shell across a workspace restart.
+            await invoke('spawn_pty', { shell: session.shellId, id });
+            session.ptyReady = true;
+            this.notifyResize(id);
+            this.renderSessionList();
             return true;
         } catch (e) {
             console.error('Failed to spawn PTY', e);
-            this.term?.write(`\r\n\x1b[31m[Error] Failed to start terminal: ${e}\x1b[0m\r\n`);
+            session.term.write(`\r\n\x1b[31m[Error] Failed to start terminal: ${e}\x1b[0m\r\n`);
             return false;
         }
     }
@@ -386,12 +639,13 @@ class TerminalManager {
     async restart() {
         try {
             this._restarting = true; // suppress the pty_closed → close-panel handler
-            this.ptyReady = false;
-            await invoke('stop_pty');
-            if (this.term) {
-                this.term.write('\r\n\x1b[32mRestarting terminal for new workspace...\x1b[0m\r\n');
+            // Every terminal follows the workspace, not just the visible one.
+            for (const session of this.sessions.values()) {
+                session.ptyReady = false;
+                try { await invoke('stop_pty', { id: session.id }); } catch (e) { /* gone */ }
+                session.term.write('\r\n\x1b[32mRestarting terminal for new workspace...\x1b[0m\r\n');
+                await this.spawnPty(session.id);
             }
-            await this.spawnPty();
         } catch (e) {
             console.error('Failed to restart PTY', e);
         } finally {
@@ -401,12 +655,13 @@ class TerminalManager {
         }
     }
 
-    async notifyResize() {
-        if (!this.ptyReady || !this.term) return;
-        const cols = this.term.cols;
-        const rows = this.term.rows;
+    async notifyResize(id = this.activeId) {
+        const session = this.sessions.get(id);
+        if (!session || !session.ptyReady) return;
         try {
-            await invoke('resize_pty', { cols, rows });
+            await invoke('resize_pty', {
+                cols: session.term.cols, rows: session.term.rows, id,
+            });
         } catch (e) {
             console.warn('Failed to resize PTY', e);
         }
@@ -432,7 +687,14 @@ class TerminalManager {
         if (!this.isOpen) {
             await this.show();
         }
-        
+        // The panel no longer opens a shell by itself, so the AI has to ask for
+        // one rather than assume the active session exists.
+        if (this.sessions.size === 0) {
+            if (!await this.createSession()) {
+                throw new Error('Could not open a terminal.');
+            }
+        }
+
         this.isExecuting = true;
 
         try {
@@ -498,7 +760,7 @@ class TerminalManager {
                 // Send command + sentinel
                 // Using \r\n for Windows/Universal compatibility
                 const fullCommand = `${command} ; echo ${sentinel}\r\n`;
-                await invoke('write_to_pty', { data: fullCommand });
+                await invoke('write_to_pty', { data: fullCommand, id: this.activeId });
             });
         } catch (e) {
             this.isExecuting = false;
@@ -507,11 +769,14 @@ class TerminalManager {
     }
 
     async destroy() {
-        for (const unlisten of this.unlisteners) {
-            unlisten();
-        }
+        for (const unlisten of this.unlisteners) unlisten();
         this.unlisteners = [];
-        this.term?.dispose();
+        for (const session of this.sessions.values()) {
+            for (const un of session.unlisteners) { try { un(); } catch (e) { /* ignore */ } }
+            try { session.term.dispose(); } catch (e) { /* ignore */ }
+        }
+        this.sessions.clear();
+        this.activeId = null;
     }
 }
 

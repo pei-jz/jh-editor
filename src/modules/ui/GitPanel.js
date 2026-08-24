@@ -3,6 +3,7 @@ import { showAlert, showConfirm, showDialog } from './Dialog.js';
 import { createFilterSelect } from './FilterSelect.js';
 import { State } from '../core/Store.js';
 import { ContextMenu } from './ContextMenu.js';
+import AIAgent from '../ai/AIAgent.js';
 
 /**
  * Group flat `a/b/c.js` paths into a directory tree, collapsing runs of
@@ -169,6 +170,7 @@ class GitPanel {
                     <h3>Commit Changes</h3>
                     <textarea id="git-commit-input" placeholder="Commit message (Required)"></textarea>
                     <div class="git-modal-btns">
+                        <button id="git-commit-ai-btn" title="Generate a commit message from the staged diff">✨ AI</button>
                         <button id="git-commit-cancel">Cancel</button>
                         <button id="git-commit-confirm" class="primary-btn">Commit</button>
                     </div>
@@ -207,6 +209,7 @@ class GitPanel {
         };
 
         this.element.querySelector('#git-commit-confirm').onclick = () => this.commit();
+        this.element.querySelector('#git-commit-ai-btn').onclick = () => this.generateCommitMessage();
 
         // Section Toggles
         this.element.querySelectorAll('.git-section-header').forEach(header => {
@@ -1342,6 +1345,67 @@ class GitPanel {
             this.refresh();
         } catch (e) {
             showAlert(`Commit failed: ${e}`, { title: 'Commit', kind: 'error' });
+        }
+    }
+
+    /**
+     * Generate a commit message from the staged diff using the AI single-shot
+     * path. Writes the result into the commit textarea for the user to review
+     * (never commits automatically).
+     */
+    async generateCommitMessage() {
+        const input = this.element.querySelector('#git-commit-input');
+        if (!State.gitRoot) return;
+
+        let diff = '';
+        try {
+            diff = await invoke('git_diff', { path: State.gitRoot, filePath: null, staged: true });
+        } catch (e) {
+            diff = '';
+        }
+        // No staged diff: fall back to the unstaged working-tree diff so the
+        // button is still useful before the user stages.
+        if (!diff || !diff.trim()) {
+            try {
+                diff = await invoke('git_diff', { path: State.gitRoot, filePath: null, staged: false });
+            } catch (e) {
+                diff = '';
+            }
+        }
+
+        if (!diff || !diff.trim()) {
+            showAlert('差分が見つかりません。先に変更をステージしてください。', { title: 'Commit Message', kind: 'info' });
+            return;
+        }
+
+        input.placeholder = '✨ Generating…';
+        input.value = '';
+
+        try {
+            const message = await AIAgent.runSingleShot({
+                prompt: `以下は git diff です。これに対する規約準拠のコミットメッセージを1件だけ生成してください。
+
+制約:
+- 1行目に summary（50文字以内、prefix 付き）。
+- 必要なら空行の後に詳細な説明。
+- 説明や注釈は含めず、コミットメッセージのみを返す。
+
+--- git diff ---
+${diff.slice(0, 12000)}`,
+                systemPrompt: 'You generate a concise conventional-commit message from a git diff. Respond in English.',
+            });
+            const cleaned = (message || '').trim().replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/, '').trim();
+            input.value = cleaned || '';
+            input.placeholder = 'Commit message (Required)';
+            if (cleaned) input.focus();
+        } catch (e) {
+            input.placeholder = 'Commit message (Required)';
+            const msg = (e && e.message) || String(e);
+            if (/not reachable|failed to fetch|connection refused/i.test(msg)) {
+                showAlert('J.H AI Agent に接続できません。Agent を起動してください。', { title: 'Commit Message', kind: 'error' });
+            } else {
+                showAlert(`コミットメッセージ生成に失敗しました: ${msg}`, { title: 'Commit Message', kind: 'error' });
+            }
         }
     }
 

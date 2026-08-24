@@ -70,6 +70,9 @@ export const EL = {
         container: document.getElementById('terminal-container'),
         closeBtn: document.getElementById('close-terminal-btn'),
         clearBtn: document.getElementById('clear-terminal-btn'),
+        shellSelect: document.getElementById('terminal-shell-select'),
+        sessionList: document.getElementById('terminal-session-list'),
+        newBtn: document.getElementById('new-terminal-btn'),
         resizer: document.getElementById('resizer-bottom')
     },
 
@@ -84,7 +87,8 @@ export const EL = {
             general: document.getElementById('settings-general'),
             agent: document.getElementById('settings-agent'),
             keybindings: document.getElementById('settings-keybindings'),
-            templates: document.getElementById('settings-templates')
+            templates: document.getElementById('settings-templates'),
+            snippets: document.getElementById('settings-snippets')
         },
         agent: {
             container: document.getElementById('agent-settings-container')
