@@ -999,19 +999,25 @@ body.theme-nord option { background-color: #3b4252; color: #eceff4; }
 body.theme-kakejiku {
     /* Honji — moon-white silk (the editor surface) */
     --bg-color: #e8edf1;
-    /* Hyousou — indigo brocade (sidebar/header base, overridden per-face below) */
-    --sidebar-bg: #33415f;
-    --header-bg: #3a4868;
-    --border-color: #56648a;
+    /* Hyousou — indigo brocade. Held in its OWN tokens: the faces that are
+       really mounting ask for --mount-*, while the generic chrome tokens below
+       stay light so a surface nobody thought about is never dark-on-dark. */
+    --mount-bg: #33415f;
+    --mount-bg-2: #3a4868;
+    --mount-ink: #eef1f6;
+    /* Generic chrome: pale silk, a shade off the honji so panels read apart. */
+    --sidebar-bg: #dfe5ec;
+    --header-bg: #e4e9ef;
+    --border-color: #b9c3d2;
     /* Ink on the honji (dark, for the light sheet) */
     --text-color: #2b2f36;
     /* The seal's vermillion */
     --primary-color: #c14a3d;
     --active-tab-bg: #4a5a82;
     --active-tab-border: #c14a3d;
-    --hover-color: #2b3650;
+    --hover-color: #d5dde7;
     --bg-color-secondary: #eef1f4;
-    --bg-active: #4a5a82;
+    --bg-active: #cbd5e2;
     --radius: 6px;
     --table-header-bg: #e2e7ec;
 
@@ -1022,20 +1028,23 @@ body.theme-kakejiku {
     /* Syntax — ink on moon-white silk */
     --hl-keyword: #2f5f8a;          /* indigo ink */
     --hl-control-flow: #7a4a7a;
-    --hl-built-in: #3a7a6a;
+    --hl-built-in: #347065;
     --hl-literal: #2f5f8a;
     --hl-string: #a63a34;           /* vermillion */
-    --hl-comment: #9aa3ae;
+    --hl-comment: #616b78;   /* was #9aa3ae — 2.2:1 on the honji */
     --hl-function: #5a6a8a;
     --hl-variable: #2b2f36;
     --hl-number: #6a6a2f;
     --hl-operator: #2b2f36;
 
-    --gutter-color: #9aa4b2;
+    --gutter-color: #5a6577;        /* line numbers on the honji */
     --tab-inactive-color: #c7cede;  /* pale ink on the indigo mount */
     --tree-item-color: #2b2f36;     /* the explorer sits on the honji */
     --tree-item-active-bg: rgba(193, 74, 61, 0.08);
-    --text-secondary: #6a7078;      /* secondary ink on the honji */
+    /* Secondary ink. #6a7078 read 3.4:1 on the darkest chrome face
+       (--bg-active), so it is darkened to clear 4.5:1 everywhere while staying
+       clearly subordinate to the body ink. */
+    --text-secondary: #545a63;
 
     --code-color: #a63a34;
     --code-bg: rgba(193, 74, 61, 0.08);
@@ -1073,7 +1082,7 @@ body.theme-kakejiku {
 body.theme-kakejiku #explorer {
     background-color: var(--bg-color);
     background-image: var(--silk);
-    border-right: 2px solid var(--sidebar-bg);
+    border-right: 2px solid var(--mount-bg);
     color: var(--text-color);
 }
 
@@ -1097,9 +1106,20 @@ body.theme-kakejiku #status-bar,
 body.theme-kakejiku .outline-header,
 body.theme-kakejiku .git-v2-repo,
 body.theme-kakejiku .git-v2-header {
-    background-color: var(--header-bg);
+    background-color: var(--mount-bg-2);
     background-image: var(--donsu);
-    color: #eef1f6;
+    color: var(--mount-ink);
+}
+
+/* Hovering a tab keeps the mount dark — a light hover here would strand the
+   pale tab ink on a pale ground. */
+body.theme-kakejiku .tab:hover,
+body.theme-kakejiku .explorer-tab:hover,
+body.theme-kakejiku .tab-nav-btn:hover,
+body.theme-kakejiku .titlebar-tool-btn:hover,
+body.theme-kakejiku #new-tab-btn:hover {
+    background-color: #46567c;
+    color: #ffffff;
 }
 
 /* Titlebar buttons and the new-tab button carry their own explicit

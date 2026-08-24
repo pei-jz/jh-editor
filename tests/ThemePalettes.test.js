@@ -49,7 +49,14 @@ const FOREGROUNDS = [
     '--hl-number', '--hl-operator',
 ];
 
-const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord'];
+const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord', 'kakejiku'];
+
+// Which surface a foreground actually sits on. Hanging Scroll is a hybrid — a
+// light sheet inside dark indigo mounting — so its tab ink is pale ON PURPOSE
+// and must be judged against the mount, not the sheet.
+const SURFACE = {
+    kakejiku: { '--tab-inactive-color': '--mount-bg-2' },
+};
 
 describe.each(PALETTE_THEMES)('theme %s', (name) => {
     const block = themeBlock(name);
@@ -69,7 +76,10 @@ describe.each(PALETTE_THEMES)('theme %s', (name) => {
 
     it('keeps every foreground readable on its own background', () => {
         for (const t of FOREGROUNDS) {
-            expect(contrast(token(block, t), bg), `${name} ${t}`).toBeGreaterThanOrEqual(4.5);
+            const on = (SURFACE[name] || {})[t];
+            const surface = on ? token(block, on) : bg;
+            expect(contrast(token(block, t), surface),
+                `${name} ${t} on ${on || '--bg-color'}`).toBeGreaterThanOrEqual(4.5);
         }
     });
 
@@ -186,20 +196,36 @@ describe('theme labels', () => {
     });
 });
 
+// Four places used to decide "is this theme dark?" from their own hand-written
+// allowlist — the Mermaid renderer, Shiki, the CodeMirror palette and the
+// terminal — and every theme added since drifted out of one of them. The symptom
+// is always a light palette on a dark surface at 1-2:1. There is now one list.
 describe('dark-theme detection', () => {
-    const cm = read('src/modules/views/CodeMirrorView.js');
-    const shiki = read('src/modules/utils/ShikiHighlighter.js');
+    const info = read('src/modules/utils/ThemeInfo.js');
 
-    // Markdown code blocks are highlighted by Shiki, which picks its theme from
-    // this predicate — a dark theme missing here renders code on a light card.
-    it('counts Nord as dark in both highlighters', () => {
-        expect(shiki).toContain("c.contains('theme-nord')");
-        expect(cm).toContain("c.contains('theme-nord')");
+    it('names every dark theme in one place', () => {
+        for (const t of ['theme-dark', 'theme-midnight', 'theme-solarized-dark',
+            'theme-bamboo-ancient', 'theme-nord']) {
+            expect(info, t).toContain(`'${t}'`);
+        }
     });
 
-    it('does not claim the light Sumi-e is dark', () => {
-        expect(shiki).not.toContain("c.contains('theme-sumi-e')");
-        const isDark = cm.slice(cm.indexOf('_isDarkTheme() {'));
-        expect(isDark.slice(0, isDark.indexOf('\n    }'))).not.toContain('theme-sumi-e');
+    // Their editor surface is light, whatever the chrome around it does.
+    it('excludes the light themes, Hanging Scroll included', () => {
+        for (const t of ['theme-sumi-e', 'theme-kakejiku', 'theme-paper',
+            'theme-latte', 'theme-solarized-light']) {
+            expect(info, t).not.toContain(`'${t}'`);
+        }
+    });
+
+    it('is the only list: no consumer keeps its own', () => {
+        for (const f of ['src/modules/utils/Markdown.js',
+            'src/modules/utils/ShikiHighlighter.js',
+            'src/modules/views/CodeMirrorView.js']) {
+            const src = read(f);
+            expect(src, f).toContain('ThemeInfo.js');
+            // A second hand-rolled allowlist would look like this.
+            expect(src, f).not.toContain("contains('theme-midnight')");
+        }
     });
 });
