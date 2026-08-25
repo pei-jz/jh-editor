@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(async () => '') }));
 
-import { resolveCompareBase } from '../src/modules/ui/GitPanel.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { resolveCompareBase, cleanRef } from '../src/modules/ui/GitPanel.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 // Comparing `origin/master` with the older tag `v0.01` reported "0 files / No
 // differences" even though ten files differ. The three-dot form asks "what is
@@ -73,5 +78,32 @@ describe('resolveCompareBase', () => {
                 expect(r.fromRev).toBeTruthy();
             }
         }
+    });
+});
+
+/* Switching branches failed with:
+       pathspec '"memory-audit-fixes"' did not match any file(s) known to git
+
+   The branch list was read with `git branch --format="%(refname:short)"`.
+   run_command shells out through `cmd /C` on Windows, and Rust escapes the
+   command line it builds — but cmd does not honour that escaping, so the quotes
+   arrived at git as literal characters and came back around every branch name.
+   `git checkout "master"` then looked for a FILE called `"master"`. */
+describe('branch names out of the shell', () => {
+    const src = readFileSync(join(here, '..', 'src/modules/ui/GitPanel.js'), 'utf8');
+
+    it('asks git for a format that needs no quoting', () => {
+        // The doc comment quotes the broken form, so match the command itself.
+        expect(src).not.toMatch(/'git branch[^']*--format="/);
+        expect(src).toContain('--format=%(refname:short)');
+    });
+
+    it('strips quoting a shell may still have left behind', () => {
+        expect(cleanRef('"memory-audit-fixes"')).toBe('memory-audit-fixes');
+        expect(cleanRef('\\"master\\"')).toBe('master');
+        expect(cleanRef("  'feature/x'  ")).toBe('feature/x');
+        // A legal ref is returned untouched — slashes and dots are ordinary.
+        expect(cleanRef('origin/release-1.2')).toBe('origin/release-1.2');
+        expect(cleanRef('master')).toBe('master');
     });
 });

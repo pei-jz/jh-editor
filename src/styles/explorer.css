@@ -376,6 +376,16 @@ body.theme-solarized-dark .tree-icon {
     background: var(--hover-color);
 }
 
+/* The only word among the icons, sized down so it occupies the same slot
+   rather than towering over them at the icon font size. */
+.git-v2-toolbar #git-pr-btn {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 4px 5px;
+    color: var(--text-color);
+}
+
 .git-v2-content {
     flex: 1;
     overflow-y: auto;

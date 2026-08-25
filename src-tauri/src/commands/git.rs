@@ -218,10 +218,32 @@ pub async fn git_log(path: String, count: Option<u32>) -> Result<Vec<GitLogEntry
     Ok(entries)
 }
 
+/// Push the current branch.
+///
+/// A branch created locally has no upstream, and a bare `git push` fails on it
+/// with "no upstream branch". Passing `remote`/`branch`/`set_upstream` performs
+/// the `git push -u origin <branch>` that publishes it for the first time; with
+/// all three omitted this is the plain push it always was.
 #[tauri::command]
-pub async fn git_push(path: String) -> Result<String, String> {
+pub async fn git_push(
+    path: String,
+    remote: Option<String>,
+    branch: Option<String>,
+    set_upstream: Option<bool>,
+) -> Result<String, String> {
+    let mut args: Vec<String> = vec!["push".into()];
+    if set_upstream.unwrap_or(false) {
+        args.push("--set-upstream".into());
+    }
+    if let Some(r) = remote.filter(|r| !r.is_empty()) {
+        args.push(r);
+        if let Some(b) = branch.filter(|b| !b.is_empty()) {
+            args.push(b);
+        }
+    }
+
     let output = git_command()
-        .args(["push"])
+        .args(&args)
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -231,7 +253,128 @@ pub async fn git_push(path: String) -> Result<String, String> {
         return Err(stderr);
     }
 
-    Ok(decode_git_bytes(&output.stdout))
+    // git reports a push on stderr, so returning stdout alone loses the summary.
+    let mut out = decode_git_bytes(&output.stdout);
+    let err = String::from_utf8_lossy(&output.stderr).to_string();
+    if !err.trim().is_empty() {
+        if !out.trim().is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&err);
+    }
+    Ok(out)
+}
+
+/// The upstream of the current branch (e.g. `origin/master`), or `None` when it
+/// has never been pushed.
+#[tauri::command]
+pub async fn git_upstream(path: String) -> Result<Option<String>, String> {
+    let output = git_command()
+        .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    // A missing upstream is the normal answer for a fresh branch, not an error.
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let name = decode_git_bytes(&output.stdout).trim().to_string();
+    Ok(if name.is_empty() { None } else { Some(name) })
+}
+
+/// The fetch URL of a remote, for building a web link to the forge.
+#[tauri::command]
+pub async fn git_remote_url(path: String, remote: Option<String>) -> Result<String, String> {
+    let remote = remote.filter(|r| !r.is_empty()).unwrap_or_else(|| "origin".into());
+    let output = git_command()
+        .args(["remote", "get-url", &remote])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    Ok(decode_git_bytes(&output.stdout).trim().to_string())
+}
+
+/// The branch a pull request should target: whatever `origin/HEAD` points at.
+///
+/// Repositories that were cloned before the default branch was renamed, or that
+/// were never cloned at all, may not have it — the caller falls back rather
+/// than treating that as a failure.
+#[tauri::command]
+pub async fn git_default_branch(path: String) -> Result<Option<String>, String> {
+    let output = git_command()
+        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let name = decode_git_bytes(&output.stdout).trim().to_string();
+    // "origin/main" -> "main"
+    Ok(name.split_once('/').map(|(_, b)| b.to_string()).filter(|b| !b.is_empty()))
+}
+
+/// The GitHub CLI, if it is installed and signed in.
+///
+/// Both halves matter: `gh` on PATH but unauthenticated fails at PR creation
+/// with a login prompt the app cannot answer, so the frontend needs to know to
+/// fall back to the browser before it collects a title and body.
+#[tauri::command]
+pub async fn gh_available(path: String) -> Result<bool, String> {
+    let mut cmd = Command::new("gh");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    match cmd.args(["auth", "status"]).current_dir(&path).output() {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false),   // not installed
+    }
+}
+
+/// Open a pull request through the GitHub CLI. Returns the new PR's URL.
+///
+/// The title and body are passed as process ARGUMENTS, never interpolated into
+/// a shell command line, so a message containing quotes or `&` is safe.
+#[tauri::command]
+pub async fn gh_pr_create(
+    path: String,
+    base: String,
+    head: String,
+    title: String,
+    body: String,
+    draft: Option<bool>,
+) -> Result<String, String> {
+    let mut cmd = Command::new("gh");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd.args(["pr", "create", "--base", &base, "--head", &head,
+              "--title", &title, "--body", &body]);
+    if draft.unwrap_or(false) {
+        cmd.arg("--draft");
+    }
+
+    let output = cmd
+        .current_dir(&path)
+        .output()
+        .map_err(|e| format!("Could not run gh: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = decode_git_bytes(&output.stdout);
+        return Err(if stderr.trim().is_empty() { stdout } else { stderr });
+    }
+    Ok(decode_git_bytes(&output.stdout).trim().to_string())
 }
 
 #[tauri::command]
