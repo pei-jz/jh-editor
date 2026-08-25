@@ -7,6 +7,7 @@ import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
 import { Snippets } from './Snippets.js';
 import { showConfirm } from './Dialog.js';
+import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -255,7 +256,54 @@ export function initSettingsModal() {
             <div class="settings-description" style="margin-bottom:20px;">
                 Manual override for the auth token. Leave blank to auto-discover.
             </div>
+
+            <div style="font-weight:bold; margin:22px 0 8px; font-size:1.1em; color:var(--primary-color);">Context Scope</div>
+
+            <div class="settings-description" style="margin-bottom:12px; padding:8px; background:rgba(255,180,0,0.06); border-left:3px solid rgba(255,180,0,0.55); font-size:12px;">
+                🔒 How much of the editor the AI may read. The agent PULLS this itself while a task
+                runs — it is not sent unless a tool asks for it, and nothing here is sent when no
+                task is running. Personal notes are excluded at every level.
+            </div>
+
+            <div id="ai-scope-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px;"></div>
         `;
+
+        // Radios rather than a <select>: each level needs its consequence spelled
+        // out next to it, and a dropdown hides four of the five while you choose.
+        const scopeList = container.querySelector('#ai-scope-list');
+        if (scopeList) {
+            const current = getScope();
+            for (const s of SCOPES) {
+                const row = document.createElement('label');
+                row.style.cssText = 'display:flex; gap:8px; align-items:flex-start; padding:7px 8px;'
+                    + ' border:1px solid var(--border-color); border-radius:5px; cursor:pointer;'
+                    + (s.id === current ? ' background:var(--bg-active);' : '');
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'ai-context-scope';
+                radio.value = s.id;
+                radio.checked = s.id === current;
+                radio.style.marginTop = '2px';
+                radio.onchange = () => {
+                    setScope(s.id);
+                    // Repaint so the highlight follows the choice.
+                    for (const el of scopeList.children) {
+                        el.style.background = el.querySelector('input').checked
+                            ? 'var(--bg-active)' : 'transparent';
+                    }
+                };
+                const text = document.createElement('div');
+                const name = document.createElement('div');
+                name.textContent = `${s.rank}. ${s.label}`;
+                name.style.cssText = 'font-size:12px; font-weight:600;';
+                const hint = document.createElement('div');
+                hint.textContent = s.hint;
+                hint.style.cssText = 'font-size:11px; opacity:0.7; margin-top:2px; line-height:1.45;';
+                text.append(name, hint);
+                row.append(radio, text);
+                scopeList.appendChild(row);
+            }
+        }
 
         // Run discovery probe + display result so the user can tell at a glance
         // whether the agent is reachable and which config source is active.

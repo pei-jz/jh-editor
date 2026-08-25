@@ -46,6 +46,7 @@ import { InlineAI } from '../ui/InlineAI.js';
 import { Navigation } from '../utils/Navigation.js';
 import { createInlineCompletionExtension } from '../ui/InlineCompletion.js';
 import { snippetCompletionSource } from '../ui/Snippets.js';
+import { allows, isPrivatePath } from '../ai/ContextScope.js';
 
 // Custom Theme to match JHEditor
 const jhTheme = EditorView.theme({
@@ -1244,13 +1245,20 @@ export class CodeMirrorView {
         const coords = this.editorView.coordsAtPos(pos);
         if (!coords) return; // Cursor might be scrolled out of view
 
-        // Get context around cursor (±20 lines)
-        const doc = state.doc;
-        const line = doc.lineAt(pos);
-        const startLine = Math.max(1, line.number - 20);
-        const endLine = Math.min(doc.lines, line.number + 20);
-        
-        const context = doc.sliceString(doc.line(startLine).from, doc.line(endLine).to);
+        // Context around the cursor (±20 lines) — but only when the AI context
+        // scope allows the file itself to be read. At "Selection only" the
+        // prompt carries the selection and nothing more, which is the whole
+        // point of that setting: pressing this must not quietly widen it.
+        let context = '';
+        if (allows('cursorContext') && !isPrivatePath(this.file && this.file.path)) {
+            const doc = state.doc;
+            const line = doc.lineAt(pos);
+            const startLine = Math.max(1, line.number - 20);
+            const endLine = Math.min(doc.lines, line.number + 20);
+            context = doc.sliceString(doc.line(startLine).from, doc.line(endLine).to);
+        } else {
+            context = this.getSelectedText ? (this.getSelectedText() || '') : '';
+        }
 
         // CM6 coordsAtPos returns viewport-relative coords, which match position:fixed.
         // We'll adjust slightly so the popup doesn't block the line.

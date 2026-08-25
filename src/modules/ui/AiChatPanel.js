@@ -11,6 +11,7 @@
  */
 
 import AIAgent from '../ai/AIAgent.js';
+import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
 
 const HISTORY_KEY = 'jh_ai_chat_history_v1';
 const MAX_HISTORY = 40;
@@ -62,7 +63,7 @@ class AiChatPanel {
                 <button class="close-btn" title="Close">×</button>
             </div>
             <div class="ai-chat-messages"></div>
-            <div class="ai-chat-hint">Connect to the J.H AI Agent to get answers. To include your selection as context, send it using the "Send Selection" button.</div>
+            <div class="ai-chat-hint" id="ai-chat-scope-hint"></div>
             <div class="ai-chat-input-row">
                 <textarea class="ai-chat-input" placeholder="Ask a question… (Shift+Enter for a new line)"></textarea>
                 <button class="ai-chat-send">Send</button>
@@ -114,8 +115,26 @@ class AiChatPanel {
             const findAssistant = () => list.querySelector('.ai-chat-msg.assistant:last-child .ai-chat-msg-body');
             const bodyEl = findAssistant();
 
+            // A request that takes eight seconds and a request that has died look
+            // identical without this. It also puts a number on "the editor is
+            // talking to a model right now", which is worth seeing.
+            const startedAt = Date.now();
+            // Filled in once the context is built, so the line can say what
+            // actually went with the message rather than what might have.
+            let sentLabel = '';
+            const meta = document.createElement('div');
+            meta.className = 'ai-chat-meta';
+            bodyEl?.parentElement?.appendChild(meta);
+            const paint = (label) => {
+                const ms = Date.now() - startedAt;
+                const time = ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+                meta.textContent = `${label} ${time}${sentLabel}`;
+            };
+            const ticker = setInterval(() => paint('⏳ Sending…'), 100);
+
             try {
-                const context = this._buildContext();
+                const { context, sent } = this._buildContext();
+                sentLabel = sent.length ? `  ·  sent: ${sent.join(', ')}` : '  ·  sent: prompt only';
                 const systemPrompt =
                     'You are an AI assistant inside JHEditor. Answer in the user\'s language (Japanese unless told otherwise). '
                     + 'Use Markdown. Be concise.';
@@ -143,6 +162,8 @@ class AiChatPanel {
                     bodyEl.innerHTML = `❌ ${String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
                 }
             } finally {
+                clearInterval(ticker);
+                paint('⏱');
                 this._busy = false;
                 send.disabled = false;
                 input.focus();
@@ -157,29 +178,73 @@ class AiChatPanel {
             }
         };
 
+        // The hint used to claim the selection was only sent via a button, while
+        // the code attached it (and 4000 characters of the file) every time. It
+        // now reports the setting that actually governs it.
+        const hint = root.querySelector('#ai-chat-scope-hint');
+        if (hint) {
+            const s = scopeInfo();
+            hint.textContent = `Context scope: ${s.label} — ${s.hint} `
+                + 'Change it in Settings → Agent Integration.';
+        }
+
         renderAll();
         input.focus();
     }
 
+    /**
+     * What travels with the message.
+     *
+     * This panel PUSHES context — unlike the MCP tools, which the model pulls —
+     * so it used to attach the workspace path, the active file's path and its
+     * first 4000 characters on EVERY message, whatever the AI context scope
+     * said. That is exactly the data the scope setting exists to govern, so it
+     * is governed here too.
+     *
+     * Returns `{ context, sent }`: `sent` is the human list of what went, which
+     * the panel shows under the answer. A privacy setting nobody can see the
+     * effect of is not worth much.
+     */
     _buildContext() {
+        const sent = [];
         try {
             const view = window.app?.getCurrentView?.();
-            const active = window.app?.getActiveFile?.();
+            const active = window.app?.getActiveFile?.() || null;
+            const activePath = active ? (active.path || active.name || null) : null;
+            // Personal notes never travel, at any scope.
+            const isPrivate = isPrivatePath(activePath);
+
             let selected = '';
-            if (view && typeof view.getSelectedText === 'function') {
-                try { selected = view.getSelectedText() || ''; } catch (_) {}
+            if (!isPrivate && view && typeof view.getSelectedText === 'function') {
+                try { selected = view.getSelectedText() || ''; } catch (_) { /* none */ }
             }
-            const file = active || null;
-            return {
-                app: 'jheditor',
-                workspace: window.app?.getCurrentDir?.() || null,
-                activeFile: file ? (file.path || file.name || null) : null,
-                activeFileSnippet: file && typeof file.content === 'string'
-                    ? file.content.slice(0, 4000)
-                    : (file ? '' : null),
-                selection: selected || null,
-            };
-        } catch (_) { return null; }
+
+            const context = { app: 'jheditor' };
+
+            if (selected && allows('selection')) {
+                context.selection = selected;
+                sent.push(`selection (${selected.length} chars)`);
+            }
+            if (!isPrivate && allows('activeBuffer')) {
+                context.activeFile = activePath;
+                const body = typeof active?.content === 'string' ? active.content : '';
+                context.activeFileSnippet = body.slice(0, 4000);
+                sent.push(context.activeFileSnippet.length >= 4000
+                    ? 'active file (first 4000 chars)'
+                    : `active file (${context.activeFileSnippet.length} chars)`);
+            }
+            // The workspace PATH is only meaningful to a model that may read the
+            // workspace, and a path can itself be revealing (a client's name).
+            if (allows('workspaceFiles')) {
+                context.workspace = window.app?.getCurrentDir?.() || null;
+                if (context.workspace) sent.push('workspace path');
+            }
+            if (isPrivate) sent.push('personal note excluded');
+
+            return { context, sent };
+        } catch (_) {
+            return { context: null, sent: [] };
+        }
     }
 
     _append(list, m) {
