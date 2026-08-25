@@ -4,6 +4,93 @@ import { createFilterSelect } from './FilterSelect.js';
 import { State } from '../core/Store.js';
 import { ContextMenu } from './ContextMenu.js';
 import AIAgent from '../ai/AIAgent.js';
+import { open } from '@tauri-apps/plugin-shell';
+
+/**
+ * Strip quoting that leaked out of the shell.
+ *
+ * `run_command` runs through `cmd /C` on Windows, and Rust escapes the command
+ * line it hands to cmd — but cmd does not understand that escaping, so a `"` in
+ * the command survives as a literal character in the child's argv. A branch
+ * listed with `--format="%(refname:short)"` therefore came back as `"master"`,
+ * quotes included, and checking it out asked git for a *file* by that name:
+ *
+ *     pathspec '"memory-audit-fixes"' did not match any file(s) known to git
+ *
+ * The format strings no longer carry quotes. This is the belt to that braces —
+ * a ref name can never legally contain a quote or a backslash, so anything of
+ * the sort is quoting, not part of the name.
+ */
+export function cleanRef(name) {
+    return String(name).trim().replace(/^["'\\]+|["'\\]+$/g, '').trim();
+}
+/**
+ * Split a git remote into the pieces a web URL needs.
+ *
+ * Handles the four shapes a remote actually comes in: `git@host:owner/repo.git`,
+ * `ssh://git@host/owner/repo.git`, `https://host/owner/repo.git` and the same
+ * with a username in it. GitLab nests groups, so `owner` keeps every path
+ * segment before the last one.
+ *
+ * @returns {{host: string, owner: string, repo: string}|null}
+ */
+export function parseRemoteUrl(url) {
+    let rest = String(url || '').trim();
+    if (!rest) return null;
+
+    let host;
+    const scp = rest.match(/^[^/@]+@([^:/]+):(.+)$/);   // git@github.com:owner/repo.git
+    if (scp) {
+        host = scp[1];
+        rest = scp[2];
+    } else {
+        const m = rest.match(/^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^/]+)\/(.+)$/i);
+        if (!m) return null;
+        host = m[1].replace(/:\d+$/, '');   // strip a port
+        rest = m[2];
+    }
+
+    const parts = rest.replace(/\.git$/i, '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    return { host, repo: parts.pop(), owner: parts.join('/') };
+}
+
+/**
+ * The forge's own "open a pull request" page, with the branches and text
+ * prefilled. This is the route for anyone without the GitHub CLI: it needs
+ * nothing installed, and the forge itself asks for confirmation before the PR
+ * actually opens.
+ *
+ * @returns {string|null} null when the host is not one we know how to address.
+ */
+export function pullRequestUrl(repo, base, head, { title = '', body = '' } = {}) {
+    if (!repo || !base || !head) return null;
+    // Branch names may contain `/`, which is a path separator in these URLs and
+    // is expected literally there.
+    const ref = (r) => encodeURIComponent(r).replace(/%2F/gi, '/');
+    const q = (s) => encodeURIComponent(s);
+    const { host, owner, repo: name } = repo;
+    const root = `https://${host}/${owner}/${name}`;
+
+    if (/(^|\.)github\.com$/i.test(host) || /(^|\.)github\./i.test(host)) {
+        const extra = [title && `title=${q(title)}`, body && `body=${q(body)}`].filter(Boolean);
+        return `${root}/compare/${ref(base)}...${ref(head)}?expand=1${extra.length ? '&' + extra.join('&') : ''}`;
+    }
+    if (/(^|\.)gitlab\./i.test(host)) {
+        const p = [
+            `merge_request%5Bsource_branch%5D=${q(head)}`,
+            `merge_request%5Btarget_branch%5D=${q(base)}`,
+            title && `merge_request%5Btitle%5D=${q(title)}`,
+            body && `merge_request%5Bdescription%5D=${q(body)}`,
+        ].filter(Boolean);
+        return `${root}/-/merge_requests/new?${p.join('&')}`;
+    }
+    if (/(^|\.)bitbucket\.org$/i.test(host)) {
+        return `${root}/pull-requests/new?source=${q(head)}&dest=${q(base)}`;
+    }
+    return null;
+}
+
 
 /**
  * Group flat `a/b/c.js` paths into a directory tree, collapsing runs of
@@ -114,6 +201,7 @@ class GitPanel {
                     <button id="git-fetch-btn" title="Fetch All">⟳</button>
                     <button id="git-pull-btn" title="Pull">⤓</button>
                     <button id="git-push-btn" title="Push">⤒</button>
+                    <button id="git-pr-btn" title="New Pull Request">PR</button>
                     <button id="git-refresh-btn" title="Refresh Status">↺</button>
                 </div>
             </div>
@@ -193,7 +281,8 @@ class GitPanel {
         this._bindDetailResizer();
         this.element.querySelector('#git-fetch-btn').onclick = () => this.executeGit('git_fetch');
         this.element.querySelector('#git-pull-btn').onclick = () => this.executeGit('git_pull');
-        this.element.querySelector('#git-push-btn').onclick = () => this.executeGit('git_push');
+        this.element.querySelector('#git-push-btn').onclick = () => this.push();
+        this.element.querySelector('#git-pr-btn').onclick = () => this.createPullRequest();
         
         this.element.querySelector('#git-stage-all-btn').onclick = () => this.stageFile('.');
         this.element.querySelector('#git-unstage-all-btn').onclick = () => this.unstageFile('.');
@@ -428,12 +517,15 @@ class GitPanel {
 
     async _loadBranches(activeBranch) {
         if (!State.gitRoot) return;
+        // The picker replaced a <select>, so `#git-branch-select.value` no
+        // longer answers "which branch am I on".
+        this._activeBranch = activeBranch || '';
         try {
             const output = await invoke('run_command', { 
-                command: 'git branch --format="%(refname:short)"', 
+                command: 'git branch --format=%(refname:short)', 
                 cwd: State.gitRoot 
             });
-            const branches = output.split('\n').map(b => b.trim()).filter(b => b.length > 0);
+            const branches = output.split('\n').map(cleanRef).filter(b => b.length > 0);
             
             // A repo with dozens of branches makes a native dropdown a scroll
             // hunt, so the switcher is a type-to-filter picker.
@@ -828,6 +920,211 @@ class GitPanel {
 
     /** Compare two commits: fromEntry (older base) → toEntry. */
     /**
+     * Push the current branch, publishing it if it has never been pushed.
+     *
+     * A plain `git push` fails on a branch with no upstream, which is exactly
+     * the branch you most want to push. Creating a remote branch is a visible,
+     * shared act though, so it is confirmed rather than done silently.
+     */
+    async push() {
+        if (!State.gitRoot) return;
+        try {
+            const upstream = await invoke('git_upstream', { path: State.gitRoot });
+            if (upstream) {
+                await invoke('git_push', { path: State.gitRoot });
+            } else {
+                const branch = this._activeBranch;
+                if (!branch) {
+                    await showAlert('No branch is checked out.', { title: 'Push', kind: 'warning' });
+                    return;
+                }
+                const ok = await showConfirm(
+                    `'${branch}' has never been pushed.\n\nPublish it as origin/${branch} and track it from now on?`,
+                    { title: 'Push', kind: 'warning', okLabel: 'Push' });
+                if (!ok) return;
+                await invoke('git_push', {
+                    path: State.gitRoot, remote: 'origin', branch, setUpstream: true,
+                });
+            }
+            this.refresh();
+        } catch (e) {
+            showAlert(`Push failed: ${e}`, { title: 'Git', kind: 'error' });
+        }
+    }
+
+    /**
+     * Open a pull request for the current branch.
+     *
+     * Two routes, because neither covers everyone: the GitHub CLI creates the PR
+     * outright when it is installed AND signed in, and otherwise the forge's own
+     * "new pull request" page is opened with the title and body prefilled, which
+     * needs nothing installed and works from a browser session.
+     */
+    async createPullRequest() {
+        if (!State.gitRoot) {
+            await showAlert('No Git repository is open.', { title: 'Pull Request', kind: 'info' });
+            return;
+        }
+        const head = this._activeBranch;
+        if (!head) {
+            await showAlert('No branch is checked out.', { title: 'Pull Request', kind: 'warning' });
+            return;
+        }
+
+        const [{ local }, remoteUrl, defaultBranch] = await Promise.all([
+            this._listRefs(),
+            invoke('git_remote_url', { path: State.gitRoot }).catch(() => ''),
+            invoke('git_default_branch', { path: State.gitRoot }).catch(() => null),
+        ]);
+        if (!remoteUrl) {
+            await showAlert('This repository has no "origin" remote to open a pull request against.',
+                { title: 'Pull Request', kind: 'warning' });
+            return;
+        }
+        const repo = parseRemoteUrl(remoteUrl);
+
+        // A branch cannot be reviewed until it exists on the remote.
+        const upstream = await invoke('git_upstream', { path: State.gitRoot });
+        if (!upstream) {
+            const ok = await showConfirm(
+                `'${head}' has not been pushed yet, so there is nothing to review.\n\nPush it to origin first?`,
+                { title: 'Pull Request', kind: 'warning', okLabel: 'Push' });
+            if (!ok) return;
+            try {
+                await invoke('git_push', {
+                    path: State.gitRoot, remote: 'origin', branch: head, setUpstream: true,
+                });
+                this.refresh();
+            } catch (e) {
+                showAlert(`Push failed: ${e}`, { title: 'Git', kind: 'error' });
+                return;
+            }
+        }
+
+        // The last commit's subject is the title nine times out of ten.
+        let subject = '';
+        try {
+            const log = await invoke('git_log', { path: State.gitRoot, count: 1 });
+            subject = String(log?.[0]?.message || '').split('\n')[0];
+        } catch (e) { /* a fresh repo has no log */ }
+
+        const bases = local.filter((b) => b !== head);
+        const base = defaultBranch && bases.includes(defaultBranch) ? defaultBranch
+            : bases.find((b) => b === 'main' || b === 'master') || bases[0] || defaultBranch || '';
+        if (!base) {
+            await showAlert('There is no other branch to merge into.',
+                { title: 'Pull Request', kind: 'warning' });
+            return;
+        }
+
+        const form = document.createElement('div');
+        form.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;margin-top:4px;';
+        const label = (text) => {
+            const el = document.createElement('label');
+            el.textContent = text;
+            el.style.cssText = 'font-size:12px;color:var(--text-secondary);white-space:nowrap;';
+            return el;
+        };
+
+        const baseSel = createFilterSelect({
+            items: bases.length ? bases : [base], value: base, placeholder: 'base branch…',
+        });
+        baseSel.element.style.width = '100%';
+
+        const headEl = document.createElement('div');
+        headEl.textContent = head;
+        headEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--primary-color);';
+
+        const INPUT_CSS = 'width:100%;box-sizing:border-box;padding:5px 7px;font:inherit;font-size:12px;color:var(--text-color);background:var(--bg-color-secondary);border:1px solid var(--border-color);border-radius:3px;';
+        const titleEl = document.createElement('input');
+        titleEl.type = 'text';
+        titleEl.value = subject;
+        titleEl.placeholder = 'Pull request title';
+        titleEl.style.cssText = INPUT_CSS;
+
+        const bodyEl = document.createElement('textarea');
+        bodyEl.rows = 6;
+        bodyEl.placeholder = 'Description (optional)';
+        bodyEl.style.cssText = INPUT_CSS + 'resize:vertical;line-height:1.5;';
+        // Enter must insert a newline here, not fire the dialog's primary button.
+        bodyEl.dataset.dialogKeys = 'own';
+
+        const draftRow = document.createElement('label');
+        draftRow.style.cssText = 'grid-column:1 / -1;display:flex;align-items:center;gap:7px;font-size:12px;';
+        const draftCb = document.createElement('input');
+        draftCb.type = 'checkbox';
+        draftRow.append(draftCb, Object.assign(document.createElement('span'),
+            { textContent: 'Open as a draft' }));
+
+        form.append(label('Base'), baseSel.element, label('Compare'), headEl,
+            label('Title'), titleEl, label('Description'), bodyEl, draftRow);
+
+        const go = await showDialog({
+            title: 'New Pull Request',
+            message: repo ? `${repo.owner}/${repo.repo}` : remoteUrl,
+            kind: 'info',
+            width: 'min(620px, 92vw)',
+            content: form,
+            buttons: [
+                { label: 'Cancel', value: false, cancel: true },
+                { label: 'Create', value: true, primary: true },
+            ],
+        });
+        if (!go) return;
+
+        const chosenBase = baseSel.getValue();
+        const title = titleEl.value.trim() || subject || head;
+        const body = bodyEl.value;
+        if (chosenBase === head) {
+            await showAlert('A branch cannot be merged into itself.',
+                { title: 'Pull Request', kind: 'warning' });
+            return;
+        }
+
+        const gh = await invoke('gh_available', { path: State.gitRoot }).catch(() => false);
+        if (gh) {
+            try {
+                const url = await invoke('gh_pr_create', {
+                    path: State.gitRoot, base: chosenBase, head, title, body,
+                    draft: draftCb.checked,
+                });
+                const wantsOpen = await showDialog({
+                    title: 'Pull Request', kind: 'info',
+                    message: `Created:\n${url}`,
+                    buttons: [
+                        { label: 'Close', value: false, cancel: true },
+                        { label: 'Open in Browser', value: true, primary: true },
+                    ],
+                });
+                if (wantsOpen) this._openExternal(url);
+                return;
+            } catch (e) {
+                // gh knows things the URL route does not (a PR already open for
+                // this branch, a protected base). Say so rather than silently
+                // opening a page that will report the same thing.
+                showAlert(`gh could not create the pull request:\n${e}`,
+                    { title: 'Pull Request', kind: 'error' });
+                return;
+            }
+        }
+
+        const url = pullRequestUrl(repo, chosenBase, head, { title, body });
+        if (!url) {
+            await showAlert(`Install the GitHub CLI (gh) to open pull requests from here, or do it on the web:\n${remoteUrl}`,
+                { title: 'Pull Request', kind: 'info' });
+            return;
+        }
+        this._openExternal(url);
+    }
+
+    _openExternal(url) {
+        open(url).catch((err) => {
+            console.warn('Failed to open URL:', err);
+            try { window.open(url, '_blank'); } catch (e) { /* ignore */ }
+        });
+    }
+
+    /**
      * Every ref worth comparing: local branches first, then remote-tracking ones
      * (`%(refname:short)` renders those as `origin/main`), then tags.
      */
@@ -835,7 +1132,7 @@ class GitPanel {
         const run = async (cmd) => {
             try {
                 const out = await invoke('run_command', { command: cmd, cwd: State.gitRoot });
-                return String(out || '').split('\n').map((x) => x.trim()).filter(Boolean);
+                return String(out || '').split('\n').map(cleanRef).filter(Boolean);
             } catch (e) {
                 return [];
             }
@@ -881,7 +1178,7 @@ class GitPanel {
             return;
         }
 
-        const current = this.element.querySelector('#git-branch-select')?.value || local[0];
+        const current = this._activeBranch || local[0];
         const form = document.createElement('div');
         form.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;margin-top:4px;';
 
