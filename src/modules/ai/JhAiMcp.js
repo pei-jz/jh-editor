@@ -25,6 +25,7 @@ import { State } from '../core/Store.js';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { activityPanel } from './JhAiActivityPanel.js';
+import { allows, refusal, isPrivatePath } from './ContextScope.js';
 
 // Unique per-process id so the AI-Hub can tell multiple JHEditor instances
 // apart (all register as app="jheditor"). Sent on the MCP WS query and in the
@@ -49,6 +50,19 @@ function collapsePath(path) {
     return lead + out.join('/');
 }
 
+/**
+ * True when `child` is the root itself or sits under it.
+ *
+ * A bare `startsWith` treats `C:/work/proj-secret` as inside `C:/work/proj`,
+ * because the comparison does not know where a path segment ends.
+ */
+export function isInside(root, child) {
+    const r = String(root || '').replace(/\/+$/, '').toLowerCase();
+    const c = String(child || '').toLowerCase();
+    if (!r) return false;
+    return c === r || c.startsWith(r + '/');
+}
+
 async function readWorkspaceFile(p) {
     const root = collapsePath((State.currentDir || '.').replace(/\\/g, '/'));
     let target = String(p || '').replace(/\\/g, '/');
@@ -56,8 +70,12 @@ async function readWorkspaceFile(p) {
     if (!isAbs) target = `${State.currentDir}/${target}`;
     const norm = collapsePath(target);
     // Must stay inside the workspace root (case-insensitive for Windows).
-    if (!norm.toLowerCase().startsWith(root.toLowerCase())) {
+    if (!isInside(root, norm)) {
         throw new Error('Access denied: path is outside the current workspace.');
+    }
+    // Belt and braces: a workspace could itself contain a notes directory.
+    if (isPrivatePath(norm)) {
+        throw new Error('Access denied: that path is private to the user.');
     }
     return await readTextFile(norm);
 }
@@ -275,13 +293,33 @@ export async function initJhEditorMcp() {
         }
     };
 
+    // The MCP envelope for a refusal. `isError` is what makes the model treat it
+    // as an answer rather than a transport failure it should retry.
+    const denied = (capability, toolName) =>
+        ({ content: [{ type: 'text', text: refusal(capability, toolName) }], isError: true });
+
     // 1) Tools — JHEditor's live capabilities exposed to JHAI's LLM.
+    //
+    // Every one of these is a PULL: the model calls it whenever it likes, with
+    // no prompt to the user. What it can reach is therefore capped by the
+    // context scope (Settings → AI), and personal notes are excluded outright.
     ai.registerTool({
         name: 'get_buffer',
         description: 'Returns the full text (plain text) of the document currently being edited in JHEditor.',
         inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
         handler: async (_args, ctx) => {
-            const docId = ctx.documentId || editor.activeDocumentId();
+            const active = editor.activeDocumentId();
+            const docId = ctx.documentId || active;
+            // Reading a BACKGROUND tab is a wider ask than reading the one the
+            // user is looking at, and is priced accordingly.
+            const capability = (!docId || docId === active) ? 'activeBuffer' : 'openFiles';
+            if (!allows(capability)) return denied(capability, 'get_buffer');
+            if (isPrivatePath(docId)) {
+                return { content: [{ type: 'text', text:
+                    "Refused: that document is one of the user's personal notes, "
+                    + "which are never shared with a model. Ask the user to paste "
+                    + "anything from it they want you to see." }], isError: true };
+            }
             return { content: [{ type: 'text', text: editor.getText(docId) }] };
         },
     });
@@ -290,7 +328,15 @@ export async function initJhEditorMcp() {
         name: 'get_selection',
         description: 'Returns the currently selected text in the editor (returns an empty string if no selection).',
         inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
-        handler: async () => ({ content: [{ type: 'text', text: editor.getSelection() }] }),
+        handler: async () => {
+            // The narrowest scope still allows this: the user selected the text,
+            // which is as close to asking as an editor gets.
+            if (!allows('selection')) return denied('selection', 'get_selection');
+            if (isPrivatePath(editor.activeDocumentId())) {
+                return { content: [{ type: 'text', text: '' }] };
+            }
+            return { content: [{ type: 'text', text: editor.getSelection() }] };
+        },
     });
 
     ai.registerTool({
@@ -298,11 +344,17 @@ export async function initJhEditorMcp() {
         description: 'Returns a list of currently open tabs (files) in JSON format.',
         inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
         handler: async () => {
-            const list = State.openFiles.map((f, i) => ({
-                path: f.path || f.name || null,
-                isDirty: !!f.isDirty,
-                active: i === State.activeTabIndex,
-            }));
+            if (!allows('openFiles')) return denied('openFiles', 'list_open_files');
+            const list = State.openFiles
+                .map((f, i) => ({
+                    path: f.path || f.name || null,
+                    isDirty: !!f.isDirty,
+                    active: i === State.activeTabIndex,
+                }))
+                // A note's FILENAME is itself personal (it is a date, and its
+                // presence says the user keeps a journal), so the tab is not
+                // listed at all rather than listed and refused.
+                .filter((e) => !isPrivatePath(e.path));
             return { content: [{ type: 'text', text: JSON.stringify(list, null, 2) }] };
         },
     });
@@ -317,6 +369,7 @@ export async function initJhEditorMcp() {
             additionalProperties: false,
         },
         handler: async (args) => {
+            if (!allows('workspaceFiles')) return denied('workspaceFiles', 'read_workspace_file');
             try {
                 const text = await readWorkspaceFile(args && args.path);
                 return { content: [{ type: 'text', text }] };
@@ -331,6 +384,8 @@ export async function initJhEditorMcp() {
         description: 'Lists files in the current workspace (respecting .gitignore) as relative paths from the workspace root. Use this to discover files before reading them with read_workspace_file.',
         inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
         handler: async () => {
+            if (!allows('workspaceFiles')) return denied('workspaceFiles', 'list_workspace_files');
+
             const root = collapsePath(String(State.currentDir || '').replace(/\\/g, '/'));
             if (!/^([a-zA-Z]:\/|\/)/.test(root)) {
                 return { content: [{ type: 'text', text: 'ERROR: No workspace folder is open.' }], isError: true };
@@ -358,6 +413,8 @@ export async function initJhEditorMcp() {
         description: 'Returns lint / syntax error diagnostics for the current editor (active view) as a JSON array.',
         inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
         handler: async () => {
+            if (!allows('diagnostics')) return denied('diagnostics', 'get_diagnostics');
+
             let diags = [];
             try {
                 if (window.app && typeof window.app.getDiagnostics === 'function') {
@@ -442,7 +499,11 @@ export async function initJhEditorMcp() {
         return {
             app: 'jheditor',
             instanceId: INSTANCE_ID,
-            documentId: editor.activeDocumentId(),
+            // The document id is a PATH, not content — but a daily note's path
+            // is itself personal (it is a date, and it says the user keeps a
+            // journal), so it is withheld like the buffer is.
+            documentId: isPrivatePath(editor.activeDocumentId())
+                ? null : editor.activeDocumentId(),
             workspaceRoot: isWorkspace ? collapsePath(dir) : null,
             workspaceOpen: isWorkspace,
         };

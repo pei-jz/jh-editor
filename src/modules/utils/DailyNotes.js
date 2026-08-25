@@ -13,6 +13,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { appConfigDir } from '@tauri-apps/api/path';
+import { registerPrivateDir } from '../ai/ContextScope.js';
 
 function todayId() {
     const d = new Date();
@@ -42,7 +43,11 @@ async function dailyDir() {
             base = '';
         }
     }
-    const dir = `${String(base).replace(/[\\/]+$/, '')}/notes/daily`;
+    // The notes ROOT, not just today's folder: everything under it is personal
+    // and must stay out of reach of the AI's buffer and open-tab tools.
+    const notesRoot = `${String(base).replace(/[\\/]+$/, '')}/notes`;
+    registerPrivateDir(notesRoot);
+    const dir = `${notesRoot}/daily`;
     try { await invoke('create_dir', { path: dir }); } catch (_) { /* already exists */ }
     return dir;
 }

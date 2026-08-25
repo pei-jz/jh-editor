@@ -193,3 +193,15 @@
     pointer-events: none;
     font-style: italic;
 }
+
+/* Under a chat answer: how long the request took, and exactly what was sent
+   with it. The second half matters more than the first — a privacy setting
+   whose effect is invisible is not worth much. */
+.ai-chat-meta {
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.5;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+}
