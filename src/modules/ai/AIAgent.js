@@ -17,6 +17,19 @@ import { readTextFile } from '@tauri-apps/plugin-fs';
 import { State } from '../core/Store.js';
 import { getConnectionConfig, isAgentReachable } from './ConnectionConfig.js';
 
+/** Rejects with an AbortError as soon as `signal` fires (never resolves). */
+function abortedAfter(signal) {
+    return new Promise((_, reject) => {
+        const fail = () => {
+            const err = new Error('Aborted');
+            err.name = 'AbortError';
+            reject(err);
+        };
+        if (signal.aborted) return fail();
+        signal.addEventListener('abort', fail, { once: true });
+    });
+}
+
 class AIAgentFacade {
 
     constructor() {
@@ -189,12 +202,20 @@ class AIAgentFacade {
             response_format: responseFormat,
         };
         // @jh/ai-client.invoke returns { content, taskId } directly.
-        const result = await client.invoke({
+        // It has no signal parameter, so honour the caller's by racing it: the
+        // task may still finish server-side, but the caller stops waiting and —
+        // more to the point — stops acting on a result it no longer wants.
+        // Without this, `abortSignal` was accepted and silently ignored, so a
+        // superseded inline-completion request still came back and painted.
+        const invocation = client.invoke({
             prompt,
             behavior,
             context,
             caller: 'JHEditor',
         });
+        const result = abortSignal
+            ? await Promise.race([invocation, abortedAfter(abortSignal)])
+            : await invocation;
         // No streaming for invoke() — fire onUpdate once with the full content
         // so callers that wired up a streaming handler still see something.
         if (onUpdate && result.content) onUpdate(result.content);

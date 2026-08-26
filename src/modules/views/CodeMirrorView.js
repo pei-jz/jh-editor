@@ -1487,10 +1487,17 @@ export class CodeMirrorView {
         this.performSearch(query, isRegex, isCaseSensitive, isWord); // refresh matches/highlights
     }
 
+    /**
+     * Replace every match.
+     *
+     * @returns {number} how many were replaced — the count was already sitting
+     *   in `changes.length` and was simply discarded, leaving the caller to say
+     *   "Replaced all occurrences" whether it replaced 900 or none at all.
+     */
     replaceAll(query, replaceWith, isRegex, isCaseSensitive, isWord) {
-        if (!this.editorView) return;
+        if (!this.editorView) return 0;
         const sq = this._buildQuery(query, isRegex, isCaseSensitive, isWord, replaceWith || '');
-        if (!sq.valid) return;
+        if (!sq.valid) return 0;
         const state = this.editorView.state;
         const cursor = sq.getCursor(state, 0);
         const changes = [];
@@ -1504,6 +1511,7 @@ export class CodeMirrorView {
         }
         if (changes.length) this.editorView.dispatch({ changes });
         this.performSearch(query, isRegex, isCaseSensitive, isWord); // refresh marks
+        return changes.length;
     }
 
     _showReferencesModal(results) {

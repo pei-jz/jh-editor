@@ -3,6 +3,7 @@ import { State } from '../core/Store.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { shortcuts } from '../core/ShortcutManager.js';
 import { ContextMenu } from './ContextMenu.js';
+import { Toast } from './Toast.js';
 import { getCurrentView } from '../core/Editor.js';
 
 // Read an option's state from the BUTTON the user actually sees (its `.active`
@@ -583,29 +584,16 @@ function _scrollToMatch(noFocus = false) {
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
-function _showToast(message) {
-    let toast = document.getElementById('search-toast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'search-toast';
-        Object.assign(toast.style, {
-            position: 'fixed', bottom: '50px', right: '50px',
-            background: 'var(--sidebar-bg)', color: 'var(--text-color)',
-            border: '1px solid var(--primary-color)', padding: '8px 16px',
-            borderRadius: '4px', zIndex: '3000', boxShadow: '0 4px 6px rgba(0,0,0,0.2)',
-            fontSize: '13px', opacity: '0', transition: 'opacity 0.3s ease'
-        });
-        document.body.appendChild(toast);
-    }
-    toast.textContent = message;
-    toast.style.display = 'block';
-    void toast.offsetWidth;
-    toast.style.opacity = '1';
-    if (toast.timeout) clearTimeout(toast.timeout);
-    toast.timeout = setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => { toast.style.display = 'none'; }, 300);
-    }, 2000);
+/**
+ * Search's own notifications.
+ *
+ * This used to be a private box with its own colours and a 2-second life — two
+ * notification systems in one app, and the shorter one carried the messages
+ * with numbers in them. It delegates now, so there is one look and one timing
+ * policy.
+ */
+function _showToast(message, type = 'info') {
+    Toast.show(message, type);
 }
 
 // ─── Replace logic ────────────────────────────────────────────────────────────
@@ -685,6 +673,19 @@ function _doReplace() {
     _advanceAfterReplace(prevIndex);
 }
 
+/**
+ * What the toast says after Replace All.
+ *
+ * Zero gets its own sentence: "Replaced 0" reads like something went wrong,
+ * when the honest meaning is that nothing matched.
+ */
+export function _replacedMessage(count, query) {
+    const q = String(query || '');
+    const shown = q.length > 30 ? `${q.slice(0, 30)}…` : q;
+    if (!count) return `No matches for "${shown}" — nothing replaced.`;
+    return `Replaced ${count} ${count === 1 ? 'occurrence' : 'occurrences'} of "${shown}".`;
+}
+
 function _doReplaceAll() {
     if (State.activeTabIndex < 0) return;
     let content = State.openFiles[State.activeTabIndex].content;
@@ -697,9 +698,9 @@ function _doReplaceAll() {
 
     const currentView = getCurrentView();
     if (currentView && typeof currentView.isCodeMirrorMode === 'function' && currentView.isCodeMirrorMode()) {
-        currentView.replaceAll(q, r, isRegex, isCase, isWord);
+        const n = currentView.replaceAll(q, r, isRegex, isCase, isWord) || 0;
         setTimeout(_performSearch, 50);
-        _showToast('Replaced all occurrences');
+        _showToast(_replacedMessage(n, q));
         return;
     }
 
@@ -712,6 +713,9 @@ function _doReplaceAll() {
     }
     const finalR = isRegex ? r.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t') : r;
     if (window.editorSaveHistory) window.editorSaveHistory();
+    // Count before replacing: `String.replace` does not report how many it hit,
+    // and comparing before/after only answers "did anything change".
+    const replaced = (content.match(regex) || []).length;
     const newContent = content.replace(regex, finalR);
     if (newContent !== content) {
         State.openFiles[State.activeTabIndex].content = newContent;
@@ -730,7 +734,9 @@ function _doReplaceAll() {
         }
         if (window.editorSaveHistory) window.editorSaveHistory();
         setTimeout(_performSearch, 50);
-        _showToast('Replaced all occurrences');
+        _showToast(_replacedMessage(replaced, q));
+    } else {
+        _showToast(_replacedMessage(0, q));
     }
 }
 

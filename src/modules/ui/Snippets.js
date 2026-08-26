@@ -18,12 +18,26 @@ function generateId() {
     return `snip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Where a snippet with no category of its own is filed. */
+export const DEFAULT_CATEGORY = 'General';
+
+/** Normalise a category: blank, whitespace or missing all mean the default. */
+export function normalizeCategory(value) {
+    const c = String(value == null ? '' : value).trim();
+    return c || DEFAULT_CATEGORY;
+}
+
 function readAll() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(parsed)) return [];
-        return parsed.filter((s) => s && typeof s.name === 'string' && typeof s.body === 'string');
+        return parsed
+            .filter((s) => s && typeof s.name === 'string' && typeof s.body === 'string')
+            // Snippets stored before categories existed have none; they are read
+            // as the default rather than migrated, so downgrading the app cannot
+            // lose anything and nothing is rewritten on a plain read.
+            .map((s) => ({ ...s, category: normalizeCategory(s.category) }));
     } catch (_) {
         return [];
     }
@@ -37,7 +51,7 @@ export const Snippets = {
     getAll: readAll,
 
     /** Add a snippet. Throws when name/body are empty. Returns the stored item. */
-    add(name, prefix, body) {
+    add(name, prefix, body, category) {
         const trimmedName = (name || '').trim();
         if (!trimmedName) throw new Error('Snippet name is required.');
         if (!body || !body.trim()) throw new Error('Snippet body is empty.');
@@ -46,6 +60,7 @@ export const Snippets = {
             name: trimmedName,
             prefix: (prefix || '').trim(),
             body,
+            category: normalizeCategory(category),
             builtin: false,
         };
         const list = readAll();
@@ -64,6 +79,44 @@ export const Snippets = {
 
     getById(id) {
         return readAll().find((s) => s.id === id) || null;
+    },
+
+    /** Move one snippet to another category. */
+    setCategory(id, category) {
+        const list = readAll();
+        const item = list.find((s) => s.id === id);
+        if (!item) return false;
+        item.category = normalizeCategory(category);
+        writeAll(list);
+        return true;
+    },
+
+    /**
+     * Every category in use, sorted, with the default first.
+     *
+     * The default leads regardless of alphabet: it is the bucket everything
+     * starts in, so burying it under "Api" reads as a missing list.
+     */
+    categories() {
+        const seen = new Set(readAll().map((s) => normalizeCategory(s.category)));
+        seen.add(DEFAULT_CATEGORY);
+        return [DEFAULT_CATEGORY,
+            ...[...seen].filter((c) => c !== DEFAULT_CATEGORY)
+                .sort((a, b) => a.localeCompare(b))];
+    },
+
+    /**
+     * Snippets grouped for display: `[{ category, items }]`, categories in
+     * `categories()` order and empty ones dropped.
+     */
+    grouped() {
+        const all = readAll();
+        return this.categories()
+            .map((category) => ({
+                category,
+                items: all.filter((s) => normalizeCategory(s.category) === category),
+            }))
+            .filter((g) => g.items.length > 0);
     },
 };
 

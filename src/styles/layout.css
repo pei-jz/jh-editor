@@ -494,14 +494,12 @@
     overflow: hidden;
 }
 
-#current-file {
-    font-size: 14px;
-    font-weight: bold;
-    color: var(--text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+/* #current-file and #file-directory used to live in a toolbar here. They moved
+   into the titlebar, and these blocks stayed behind — same specificity as the
+   titlebar's own rules but loaded AFTER them, so they quietly won. That put the
+   filename at --text-color, which on a theme that repaints the titlebar is the
+   PAGE's ink on the BAR's background: 1.48:1 on the Hanging Scroll mount.
+   Both elements are styled in titlebar.css; nothing here should colour them. */
 
 #toolbar-right {
     display: flex;
@@ -509,14 +507,7 @@
     gap: 10px;
 }
 
-#file-directory {
-    font-size: 12px;
-    color: #999;
-    white-space: nowrap;
-    max-width: 400px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+
 
 #toolbar-actions {
     display: flex;

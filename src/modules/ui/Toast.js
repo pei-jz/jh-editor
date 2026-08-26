@@ -26,22 +26,44 @@ class ToastManager {
     }
 
     /**
+     * How long a message stays up.
+     *
+     * Three seconds is fine for "Saved" and far too short for a sentence with a
+     * number in it that the user is meant to read and act on, so the floor is
+     * raised and long messages get proportionally longer. Capped so nothing
+     * camps on screen.
+     */
+    static durationFor(message) {
+        const chars = String(message || '').length;
+        return Math.min(12000, Math.max(5000, 2500 + chars * 90));
+    }
+
+    /**
      * Show a toast notification
      * @param {string} message The message to display
      * @param {string} type 'success', 'error', 'info', 'warning'
-     * @param {number} duration Duration in milliseconds
+     * @param {number} [duration] Milliseconds; defaults to a length-based time.
      */
-    show(message, type = 'info', duration = 3000) {
+    show(message, type = 'info', duration = null) {
         this.ensureContainer();
+        const ms = Number.isFinite(duration) && duration > 0
+            ? duration : ToastManager.durationFor(message);
 
         const toast = document.createElement('div');
-        toast.style.background = 'var(--bg-secondary, #1e1e1e)';
+        // This asked for `--bg-secondary`, which no theme defines (they define
+        // --bg-color-secondary), so it always fell through to the hard-coded
+        // dark #1e1e1e while the text followed the theme — dark on dark in
+        // every light theme. Naming the token the themes actually set is the
+        // fix; an alias would only move the problem.
+        toast.style.background = 'var(--bg-color-secondary, #1e1e1e)';
         toast.style.color = 'var(--text-color, #ffffff)';
+        toast.style.border = '1px solid var(--border-color, rgba(0,0,0,0.15))';
         toast.style.padding = '12px 20px';
         toast.style.borderRadius = '6px';
-        toast.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)';
+        toast.style.boxShadow = '0 10px 24px rgba(0,0,0,0.35)';
         toast.style.fontSize = '13px';
         toast.style.fontWeight = '500';
+        toast.style.maxWidth = 'min(520px, 60vw)';
         toast.style.pointerEvents = 'auto';
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(20px)';
@@ -85,7 +107,7 @@ class ToastManager {
                     this.container.removeChild(toast);
                 }
             }, 300); // Wait for transition
-        }, duration);
+        }, ms);
     }
 
     success(message, duration) {
@@ -93,11 +115,16 @@ class ToastManager {
     }
 
     error(message, duration) {
-        this.show(message, 'error', duration);
+        // An error is the one people most often look away from and back to.
+        this.show(message, 'error', duration || ToastManager.durationFor(message) + 3000);
     }
 
     info(message, duration) {
         this.show(message, 'info', duration);
+    }
+
+    warning(message, duration) {
+        this.show(message, 'warning', duration);
     }
 }
 

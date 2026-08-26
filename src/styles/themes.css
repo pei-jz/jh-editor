@@ -46,7 +46,6 @@
     /* Missing variables fallback */
     --bg-active: #e2e6ea;
     --text-secondary: #6c757d;
-    --accent-color: var(--primary-color);
     --table-header-bg: var(--bg-color-secondary);
 
     /* UI element colors */
@@ -74,6 +73,33 @@
     --git-modified-color: #b07d2b; /* Darker orange for light mode readability */
     --git-staged-color: #2ea043;
     --git-untracked-color: #2ea043;
+}
+
+/* Defaults that are derived from another token belong on `body`, NOT on :root.
+   Themes are `body.theme-*` classes, so a `var()` substitution written on :root
+   is resolved against :root's own values — the light defaults — and the theme's
+   override never reaches it. Declared here, the substitution sees whatever the
+   active theme set, and a theme that needs something different overrides these
+   with its own (higher-specificity) rule.
+
+   Getting this wrong is not subtle in effect: it hands every theme the light
+   theme's colour and looks like the stylesheet was ignored. */
+body {
+    /* Used by nine rules, and stuck on the light theme's blue in every one of
+       them until it moved off :root. No theme sets it directly, so this is the
+       only place it is decided. */
+    --accent-color: var(--primary-color);
+
+    /* Titlebar ink. Most themes leave the bar on --header-bg, so the page's
+       text colour is right; a theme that repaints the bar sets these itself.
+
+       The dim variant is only a HINT of a step down (88%). Anything stronger
+       inherits the weakness of whatever text/header pair the theme happens to
+       have: at 72% the path fell to 2.9:1 in Solarized Light, and no mix ratio
+       rescues a base pair that is already marginal. The real separation between
+       the path and the filename is weight, not contrast. */
+    --titlebar-text: var(--text-color);
+    --titlebar-text-dim: color-mix(in srgb, var(--text-color) 88%, var(--header-bg));
 }
 
 body.theme-dark {
@@ -303,7 +329,11 @@ body.theme-solarized-dark {
 }
 
 /* Solarized Light Theme */
+/* base00 (#657b83) on base2 (#eee8d5) is 3.64:1 — Solarized's body text was
+   never meant to sit on its own header tone. The titlebar uses base02, the
+   colour the palette reserves for emphasis on a light ground. */
 body.theme-solarized-light {
+    --titlebar-text: #073642;
     --bg-color: #fdf6e3;
     --sidebar-bg: #eee8d5;
     --header-bg: #eee8d5;
@@ -824,10 +854,13 @@ body.theme-sumi-e {
     --hl-operator: #1c1c1c;
 
     --gutter-color: #706b5d;
-    --tab-inactive-color: #706b5d;
+    /* Both of these sit on a mount band, and #706b5d was exactly 4.50:1 there
+       BEFORE any ink — a floor with nothing behind it. #4f4a3e holds 6.1:1
+       over the wash and 5.2:1 even at the ink ceiling. */
+    --tab-inactive-color: #4f4a3e;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(199, 62, 58, 0.10);
-    --text-secondary: #706b5d;
+    --text-secondary: #4f4a3e;
 
     --code-color: #a63a34;
     --code-bg: rgba(199, 62, 58, 0.08);
@@ -844,6 +877,27 @@ body.theme-sumi-e {
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     --sumi-chrome-font: var(--font-textbook);
+
+    /* ── 表装 — ink on the two mount bands, never on the paper ────────────
+       A hanging scroll leaves the 本紙 untouched and dresses only the mount.
+       Here the mount is the titlebar and the status bar: the two strips that
+       span the whole window. The tab bar is deliberately NOT painted — it
+       starts after the sidebar, so the same picture stretched across a
+       different width would read as a second, mismatched painting.
+
+       遠山: two ranges, the far one blurred. The composition is anchored to
+       the RIGHT and the left half is empty paper, because the left is where
+       the filename and the path sit — the picture keeps out of the text's way
+       by composition rather than by being faded to nothing.
+
+       Ink is capped at 11%. The band is #efece3 and the ink is #1c1c1c, so
+       even at the 18% ceiling the filename still reads at 10:1. */
+    --sumi-mount-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='40' viewBox='0 0 900 40' preserveAspectRatio='none'%3E%3Cfilter id='h' x='-15%25' y='-60%25' width='130%25' height='240%25'%3E%3CfeGaussianBlur stdDeviation='2.2'/%3E%3C/filter%3E%3Cg fill='%231c1c1c'%3E%3Cg opacity='0.06' filter='url(%23h)'%3E%3Cpath d='M400,40 L448,26 Q466,17 484,25 L516,9 Q532,0 548,11 L586,31 Q604,42 621,37 L664,19 Q684,9 702,22 L744,40 Z'/%3E%3Cpath d='M762,40 L800,28 Q818,20 834,29 L862,15 Q878,7 892,18 L900,24 L900,40 Z'/%3E%3C/g%3E%3Cpath opacity='0.11' d='M596,40 L642,26 Q658,18 674,27 L700,14 Q714,6 727,16 L756,32 Q772,42 787,38 L828,24 Q846,16 862,26 L900,40 Z'/%3E%3C/g%3E%3C/svg%3E");
+
+    /* かすれ一筆: one loaded stroke broken by turbulence, plus a lighter
+       second pass. No subject, so nothing to render badly — and it survives
+       any window width, which a landscape does not. */
+    --sumi-mount-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='22' viewBox='0 0 900 22' preserveAspectRatio='none'%3E%3Cfilter id='d' x='-6%25' y='-70%25' width='112%25' height='240%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015 0.9' numOctaves='3' seed='23' result='t'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='t' scale='6' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3Cg fill='none' stroke='%231c1c1c' stroke-linecap='round' filter='url(%23d)'%3E%3Cpath opacity='0.10' stroke-width='6' d='M60,13 Q280,8 500,12 T840,9'/%3E%3Cpath opacity='0.05' stroke-width='2.5' d='M132,18 Q330,15 540,18 T812,16'/%3E%3C/g%3E%3C/svg%3E");
     /* Washi fibre: tighter and far fainter than the bamboo grain. */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
 }
@@ -857,6 +911,24 @@ body.theme-sumi-e #explorer,
 body.theme-sumi-e .md-body,
 body.theme-sumi-e .stf__page {
     background-image: var(--grain);
+}
+
+/* 上の表装 — the mountains keep their aspect and hug the right edge, so a
+   wider window gets more empty band rather than a stretched landscape. */
+body.theme-sumi-e #custom-titlebar {
+    background-image: var(--sumi-mount-top), var(--grain);
+    background-repeat: no-repeat, repeat;
+    background-position: right bottom, 0 0;
+    background-size: auto 100%, auto;
+}
+
+/* 下の表装 — a single stroke, so stretching it across the width is what it
+   wants: a longer sweep of the same brush. */
+body.theme-sumi-e #status-bar {
+    background-image: var(--sumi-mount-bottom), var(--grain);
+    background-repeat: no-repeat, repeat;
+    background-position: center, 0 0;
+    background-size: 100% 100%, auto;
 }
 
 /* Mincho on the chrome… */
@@ -1005,6 +1077,10 @@ body.theme-kakejiku {
     --mount-bg: #33415f;
     --mount-bg-2: #3a4868;
     --mount-ink: #eef1f6;
+    /* The titlebar IS the mount here, so its ink comes from the mount, not from
+       the dark honji text that the generic default would hand it. */
+    --titlebar-text: var(--mount-ink);
+    --titlebar-text-dim: #c3cddf;
     /* Generic chrome: pale silk, a shade off the honji so panels read apart. */
     --sidebar-bg: #dfe5ec;
     --header-bg: #e4e9ef;

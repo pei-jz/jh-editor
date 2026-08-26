@@ -5,9 +5,10 @@ import { State } from '../core/Store.js';
 import { Toast } from './Toast.js';
 import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
-import { Snippets } from './Snippets.js';
+import { Snippets, DEFAULT_CATEGORY } from './Snippets.js';
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
+import { isInlineCompletionEnabled, setInlineCompletionEnabled } from './InlineCompletion.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -41,7 +42,7 @@ export function initSettingsModal() {
             /* Sidebar */
             .settings-sidebar {
                 width: 220px;
-                background: var(--bg-secondary);
+                background: var(--bg-color-secondary);
                 border-right: 1px solid var(--border-color);
                 display: flex;
                 flex-direction: column;
@@ -94,7 +95,7 @@ export function initSettingsModal() {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                background: var(--bg-secondary);
+                background: var(--bg-color-secondary);
             }
             .settings-main-header h4 {
                 margin: 0;
@@ -122,7 +123,7 @@ export function initSettingsModal() {
             .settings-main-footer {
                 padding: 15px 20px;
                 border-top: 1px solid var(--border-color);
-                background: var(--bg-secondary);
+                background: var(--bg-color-secondary);
                 display: flex;
                 justify-content: flex-end;
             }
@@ -230,7 +231,7 @@ export function initSettingsModal() {
         if (!container) return;
 
         container.innerHTML = `
-            <div style="font-weight:bold; margin-bottom:15px; font-size:1.1em; color:var(--primary-color);">Agent Integration</div>
+            <div class="settings-section-title">Agent Integration</div>
 
             <div id="agent-conn-status" style="margin-bottom:15px; padding:10px 12px; border-radius:6px; background:rgba(0,180,255,0.07); border:1px solid rgba(0,180,255,0.25); font-size:12px;">
                 <strong>🔍 Discovering connection…</strong>
@@ -257,7 +258,7 @@ export function initSettingsModal() {
                 Manual override for the auth token. Leave blank to auto-discover.
             </div>
 
-            <div style="font-weight:bold; margin:22px 0 8px; font-size:1.1em; color:var(--primary-color);">Context Scope</div>
+            <div class="settings-section-title">Context Scope</div>
 
             <div class="settings-description" style="margin-bottom:12px; padding:8px; background:rgba(255,180,0,0.06); border-left:3px solid rgba(255,180,0,0.55); font-size:12px;">
                 🔒 How much of the editor the AI may read. The agent PULLS this itself while a task
@@ -266,7 +267,26 @@ export function initSettingsModal() {
             </div>
 
             <div id="ai-scope-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px;"></div>
+
+            <div class="settings-section-title">Inline Completion</div>
+
+            <div class="settings-option">
+                <label for="ai-inline-completion">AI ghost-text completion</label>
+                <input type="checkbox" id="ai-inline-completion">
+            </div>
+            <div class="settings-description" style="margin-bottom:20px;">
+                Suggests a continuation in dim text after the cursor; Tab accepts, Esc dismisses.
+                <strong>This is the one feature that contacts the model with no action from you</strong> —
+                pausing while typing sends roughly 5 KB around the cursor. Off by default, and it also
+                needs the context scope to be "Active tab" or wider. Never runs in a personal note.
+            </div>
         `;
+
+        const inlineToggle = container.querySelector('#ai-inline-completion');
+        if (inlineToggle) {
+            inlineToggle.checked = isInlineCompletionEnabled();
+            inlineToggle.onchange = () => setInlineCompletionEnabled(inlineToggle.checked);
+        }
 
         // Radios rather than a <select>: each level needs its consequence spelled
         // out next to it, and a dropdown hides four of the five while you choose.
@@ -578,8 +598,8 @@ export function initSettingsModal() {
         if (!container) return;
 
         container.innerHTML = `
-            <div style="font-weight:bold; margin-bottom:8px; font-size:1.05em; color:var(--primary-color);">Markdown Templates</div>
-            <div class="settings-description" style="margin-bottom:14px; font-size:12px; opacity:0.8;">
+            <div class="settings-section-title">Markdown Templates</div>
+            <div class="settings-description" style="margin-bottom:14px;">
                 Templates are offered when creating a new Markdown file (Ctrl+N → Markdown).
                 Every template except Blank can be deleted; deleted built-ins can be restored below.
                 Your own templates are stored in this browser/profile.
@@ -726,10 +746,11 @@ export function initSettingsModal() {
         if (!container) return;
 
         container.innerHTML = `
-            <div style="font-weight:bold; margin-bottom:8px; font-size:1.05em; color:var(--primary-color);">Snippets</div>
-            <div class="settings-description" style="margin-bottom:14px; font-size:12px; opacity:0.8;">
+            <div class="settings-section-title">Snippets</div>
+            <div class="settings-description" style="margin-bottom:14px;">
                 Register a snippet, then type its prefix in the editor and press Tab to expand it.
                 A prefix is optional: snippets without one can still be kept here as reusable text.
+                Group related snippets with a category; categories collapse.
             </div>
             <div style="margin-bottom:16px;">
                 <button id="snip-toggle-btn" class="primary-btn" style="padding:6px 18px;">+ Add Snippet</button>
@@ -745,6 +766,11 @@ export function initSettingsModal() {
                     <input type="text" id="snip-prefix" maxlength="40" placeholder="e.g. lg" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
                 </div>
                 <div style="margin-bottom:10px;">
+                    <label for="snip-category" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Category</label>
+                    <input type="text" id="snip-category" maxlength="40" list="snip-category-list" placeholder="${DEFAULT_CATEGORY}" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                    <datalist id="snip-category-list"></datalist>
+                </div>
+                <div style="margin-bottom:10px;">
                     <label for="snip-body" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Body</label>
                     <textarea id="snip-body" placeholder="console.log('hello');" style="width:100%; max-width:520px; min-height:140px; font-family:var(--font-mono, monospace); font-size:12px; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px; resize:vertical; box-sizing:border-box;"></textarea>
                 </div>
@@ -753,44 +779,134 @@ export function initSettingsModal() {
                     <button id="snip-cancel-btn" class="primary-btn" style="padding:6px 18px; background:none; color:var(--text-color); border:1px solid var(--border-color);">Cancel</button>
                 </div>
             </div>
-            <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Snippets</div>
-            <div id="snip-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+            <div style="font-weight:bold; margin-bottom:8px; font-size:0.95em;">Registered</div>
+            <div id="snip-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         `;
 
         const listEl = container.querySelector('#snip-list');
+        const catList = container.querySelector('#snip-category-list');
+
+        // Which categories are folded, remembered between visits — a list you
+        // have to re-collapse every time you open Settings is not organised.
+        const COLLAPSE_KEY = 'settings_snippetCollapsed';
+        const readCollapsed = () => {
+            try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
+            catch (_) { return new Set(); }
+        };
+        const writeCollapsed = (set) => {
+            try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); }
+            catch (_) { /* ignore */ }
+        };
+
         const renderList = () => {
-            const all = Snippets.getAll();
+            const groups = Snippets.grouped();
             listEl.innerHTML = '';
-            if (all.length === 0) {
+
+            // Keep the form's suggestions in step with what exists.
+            if (catList) {
+                catList.innerHTML = '';
+                for (const c of Snippets.categories()) {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    catList.appendChild(opt);
+                }
+            }
+
+            if (groups.length === 0) {
                 listEl.innerHTML = '<div style="padding:16px; text-align:center; opacity:0.5;">No snippets yet.</div>';
                 return;
             }
-            all.forEach((s) => {
-                const row = document.createElement('div');
-                row.className = 'snippet-settings-row';
-                row.innerHTML = `
-                    <span class="snippet-name">${s.name.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
-                    <span class="snippet-prefix">${s.prefix ? s.prefix.replace(/&/g, '&amp;').replace(/</g, '&lt;') : '(no prefix)'}</span>
-                    <span class="snippet-body">${(s.body.split('\n')[0] || '').slice(0, 50).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
-                `;
-                const del = document.createElement('button');
-                del.className = 'snippet-del';
-                del.textContent = '×';
-                del.title = 'Delete snippet';
-                del.onclick = () => {
-                    Snippets.remove(s.id);
-                    renderList();
-                    Toast.info(`Snippet "${s.name}" deleted.`);
+
+            const collapsed = readCollapsed();
+            const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+            for (const { category, items } of groups) {
+                const group = document.createElement('div');
+                group.className = 'snippet-group';
+
+                const head = document.createElement('button');
+                head.type = 'button';
+                head.className = 'snippet-group-head';
+                head.setAttribute('aria-expanded', String(!collapsed.has(category)));
+
+                const arrow = document.createElement('span');
+                arrow.className = 'snippet-group-arrow';
+                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+
+                const label = document.createElement('span');
+                label.className = 'snippet-group-name';
+                label.textContent = category;
+
+                const count = document.createElement('span');
+                count.className = 'snippet-group-count';
+                count.textContent = items.length;
+
+                head.append(arrow, label, count);
+
+                const groupBody = document.createElement('div');
+                groupBody.className = 'snippet-group-body';
+                groupBody.style.display = collapsed.has(category) ? 'none' : '';
+
+                head.onclick = () => {
+                    const now = readCollapsed();
+                    if (now.has(category)) now.delete(category);
+                    else now.add(category);
+                    writeCollapsed(now);
+                    const open = !now.has(category);
+                    groupBody.style.display = open ? '' : 'none';
+                    arrow.textContent = open ? '▼' : '▶';
+                    head.setAttribute('aria-expanded', String(open));
                 };
-                row.appendChild(del);
-                listEl.appendChild(row);
-            });
+
+                for (const s of items) {
+                    const row = document.createElement('div');
+                    row.className = 'snippet-settings-row';
+                    row.innerHTML = `
+                        <span class="snippet-name">${esc(s.name)}</span>
+                        <span class="snippet-prefix">${s.prefix ? esc(s.prefix) : '(no prefix)'}</span>
+                        <span class="snippet-body">${esc((s.body.split('\n')[0] || '').slice(0, 50))}</span>
+                    `;
+
+                    // Re-filing a snippet without deleting and retyping it.
+                    const move = document.createElement('select');
+                    move.className = 'snippet-move';
+                    move.title = 'Move to another category';
+                    for (const c of [...new Set([...Snippets.categories(), category])]) {
+                        const o = document.createElement('option');
+                        o.value = c;
+                        o.textContent = c;
+                        o.selected = c === category;
+                        move.appendChild(o);
+                    }
+                    move.onchange = () => {
+                        Snippets.setCategory(s.id, move.value);
+                        renderList();
+                    };
+                    row.appendChild(move);
+
+                    const del = document.createElement('button');
+                    del.className = 'snippet-del';
+                    del.textContent = '×';
+                    del.title = 'Delete snippet';
+                    del.onclick = () => {
+                        Snippets.remove(s.id);
+                        renderList();
+                        Toast.info(`Snippet "${s.name}" deleted.`);
+                    };
+                    row.appendChild(del);
+                    groupBody.appendChild(row);
+                }
+
+                group.append(head, groupBody);
+                listEl.appendChild(group);
+            }
         };
         renderList();
 
         const nameInput = container.querySelector('#snip-name');
         const prefixInput = container.querySelector('#snip-prefix');
         const bodyInput = container.querySelector('#snip-body');
+        const categoryInput = container.querySelector('#snip-category');
         const formWrap = container.querySelector('#snip-form');
         const toggleBtn = container.querySelector('#snip-toggle-btn');
 
@@ -803,15 +919,22 @@ export function initSettingsModal() {
             nameInput.value = '';
             prefixInput.value = '';
             bodyInput.value = '';
+            if (categoryInput) categoryInput.value = '';
             formWrap.style.display = 'none';
             toggleBtn.style.display = '';
         };
         container.querySelector('#snip-add-btn').onclick = () => {
             try {
-                const saved = Snippets.add(nameInput.value, prefixInput.value, bodyInput.value);
+                const saved = Snippets.add(
+                    nameInput.value, prefixInput.value, bodyInput.value,
+                    categoryInput ? categoryInput.value : '',
+                );
                 nameInput.value = '';
                 prefixInput.value = '';
                 bodyInput.value = '';
+                // The category is NOT cleared: adding three snippets to the same
+                // category in a row is the normal case, and retyping it each
+                // time is the annoying one.
                 formWrap.style.display = 'none';
                 toggleBtn.style.display = '';
                 renderList();
