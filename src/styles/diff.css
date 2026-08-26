@@ -17,7 +17,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 16px;
-    background: var(--bg-secondary);
+    background: var(--bg-color-secondary);
     border-bottom: 1px solid var(--border-color);
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -440,7 +440,7 @@ span.diff-focus-active {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary, var(--text-color));
-    background: var(--bg-secondary);
+    background: var(--bg-color-secondary);
     border-bottom: 1px solid var(--border-color);
     user-select: none;
 }
@@ -467,7 +467,7 @@ span.diff-focus-active {
     align-items: center;
     gap: 10px;
     padding: 8px 16px;
-    background: var(--bg-secondary);
+    background: var(--bg-color-secondary);
     border-bottom: 1px solid var(--border-color);
     flex: 0 0 auto;
 }

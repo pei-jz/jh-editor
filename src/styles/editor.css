@@ -455,7 +455,7 @@ body.theme-dark .visual-table-editor .range-selected {
     display: flex;
     gap: 8px;
     padding: 8px;
-    background: var(--bg-secondary);
+    background: var(--bg-color-secondary);
     border-bottom: 1px solid var(--border-color);
     overflow-x: auto;
     white-space: nowrap;

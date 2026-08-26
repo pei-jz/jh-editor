@@ -205,3 +205,104 @@
     font-variant-numeric: tabular-nums;
     word-break: break-word;
 }
+
+/* ── Snippet categories ─────────────────────────────────────────────────────
+   Snippets accumulate; a flat list of thirty is a wall. Each category folds,
+   and which ones are folded is remembered. */
+.snippet-group {
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.snippet-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+    background: var(--bg-color-secondary);
+    border: none;
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+    text-align: left;
+}
+
+.snippet-group-head:hover {
+    background: var(--hover-color);
+}
+
+.snippet-group-head[aria-expanded="true"] {
+    border-bottom-color: var(--border-color);
+}
+
+.snippet-group-arrow {
+    font-size: 9px;
+    opacity: 0.7;
+    width: 10px;
+}
+
+.snippet-group-name {
+    flex: 1;
+}
+
+.snippet-group-count {
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 9px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--bg-color);
+    background: var(--primary-color);
+}
+
+.snippet-group-body {
+    padding: 0 10px;
+}
+
+/* The last row in a group has the group's own border under it already. */
+.snippet-group-body .snippet-settings-row:last-child {
+    border-bottom: none;
+}
+
+.snippet-move {
+    font: inherit;
+    font-size: 11px;
+    max-width: 130px;
+    padding: 2px 4px;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+}
+
+/* ── Settings section headings ──────────────────────────────────────────────
+   The heading and its explanation were written as two divs with 8px between
+   them, which at this type size reads as one block of text with a coloured
+   first line. */
+.settings-section-title {
+    margin: 24px 0 0;
+    padding-bottom: 2px;
+    font-size: 1.05em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.settings-section-title:first-child {
+    margin-top: 0;
+}
+
+.settings-section-title + .settings-description {
+    margin-top: 10px;
+}
+
+.settings-description {
+    font-size: 12px;
+    line-height: 1.6;
+    opacity: 0.8;
+}
