@@ -65,7 +65,7 @@ export const DailyNotes = {
             const header = `# Daily Note — ${slugDate()}\n\n`;
             try { await invoke('write_file', { path, content: header, encoding: 'UTF-8' }); }
             catch (e) {
-                if (window.showToast) window.showToast(`デイリーノートを作成できませんでした: ${e.message || e}`);
+                if (window.showToast) window.showToast(`Could not create today's note: ${e.message || e}`);
                 return;
             }
         }

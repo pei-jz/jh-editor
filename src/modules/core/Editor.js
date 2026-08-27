@@ -38,7 +38,7 @@ import { shortcuts } from './ShortcutManager.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { pluginManager } from './PluginManager.js';
 import { initDefaultPlugins } from './ViewPlugins.js';
-import { showAlert, showConfirm } from '../ui/Dialog.js';
+import { showAlert, showConfirm, showDialog } from '../ui/Dialog.js';
 
 // Initialize Plugins
 initDefaultPlugins();
@@ -1223,13 +1223,30 @@ export async function closeTab(index, pane = activePane()) {
 
     if (file.isDirty && !isVirtualTab) {
         const displayName = file.path ? file.path.split(/[\\/]/).pop() : 'Untitled';
-        const discard = await showConfirm(`"${displayName}" has unsaved changes.\nDiscard them and close?`, {
+        // Three buttons, not two. The obvious answer to "this has unsaved
+        // changes" is to save it, and offering only Discard or Cancel made the
+        // destructive option the only way forward.
+        const choice = await showDialog({
             title: 'Unsaved Changes',
             kind: 'warning',
-            okLabel: 'Discard & Close',
-            cancelLabel: 'Cancel'
+            message: `${displayName} has unsaved changes.`,
+            buttons: [
+                { label: 'Cancel', value: 'cancel', cancel: true },
+                { label: 'Close without saving', value: 'discard' },
+                { label: 'Save and close', value: 'save', primary: true },
+            ],
         });
-        if (!discard) return;
+        if (choice === 'cancel' || !choice) return;
+        if (choice === 'save') {
+            // Bring the tab to the front first: saveCurrentFile works on the
+            // ACTIVE file, and closing a background tab must not save the one
+            // the user happens to be looking at.
+            setPaneActiveIndex(pane, index);
+            await saveCurrentFile();
+            // Still dirty means the save was cancelled or failed; the user has
+            // already been told why, and closing now would lose the work.
+            if (file.isDirty) return;
+        }
     }
 
     openFiles.splice(index, 1);
@@ -1826,65 +1843,147 @@ function setupSplitResizer() {
     });
 }
 
-// Watcher Logic (Native Tauri Events)
-let activeUnwatch = null;
+/**
+ * Ask before a save writes over changes made outside the editor.
+ *
+ * Returns false only when the user chooses to keep the disk copy. Anything the
+ * check itself cannot answer — no stats, an unreadable file, a decoding failure
+ * — returns true: a save that refuses to run because a comparison failed is a
+ * worse outcome than one that goes ahead.
+ */
+export async function confirmOverwrite(file) {
+    if (!file || !file.path || !file.stats || !file.stats.mtime) return true;
+    let curStats = null;
+    try { curStats = await FS.getFileStats(file.path); } catch (_) { return true; }
+    if (!curStats || !curStats.mtime) return true;
 
-export async function setupWatcher(file) {
-    if (activeUnwatch) {
-        activeUnwatch();
-        activeUnwatch = null;
-    }
+    const seen = new Date(file.stats.mtime).getTime();
+    const now = new Date(curStats.mtime).getTime();
+    // The same one-second slack the watcher uses: filesystems round mtimes, and
+    // our own write updates it moments before this runs on the next save.
+    if (!(now > seen + 1000)) return true;
 
-    if (!file) return;
-
-    const isAbsolute = file.path && (file.path.match(/^[a-zA-Z]:[\\/]/) || file.path.startsWith('/'));
-    if (!isAbsolute) return;
-
+    // A newer timestamp is not a newer FILE. Touching it, or a tool that
+    // rewrites identical bytes, must not produce a prompt.
     try {
-        const { watch } = await import('@tauri-apps/plugin-fs');
-        let isPrompting = false;
-        
-        activeUnwatch = await watch(
-            file.path,
-            async (event) => {
-                if (isPrompting) return;
-                if (file._skipNextWatcher) {
-                    file._skipNextWatcher = false;
-                    return;
-                }
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const disk = new TextDecoder().decode(await readFile(file.path));
+        if (disk === file.content) { file.stats = curStats; return true; }
+    } catch (_) { return true; }
 
-                const curStats = await FS.getFileStats(file.path);
-                if (curStats && file.stats) {
-                    const newTime = new Date(curStats.mtime).getTime();
-                    const oldTime = new Date(file.stats.mtime).getTime();
-                    
-                    if (newTime > oldTime + 1000) {
-                        // Read disk content to compare
-                        const { readFile } = await import('@tauri-apps/plugin-fs');
-                        const bytes = await readFile(file.path);
-                        const diskContent = new TextDecoder().decode(bytes);
-                        
-                        // Only prompt if content actually changed
-                        if (diskContent !== file.content) {
-                            isPrompting = true;
-                            file.stats = curStats;
-                            const reload = await showConfirm(`File "${file.path}" has been changed on disk. Reload?`, { title: 'File Changed', kind: 'warning', okLabel: 'Reload' });
-                            if (reload) {
-                                openFile(file.path, file.encoding);
-                            }
-                            isPrompting = false;
-                        } else {
-                            // Update stats anyway to avoid repeated checks
-                            file.stats = curStats;
-                        }
-                    }
-                }
-            },
-            { delayMs: 500 }
-        );
-    } catch (e) {
-        console.error("Failed to setup native file watcher:", e);
+    const overwrite = await showConfirm(
+        `${file.name || file.path} has changed on disk since you opened it.\n\n`
+        + 'Saving now replaces those changes with your version.',
+        { title: 'File Changed on Disk', kind: 'warning',
+          okLabel: 'Overwrite', cancelLabel: 'Cancel' },
+    );
+    if (overwrite) file.stats = curStats;
+    return overwrite;
+}
+
+// Watcher Logic (Native Tauri Events)
+
+/**
+ * One watcher per open path.
+ *
+ * This used to be a single watcher that followed the ACTIVE tab, unwatching
+ * whatever it was on before. Everything in the background was therefore
+ * invisible: a file changed outside the editor stayed stale in its tab, and
+ * saving it wrote the stale text back over the change without a word.
+ */
+const watchers = new Map();   // path -> unwatch()
+
+/**
+ * Bring the set of watchers in line with what is open.
+ *
+ * Takes no argument: which files are open is not something a caller should have
+ * to remember to pass, and passing one file is what caused the bug above.
+ */
+export async function syncWatchers() {
+    const open = [...(State.openFiles || []), ...(State.rightOpenFiles || [])];
+    const wanted = new Set();
+    for (const f of open) {
+        if (!f || !f.path) continue;
+        if (f.type && f.type !== 'file') continue;
+        const isAbsolute = f.path.match(/^[a-zA-Z]:[\\/]/) || f.path.startsWith('/');
+        if (isAbsolute) wanted.add(f.path);
     }
+
+    for (const [path, unwatch] of watchers) {
+        if (wanted.has(path)) continue;
+        try { unwatch(); } catch (_) { /* already gone */ }
+        watchers.delete(path);
+    }
+
+    for (const f of open) {
+        if (!f || !f.path || !wanted.has(f.path) || watchers.has(f.path)) continue;
+        // Reserve the slot before awaiting, or two calls in the same tick both
+        // see "not watched" and start a second watcher on the same file.
+        watchers.set(f.path, () => {});
+        try {
+            watchers.set(f.path, await watchFile(f));
+        } catch (e) {
+            watchers.delete(f.path);
+            console.warn('Failed to watch', f.path, e);
+        }
+    }
+}
+
+/** Kept for callers that still pass a file; the set is what matters. */
+export async function setupWatcher(_file) {
+    return syncWatchers();
+}
+
+async function watchFile(file) {
+    const isAbsolute = file.path && (file.path.match(/^[a-zA-Z]:[\\/]/) || file.path.startsWith('/'));
+    if (!isAbsolute) return () => {};
+
+    const { watch } = await import('@tauri-apps/plugin-fs');
+    let isPrompting = false;
+
+    return watch(
+        file.path,
+        async (event) => {
+            if (isPrompting) return;
+            if (file._skipNextWatcher) {
+                file._skipNextWatcher = false;
+                return;
+            }
+
+            const curStats = await FS.getFileStats(file.path);
+            if (!curStats || !file.stats) return;
+            const newTime = new Date(curStats.mtime).getTime();
+            const oldTime = new Date(file.stats.mtime).getTime();
+            if (!(newTime > oldTime + 1000)) return;
+
+            const { readFile } = await import('@tauri-apps/plugin-fs');
+            const diskContent = new TextDecoder().decode(await readFile(file.path));
+            // A newer timestamp is not a newer file: only a real difference is
+            // worth interrupting anyone over.
+            if (diskContent === file.content) { file.stats = curStats; return; }
+
+            isPrompting = true;
+            file.stats = curStats;
+            // Reloading a DIRTY buffer throws away the user's own edits, and
+            // the prompt used to say only "Reload?" — the one thing the reader
+            // needed to know was the one thing it did not mention.
+            const name = file.name || file.path;
+            const reload = file.isDirty
+                ? await showConfirm(
+                    `${name} has changed on disk, and you have unsaved changes here.
+
+`
+                    + 'Reloading replaces your edits with the version on disk.',
+                    { title: 'File Changed on Disk', kind: 'warning',
+                      okLabel: 'Discard my edits and reload', cancelLabel: 'Keep my edits' })
+                : await showConfirm(
+                    `${name} has changed on disk. Reload it?`,
+                    { title: 'File Changed on Disk', kind: 'warning', okLabel: 'Reload' });
+            if (reload) openFile(file.path, file.encoding);
+            isPrompting = false;
+        },
+        { delayMs: 500 },
+    );
 }
 
 export function updateToolbar() {
@@ -2208,6 +2307,12 @@ export async function saveCurrentFile() {
             // produces \r\r\n, which reloads as a blank line between every row).
             contentToSave = contentToSave.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, file.eol);
         }
+
+        // Has the file moved under us since it was read? Without this the save
+        // simply overwrote whatever was there — a `git pull`, another editor or
+        // a formatter all lose their work silently, and the only warning was a
+        // watcher that (see syncWatchers) was not even running on this tab.
+        if (!await confirmOverwrite(file)) return;
 
         try {
             await FS.writeFile(file.path, contentToSave, file.encoding);

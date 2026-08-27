@@ -504,20 +504,20 @@ export class TaskNotificationPanel {
                     bodyContentEl.innerHTML = `
                         <div class="tnp-empty-state" style="padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%;">
                             <span style="font-size: 32px;">🔌</span>
-                            <span style="font-size: 15px; font-weight: bold; color: var(--error-color, #ff4d4f);">J.H AI Agent Server がオフラインです</span>
+                            <span style="font-size: 15px; font-weight: bold; color: var(--error-color, #ff4d4f);">J.H AI Agent Server is offline</span>
                             <span class="tnp-empty-hint" style="max-width: 400px; line-height: 1.5; margin-bottom: 12px;">
-                                エディタはAIエージェントに接続できませんでした。エージェントサーバーが起動していることを確認してください。
+                                The editor could not reach the agent. Check that the agent server is running.
                             </span>
                             <div style="text-align: left; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
-                                <strong style="display:block; margin-bottom: 6px;">💡 接続を復旧するには：</strong>
+                                <strong style="display:block; margin-bottom: 6px;">💡 To reconnect:</strong>
                                 <ol style="margin: 0; padding-left: 18px; line-height: 1.6; opacity: 0.8;">
-                                    <li><strong>J.H AI Agent アプリ</strong>を起動します。</li>
-                                    <li>Agentの右上にある <strong>Settings → General → 📤 Export Connection</strong> ボタンをクリックします。</li>
-                                    <li>または、右上の ⚙️ 設定 → Agentタブで接続先情報を手動入力します。</li>
+                                    <li>Start the <strong>J.H AI Agent</strong> app.</li>
+                                    <li>In the agent, press <strong>Settings → General → 📤 Export Connection</strong>.</li>
+                                    <li>Or enter the connection details by hand in <strong>⚙️ Settings → Agent</strong>.</li>
                                 </ol>
                             </div>
                             <button id="tnp-retry-conn-btn" class="primary-btn" style="padding: 8px 16px; font-size: 12px; margin-top: 10px; cursor: pointer;">
-                                🔄 接続を再テストする
+                                🔄 Test the connection again
                             </button>
                         </div>
                     `;

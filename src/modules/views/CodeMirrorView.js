@@ -369,7 +369,7 @@ export function sortSelectedLines(view) {
     lines.sort((a, b) => dir * a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     const joined = lines.join('\n');
     view.dispatch({ changes: { from, to, insert: joined }, selection: { anchor: from, head: from + joined.length } });
-    Toast.show(_sortAscending ? '昇順に並べ替えました' : '降順に並べ替えました', 'info', 1600);
+    Toast.show(_sortAscending ? 'Sorted ascending.' : 'Sorted descending.', 'info', 1600);
     return true;
 }
 
@@ -389,7 +389,7 @@ export function dedupeSelectedLines(view) {
     }
     const removed = lines.length - out.length;
     if (removed === 0) {
-        Toast.show('重複行はありませんでした', 'info', 1600);
+        Toast.show('No duplicate lines found.', 'info', 1600);
         return false;
     }
     // "kinds" = distinct values that occurred more than once — the number of
@@ -398,7 +398,7 @@ export function dedupeSelectedLines(view) {
     for (const n of counts.values()) if (n > 1) kinds++;
     const joined = out.join('\n');
     view.dispatch({ changes: { from, to, insert: joined }, selection: { anchor: from, head: from + joined.length } });
-    Toast.show(`重複 ${kinds} 種類・${removed} 行を削除しました（${lines.length} → ${out.length} 行）`,
+    Toast.show(`Removed ${removed} duplicate line${removed === 1 ? '' : 's'} across ${kinds} value${kinds === 1 ? '' : 's'} (${lines.length} to ${out.length} lines).`,
         'success', 3500);
     return true;
 }

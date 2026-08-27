@@ -55,7 +55,7 @@ describe('Alt+A — sort selected lines', () => {
         const one = lastToast();
         sortSelectedLines(viewOver('b\na'));
         const two = lastToast();
-        expect([one, two].sort()).toEqual(['昇順に並べ替えました', '降順に並べ替えました'].sort());
+        expect([one, two].sort()).toEqual(['Sorted ascending.', 'Sorted descending.'].sort());
     });
 
     it('sorts numerically, not lexically', () => {
@@ -87,22 +87,22 @@ describe('Alt+M — remove duplicate lines', () => {
         expect(v.result).toBe('b\na\nc');
     });
 
-    // "何種類を何件" — the number of values that were duplicated, and the number
-    // of lines that actually went away. They are different numbers.
+    // How many VALUES were duplicated, and how many lines actually went away.
+    // They are different numbers.
     it('reports the duplicated kinds and the removed line count', () => {
         // 'b' ×3 and 'a' ×2 → 2 kinds, 3 lines removed, 6 → 3.
         dedupeSelectedLines(viewOver('b\na\nb\nc\na\nb'));
         const msg = lastToast();
-        expect(msg).toContain('2 種類');
-        expect(msg).toContain('3 行を削除');
-        expect(msg).toContain('6 → 3 行');
+        expect(msg).toContain('across 2 values');
+        expect(msg).toContain('Removed 3 duplicate lines');
+        expect(msg).toContain('6 to 3 lines');
     });
 
     it('says so when there was nothing to remove, and changes nothing', () => {
         const v = viewOver('a\nb\nc');
         expect(dedupeSelectedLines(v)).toBe(false);
         expect(v.result).toBeNull();
-        expect(lastToast()).toContain('重複行はありませんでした');
+        expect(lastToast()).toContain('No duplicate lines found.');
     });
 
     it('does nothing on a single line', () => {

@@ -31,12 +31,12 @@ function getActiveFileName() {
 async function runSelectionAction({ title, instruction, replace = false }) {
     const selection = getSelection();
     if (!selection || !selection.trim()) {
-        Toast.info('テキストを選択してから実行してください。');
+        Toast.info('Select some text first.');
         return;
     }
 
     const fileName = getActiveFileName();
-    Toast.info(`${title}を実行中…`);
+    Toast.info(`${title}…`);
 
     try {
         const systemPrompt =
@@ -49,7 +49,7 @@ async function runSelectionAction({ title, instruction, replace = false }) {
         });
 
         if (!result || !result.trim()) {
-            Toast.error(`${title}に失敗しました（結果が空です）。`);
+            Toast.error(`${title} returned nothing.`);
             return;
         }
 
@@ -58,7 +58,7 @@ async function runSelectionAction({ title, instruction, replace = false }) {
             const view = window.app?.getCurrentView?.();
             if (view && typeof view.replaceSelectedText === 'function') {
                 view.replaceSelectedText(result);
-                Toast.success(`${title}を適用しました。`);
+                Toast.success(`${title} applied.`);
                 return;
             }
         }
@@ -67,14 +67,14 @@ async function runSelectionAction({ title, instruction, replace = false }) {
         if (window.app?.openMarkdownResult) {
             window.app.openMarkdownResult(`${title}: ${fileName.split(/[\\/]/).pop()}`, result);
         } else {
-            Toast.error('結果を開けませんでした。');
+            Toast.error('Could not open the result.');
         }
     } catch (e) {
         const msg = (e && e.message) || String(e);
         if (/not reachable|failed to fetch|connection refused/i.test(msg)) {
-            Toast.error('J.H AI Agent に接続できません。Agent を起動してください。');
+            Toast.error('Cannot reach J.H AI Agent. Start the agent and try again.');
         } else {
-            Toast.error(`${title}に失敗しました: ${msg}`);
+            Toast.error(`${title} failed: ${msg}`);
         }
     }
 }
@@ -82,19 +82,19 @@ async function runSelectionAction({ title, instruction, replace = false }) {
 export const SelectionActions = {
     summarize() {
         return runSelectionAction({
-            title: '要約',
+            title: 'Summarize',
             instruction: '選択されたテキストを簡潔に要約してください。箇条書きで要点をまとめてください。',
         });
     },
     translate() {
         return runSelectionAction({
-            title: '翻訳',
+            title: 'Translate',
             instruction: '選択されたテキストを日本語に翻訳してください。',
         });
     },
     rephrase() {
         return runSelectionAction({
-            title: '言い換え',
+            title: 'Rephrase',
             instruction: '選択されたテキストを、意味を保ったまま自然で読みやすく言い換えてください。',
         });
     },

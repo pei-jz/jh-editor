@@ -78,6 +78,8 @@ export const EL = {
 
     // Settings
     settingsBtn: document.getElementById('settings-btn'),
+    statusCommandsBtn: document.getElementById('status-commands'),
+
     settingsModal: {
         overlay: document.getElementById('settings-modal'),
         closeBtn: document.getElementById('close-settings-btn'),

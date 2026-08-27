@@ -163,10 +163,10 @@ export const MermaidHelper = {
         // ── header ──
         const head = document.createElement('div');
         head.className = 'mh-head';
-        head.innerHTML = `<span class="mh-title">Mermaid 図の作成</span>
-            <span class="mh-sub">種類を選ぶと雛形が入ります。右の一覧はクリックで挿入できます。</span>
+        head.innerHTML = `<span class="mh-title">Insert a Mermaid diagram</span>
+            <span class="mh-sub">Pick a type to insert its skeleton. Click anything on the right to add it.</span>
             <span class="mh-head-spacer"></span>
-            <span class="mh-sub">Alt+1〜4 でペイン移動 · ↑↓ で選択</span>`;
+            <span class="mh-sub">Alt+1-4 moves between panes &middot; Up/Down selects</span>`;
 
         // ── left: diagram types ──
         const types = document.createElement('div');

@@ -295,18 +295,17 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 if (isConnectionError) {
                     this.resultContent.innerHTML = `
                         <div class="agent-connection-error" style="color: var(--error-color, #ff4d4f); padding: 8px;">
-                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">❌ J.H AI Agent に接続できません</div>
+                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">❌ Cannot reach J.H AI Agent</div>
                             <p style="margin: 4px 0 12px 0; font-size: 12px; color: var(--text-color); opacity: 0.8; line-height: 1.4;">
-                                AIエージェントが起動していないか、接続設定が間違っています。<br>
-                                以下の手順を確認してください：
+                                The agent is not running, or the connection details are wrong.
                             </p>
                             <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--text-color); opacity: 0.8; line-height: 1.6;">
-                                <li><strong>J.H AI Agent アプリ</strong>が起動しているか確認する。</li>
-                                <li>Agent側で <strong>Settings → General → 📤 Export Connection</strong> を押す（自動接続設定が書き出されます）。</li>
-                                <li>または、JHEditorの右上 ⚙️ 設定 → AgentタブでURL/Tokenを手動で入力する。</li>
+                                <li>Check that the <strong>J.H AI Agent</strong> app is running.</li>
+                                <li>In the agent, press <strong>Settings → General → 📤 Export Connection</strong> — that writes out the details this editor reads.</li>
+                                <li>Or enter the URL and token by hand in <strong>⚙️ Settings → Agent</strong>.</li>
                             </ol>
                             <div style="margin-top: 12px;">
-                                <button class="primary-btn" id="ai-reconnect-btn" style="padding: 4px 8px; font-size: 11px; cursor: pointer;">接続をテストして再試行</button>
+                                <button class="primary-btn" id="ai-reconnect-btn" style="padding: 4px 8px; font-size: 11px; cursor: pointer;">Test the connection and retry</button>
                             </div>
                         </div>
                     `;
