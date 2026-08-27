@@ -6,9 +6,10 @@ import { Toast } from './Toast.js';
 import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
 import { Snippets, DEFAULT_CATEGORY } from './Snippets.js';
+import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './RegexPresets.js';
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
-import { isInlineCompletionEnabled, setInlineCompletionEnabled } from './InlineCompletion.js';
+import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -214,6 +215,7 @@ export function initSettingsModal() {
                     if (target === 'keybindings' && !document.getElementById('shortcut-list-container').innerHTML) loadKeybindingSettings();
                     if (target === 'templates') renderTemplateSettings();
                     if (target === 'snippets') renderSnippetSettings();
+                    if (target === 'regex') renderRegexSettings();
                 }
             };
         });
@@ -268,24 +270,31 @@ export function initSettingsModal() {
 
             <div id="ai-scope-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px;"></div>
 
-            <div class="settings-section-title">Inline Completion</div>
+            <div class="settings-section-title">Inline Suggestions</div>
+            <div class="settings-description" style="margin-bottom:12px;">
+                Ghost text after the cursor. <strong>Tab</strong> accepts, <strong>Esc</strong> dismisses.
+            </div>
 
             <div class="settings-option">
-                <label for="ai-inline-completion">AI ghost-text completion</label>
-                <input type="checkbox" id="ai-inline-completion">
+                <label for="local-inline-suggest">Complete from this file</label>
+                <input type="checkbox" id="local-inline-suggest">
             </div>
+            <div class="settings-description" style="margin-bottom:18px;">
+                Completes the line from a matching line elsewhere in the file, or the word from a
+                word already used in it. Answers in well under a frame and sends nothing anywhere.
+            </div>
+
             <div class="settings-description" style="margin-bottom:20px;">
-                Suggests a continuation in dim text after the cursor; Tab accepts, Esc dismisses.
-                <strong>This is the one feature that contacts the model with no action from you</strong> —
-                pausing while typing sends roughly 5 KB around the cursor. Off by default, and it also
-                needs the context scope to be "Active tab" or wider. Never runs in a personal note.
+                There is no AI behind this: a model round trip takes seconds, and a suggestion that
+                arrives after the cursor has moved is thrown away. For AI help on a specific piece of
+                text, select it and use <strong>Inline AI</strong>, where you ask and it is worth the wait.
             </div>
         `;
 
-        const inlineToggle = container.querySelector('#ai-inline-completion');
-        if (inlineToggle) {
-            inlineToggle.checked = isInlineCompletionEnabled();
-            inlineToggle.onchange = () => setInlineCompletionEnabled(inlineToggle.checked);
+        const localToggle = container.querySelector('#local-inline-suggest');
+        if (localToggle) {
+            localToggle.checked = isLocalSuggestEnabled();
+            localToggle.onchange = () => setLocalSuggestEnabled(localToggle.checked);
         }
 
         // Radios rather than a <select>: each level needs its consequence spelled
@@ -939,6 +948,251 @@ export function initSettingsModal() {
                 toggleBtn.style.display = '';
                 renderList();
                 Toast.success(`Snippet "${saved.name}" registered.`);
+            } catch (err) {
+                Toast.error(err.message || String(err));
+            }
+        };
+    };
+
+    // --- Regex samples ---
+    const renderRegexSettings = () => {
+        const container = document.getElementById('regex-settings-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="settings-section-title">Regex Samples</div>
+            <div class="settings-description" style="margin-bottom:14px;">
+                The library behind the <strong>.*</strong> button in Find &amp; Replace (Alt+T).
+                Add the patterns you keep re-typing, and group them so the list stays short.
+                Built-in samples can be removed and brought back later.
+            </div>
+            <div style="margin-bottom:16px;">
+                <button id="rx-toggle-btn" class="primary-btn" style="padding:6px 18px;">+ Add Sample</button>
+            </div>
+            <div id="rx-form" style="display:none; margin-bottom:16px;">
+                <div style="font-weight:bold; margin-bottom:6px; font-size:0.95em;">Register a new sample</div>
+                <div style="margin-bottom:10px;">
+                    <label for="rx-name" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Name</label>
+                    <input type="text" id="rx-name" maxlength="80" placeholder="e.g. Order number" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label for="rx-category" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Category</label>
+                    <input type="text" id="rx-category" maxlength="40" list="rx-category-list" placeholder="${REGEX_DEFAULT_CATEGORY}" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                    <datalist id="rx-category-list"></datalist>
+                </div>
+                <div style="margin-bottom:6px;">
+                    <label for="rx-pattern" style="display:block; font-size:12px; margin-bottom:4px; opacity:0.8;">Pattern</label>
+                    <input type="text" id="rx-pattern" spellcheck="false" placeholder="\\bORD-\\d{6}\\b" style="width:100%; max-width:520px; box-sizing:border-box; padding:8px; font-family:var(--editor-font-family, monospace); font-size:12px; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;">
+                </div>
+                <div id="rx-check" style="min-height:18px; margin-bottom:10px; font-size:11.5px; font-family:var(--editor-font-family, monospace);"></div>
+                <div style="display:flex; gap:8px;">
+                    <button id="rx-add-btn" class="primary-btn" style="padding:6px 18px;">Register</button>
+                    <button id="rx-cancel-btn" class="primary-btn" style="padding:6px 18px; background:none; color:var(--text-color); border:1px solid var(--border-color);">Cancel</button>
+                </div>
+            </div>
+            <div style="font-weight:bold; margin-bottom:8px; font-size:0.95em;">Library</div>
+            <div id="rx-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="rx-removed" style="margin-top:22px;"></div>
+        `;
+
+        const listEl = container.querySelector('#rx-list');
+        const removedEl = container.querySelector('#rx-removed');
+        const catList = container.querySelector('#rx-category-list');
+
+        const COLLAPSE_KEY = 'settings_regexSettingsCollapsed';
+        const readCollapsed = () => {
+            try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
+            catch (_) { return new Set(); }
+        };
+        const writeCollapsed = (set) => {
+            try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); }
+            catch (_) { /* ignore */ }
+        };
+
+        const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+        const renderList = () => {
+            const groups = RegexPresets.grouped();
+            listEl.innerHTML = '';
+
+            if (catList) {
+                catList.innerHTML = '';
+                for (const c of RegexPresets.categories()) {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    catList.appendChild(opt);
+                }
+            }
+
+            if (groups.length === 0) {
+                listEl.innerHTML = '<div style="padding:16px; text-align:center; opacity:0.5;">Every sample has been removed.</div>';
+            }
+
+            const collapsed = readCollapsed();
+
+            for (const { category, items } of groups) {
+                const group = document.createElement('div');
+                group.className = 'snippet-group';
+
+                const head = document.createElement('button');
+                head.type = 'button';
+                head.className = 'snippet-group-head';
+                head.setAttribute('aria-expanded', String(!collapsed.has(category)));
+
+                const arrow = document.createElement('span');
+                arrow.className = 'snippet-group-arrow';
+                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+                const name = document.createElement('span');
+                name.className = 'snippet-group-name';
+                name.textContent = category;
+                const count = document.createElement('span');
+                count.className = 'snippet-group-count';
+                count.textContent = items.length;
+                head.append(arrow, name, count);
+
+                const body = document.createElement('div');
+                body.className = 'snippet-group-body';
+                body.style.display = collapsed.has(category) ? 'none' : '';
+
+                head.onclick = () => {
+                    const now = readCollapsed();
+                    if (now.has(category)) now.delete(category);
+                    else now.add(category);
+                    writeCollapsed(now);
+                    renderList();
+                };
+
+                for (const preset of items) {
+                    const row = document.createElement('div');
+                    row.className = 'regex-settings-row';
+                    row.innerHTML = `
+                        <span class="regex-name">${esc(preset.label)}</span>
+                        <span class="regex-pattern" title="${esc(preset.pattern)}">${esc(preset.pattern)}</span>
+                    `;
+                    if (preset.builtin) {
+                        const tag = document.createElement('span');
+                        tag.className = 'regex-builtin';
+                        tag.textContent = 'built-in';
+                        row.appendChild(tag);
+                    }
+
+                    const move = document.createElement('select');
+                    move.className = 'snippet-move';
+                    move.title = 'Move to another category';
+                    for (const c of [...new Set([...RegexPresets.categories(), category])]) {
+                        const o = document.createElement('option');
+                        o.value = c;
+                        o.textContent = c;
+                        o.selected = c === category;
+                        move.appendChild(o);
+                    }
+                    move.onchange = () => {
+                        RegexPresets.setCategory(preset.id, move.value);
+                        renderList();
+                    };
+                    row.appendChild(move);
+
+                    const del = document.createElement('button');
+                    del.className = 'regex-del';
+                    del.textContent = '×';
+                    del.title = preset.builtin
+                        ? 'Remove from the picker (can be restored below)'
+                        : 'Delete this sample';
+                    del.onclick = () => {
+                        RegexPresets.remove(preset.id);
+                        renderList();
+                        Toast.info(`"${preset.label}" removed.`);
+                    };
+                    row.appendChild(del);
+
+                    body.appendChild(row);
+                }
+
+                group.append(head, body);
+                listEl.appendChild(group);
+            }
+
+            // Removed built-ins are listed rather than lost, so there is a way
+            // back that does not involve retyping a pattern from memory.
+            const hidden = RegexPresets.hiddenBuiltins();
+            removedEl.innerHTML = '';
+            if (hidden.length) {
+                const title = document.createElement('div');
+                title.style.cssText = 'font-weight:bold; margin-bottom:6px; font-size:0.95em;';
+                title.textContent = `Removed built-ins (${hidden.length})`;
+                removedEl.appendChild(title);
+
+                for (const preset of hidden) {
+                    const row = document.createElement('div');
+                    row.className = 'regex-restore';
+                    const label = document.createElement('span');
+                    label.textContent = preset.label;
+                    const pat = document.createElement('code');
+                    pat.className = 'regex-pattern';
+                    pat.textContent = preset.pattern;
+                    const btn = document.createElement('button');
+                    btn.className = 'primary-btn push';
+                    btn.style.cssText = 'padding:3px 12px; font-size:11px;';
+                    btn.textContent = 'Restore';
+                    btn.onclick = () => {
+                        RegexPresets.restore(preset.id);
+                        renderList();
+                    };
+                    row.append(label, pat, btn);
+                    removedEl.appendChild(row);
+                }
+            }
+        };
+        renderList();
+
+        const nameInput = container.querySelector('#rx-name');
+        const catInput = container.querySelector('#rx-category');
+        const patInput = container.querySelector('#rx-pattern');
+        const checkEl = container.querySelector('#rx-check');
+        const formWrap = container.querySelector('#rx-form');
+        const toggleBtn = container.querySelector('#rx-toggle-btn');
+
+        // Tell the user the pattern is broken HERE, not later in the search box
+        // where the sample looks fine and the search simply finds nothing.
+        const check = () => {
+            const src = patInput.value;
+            if (!src) { checkEl.textContent = ''; return; }
+            try {
+                new RegExp(src);
+                checkEl.style.color = 'var(--git-staged-color, #4a7a4a)';
+                checkEl.textContent = '✓ valid';
+            } catch (e) {
+                checkEl.style.color = 'var(--error-color, #d9534f)';
+                checkEl.textContent = `✗ ${e.message}`;
+            }
+        };
+        patInput.addEventListener('input', check);
+
+        toggleBtn.onclick = () => {
+            formWrap.style.display = '';
+            toggleBtn.style.display = 'none';
+            nameInput.focus();
+        };
+        container.querySelector('#rx-cancel-btn').onclick = () => {
+            nameInput.value = '';
+            patInput.value = '';
+            catInput.value = '';
+            checkEl.textContent = '';
+            formWrap.style.display = 'none';
+            toggleBtn.style.display = '';
+        };
+        container.querySelector('#rx-add-btn').onclick = () => {
+            try {
+                const saved = RegexPresets.add(nameInput.value, patInput.value, catInput.value);
+                nameInput.value = '';
+                patInput.value = '';
+                checkEl.textContent = '';
+                // The category is kept: adding several samples to one category
+                // in a row is the normal case.
+                formWrap.style.display = 'none';
+                toggleBtn.style.display = '';
+                renderList();
+                Toast.success(`"${saved.label}" added to ${saved.category}.`);
             } catch (err) {
                 Toast.error(err.message || String(err));
             }

@@ -194,6 +194,19 @@
     font-style: italic;
 }
 
+/* Nothing said Tab accepts it. One dim glyph, gone with the suggestion. */
+.cm-ghost-hint {
+    margin-left: 0.5em;
+    padding: 0 0.25em;
+    font-style: normal;
+    font-size: 0.85em;
+    opacity: 0.75;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    vertical-align: 1px;
+}
+
+
 /* Under a chat answer: how long the request took, and exactly what was sent
    with it. The second half matters more than the first — a privacy setting
    whose effect is invisible is not worth much. */
@@ -306,3 +319,204 @@
     line-height: 1.6;
     opacity: 0.8;
 }
+
+/* ── Regex sample picker ────────────────────────────────────────────────────
+   A panel, not a menu: thirty-eight samples in one column ran off the bottom of
+   the window, and the category headings scrolled away before the rows under
+   them arrived. */
+.regex-picker {
+    position: fixed;
+    z-index: 4000;
+    width: min(480px, calc(100vw - 24px));
+    max-height: min(56vh, 520px);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-color-secondary, #fff);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, .25));
+    overflow: hidden;
+    font-size: 12px;
+}
+
+.regex-picker-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    flex: none;
+}
+
+.regex-picker-filter {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    font: inherit;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.regex-picker-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    opacity: .6;
+    flex: none;
+}
+
+.regex-picker-list {
+    overflow-y: auto;
+    /* A flex item will not shrink below its content unless told to, so without
+       this the list refused to scroll and pushed the panel instead. */
+    min-height: 0;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.regex-picker-empty {
+    padding: 20px;
+    text-align: center;
+    opacity: .55;
+}
+
+.regex-group {
+    /* THE one that mattered: flex children shrink by default, so in a column
+       taller than the panel the groups were squeezed instead of scrolled —
+       the first two collapsed to a sliver and the open ones lost half their
+       rows off the bottom of their own box. */
+    flex: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.regex-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 9px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.regex-group-head:hover { background: var(--hover-color); }
+
+.regex-group-arrow { font-size: 9px; opacity: .7; width: 10px; flex: none; }
+.regex-group-name { flex: 1; }
+
+.regex-group-count {
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--bg-color);
+    background: var(--primary-color);
+    flex: none;
+}
+
+.regex-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    padding: 5px 9px 5px 27px;
+    font: inherit;
+    color: var(--text-color);
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border-color);
+    cursor: pointer;
+    text-align: left;
+}
+
+.regex-item:hover,
+.regex-item:focus { background: var(--hover-color); }
+
+/* Keyboard focus must be visible on both rows and headers: the arrow keys walk
+   this list, so where you are is the only thing telling you what Enter does. */
+.regex-item:focus-visible,
+.regex-group-head:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+.regex-group-head:focus { background: var(--hover-color); }
+
+.regex-item-label { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The pattern is the point of the row, so it gets the accent and the room. */
+.regex-item-pattern {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11px;
+    color: var(--primary-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+}
+
+/* ── Regex library in Settings ─────────────────────────────────────────── */
+.regex-settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.regex-settings-row .regex-name { font-weight: 600; min-width: 150px; font-size: 12.5px; }
+
+.regex-settings-row .regex-pattern {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11.5px;
+    color: var(--primary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.regex-settings-row .regex-builtin {
+    font-size: 10px;
+    padding: 1px 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    opacity: .65;
+    flex: none;
+}
+
+.regex-settings-row .regex-del {
+    background: none;
+    border: none;
+    color: var(--error-color, #f77);
+    cursor: pointer;
+    font-size: 14px;
+    flex: none;
+}
+
+.regex-restore {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+}
+
+.regex-restore .push { margin-left: auto; }

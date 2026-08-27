@@ -111,6 +111,26 @@ pub async fn run_command(command: String, cwd: Option<String>) -> Result<String,
     }
 }
 
+/// Open the webview's developer tools.
+///
+/// The window has to ask for these itself. F12 is bound to Go to Definition in
+/// the editor, and a matched shortcut calls preventDefault() — which also
+/// swallows WebView2's own DevTools hotkey, so the only way in was gone.
+/// Ctrl+Shift+I now routes here instead of relying on the runtime.
+#[command]
+pub fn open_devtools(webview: tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        webview.open_devtools();
+        Ok(())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = webview;
+        Err("DevTools are only built into a development build.".into())
+    }
+}
+
 /// Reveal a path in the OS file manager (Explorer / Finder / the desktop's
 /// default). For a file the item itself is selected; for a directory the folder
 /// is opened.

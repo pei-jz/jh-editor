@@ -74,6 +74,7 @@ pub fn run() {
             commands::git::git_commit,
             commands::git::git_unstage,
             commands::git::git_log,
+            commands::app::open_devtools,
             commands::git::git_push,
             commands::git::git_upstream,
             commands::git::git_remote_url,

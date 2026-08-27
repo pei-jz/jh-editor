@@ -3,7 +3,7 @@ import { EL } from './Constants.js';
 import { configureMarkdown, initMermaid } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
-import { openFile, createNewFileAction, saveCurrentFile, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
+import { openFile, createNewFileAction, saveCurrentFile, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -37,6 +37,7 @@ import { DailyNotes } from '../utils/DailyNotes.js';
 
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
+import { Toast } from '../ui/Toast.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm } from '../ui/Dialog.js';
@@ -443,6 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'app:open-compare': () => openCompareEditor(),
         'app:toggle-whitespace': () => toggleWhitespace(),
         'app:save': saveCurrentFile,
+        'app:save-as': saveCurrentFileAs,
         'app:search': toggleSearch,
         'app:file-search': () => FileSearchModal.show(),
         'app:grep': () => GrepModal.show(),
@@ -491,6 +493,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         'app:new-note': () => NotesPanel.open({ create: true }),
         'app:open-notes': () => NotesPanel.open(),
+        'app:devtools': async () => {
+            try { await invoke('open_devtools'); }
+            catch (e) { Toast.info(String(e && e.message ? e.message : e)); }
+        },
         'app:toggle-ai-chat': () => aiChatPanel.toggle(),
         'app:summarize-selection': () => SelectionActions.summarize(),
         'app:translate-selection': () => SelectionActions.translate(),

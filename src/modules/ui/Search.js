@@ -4,6 +4,7 @@ import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { shortcuts } from '../core/ShortcutManager.js';
 import { ContextMenu } from './ContextMenu.js';
 import { Toast } from './Toast.js';
+import { showRegexPicker } from './RegexPicker.js';
 import { getCurrentView } from '../core/Editor.js';
 
 // Read an option's state from the BUTTON the user actually sees (its `.active`
@@ -822,55 +823,10 @@ function initSearch() {
     // it doesn't block and reports progress itself — just run it.
     const _runSearch = (noFocus) => { _performSearch(noFocus); };
 
-    // ── Regex template picker (button click + Alt+T shortcut) ────────────────
-    // Focus on hard-to-remember / easy-to-forget patterns. Grouped by category.
-    const _regexPresets = [
-        { group: 'Common' },
-        { label: 'Email address',              pattern: '[\\w.+-]+@[\\w-]+\\.[\\w.]+' },
-        { label: 'URL (http/https)',            pattern: 'https?://[^\\s"\'<>]+' },
-        { label: 'IPv4 address (bounded)',      pattern: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b' },
-        { label: 'Japanese only (kana / kanji)',  pattern: '[ぁ-んァ-ヶ一-龠々]+' },
-        { label: 'All full-width characters',               pattern: '[^\\x00-\\x7F]+' },
-        { label: 'TODO / FIXME / HACK',          pattern: '(?:TODO|FIXME|HACK|XXX|NOTE)' },
-
-        { group: 'Lookahead / lookbehind (easy to forget)' },
-        { label: 'Positive lookahead: just before foo',         pattern: 'foo(?=bar)' },
-        { label: 'Negative lookahead: lines without foo',   pattern: '^(?!.*foo).*$' },
-        { label: 'Positive lookbehind: amount digits',        pattern: '(?<=[￥$])\\d[\\d,]*' },
-        { label: 'Negative lookbehind: not preceded by a dot',   pattern: '(?<!\\.)\\bword\\b' },
-        { label: 'Value inside delimiters ("…")',       pattern: '(?<=")[^"]*(?=")' },
-
-        { group: 'Quantifiers (greedy / lazy)' },
-        { label: 'Shortest match (lazy) <…>',         pattern: '<.*?>' },
-        { label: 'Markdown code block',        pattern: '```[\\s\\S]*?```' },
-        { label: 'HTML / XML tag',                  pattern: '</?[a-zA-Z][^>]*>' },
-        { label: 'Block comment /* ... */',    pattern: '/\\*[\\s\\S]*?\\*/' },
-        { label: 'Line comment // …',             pattern: '//.*$' },
-
-        { group: 'Groups & backreferences' },
-        { label: 'Repeated word',              pattern: '\\b(\\w+)\\s+\\1\\b' },
-        { label: 'Matching quotes ("" or \'\')', pattern: '(["\']).*?\\1' },
-        { label: 'Named capture (year)',     pattern: '(?<year>\\d{4})' },
-
-        { group: 'Whitespace & lines (formatting)' },
-        { label: 'Trailing whitespace',                    pattern: '[ \\t]+$' },
-        { label: 'Blank line (whitespace only)',           pattern: '^[ \\t]*$' },
-        { label: 'Consecutive spaces',                  pattern: '[ \\t]{2,}' },
-        { label: 'Full-width space',                  pattern: '\\u3000' },
-        { label: 'Consecutive blank lines (3+)',        pattern: '(?:\\r?\\n){3,}' },
-
-        { group: 'Numbers, dates & codes' },
-        { label: 'Date YYYY-MM-DD',               pattern: '\\d{4}-\\d{2}-\\d{2}' },
-        { label: 'Time HH:MM(:SS)',               pattern: '\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b' },
-        { label: 'Hex colour #fff / #ffffff',     pattern: '#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\\b' },
-        { label: 'Comma-separated number 1,234,567',    pattern: '\\b\\d{1,3}(?:,\\d{3})+\\b' },
-        { label: 'Decimal (signed)',               pattern: '[+-]?\\d+(?:\\.\\d+)?' },
-        { label: 'UUID',                          pattern: '[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}' },
-        { label: 'Semantic version',      pattern: '\\bv?\\d+\\.\\d+\\.\\d+\\b' },
-        { label: 'Phone number (JP)',               pattern: '0\\d{1,4}-\\d{1,4}-\\d{4}' },
-        { label: 'Postal code (JP)',               pattern: '\\d{3}-\\d{4}' }
-    ];
-
+    // ── Regex sample picker (button click + Alt+T shortcut) ────────────────
+    // The library itself lives in RegexPresets.js (user-editable, in Settings),
+    // and the panel that shows it in RegexPicker.js. Both used to be a single
+    // flat array rendered into a context menu taller than the window.
     const _applyPreset = (pattern) => {
         EL.regexToggle.checked = true;
         EL.regexToggle.dispatchEvent(new Event('change'));
@@ -880,19 +836,7 @@ function initSearch() {
     };
 
     const _showRegexPresets = (anchorEvent) => {
-        const items = [];
-        _regexPresets.forEach(p => {
-            if (p.group) {
-                if (items.length) items.push({ type: 'separator' });
-                items.push({ label: `— ${p.group} —`, action: () => {} });
-            } else {
-                items.push({
-                    label: `${p.label}    ${p.pattern}`,
-                    action: () => _applyPreset(p.pattern)
-                });
-            }
-        });
-        ContextMenu.show(anchorEvent, items);
+        showRegexPicker(anchorEvent, _applyPreset);
     };
 
     document.getElementById('regex-preset-btn')?.addEventListener('click', (e) => {

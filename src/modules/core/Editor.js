@@ -1317,6 +1317,7 @@ export function renderTabs(targetPane = null) {
                 ContextMenu.show(e, [
                     { label: 'Copy Path', action: () => { if (file.path) writeText(file.path); } },
                     { label: 'Compare with File...', action: () => compareWithFile(file) },
+                    { label: 'Save As...', action: () => saveCurrentFileAs() },
                     { type: 'separator' },
                     { label: 'New Window', action: () => window.app?.openNewWindow?.() },
                     { label: 'Move to Other Pane', action: () => moveTabToOtherPane(index, pane) },
@@ -2009,6 +2010,92 @@ export async function createNewFileAction() {
     NewFileModal.show((ext, templateContent) => { createNewFileOfType(ext, templateContent); });
 }
 
+/**
+ * "Save As…" — write the active buffer to a NEW path without touching the
+ * original file, exactly like a conventional editor's Save As. The source tab
+ * is left open and unmodified; a fresh tab is opened for the new file (or an
+ * existing tab for that path is focused).
+ *
+ * Virtual scratch tabs (diff / compare) and the mmap-backed large-file viewers
+ * are deliberately not supported — those buffers have no single in-JS content
+ * to copy, and the rope-editor's content lives in Rust.
+ */
+export async function saveCurrentFileAs() {
+    const source = getActiveFile();
+    if (!source) return;
+
+    if (source.type === 'diff' || source.type === 'compare'
+        || source.viewMode === 'diff' || source.viewMode === 'compare') {
+        if (window.showToast) window.showToast('Save As is not available for this view.');
+        return;
+    }
+
+    let contentToSave;
+    if (source.isEditing && source.editId != null) {
+        if (window.showToast) window.showToast('Save As is not available for this view.');
+        return;
+    }
+    if (source.isLarge) {
+        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        return;
+    }
+    contentToSave = source.content ?? '';
+
+    const defaultName = source.name || (source.path ? FS.getBasename(source.path) : 'Untitled.txt');
+    let defaultPath = source.path && (source.path.match(/^[a-zA-Z]:[\\/]/) || source.path.startsWith('/'))
+        ? source.path
+        : FS.joinPath(State.currentDir || '.', defaultName);
+    // For a real file, default to "<name>-copy.ext" in the SAME directory so the
+    // save dialog never hints at overwriting the original.
+    if (source.path && (source.path.match(/^[a-zA-Z]:[\\/]/) || source.path.startsWith('/'))) {
+        const dir = FS.getParentDir(source.path);
+        const base = FS.getBasename(source.path);
+        const dot = base.lastIndexOf('.');
+        const stem = dot > 0 ? base.slice(0, dot) : base;
+        const ext = dot > 0 ? base.slice(dot) : '';
+        defaultPath = FS.joinPath(dir, `${stem}-copy${ext}`);
+    }
+
+    let selectedPath;
+    try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        selectedPath = await save({
+            title: 'Save As',
+            defaultPath: defaultPath,
+            filters: [{
+                name: 'All Files',
+                extensions: ['*']
+            }]
+        });
+    } catch (e) {
+        console.error('Save As dialog failed', e);
+        if (window.showToast) window.showToast('Save As failed.');
+        return;
+    }
+    if (!selectedPath) return; // user cancelled
+
+    let toWrite = contentToSave;
+    if (source.eol && source.eol !== '\n') {
+        toWrite = toWrite.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, source.eol);
+    }
+
+    try {
+        await FS.writeFile(selectedPath, toWrite, source.encoding);
+    } catch (err) {
+        console.error('Save As: failed to write file:', err);
+        showAlert(`Save failed: ${err.message || err}`, { title: 'Save As', kind: 'error' });
+        return;
+    }
+
+    // Open the freshly written file in its own tab (reusing an existing tab for
+    // that path if one is already open) and refresh the explorer.
+    try {
+        await openFile(selectedPath);
+    } catch (_) { /* tab opening is best-effort; the file is already on disk */ }
+    await loadExplorer(true);
+    if (window.app.gitPanel) window.app.gitPanel.refresh();
+}
+
 /** Create the in-memory draft tab for the chosen extension. */
 export async function createNewFileOfType(ext = 'txt', initialContent = '') {
     // Generate a default "Untitled.txt", "Untitled-1.txt", etc.
@@ -2627,6 +2714,7 @@ window.Editor = {
     renderTabs,
     openFile,
     saveCurrentFile,
+    saveCurrentFileAs,
     compareWithFile,
     compareWithDisk
 };
