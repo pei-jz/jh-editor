@@ -116,6 +116,36 @@ pub fn copy_file_cmd(source: String, dest: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Size and modification time, for the status bar and the save-conflict check.
+///
+/// This exists because the JS side cannot get it. `@tauri-apps/plugin-fs`'s
+/// `stat` is limited by the plugin's `fs:scope`, which allows `$HOME/**` — so
+/// for a workspace anywhere else the call was denied, the error was swallowed
+/// as "no stats", and the file's modification date simply never appeared.
+///
+/// Every other read and write in this app goes through commands like the ones
+/// around this, which take a path and use it. Doing the same here makes the
+/// behaviour consistent rather than dependent on where the project happens to
+/// live.
+#[derive(serde::Serialize)]
+pub struct FileStats {
+    pub size: u64,
+    /// Milliseconds since the epoch, so `new Date(mtime)` is exact. Null when
+    /// the platform does not record one.
+    pub mtime: Option<f64>,
+}
+
+#[command]
+pub fn file_stats(path: String) -> Result<FileStats, String> {
+    let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as f64);
+    Ok(FileStats { size: meta.len(), mtime })
+}
+
 #[command]
 pub fn exists(path: String) -> bool {
     std::path::Path::new(&path).exists()

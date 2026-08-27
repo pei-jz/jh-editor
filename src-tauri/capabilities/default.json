@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Default permissions. fs:scope is '**' because the file WATCHER is the only thing still using the fs plugin and has to reach whatever project is open; $HOME/** silently refused every workspace outside the home directory, so external-change detection was inert for exactly the projects most likely to have another tool writing to them. This removes no boundary: the app's own commands (read_file, write_file, read_dir, file_stats) take a path and use it, so the plugin scope never limited what the editor could touch - it only made a few features work in some folders and not others.",
   "windows": [
     "*"
   ],
@@ -33,7 +33,7 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        "$HOME/**"
+        "**"
       ]
     },
     {

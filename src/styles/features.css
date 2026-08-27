@@ -561,15 +561,17 @@
 
 .status-commands-icon {
     font-size: 12px;
-    opacity: 0.85;
 }
 
+/* No `opacity` here. The bar's ink is already the dimmed variant, and fading
+   it again is how the titlebar path ended up at 2:1 — a second dimming can only
+   ever make a marginal pair worse. The border and the smaller size carry the
+   hierarchy instead. */
 .status-commands kbd {
     padding: 1px 4px;
     font-family: var(--editor-font-family, monospace);
     font-size: 9.5px;
     line-height: 1.4;
-    opacity: 0.75;
     border: 1px solid currentColor;
     border-radius: 3px;
 }

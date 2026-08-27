@@ -426,3 +426,74 @@ describe('when a snippet popup may open', () => {
         expect(src).not.toContain('context.matchBefore(/\\S*/)');
     });
 });
+
+/* Ctrl+? already opens a filterable list of every command — but a shortcut
+   cannot advertise itself, so nothing on screen ever mentioned it. */
+describe('the way in to the commands', () => {
+    const html = read('index.html');
+    const css = read('src/styles/features.css');
+
+    it('is a control that is always visible, in space the editor was not using', () => {
+        expect(html).toContain('id="status-commands"');
+        const i = html.indexOf('id="status-commands"');
+        const j = html.indexOf('</button>', i);
+        const btn = html.slice(html.lastIndexOf('<button', i), j);
+        // It names the key, so it only has to be clicked once.
+        expect(btn).toContain('<kbd>Ctrl+?</kbd>');
+        expect(btn).toContain('Commands');
+        // It sits in the status bar's right group, not over the editor.
+        expect(html.indexOf('id="status-selection"')).toBeLessThan(i);
+    });
+
+    it('opens the guide the shortcut opens', () => {
+        expect(read('src/modules/core/Constants.js'))
+            .toContain("getElementById('status-commands')");
+        expect(read('src/modules/core/App.js'))
+            .toContain('EL.statusCommandsBtn?.addEventListener');
+        expect(read('src/modules/core/App.js')).toContain('toggleShortcutGuide()');
+    });
+
+    // The same compounding mistake as the titlebar path: a second dimming can
+    // only make a marginal pair worse.
+    it('does not fade its own text a second time', () => {
+        const i = css.indexOf('.status-commands kbd {');
+        expect(css.slice(i, css.indexOf('}', i))).not.toContain('opacity');
+        const j = css.indexOf('.status-commands-icon {');
+        expect(css.slice(j, css.indexOf('}', j))).not.toContain('opacity');
+    });
+});
+
+/* Measuring the new button turned up the bar it sits on: --text-secondary
+   against --header-bg is 2.18:1 to 4.37:1 in nine of the eleven themes, so the
+   encoding, the line and column and the file size were all under the floor. */
+describe('the status bar itself', () => {
+    it('uses ink derived from the theme, not a fixed grey', () => {
+        const layout = read('src/styles/layout.css');
+        const i = layout.indexOf('#status-bar {');
+        const block = layout.slice(i, layout.indexOf('}', i));
+        expect(block).toContain('color: var(--titlebar-text-dim, var(--text-color));');
+        expect(block).not.toContain('color: var(--text-secondary);');
+    });
+
+    it('clears 4.5:1 on every theme', () => {
+        // text/header per theme, and the two that set their own chrome ink.
+        const pairs = [
+            ['#343a40', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
+            ['#4c4f69', '#e6e9ef'], ['#b0bec5', '#073642'], ['#073642', '#eee8d5'],
+            ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#efece3'],
+            ['#eceff4', '#343b49'],
+        ];
+        const mix88 = (a, b) => '#' + [0, 2, 4].map((i) => Math.round(
+            parseInt(a.slice(1 + i, 3 + i), 16) * 0.88
+            + parseInt(b.slice(1 + i, 3 + i), 16) * 0.12,
+        ).toString(16).padStart(2, '0')).join('');
+        for (const [text, header] of pairs) {
+            expect(contrast(mix88(text, header), header), `status bar on ${header}`)
+                .toBeGreaterThanOrEqual(4.5);
+        }
+        // Hanging Scroll paints the bar with the mount and its own ink.
+        expect(contrast('#c3cddf', '#3a4868')).toBeGreaterThanOrEqual(4.5);
+        // The colour it replaced would not have passed.
+        expect(contrast('#6c757d', '#f1f3f5')).toBeLessThan(4.5);
+    });
+});

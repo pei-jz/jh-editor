@@ -39,14 +39,19 @@ import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { pluginManager } from './PluginManager.js';
 import { initDefaultPlugins } from './ViewPlugins.js';
 import { showAlert, showConfirm, showDialog } from '../ui/Dialog.js';
+import { largeFileThresholdBytes } from '../utils/LargeFileSetting.js';
 
 // Initialize Plugins
 initDefaultPlugins();
 
 // Above this size, plain-text files open in the read-only virtualized
-// LargeFileView instead of the CM6-based CodeMirrorView (Phase 0 of the
-// huge-file roadmap). The user can still force full editing per-file.
-const LARGE_FILE_VIEW_THRESHOLD = 500 * 1024 * 1024; // 500 MB (Increased since CM6 can handle more)
+// LargeFileView instead of the CM6-based CodeMirrorView. The user can still
+// force full editing per-file.
+//
+// This was a constant at 500 MB. Whether 500 MB is the right line depends on
+// the machine and the file — 500 MB of JSON on 8 GB of RAM is nothing like
+// 500 MB of log on 64 GB — so it is a setting now, with 500 MB as its default.
+// See utils/LargeFileSetting.js.
 
 // Global View References for Split Editor
 let leftView = null;
@@ -500,7 +505,7 @@ export function renderEditor(targetPane = null) {
         //   - in-memory huge content (e.g. AI output with no disk path)
         // The escape hatch (forceFullEdit) loads the file fully and falls through.
         if (!file.forceFullEdit
-            && (file.isLarge || (file.content && file.content.length > LARGE_FILE_VIEW_THRESHOLD))) {
+            && (file.isLarge || (file.content && file.content.length > largeFileThresholdBytes()))) {
             container.classList.remove('csv-mode', 'markdown-mode');
             container.classList.add('plain-mode');
             file.viewMode = 'text';
@@ -901,7 +906,7 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
 
         // Huge files: open via the Rust mmap backend so the content is never
         // pulled into JS. The viewer fetches visible lines on demand.
-        if (stats && stats.size > LARGE_FILE_VIEW_THRESHOLD && !forceEncoding) {
+        if (stats && stats.size > largeFileThresholdBytes() && !forceEncoding) {
             try {
                 const meta = await invoke('large_file_open', { path: resolvedPath });
                 fileData = {
@@ -1865,11 +1870,16 @@ export async function confirmOverwrite(file) {
 
     // A newer timestamp is not a newer FILE. Touching it, or a tool that
     // rewrites identical bytes, must not produce a prompt.
-    try {
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const disk = new TextDecoder().decode(await readFile(file.path));
-        if (disk === file.content) { file.stats = curStats; return true; }
-    } catch (_) { return true; }
+    //
+    // Both sides are normalised to LF first: the buffer always holds LF, so
+    // comparing it against the raw bytes of a CRLF file would differ on every
+    // line and claim every Windows file had been rewritten.
+    const disk = await FS.readFileText(file.path);
+    if (disk === null) return true;
+    if (FS.normalizeToLF(disk) === FS.normalizeToLF(file.content)) {
+        file.stats = curStats;
+        return true;
+    }
 
     const overwrite = await showConfirm(
         `${file.name || file.path} has changed on disk since you opened it.\n\n`
@@ -1956,11 +1966,15 @@ async function watchFile(file) {
             const oldTime = new Date(file.stats.mtime).getTime();
             if (!(newTime > oldTime + 1000)) return;
 
-            const { readFile } = await import('@tauri-apps/plugin-fs');
-            const diskContent = new TextDecoder().decode(await readFile(file.path));
+            const diskContent = await FS.readFileText(file.path);
+            if (diskContent === null) return;
             // A newer timestamp is not a newer file: only a real difference is
-            // worth interrupting anyone over.
-            if (diskContent === file.content) { file.stats = curStats; return; }
+            // worth interrupting anyone over — and the comparison is done in LF
+            // on both sides, or every CRLF file would look rewritten.
+            if (FS.normalizeToLF(diskContent) === FS.normalizeToLF(file.content)) {
+                file.stats = curStats;
+                return;
+            }
 
             isPrompting = true;
             file.stats = curStats;
@@ -2494,10 +2508,114 @@ export function setFileEol(eol) {
 // `forFile` comes from renderEditor, which knows exactly which buffer it just
 // mounted; without it the status bar described the left pane's file even when
 // the right one had focus.
+/**
+ * How big the buffer in front of you is, in bytes.
+ *
+ * NOT `stats.size`: that is the size the file was when it was last read from
+ * disk, so it sat unchanged while you typed and read `0 B` for anything that
+ * had never been saved. The buffer is what the status bar is being asked about.
+ *
+ * Line endings are counted the way the save path writes them — a CRLF file is
+ * one byte per line longer than the LF text held in memory.
+ *
+ * @returns {number|null} null when the content is not in JS to measure
+ *   (a huge file opened through the mmap viewer), where `stats.size` is right.
+ */
+export function bufferByteSize(file) {
+    if (!file) return null;
+    if (file.isLarge || typeof file.content !== 'string') {
+        return file.stats && file.stats.size ? file.stats.size : null;
+    }
+    let bytes = new TextEncoder().encode(file.content).length;
+    if (file.eol === '\r\n') {
+        // Every newline in the buffer is written as two bytes.
+        bytes += (file.content.match(/\n/g) || []).length;
+    }
+    return bytes;
+}
+
+/** Bytes as B / KB / MB. */
+export function formatByteSize(bytes) {
+    if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '';
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${bytes} B`;
+}
+
+/**
+ * Should we go and ask the filesystem when this file was last written?
+ *
+ * `file.stats` is captured once, when the file is opened. If that `stat` call
+ * failed — and it returns null on any error — the buffer kept the placeholder
+ * `{ size: 0, mtime: 0 }` for the rest of the session, so the date was simply
+ * never shown for that file again. Anything with a real path and no known
+ * mtime is worth one more look.
+ *
+ * Pure, so the rule is testable; the fetching is done by refreshStats().
+ */
+export function needsStatsRefresh(file) {
+    if (!file || !file.path) return false;
+    if (file.type && file.type !== 'file') return false;
+    // Not yet anchored to disk: an Untitled buffer has nothing to stat.
+    const isAbsolute = file.path.match(/^[a-zA-Z]:[\\/]/) || file.path.startsWith('/');
+    if (!isAbsolute) return false;
+    if (file.stats && file.stats.mtime) return false;      // already known
+    if (file._statsPending) return false;                  // one in flight
+    // A file that genuinely cannot be stat'ed must not be retried forever —
+    // but a Save As gives it a new path, which deserves a fresh attempt.
+    return file._statsFailedFor !== file.path;
+}
+
+/**
+ * Fill in a missing modification time, and repaint if it arrives.
+ *
+ * Fire-and-forget: the status bar draws immediately with what it has, and
+ * updates itself if the answer turns up.
+ */
+export async function refreshStats(file) {
+    if (!needsStatsRefresh(file)) return;
+    file._statsPending = true;
+    try {
+        const stats = await FS.getFileStats(file.path);
+        if (stats && stats.mtime) {
+            file.stats = stats;
+            delete file._statsFailedFor;
+            if (getActiveFile() === file) updateStatusBar();
+        } else {
+            file._statsFailedFor = file.path;
+        }
+    } catch (_) {
+        file._statsFailedFor = file.path;
+    } finally {
+        file._statsPending = false;
+    }
+}
+
+/**
+ * When the file on disk was last written, or '' when there is no such moment.
+ *
+ * A never-saved buffer has no modification time. Its placeholder mtime of 0 is
+ * a real date — 1 January 1970 — and printing it is worse than printing
+ * nothing, because it looks like information.
+ */
+export function formatModified(file) {
+    const mtime = file && file.stats ? file.stats.mtime : null;
+    if (!mtime) return '';
+    const at = new Date(mtime);
+    if (Number.isNaN(at.getTime()) || at.getTime() <= 0) return '';
+    return at.toLocaleString();
+}
+
 export function updateStatusBar(forFile = null) {
     const file = forFile || getActiveFile();
     if (!file) {
-        if (document.getElementById('status-selection')) document.getElementById('status-selection').textContent = '';
+        // Clear the lot. Leaving the last file's size and date on screen with no
+        // file open is the same fault as inventing them: numbers that describe
+        // nothing that is there.
+        for (const id of ['status-selection', 'status-size', 'status-last-modified']) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '';
+        }
         return;
     }
 
@@ -2520,13 +2638,14 @@ export function updateStatusBar(forFile = null) {
         modeHint.style.display = 'inline';
     }
 
-    if (file.stats) {
-        if (EL.statusSize) {
-            const bytes = file.stats.size;
-            EL.statusSize.textContent = bytes > 1024 * 1024 ? (bytes / (1024 * 1024)).toFixed(1) + ' MB' : (bytes > 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' B');
-        }
-        if (EL.statusLastModified) EL.statusLastModified.textContent = new Date(file.stats.mtime).toLocaleString();
-    }
+    // A buffer that was never saved carries `stats: { size: 0, mtime: 0 }` as a
+    // placeholder, and this printed it: "0 B" beside a file with text in it, and
+    // "1970/1/1 9:00:00" — the epoch, presented as a modification date. Neither
+    // number was ever real. Nothing is better than something invented.
+    if (EL.statusSize) EL.statusSize.textContent = formatByteSize(bufferByteSize(file));
+    if (EL.statusLastModified) EL.statusLastModified.textContent = formatModified(file);
+    // Draw with what we have, then go and find the date if it is missing.
+    refreshStats(file);
 
     const encEl = document.getElementById('status-encoding');
     if (encEl) encEl.textContent = file.encoding || 'UTF-8';

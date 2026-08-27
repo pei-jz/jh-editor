@@ -22,12 +22,21 @@ export function getOsLineEnding() {
     return '\n';
 }
 
+/**
+ * Size and modification time for a path, or null when there is none to be had.
+ *
+ * Goes through the backend rather than `@tauri-apps/plugin-fs`'s `stat`. That
+ * one is limited by the plugin's `fs:scope`, so a workspace outside `$HOME` was
+ * refused — and because the refusal came back as null, the status bar simply
+ * showed no modification date, for every file, forever.
+ */
 export async function getFileStats(path) {
     try {
-        return await stat(path);
+        return await invoke('file_stats', { path });
     } catch (e) {
-        console.error('FS: getFileStats error', path, e);
-        return null; // Return null if failed (e.g. file deleted)
+        // A deleted or unreadable file is a normal answer, not a fault.
+        console.warn('FS: getFileStats failed', path, e);
+        return null;
     }
 }
 
@@ -58,6 +67,24 @@ export async function readDirectory(path) {
     } catch (e) {
         console.error('FS: readDirectory error', path, e);
         throw e;
+    }
+}
+
+/**
+ * A file's text, read through the backend.
+ *
+ * Same reason as getFileStats: `@tauri-apps/plugin-fs`'s `readFile` obeys the
+ * plugin's `fs:scope` and is refused for a workspace outside `$HOME`, while the
+ * backend's own `read_file` takes the path it is given. Returns null when the
+ * file cannot be read at all.
+ */
+export async function readFileText(path) {
+    try {
+        const bytes = await invoke('read_file', { path });
+        return new TextDecoder().decode(new Uint8Array(bytes));
+    } catch (e) {
+        console.warn('FS: readFileText failed', path, e);
+        return null;
     }
 }
 
