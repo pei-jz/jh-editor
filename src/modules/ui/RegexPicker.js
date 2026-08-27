@@ -124,13 +124,28 @@ export function showRegexPicker(anchor, onPick) {
     /** Everything the arrow keys can land on, in the order it is drawn. */
     const rows = () => [...list.querySelectorAll('.regex-group-head, .regex-item')];
 
+    /**
+     * The heading for a category.
+     *
+     * A scan, not a selector: category names are typed by the user and can hold
+     * quotes or brackets that no attribute selector survives. `CSS.escape`
+     * would cover that where it exists — and it does not exist everywhere,
+     * which is how this threw and left the arrow keys looking dead.
+     */
+    const headFor = (category) => [...list.querySelectorAll('.regex-group-head')]
+        .find((h) => h.dataset.category === category) || null;
+
     /** Focus stops that Tab may reach: the filter box, then the rows. */
     const focusables = () => [filter, ...rows()];
 
     const focusRow = (row) => {
         if (!row) return;
         row.focus({ preventScroll: true });
-        row.scrollIntoView({ block: 'nearest' });
+        // Guarded: not every environment the tests run in implements it, and a
+        // missing scroll is not a reason for the keyboard to stop working.
+        if (typeof row.scrollIntoView === 'function') {
+            row.scrollIntoView({ block: 'nearest' });
+        }
     };
 
     const step = (delta) => {
@@ -232,9 +247,7 @@ export function showRegexPicker(anchor, onPick) {
 
         // Toggling a section keeps the keyboard on its heading rather than
         // dumping focus back to the top of the panel.
-        if (focusCategory) {
-            focusRow(list.querySelector(`.regex-group-head[data-category="${CSS.escape(focusCategory)}"]`));
-        }
+        if (focusCategory) focusRow(headFor(focusCategory));
     };
 
     /**
@@ -291,9 +304,7 @@ export function showRegexPicker(anchor, onPick) {
         case 'ArrowLeft':
             if (isItem) {
                 e.preventDefault();
-                focusRow(list.querySelector(
-                    `.regex-group-head[data-category="${CSS.escape(active.dataset.category)}"]`,
-                ));
+                focusRow(headFor(active.dataset.category));
                 return;
             }
             if (!isHeader) return;

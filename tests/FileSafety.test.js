@@ -1,99 +1,236 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+/* ── Why some of this file reads source and some of it runs code ────────────
+   The guards below are ordinary functions, so they are CALLED: a test that
+   greps for `if (disk === file.content)` passes whether or not the branch
+   works, and one that greps a function body passes when the function is never
+   reached. The Tab-accept bug proved that the hard way — every source-reading
+   test was green while the feature was dead.
+
+   What stays structural is what vitest cannot execute: CSS, Rust, the HTML
+   markup, and the wiring between a DOM button and the module it calls. Those
+   are checked by reading the file because there is nothing else to do. They are
+   grouped at the bottom under that name so the distinction is visible. */
+
+const readText = vi.fn();
+const watchSpy = vi.fn();
+const getFileStats = vi.fn();
+const showConfirm = vi.fn();
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(async () => null) }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}), emit: vi.fn() }));
+vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ label: 'main' }) }));
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText: vi.fn(), readText: vi.fn() }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn(), open: vi.fn() }));
+vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn() }));
+vi.mock('@tauri-apps/plugin-fs', () => ({
+    readFile: (...a) => readText(...a),
+    watch: (...a) => watchSpy(...a),
+}));
+vi.mock('../src/modules/utils/FileSystem.js', async (orig) => ({
+    ...await orig(),
+    getFileStats: (...a) => getFileStats(...a),
+    readFileText: (...a) => readText(...a),
+}));
+vi.mock('../src/modules/ui/Dialog.js', () => ({
+    showAlert: vi.fn(async () => true),
+    showConfirm: (...a) => showConfirm(...a),
+    showDialog: vi.fn(async () => 'cancel'),
+}));
+
+const { confirmOverwrite, syncWatchers } = await import('../src/modules/core/Editor.js');
+const { State } = await import('../src/modules/core/Store.js');
+
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
 
-const editor = read('src/modules/core/Editor.js');
-const app = read('src/modules/core/App.js');
+/** A file object as the editor holds one. */
+const fileAt = (mtime, content = 'mine') => ({
+    path: 'C:/proj/a.js', name: 'a.js', content, encoding: 'UTF-8',
+    stats: { size: content.length, mtime },
+});
+/** readFileText hands back decoded text, not bytes. */
+const onDisk = (t) => t;
 
-/** The body of a function, from its declaration to the first column-0 close. */
-const fnBody = (src, decl) => {
-    const i = src.indexOf(decl);
-    expect(i, decl).toBeGreaterThan(-1);
-    return src.slice(i, src.indexOf('\n}', i));
-};
+const OLD = '2026-01-01T00:00:00.000Z';
+const NEW = '2026-01-01T00:00:10.000Z';   // ten seconds later
 
-/* Four ways to lose work, all of them reachable in an ordinary day: a save that
-   overwrote someone else's changes, a watcher that only ever looked at one tab,
-   a reload prompt that did not mention it was about to discard your edits, and
-   a close dialog whose only way forward was to throw the work away. */
+beforeEach(async () => {
+    // The watcher set is module state, so it outlives a test. Emptying the
+    // panes and syncing is the module's own way of letting everything go —
+    // no reaching inside, and it exercises the teardown path every time.
+    State.openFiles = [];
+    State.rightOpenFiles = [];
+    await syncWatchers();
 
-describe('saving over a file that changed underneath', () => {
+    readText.mockReset();
+    watchSpy.mockReset();
+    getFileStats.mockReset();
+    showConfirm.mockReset();
+    showConfirm.mockResolvedValue(true);
+});
+
+/* A save used to write over whatever was on disk. A `git pull`, another editor
+   or a formatter all lost their work, silently. */
+describe('confirmOverwrite', () => {
+    it('asks before replacing a file that really changed', async () => {
+        getFileStats.mockResolvedValue({ mtime: NEW });
+        readText.mockResolvedValue(onDisk('someone else'));
+
+        const file = fileAt(OLD);
+        expect(await confirmOverwrite(file)).toBe(true);
+        expect(showConfirm).toHaveBeenCalledOnce();
+        expect(showConfirm.mock.calls[0][0]).toContain('changed on disk');
+        // Saying yes accepts the new baseline, so the next save does not re-ask.
+        expect(file.stats.mtime).toBe(NEW);
+    });
+
+    it('stops the save when the user keeps the disk copy', async () => {
+        getFileStats.mockResolvedValue({ mtime: NEW });
+        readText.mockResolvedValue(onDisk('someone else'));
+        showConfirm.mockResolvedValue(false);
+
+        const file = fileAt(OLD);
+        expect(await confirmOverwrite(file)).toBe(false);
+        // ...and the baseline is NOT moved, or the next attempt would sail past.
+        expect(file.stats.mtime).toBe(OLD);
+    });
+
+    // Touching a file, or a tool that rewrites identical bytes, must not nag.
+    it('says nothing when only the timestamp moved', async () => {
+        getFileStats.mockResolvedValue({ mtime: NEW });
+        readText.mockResolvedValue(onDisk('mine'));
+
+        const file = fileAt(OLD, 'mine');
+        expect(await confirmOverwrite(file)).toBe(true);
+        expect(showConfirm).not.toHaveBeenCalled();
+        expect(file.stats.mtime).toBe(NEW);
+    });
+
+    // Filesystems round mtimes, and our own write moves it moments earlier.
+    it('allows a second of slack', async () => {
+        getFileStats.mockResolvedValue({ mtime: '2026-01-01T00:00:00.500Z' });
+        const file = fileAt(OLD);
+        expect(await confirmOverwrite(file)).toBe(true);
+        expect(showConfirm).not.toHaveBeenCalled();
+        expect(readText).not.toHaveBeenCalled();
+    });
+
+    /* A save that refuses to run because a COMPARISON failed is worse than one
+       that goes ahead: the edit exists only in memory, and the user asked to
+       keep it. Every unknown resolves to "let it through". */
+    it('lets the save through when it cannot tell', async () => {
+        const cases = {
+            'no stats recorded': async () => confirmOverwrite({ path: 'a', content: '' }),
+            'no file at all': async () => confirmOverwrite(null),
+            'stats unreadable': async () => {
+                getFileStats.mockRejectedValue(new Error('EACCES'));
+                return confirmOverwrite(fileAt(OLD));
+            },
+            'stats came back empty': async () => {
+                getFileStats.mockResolvedValue(null);
+                return confirmOverwrite(fileAt(OLD));
+            },
+            'content unreadable': async () => {
+                getFileStats.mockResolvedValue({ mtime: NEW });
+                readText.mockResolvedValue(null);   // readFileText's own answer
+                return confirmOverwrite(fileAt(OLD));
+            },
+        };
+        for (const [name, run] of Object.entries(cases)) {
+            getFileStats.mockReset();
+            readText.mockReset();
+            showConfirm.mockClear();
+            expect(await run(), name).toBe(true);
+            expect(showConfirm, name).not.toHaveBeenCalled();
+        }
+    });
+});
+
+/* One watcher followed the ACTIVE tab and unwatched whatever it was on before,
+   so every background buffer was invisible: changed on disk, still stale in its
+   tab, and written straight back over the change on save. */
+describe('syncWatchers', () => {
+    const openFile = (path) => ({ path, name: path.split('/').pop(), content: '', stats: { mtime: OLD } });
+
+    it('watches every open file, in both panes', async () => {
+        const unwatch = vi.fn();
+        watchSpy.mockResolvedValue(unwatch);
+        State.openFiles = [openFile('C:/proj/a.js'), openFile('C:/proj/b.js')];
+        State.rightOpenFiles = [openFile('C:/proj/c.js')];
+
+        await syncWatchers();
+
+        expect(watchSpy.mock.calls.map((c) => c[0]).sort())
+            .toEqual(['C:/proj/a.js', 'C:/proj/b.js', 'C:/proj/c.js']);
+    });
+
+    it('drops the watcher when the tab closes', async () => {
+        const unwatchA = vi.fn();
+        const unwatchB = vi.fn();
+        watchSpy.mockResolvedValueOnce(unwatchA).mockResolvedValueOnce(unwatchB);
+        State.openFiles = [openFile('C:/proj/a.js'), openFile('C:/proj/b.js')];
+        await syncWatchers();
+
+        State.openFiles = [State.openFiles[1]];   // a.js closed
+        await syncWatchers();
+
+        expect(unwatchA).toHaveBeenCalledOnce();
+        expect(unwatchB).not.toHaveBeenCalled();
+    });
+
+    it('does not start a second watcher on a file it already has', async () => {
+        watchSpy.mockResolvedValue(vi.fn());
+        State.openFiles = [openFile('C:/proj/a.js')];
+        await syncWatchers();
+        await syncWatchers();
+        await syncWatchers();
+        expect(watchSpy).toHaveBeenCalledOnce();
+    });
+
+    // Two calls in the same tick both saw "not watched" and each started one.
+    it('survives being called twice before the first finishes', async () => {
+        let release;
+        watchSpy.mockReturnValue(new Promise((r) => { release = () => r(vi.fn()); }));
+        State.openFiles = [openFile('C:/proj/a.js')];
+
+        const both = Promise.all([syncWatchers(), syncWatchers()]);
+        release();
+        await both;
+        expect(watchSpy).toHaveBeenCalledOnce();
+    });
+
+    it('ignores buffers with nothing on disk behind them', async () => {
+        watchSpy.mockResolvedValue(vi.fn());
+        State.openFiles = [
+            { path: null, name: 'Untitled' },              // never saved
+            { path: 'relative.txt', name: 'relative.txt' }, // not anchored yet
+            { path: 'C:/proj/diff', type: 'diff' },         // a virtual tab
+        ];
+        await syncWatchers();
+        expect(watchSpy).not.toHaveBeenCalled();
+    });
+});
+
+/* ── Structural: things vitest cannot run ───────────────────────────────────
+   CSS, Rust, HTML and the wiring between them. Read, because there is no way
+   to execute them here — not because running them would be inconvenient. */
+describe('structural', () => {
+    const editor = read('src/modules/core/Editor.js');
+    const app = read('src/modules/core/App.js');
+
     it('checks the disk before writing, not after', () => {
-        const save = fnBody(editor, 'export async function saveCurrentFile()');
+        const i = editor.indexOf('export async function saveCurrentFile()');
+        const save = editor.slice(i, editor.indexOf('\n}', i));
         const guard = save.indexOf('confirmOverwrite(file)');
         const write = save.indexOf('FS.writeFile(file.path');
         expect(guard, 'no overwrite check at all').toBeGreaterThan(-1);
         expect(guard).toBeLessThan(write);
     });
 
-    it('compares content, not just the timestamp', () => {
-        const fn = fnBody(editor, 'export async function confirmOverwrite(file)');
-        // Touching a file, or a tool that rewrites identical bytes, must not
-        // produce a prompt.
-        expect(fn).toContain('if (disk === file.content)');
-        // The same one-second slack the watcher uses; filesystems round mtimes.
-        expect(fn).toContain('now > seen + 1000');
-    });
-
-    // A save that refuses to run because a comparison failed is worse than one
-    // that goes ahead: the edit is in memory only, and the user asked to keep it.
-    it('lets the save through when it cannot tell', () => {
-        const fn = fnBody(editor, 'export async function confirmOverwrite(file)');
-        expect(fn).toContain('if (!file || !file.path || !file.stats || !file.stats.mtime) return true;');
-        expect(fn).toContain('catch (_) { return true; }');
-    });
-});
-
-describe('watching what is open', () => {
-    // One watcher followed the ACTIVE tab and unwatched whatever it was on
-    // before, so every background buffer was invisible: changed on disk, still
-    // stale in its tab, and written straight back over the change on save.
-    it('keeps one watcher per open path instead of one in total', () => {
-        expect(editor).toContain('const watchers = new Map();');
-        expect(editor).not.toContain('let activeUnwatch = null;');
-
-        const fn = fnBody(editor, 'export async function syncWatchers()');
-        expect(fn).toContain('State.openFiles');
-        expect(fn).toContain('State.rightOpenFiles');
-        expect(fn).toContain('watchers.delete(path)');
-    });
-
-    // Two calls in the same tick both saw "not watched" and started a second
-    // watcher on the same file.
-    it('reserves the slot before awaiting', () => {
-        const fn = fnBody(editor, 'export async function syncWatchers()');
-        const reserve = fn.indexOf('watchers.set(f.path, () => {});');
-        const create = fn.indexOf('await watchFile(f)');
-        expect(reserve).toBeGreaterThan(-1);
-        expect(reserve).toBeLessThan(create);
-    });
-
-    it('still answers the old call shape', () => {
-        expect(editor).toContain('export async function setupWatcher(_file)');
-    });
-});
-
-describe('the reload prompt', () => {
-    // "Reload?" was all it said. The one thing the reader needed to know was
-    // the one thing it did not mention.
-    it('says what a dirty buffer is about to lose', () => {
-        const fn = fnBody(editor, 'async function watchFile(file)');
-        expect(fn).toContain('file.isDirty');
-        expect(fn).toContain('Reloading replaces your edits');
-        expect(fn).toContain('Keep my edits');
-    });
-
-    it('still asks the plain question when there is nothing to lose', () => {
-        const fn = fnBody(editor, 'async function watchFile(file)');
-        expect(fn).toContain('has changed on disk. Reload it?');
-    });
-});
-
-describe('closing with unsaved work', () => {
     it('offers to save the tab, not only to discard it', () => {
         const i = editor.indexOf('if (file.isDirty && !isVirtualTab)');
         const block = editor.slice(i, editor.indexOf('openFiles.splice(index, 1);', i));
@@ -107,31 +244,36 @@ describe('closing with unsaved work', () => {
         expect(block).toContain('if (file.isDirty) return;');
     });
 
-    it('offers to save everything on quit', () => {
+    it('offers to save everything on quit, and names the files', () => {
         const i = app.indexOf('appWindow.onCloseRequested');
         const block = app.slice(i, app.indexOf('\n        });', i));
         expect(block).toContain("{ label: 'Save all and quit', value: 'save', primary: true }");
         expect(block).toContain('saveAllDirty(dirty)');
+        expect(block).toContain('State.rightOpenFiles');
+        expect(block).toContain('names.slice(0, 6)');
         // Quitting after a failed save loses exactly the work the user just
         // asked to keep.
         expect(block).toContain('if (failed.length)');
         expect(block).toContain('Nothing was closed.');
     });
 
-    it('counts the split pane too, and names the files', () => {
-        const i = app.indexOf('appWindow.onCloseRequested');
-        const block = app.slice(i, app.indexOf('\n        });', i));
-        expect(block).toContain('State.rightOpenFiles');
-        expect(block).toContain('names.slice(0, 6)');
-        expect(block).not.toContain('You have unsaved changes.');
-    });
-
     // Saving them in place would write the front file's text once per buffer.
     it('fronts each file before saving it', () => {
-        const fn = fnBody(app, 'async function saveAllDirty(dirty)');
+        const i = app.indexOf('async function saveAllDirty(dirty)');
+        const fn = app.slice(i, app.indexOf('\n}', i));
         expect(fn).toContain('setPaneActiveIndex(pane, index)');
         expect(fn).toContain('await saveCurrentFile()');
         expect(fn).toContain('failed.push');
+    });
+
+    it('warns a dirty buffer what a reload costs it', () => {
+        const i = editor.indexOf('async function watchFile(file)');
+        const fn = editor.slice(i, editor.indexOf('\n}', i));
+        expect(fn).toContain('file.isDirty');
+        expect(fn).toContain('Reloading replaces your edits');
+        expect(fn).toContain('Keep my edits');
+        // ...and still asks the plain question when there is nothing to lose.
+        expect(fn).toContain('has changed on disk. Reload it?');
     });
 });
 
@@ -171,9 +313,34 @@ describe('one language in the interface', () => {
 
     // The point is that the AI still answers in Japanese; the prompts are why.
     it('leaves the model prompts alone', () => {
-        const sel = read('src/modules/ui/SelectionActions.js');
-        expect(sel).toMatch(/instruction: '[^']*[぀-ヿ一-鿿]/);
+        expect(read('src/modules/ui/SelectionActions.js'))
+            .toMatch(/instruction: '[^']*[぀-ヿ一-鿿]/);
         expect(read('src/modules/ai/JhAiMcp.js'))
             .toMatch(/instruction: '[^']*[぀-ヿ一-鿿]/);
+    });
+});
+
+/* Windows keeps CRLF on disk; the buffer always holds LF. Comparing the two
+   raw would differ on every line and claim every Windows file had been
+   rewritten the moment its timestamp moved. */
+describe('CRLF is not a change', () => {
+    it('compares both sides in LF', async () => {
+        getFileStats.mockResolvedValue({ mtime: NEW });
+        readText.mockResolvedValue('a\r\nb\r\nc');
+
+        const file = fileAt(OLD, 'a\nb\nc');
+        file.eol = '\r\n';
+        expect(await confirmOverwrite(file)).toBe(true);
+        expect(showConfirm).not.toHaveBeenCalled();
+    });
+
+    it('still notices a real edit in a CRLF file', async () => {
+        getFileStats.mockResolvedValue({ mtime: NEW });
+        readText.mockResolvedValue('a\r\nCHANGED\r\nc');
+
+        const file = fileAt(OLD, 'a\nb\nc');
+        file.eol = '\r\n';
+        await confirmOverwrite(file);
+        expect(showConfirm).toHaveBeenCalledOnce();
     });
 });

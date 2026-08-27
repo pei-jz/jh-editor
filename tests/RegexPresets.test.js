@@ -183,32 +183,12 @@ describe('the panel itself', () => {
         expect(fn).toContain('writeCollapsed(');
     });
 
-    it('walks the whole panel with the arrow keys', () => {
-        for (const key of ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Home', 'End']) {
-            expect(src, key).toContain(`case '${key}':`);
-        }
-        // Right opens a folded section and steps into an open one; Left closes
-        // it, and from a row goes back up to its heading.
-        expect(src).toContain("if (active.dataset.open === 'true') step(1);");
-        expect(src).toContain('setOpen(active.dataset.category, false);');
-    });
-
-    it('keeps focus on the heading it just toggled', () => {
-        expect(src).toContain('render(active.dataset.category)');
-        expect(src).toContain('if (focusCategory) {');
-    });
-
-    // Where the keyboard is, is the only thing saying what Enter will do.
+    // The keyboard is driven for real in RegexPicker.dom.test.js — reading the
+    // source for `case 'ArrowDown':` passed while Down did nothing at all.
+    // What is left here is the part vitest cannot execute: the stylesheet.
     it('shows where the keyboard is', () => {
         expect(css).toContain('.regex-group-head:focus-visible');
         expect(css).toContain('.regex-item:focus-visible');
-        expect(src).toContain('row.tabIndex = -1;');
-        expect(src).toContain('header.tabIndex = -1;');
-    });
-
-    it('sends a printable key to the filter box wherever focus is', () => {
-        expect(src).toContain('if (active !== filter && e.key.length === 1');
-        expect(src).toContain('filter.focus();');
     });
 });
 

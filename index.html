@@ -378,6 +378,17 @@
                 <input type="number" id="font-size-input" min="6" max="32" value="11.5" step="0.5" style="width: 100%; padding: 5px;">
               </div>
             </div>
+            <div class="settings-option">
+              <label for="large-file-threshold">Open read-only above (MB)</label>
+              <div style="width: 400px;">
+                <input type="number" id="large-file-threshold" min="1" max="4096" step="1" style="width: 100%; padding: 5px;">
+              </div>
+            </div>
+            <div class="settings-description" style="margin: -6px 0 4px;">
+              Files larger than this open in the read-only viewer, which streams them from
+              disk instead of loading the whole thing into memory. Lower it if big files feel
+              sluggish; raise it if you need to edit them. Applies to files opened from now on.
+            </div>
           </div>
 
           <div id="settings-agent" class="settings-pane" style="display:none;">

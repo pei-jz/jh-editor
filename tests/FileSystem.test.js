@@ -64,20 +64,41 @@ describe('FileSystem Utilities', () => {
         });
     });
 
+    /* This used to go through @tauri-apps/plugin-fs's `stat`, which obeys the
+       plugin's fs:scope. With that scope set to $HOME/**, every workspace
+       elsewhere was refused — and the refusal came back as null, so the status
+       bar showed no modification date at all, for every file, forever. The
+       backend command takes the path it is given, like every other read in
+       this app. */
     describe('getFileStats', () => {
-        it('should return stat if resolved successfully', async () => {
-            const mockStatObj = { size: 100 };
-            vi.mocked(stat).mockResolvedValue(mockStatObj);
+        it('asks the backend, not the scoped plugin', async () => {
+            const stats = { size: 100, mtime: 1772668800000 };
+            vi.mocked(invoke).mockResolvedValue(stats);
 
             const res = await FS.getFileStats('/test/path');
-            expect(res).toBe(mockStatObj);
-            expect(stat).toHaveBeenCalledWith('/test/path');
+            expect(res).toBe(stats);
+            expect(invoke).toHaveBeenCalledWith('file_stats', { path: '/test/path' });
+            expect(stat).not.toHaveBeenCalled();
         });
 
-        it('should return null if stat throws an error', async () => {
-            vi.mocked(stat).mockRejectedValue(new Error('File not found'));
-            const res = await FS.getFileStats('/test/path');
-            expect(res).toBeNull();
+        // A deleted or unreadable file is a normal answer, not a fault.
+        it('returns null when the file cannot be stat-ed', async () => {
+            vi.mocked(invoke).mockRejectedValue(new Error('File not found'));
+            expect(await FS.getFileStats('/test/path')).toBeNull();
+        });
+    });
+
+    describe('readFileText', () => {
+        it('decodes the bytes the backend hands back', async () => {
+            const bytes = [...new TextEncoder().encode('hello')];
+            vi.mocked(invoke).mockResolvedValue(bytes);
+            expect(await FS.readFileText('/test/path')).toBe('hello');
+            expect(invoke).toHaveBeenCalledWith('read_file', { path: '/test/path' });
+        });
+
+        it('returns null rather than throwing at the caller', async () => {
+            vi.mocked(invoke).mockRejectedValue(new Error('EACCES'));
+            expect(await FS.readFileText('/test/path')).toBeNull();
         });
     });
 

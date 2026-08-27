@@ -10,6 +10,10 @@ import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './Rege
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
+import {
+    getLargeFileThresholdMB, setLargeFileThresholdMB,
+    MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
+} from '../utils/LargeFileSetting.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -183,6 +187,19 @@ export function initSettingsModal() {
         fontSizeInput.addEventListener('change', (e) => {
             const newSize = e.target.value;
             Layout.saveFontSize(newSize);
+        });
+    }
+
+    // Large-file threshold
+    const largeFileInput = EL.largeFileThresholdInput;
+    if (largeFileInput) {
+        largeFileInput.min = String(MIN_THRESHOLD_MB);
+        largeFileInput.max = String(MAX_THRESHOLD_MB);
+        largeFileInput.value = String(getLargeFileThresholdMB());
+        largeFileInput.addEventListener('change', () => {
+            // Write back what was actually stored, so a value out of range
+            // corrects itself in the box instead of lying about what is set.
+            largeFileInput.value = String(setLargeFileThresholdMB(largeFileInput.value));
         });
     }
 

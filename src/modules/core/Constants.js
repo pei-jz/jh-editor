@@ -79,6 +79,7 @@ export const EL = {
     // Settings
     settingsBtn: document.getElementById('settings-btn'),
     statusCommandsBtn: document.getElementById('status-commands'),
+    largeFileThresholdInput: document.getElementById('large-file-threshold'),
 
     settingsModal: {
         overlay: document.getElementById('settings-modal'),

@@ -599,7 +599,12 @@ th {
 #status-bar {
     height: 22px;
     background-color: var(--header-bg);
-    color: var(--text-secondary);
+    /* NOT --text-secondary. Measured against --header-bg it lands between
+       2.18:1 and 4.37:1 in nine of the eleven themes — the encoding, the line
+       and column, the file size were all under the readable floor. This is the
+       same dimmed-but-legible ink the titlebar path uses, and it clears 4.99:1
+       everywhere because it is derived from the text colour, not a fixed grey. */
+    color: var(--titlebar-text-dim, var(--text-color));
     display: flex;
     justify-content: space-between;
     align-items: center;
