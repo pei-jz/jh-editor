@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { Snippets, DEFAULT_CATEGORY, normalizeCategory } from '../src/modules/ui/Snippets.js';
+import {
+    Snippets, DEFAULT_CATEGORY, normalizeCategory, snippetsFor,
+} from '../src/modules/ui/Snippets.js';
 import { _replacedMessage } from '../src/modules/ui/Search.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -380,5 +382,47 @@ describe('the Ink Brush mount bands', () => {
         expect(contrast('#4f4a3e', ceiling)).toBeGreaterThanOrEqual(4.5);  // status
         // The colour it replaced would not have survived.
         expect(contrast('#706b5d', ceiling)).toBeLessThan(4.5);
+    });
+});
+
+/* The popup opened on SPACE — the most frequently typed key there is. The
+   source matched the text before the caret with `\S*`, which matches the empty
+   string, and every prefix "starts with" nothing. */
+describe('when a snippet popup may open', () => {
+    const list = [
+        { prefix: 'lg', name: 'Log statement', body: 'x' },
+        { prefix: '#note', name: 'Note block', body: 'x' },
+        { prefix: 'tbl', name: 'Markdown table', body: 'x' },
+    ];
+
+    it('offers nothing for nothing typed', () => {
+        expect(snippetsFor(list, '')).toEqual([]);
+        expect(snippetsFor(list, null)).toEqual([]);
+        expect(snippetsFor(list, undefined)).toEqual([]);
+    });
+
+    it('opens on a registered keyword, punctuation included', () => {
+        expect(snippetsFor(list, '#').map((s) => s.prefix)).toEqual(['#note']);
+        expect(snippetsFor(list, 'lg').map((s) => s.prefix)).toEqual(['lg']);
+        expect(snippetsFor(list, 'L').map((s) => s.prefix)).toEqual(['lg']);
+    });
+
+    // One character of a NAME matches almost everything, so a name fragment has
+    // to be worth something before it counts.
+    it('needs two characters before matching on the name', () => {
+        expect(snippetsFor(list, 'm')).toEqual([]);
+        expect(snippetsFor(list, 'ma').map((s) => s.prefix)).toEqual(['tbl']);
+    });
+
+    it('says nothing about text that matches no snippet', () => {
+        expect(snippetsFor(list, ');')).toEqual([]);
+        expect(snippetsFor(list, 'zzz')).toEqual([]);
+    });
+
+    // A regex that can match the empty string is the whole bug; pin the source.
+    it('asks the editor for a non-empty run before the caret', () => {
+        const src = read('src/modules/ui/Snippets.js');
+        expect(src).toContain('context.matchBefore(/\\S+/)');
+        expect(src).not.toContain('context.matchBefore(/\\S*/)');
     });
 });

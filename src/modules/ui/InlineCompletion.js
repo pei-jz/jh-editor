@@ -1,56 +1,72 @@
 /**
- * InlineCompletion.js — AI ghost-text completion (Phase 2).
+ * InlineCompletion.js — ghost text after the caret. Tab accepts, Esc dismisses.
  *
- * Copilot-style inline completion for CodeMirror 6: after the user pauses
- * typing, the text around the cursor is sent to J.H AI Agent via the lightweight
- * single-shot path, and the returned continuation is drawn as dim "ghost text"
- * after the caret. Tab accepts, Esc or any edit dismisses.
+ * ── There used to be a model behind this, and it has been removed ──────────
  *
- * ── This feature TYPES YOUR FILE INTO A MODEL ─────────────────────────────
- * It is the one thing in the editor that talks to a model with no user action
- * at all — a pause in typing is the trigger. So:
+ * The suggestions came from a single-shot agent task: a POST, a WebSocket
+ * subscribe and a provider round trip. Seconds, where an inline completion has
+ * a fraction of a second to be worth reading — by the time an answer arrived
+ * the caret had usually moved, so it was discarded. The request had already
+ * been made, and could not be recalled: aborting stops the editor waiting, but
+ * the task exists on the agent either way. A pause every couple of seconds is
+ * how seven of them appeared in half a minute, none of them used.
  *
- *   • it is OFF by default and must be switched on (Settings → Agent),
- *   • it obeys the AI context scope, because the ~5 KB it sends around the
- *     caret is file content by any definition, and
- *   • it never runs in a personal note.
+ * Rate limits made that less bad without making it good, and a toggle for a
+ * feature that cannot meet its own bar mostly advertises something that does
+ * not work. AI on demand is what Inline AI is for, where the user asks and is
+ * willing to wait. So this is local only:
  *
- * It never writes to disk and never silently edits the buffer — acceptance is
- * always an explicit Tab.
+ *   • LINE  — the line you are typing shares a prefix with a line already in
+ *     the file, so the rest of that line is the obvious continuation.
+ *   • WORD  — the token under the caret starts a word used elsewhere in it.
  *
- * Wired in CodeMirrorView via createInlineCompletionExtension().
+ * Both answer in well under a frame, cost nothing, and send nothing anywhere.
+ * See LocalCompletion.js for the engines themselves.
  */
 
-import { StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
-import AIAgent from '../ai/AIAgent.js';
-import { allows, isPrivatePath } from '../ai/ContextScope.js';
+import { Prec, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view';
+import { localSuggestion } from './LocalCompletion.js';
 
-const SETTING_KEY = 'settings_aiInlineCompletion';
+const LOCAL_KEY = 'settings_inlineSuggestLocal';
 
 /**
- * Is ghost-text completion switched on?
+ * Inline suggestions: on unless switched off.
  *
- * Absent means OFF. A feature that sends the file you are editing to a model
- * every time you pause is not something to enable on someone's behalf.
+ * Nothing leaves the machine and nothing is billed, so the default is the
+ * useful one.
  */
-export function isInlineCompletionEnabled() {
-    try { return localStorage.getItem(SETTING_KEY) === '1'; } catch (_) { return false; }
+export function isLocalSuggestEnabled() {
+    try { return localStorage.getItem(LOCAL_KEY) !== '0'; } catch (_) { return true; }
 }
 
-export function setInlineCompletionEnabled(on) {
-    try { localStorage.setItem(SETTING_KEY, on ? '1' : '0'); } catch (_) { /* ignore */ }
+export function setLocalSuggestEnabled(on) {
+    try { localStorage.setItem(LOCAL_KEY, on ? '1' : '0'); } catch (_) { /* ignore */ }
 }
 
 class GhostWidget extends WidgetType {
-    constructor(text) { super(); this.text = text; }
-    eq(other) { return other.text === this.text; }
+    constructor(text, source) {
+        super();
+        this.text = text;
+        this.source = source;   // 'line' | 'word'
+    }
+
+    eq(other) { return other.text === this.text && other.source === this.source; }
+
     toDOM() {
         const span = document.createElement('span');
         span.className = 'cm-ghost-text';
+        span.dataset.source = this.source;
         span.textContent = this.text;
+        // Nothing said Tab accepts it. One dim glyph is cheaper than a tooltip
+        // and disappears with the suggestion.
+        const hint = document.createElement('span');
+        hint.className = 'cm-ghost-hint';
+        hint.textContent = '⇥';
+        span.appendChild(hint);
         return span;
     }
+
     ignoreEvent() { return false; }
 }
 
@@ -64,8 +80,7 @@ const clearGhost = StateEffect.define();
  * plugin dispatching a second transaction when it sees a change. CodeMirror
  * forbids dispatching while an update is in progress: doing it anyway threw,
  * and a plugin that throws is torn out of the view — which is how the ghost
- * ended up stuck on screen with Esc and Tab no longer answering. A state field
- * cannot get into that state, because it never dispatches.
+ * ended up stuck on screen with Esc and Tab no longer answering.
  */
 const ghostField = StateField.define({
     create() { return Decoration.none; },
@@ -96,115 +111,94 @@ function ghostTextOf(state) {
     return text;
 }
 
-const INLINE_TRIGGER_DELAY_MS = 700;
-const MAX_SUGGESTION_LINES = 6;
+/** Short enough to feel like part of typing, long enough not to run per key. */
+const LOCAL_DELAY_MS = 120;
 
 /**
  * @param {object} opts
- * @param {function(): {path:string|null, name:string|null}} opts.getFile
- * @param {function(): boolean} [opts.isEnabled] Override the stored setting
- *        (used by tests; production reads the setting).
+ * @param {function(): boolean} [opts.isEnabled] override for tests
  */
-export function createInlineCompletionExtension({ getFile, isEnabled } = {}) {
+export function createInlineCompletionExtension({ isEnabled } = {}) {
     let timer = null;
-    let controller = null;
-    let activeView = null;
 
     const cancel = () => {
         if (timer) { clearTimeout(timer); timer = null; }
-        if (controller) { try { controller.abort(); } catch (_) { /* ignore */ } controller = null; }
     };
 
-    /**
-     * May we ask a model to continue this file, right now?
-     *
-     * Three separate answers, all of which must be yes: the user switched the
-     * feature on, the context scope permits the file to be read, and the file is
-     * not one of the user's personal notes.
-     */
-    const permitted = () => {
-        if (isEnabled ? !isEnabled() : !isInlineCompletionEnabled()) return false;
-        if (!allows('activeBuffer')) return false;
-        const info = getFile ? getFile() : {};
-        return !isPrivatePath(info && (info.path || info.name));
-    };
+    const enabled = () => (isEnabled ? isEnabled() : isLocalSuggestEnabled());
 
-    const dismiss = (view) => {
-        if (!view) return;
-        // `Decoration.none` is a truthy object, so the old presence check was
-        // always true and dispatched a pointless transaction every keystroke.
-        if (ghostTextOf(view.state)) {
-            view.dispatch({ effects: clearGhost.of(null) });
-        }
-    };
+    const run = (view) => {
+        if (!enabled()) return;
+        const { state } = view;
+        if (state.selection.main.from !== state.selection.main.to) return;
 
-    const request = async (view) => {
-        if (!permitted()) return;
-        if (view.state.selection.main.from !== view.state.selection.main.to) return;
+        const pos = state.selection.main.head;
+        const line = state.doc.lineAt(pos);
+        const hit = localSuggestion({
+            text: state.doc.toString(),
+            lineText: line.text,
+            lineIndex: line.number - 1,
+            column: pos - line.from,
+            offset: pos,
+        });
+        if (!hit) return;
 
-        const pos = view.state.selection.main.head;
-        const doc = view.state.doc;
-        // A bounded window: prefix (up to 4 KB) and suffix (up to 1 KB).
-        const prefix = doc.sliceString(Math.max(0, pos - 4096), pos);
-        const suffix = doc.sliceString(pos, Math.min(doc.length, pos + 1024));
-        if (prefix.trim().length < 2) return;
-
-        controller = new AbortController();
-        const my = controller;
-        const info = getFile ? getFile() : {};
-        const lang = (info.path || info.name || '').split('.').pop() || 'text';
-        const prompt =
-            `You are an inline code completion assistant. Continue the code/text directly after the cursor `
-            + `in a ${lang} file. Return ONLY the continuation text (no explanation, no code fences). `
-            + `Do not repeat the existing prefix/suffix. Keep it short (${MAX_SUGGESTION_LINES} lines or fewer).\n\n`
-            + `--- text before cursor ---\n${prefix}\n--- text after cursor ---\n${suffix}\n`;
-
-        try {
-            const result = await AIAgent.runSingleShot({
-                prompt,
-                systemPrompt: 'You output ONLY the continuation of the given text.',
-                context: { app: 'jheditor', file: info.path || null, language: lang },
-                abortSignal: my.signal,
-            });
-            if (controller !== my || view !== activeView) return;
-            // The answer may arrive seconds later. Painting it against a caret
-            // that has since moved is where a suggestion for the wrong place
-            // came from, so a late reply is simply dropped.
-            if (view.state.selection.main.head !== pos || view.state.doc !== doc) return;
-
-            let suggestion = String(result || '').replace(/\r\n/g, '\n');
-            const fenced = suggestion.match(/```[a-zA-Z0-9_-]*\n?([\s\S]*?)```/);
-            if (fenced) suggestion = fenced[1];
-            suggestion = suggestion.replace(/^\n+/, '');
-            if (!suggestion.trim()) return;
-            const lines = suggestion.split('\n');
-            if (lines.length > MAX_SUGGESTION_LINES) {
-                suggestion = lines.slice(0, MAX_SUGGESTION_LINES).join('\n');
-            }
-            // Nothing to offer if it just repeats what already follows.
-            if (suffix.startsWith(suggestion)) return;
-
-            const deco = Decoration.set([
-                Decoration.widget({ widget: new GhostWidget(suggestion), side: 1 }).range(pos),
-            ]);
-            view.dispatch({ effects: setGhost.of(deco) });
-        } catch (e) {
-            if (e && (e.name === 'AbortError' || /abort/i.test(e.message || ''))) return;
-            // Reachability errors etc. → stay silent; ghost text is best-effort.
-        } finally {
-            if (controller === my) controller = null;
-        }
+        view.dispatch({
+            effects: setGhost.of(Decoration.set([
+                Decoration.widget({ widget: new GhostWidget(hit.text, hit.source), side: 1 })
+                    .range(pos),
+            ])),
+        });
     };
 
     const schedule = (view) => {
         cancel();
-        if (!permitted()) return;
-        activeView = view;
-        timer = setTimeout(() => request(view), INLINE_TRIGGER_DELAY_MS);
+        if (!enabled()) return;
+        timer = setTimeout(() => run(view), LOCAL_DELAY_MS);
+    };
+
+    /**
+     * Take the suggestion. Returns false when there is none, so Tab falls
+     * through to whatever it normally does.
+     */
+    const accept = (view) => {
+        const text = ghostTextOf(view.state);
+        if (!text) return false;
+        const pos = view.state.selection.main.head;
+        view.dispatch({
+            changes: { from: pos, to: pos, insert: text },
+            selection: { anchor: pos + text.length },
+            effects: clearGhost.of(null),
+        });
+        return true;
+    };
+
+    const dismiss = (view) => {
+        if (!ghostTextOf(view.state)) return false;
+        cancel();   // and do not immediately suggest again
+        view.dispatch({ effects: clearGhost.of(null) });
+        return true;
     };
 
     return [
         ghostField,
+
+        // A KEYMAP, at the highest precedence — not a plugin event handler.
+        //
+        // The editor binds `{ key: 'Tab', run: insertTab }` in a keymap added
+        // earlier in the extension array, which therefore outranks a plugin's
+        // handler: CodeMirror stopped dispatching as soon as insertTab returned
+        // true, so this never ran. Tab inserted a tab, the edit retired the
+        // ghost, and accepting a suggestion was impossible.
+        //
+        // Returning false when there is no suggestion is what keeps Tab and Esc
+        // behaving normally the rest of the time: a keymap binding that returns
+        // false falls through to the next one.
+        Prec.highest(keymap.of([
+            { key: 'Tab', run: accept },
+            { key: 'Escape', run: dismiss },
+        ])),
+
         ViewPlugin.fromClass(
             class {
                 constructor(view) { this.view = view; }
@@ -217,35 +211,13 @@ export function createInlineCompletionExtension({ getFile, isEnabled } = {}) {
                     else if (u.selectionSet) cancel();
                 }
 
-                destroy() { cancel(); activeView = null; }
+                destroy() { cancel(); }
             },
-            { eventHandlers: {
-                keydown: (event, view) => {
-                    const accepted = ghostTextOf(view.state);
-                    if (!accepted) return false;
-
-                    if (event.key === 'Tab' && !event.shiftKey) {
-                        event.preventDefault();
-                        const pos = view.state.selection.main.head;
-                        view.dispatch({
-                            changes: { from: pos, to: pos, insert: accepted },
-                            selection: { anchor: pos + accepted.length },
-                            effects: clearGhost.of(null),
-                        });
-                        return true;
-                    }
-                    if (event.key === 'Escape') {
-                        event.preventDefault();
-                        cancel();   // and do not immediately ask again
-                        view.dispatch({ effects: clearGhost.of(null) });
-                        return true;
-                    }
-                    return false;
-                },
-            } }
         ),
     ];
 }
 
-/** Exported for tests: the field and the reader over it. */
-export const _internals = { ghostField, ghostTextOf, setGhost, clearGhost, GhostWidget };
+/** Exported for tests. */
+export const _internals = {
+    ghostField, ghostTextOf, setGhost, clearGhost, GhostWidget, LOCAL_DELAY_MS,
+};

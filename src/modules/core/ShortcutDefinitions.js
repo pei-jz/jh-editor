@@ -9,6 +9,11 @@
 export const SHORTCUTS = {
     GLOBAL: [
         { key: 's', ctrl: true, cmd: 'app:save', description: 'Save' },
+        // F12 is Go to Definition in the editor, and a matched shortcut calls
+        // preventDefault() — which also kills WebView2's own DevTools hotkey.
+        // This is the way back in, and it works in every scope.
+        { key: 'i', ctrl: true, shift: true, cmd: 'app:devtools', description: 'Open DevTools' },
+        { key: 's', ctrl: true, shift: true, cmd: 'app:save-as', description: 'Save As' },
         { key: 'f', ctrl: true, cmd: 'app:search', description: 'Search' },
         { key: 'f', shift: true, alt: true, cmd: 'app:format', description: 'Format' },
         { key: 'o', ctrl: true, cmd: 'app:outline-modal', description: 'Outline Navigation' },

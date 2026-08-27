@@ -88,7 +88,8 @@ export const EL = {
             agent: document.getElementById('settings-agent'),
             keybindings: document.getElementById('settings-keybindings'),
             templates: document.getElementById('settings-templates'),
-            snippets: document.getElementById('settings-snippets')
+            snippets: document.getElementById('settings-snippets'),
+            regex: document.getElementById('settings-regex')
         },
         agent: {
             container: document.getElementById('agent-settings-container')
