@@ -465,9 +465,9 @@ class GitPanel {
             prompt.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;';
             prompt.innerHTML = `
                 <div style="font-size:36px;opacity:0.4;">📁</div>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">Gitリポジトリが見つかりませんでした</div>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">No Git repository here</div>
                 <button id="git-init-btn" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--primary-color, #3b82f6);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:opacity 0.15s;">
-                    <span style="font-size:14px;">＋</span> 新規リポジトリを作成
+                    <span style="font-size:14px;">＋</span> Create a repository
                 </button>
             `;
             this.element.querySelector('.git-v2-header').after(prompt);
@@ -1671,7 +1671,7 @@ class GitPanel {
         }
 
         if (!diff || !diff.trim()) {
-            showAlert('差分が見つかりません。先に変更をステージしてください。', { title: 'Commit Message', kind: 'info' });
+            showAlert('Nothing staged yet — stage the changes you want described.', { title: 'Commit Message', kind: 'info' });
             return;
         }
 
@@ -1699,9 +1699,9 @@ ${diff.slice(0, 12000)}`,
             input.placeholder = 'Commit message (Required)';
             const msg = (e && e.message) || String(e);
             if (/not reachable|failed to fetch|connection refused/i.test(msg)) {
-                showAlert('J.H AI Agent に接続できません。Agent を起動してください。', { title: 'Commit Message', kind: 'error' });
+                showAlert('Cannot reach J.H AI Agent. Start the agent and try again.', { title: 'Commit Message', kind: 'error' });
             } else {
-                showAlert(`コミットメッセージ生成に失敗しました: ${msg}`, { title: 'Commit Message', kind: 'error' });
+                showAlert(`Could not generate a commit message: ${msg}`, { title: 'Commit Message', kind: 'error' });
             }
         }
     }

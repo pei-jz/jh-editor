@@ -57,9 +57,9 @@ class JhAiActivityPanel {
         ].join(';');
         root.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:#2a2a2a;border-bottom:1px solid #444;">
-                <strong style="font-size:12px;">🤖 AI アクティビティ</strong>
+                <strong style="font-size:12px;">🤖 AI Activity</strong>
                 <span>
-                    <button class="jhai-act-clear" title="Clear finished" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;">クリア</button>
+                    <button class="jhai-act-clear" title="Clear finished" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;">Clear</button>
                     <button class="jhai-act-hide" title="Hide" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:15px;line-height:1;">×</button>
                 </span>
             </div>
@@ -103,7 +103,7 @@ class JhAiActivityPanel {
             <button class="jhai-act-remove" title="Remove this task" style="display:none;position:absolute;top:4px;right:6px;background:none;border:none;color:#888;cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;z-index:1;">&times;</button>
             <div class="jhai-act-status" style="color:#9bd;display:flex;align-items:center;gap:6px;">
                 <span class="jhai-act-spin" style="display:inline-block;width:10px;height:10px;border:2px solid #555;border-top-color:#0a6cff;border-radius:50%;animation:jhai-spin 0.8s linear infinite;"></span>
-                <span class="jhai-act-status-text">開始中…</span>
+                <span class="jhai-act-status-text">Starting…</span>
             </div>
             <div class="jhai-act-body" style="display:none;"></div>
             <div class="jhai-act-actions" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;"></div>

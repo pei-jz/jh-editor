@@ -520,3 +520,62 @@
 }
 
 .regex-restore .push { margin-left: auto; }
+
+/* ── The way in to everything else ──────────────────────────────────────────
+   Ctrl+? already opens a filterable list of every command, but a shortcut
+   cannot advertise itself. This sits in the status bar, always visible, and
+   names the key — so it only has to be clicked once to stop being needed.
+
+   The status bar's own right group is otherwise empty space, so it costs the
+   editor no room at all. */
+.status-commands {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 18px;
+    padding: 0 7px;
+    font: inherit;
+    font-size: 11.5px;
+    line-height: 1;
+    color: inherit;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    /* The status bar is a flex row with a gap; nothing here should stretch. */
+    flex: none;
+    align-self: center;
+    white-space: nowrap;
+}
+
+.status-commands:hover,
+.status-commands:focus-visible {
+    background: var(--hover-color);
+    border-color: var(--border-color);
+}
+
+.status-commands:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+.status-commands-icon {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.status-commands kbd {
+    padding: 1px 4px;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 9.5px;
+    line-height: 1.4;
+    opacity: 0.75;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+}
+
+/* Narrow windows keep the icon and the key: the word is the part that can go,
+   because the glyph and the shortcut already say what it is. */
+@media (max-width: 900px) {
+    .status-commands-label { display: none; }
+}

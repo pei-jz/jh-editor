@@ -297,6 +297,16 @@
           <span id="status-eol" title="Line endings (click to change)" style="cursor:pointer; user-select:none;"></span>
           <span id="status-whitespace" title="Toggle whitespace markers (Ctrl+Alt+W)" style="cursor:pointer; user-select:none;">¶</span>
           <span id="status-selection">Ln 1, Col 1</span>
+          <!-- The way in to everything else. A shortcut cannot advertise
+               itself, so the entry point is a control that is always on
+               screen — and it names the key so it only has to be clicked
+               once. -->
+          <button id="status-commands" class="status-commands"
+                  title="All commands and shortcuts (Ctrl+? or F1)">
+            <span class="status-commands-icon">⌘</span>
+            <span class="status-commands-label">Commands</span>
+            <kbd>Ctrl+?</kbd>
+          </button>
         </div>
       </div>
     </div>

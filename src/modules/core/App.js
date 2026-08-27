@@ -40,7 +40,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Toast } from '../ui/Toast.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
-import { showConfirm } from '../ui/Dialog.js';
+import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
+import { setPaneActiveIndex } from './Panes.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -358,6 +359,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (e) { console.error('open-external-file failed', e); }
         }
     }).catch(e => console.error('Failed to register open-external-file listener', e));
+
+    // A shortcut cannot tell you it exists, so the shortcut guide gets a
+    // permanent, visible way in. It shows its own key, so it is a lesson as
+    // much as a button.
+    EL.statusCommandsBtn?.addEventListener('click', () => toggleShortcutGuide());
 
     // 3. Global Event Listeners
     if (EL.newFileBtn) EL.newFileBtn.addEventListener('click', createNewFileAction);
@@ -847,26 +853,74 @@ async function checkLaunchArgs() {
     return false;
 }
 
+/**
+ * Save every dirty buffer, whichever pane it is in.
+ *
+ * Returns the names it could not save. Each file is made active first because
+ * saveCurrentFile() works on the active tab — saving them in place would write
+ * the front file's text once per dirty buffer.
+ */
+async function saveAllDirty(dirty) {
+    const failed = [];
+    for (const file of dirty) {
+        try {
+            const pane = (State.rightOpenFiles || []).includes(file) ? 'right' : 'left';
+            const index = (pane === 'right' ? State.rightOpenFiles : State.openFiles).indexOf(file);
+            if (index >= 0) setPaneActiveIndex(pane, index);
+            await saveCurrentFile();
+            if (file.isDirty) failed.push(file.name || file.path || 'Untitled');
+        } catch (e) {
+            failed.push(file.name || file.path || 'Untitled');
+        }
+    }
+    return failed;
+}
+
 function setupCloseListener() {
     try {
         const appWindow = getCurrentWindow();
         appWindow.onCloseRequested(async (event) => {
-            const hasDirty = State.openFiles.some(f => f.isDirty);
-            if (hasDirty) {
-                // Prevent closing immediately
-                event.preventDefault();
+            // Both panes: quitting with the right-hand split's work unsaved was
+            // just as final, and this only looked at the left one.
+            const dirty = [...(State.openFiles || []), ...(State.rightOpenFiles || [])]
+                .filter((f) => f && f.isDirty && (!f.type || f.type === 'file'));
+            if (!dirty.length) return;
 
-                const discard = await showConfirm('You have unsaved changes. Quit and discard them?', {
-                    title: 'Unsaved Changes',
-                    kind: 'warning',
-                    okLabel: 'Quit (Discard)',
-                    cancelLabel: 'Cancel'
-                });
+            event.preventDefault();
 
-                if (discard) {
-                    // Force close if user confirms discard
-                    appWindow.destroy();
+            // Name them. "You have unsaved changes" leaves the reader deciding
+            // blind about work they cannot see from the dialog.
+            const names = dirty.map((f) => f.name || f.path || 'Untitled');
+            const shown = names.slice(0, 6).join('\n  • ');
+            const more = names.length > 6 ? `\n  …and ${names.length - 6} more` : '';
+
+            const choice = await showDialog({
+                title: 'Unsaved Changes',
+                kind: 'warning',
+                message: `${names.length} file${names.length === 1 ? '' : 's'} `
+                    + `${names.length === 1 ? 'has' : 'have'} unsaved changes:\n\n  • ${shown}${more}`,
+                buttons: [
+                    { label: 'Cancel', value: 'cancel', cancel: true },
+                    { label: 'Quit without saving', value: 'discard' },
+                    { label: 'Save all and quit', value: 'save', primary: true },
+                ],
+            });
+
+            if (choice === 'save') {
+                const failed = await saveAllDirty(dirty);
+                // A save that did not happen must not be followed by a quit:
+                // the user was told why, and quitting now loses exactly the
+                // work they just asked to keep.
+                if (failed.length) {
+                    await showAlert(
+                        `Could not save:\n  • ${failed.join('\n  • ')}\n\nNothing was closed.`,
+                        { title: 'Save Failed', kind: 'error' },
+                    );
+                    return;
                 }
+                appWindow.destroy();
+            } else if (choice === 'discard') {
+                appWindow.destroy();
             }
         });
     } catch (e) {
