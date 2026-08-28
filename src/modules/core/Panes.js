@@ -96,10 +96,17 @@ export function reorderInPlace(list, fromIndex, toIndex) {
  * another open tab. Splitting clones the file object, so both panes can hold the
  * same id — freeing it on the first close would break the survivor.
  */
-export function handleStillInUse(key, id, exclude) {
+export function handleStillInUse(key, id) {
     if (id == null) return false;
+    // No `exclude` any more. It excluded by object identity, which stopped
+    // meaning "my own tab" once a split started SHARING the buffer object: the
+    // other pane's entry is the same object, so it was excluded too and the
+    // backend handle was freed underneath a pane still showing the file.
+    //
+    // The caller removes its tab first, so these lists are simply the truth
+    // about who still holds the handle.
     return [...State.openFiles, ...State.rightOpenFiles]
-        .some(f => f && f !== exclude && f[key] === id);
+        .some(f => f && f[key] === id);
 }
 
 /**

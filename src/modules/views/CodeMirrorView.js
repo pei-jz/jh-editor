@@ -1048,7 +1048,7 @@ export class CodeMirrorView {
         return true;
     }
 
-    // Mirrors the dark-theme detection used elsewhere (ShikiHighlighter, etc).
+    // Mirrors the dark-theme detection used elsewhere (ThemeInfo, etc).
     /**
      * Which syntax palette this theme wants.
      *
@@ -1763,7 +1763,7 @@ export class CodeMirrorView {
             pageEl.style.fontSize = fontSizeStr;
             pageEl.style.lineHeight = `${actualLineHeight}px`;
             // PageFlip overwrites pageEl inline styles (padding/boxSizing), so we set the margin in editor.css (.plain-text-page).
-            pageEl.innerHTML = `<pre class="shiki" style="margin: 0; padding: 0; box-sizing: border-box; height: 100%; white-space: pre; font-family: inherit; font-size: ${fontSizeStr}; line-height: ${actualLineHeight}px; color: inherit; background: transparent; overflow-x: auto;"><code>${pageHtml}</code></pre>`;
+            pageEl.innerHTML = `<pre class="cm-highlighted" style="margin: 0; padding: 0; box-sizing: border-box; height: 100%; white-space: pre; font-family: inherit; font-size: ${fontSizeStr}; line-height: ${actualLineHeight}px; color: inherit; background: transparent; overflow-x: auto;"><code>${pageHtml}</code></pre>`;
             bookDiv.appendChild(pageEl);
         });
 

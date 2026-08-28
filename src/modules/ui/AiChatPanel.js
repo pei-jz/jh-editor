@@ -12,6 +12,7 @@
 
 import AIAgent from '../ai/AIAgent.js';
 import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
+import { t, promptLanguageName } from '../utils/I18n.js';
 
 const HISTORY_KEY = 'jh_ai_chat_history_v1';
 const MAX_HISTORY = 40;
@@ -58,15 +59,15 @@ class AiChatPanel {
 
         root.innerHTML = `
             <div class="ai-chat-header">
-                <span class="ai-chat-header-title">🤖 AI Chat</span>
-                <button class="clear-btn" title="Clear history">Clear</button>
-                <button class="close-btn" title="Close">×</button>
+                <span class="ai-chat-header-title">🤖 ${t('AI Chat')}</span>
+                <button class="clear-btn" title="${t('Clear history')}">${t('Clear')}</button>
+                <button class="close-btn" title="${t('Close')}">×</button>
             </div>
             <div class="ai-chat-messages"></div>
             <div class="ai-chat-hint" id="ai-chat-scope-hint"></div>
             <div class="ai-chat-input-row">
-                <textarea class="ai-chat-input" placeholder="Ask a question… (Shift+Enter for a new line)"></textarea>
-                <button class="ai-chat-send">Send</button>
+                <textarea class="ai-chat-input" placeholder="${t('Ask a question… (Shift+Enter for a new line)')}"></textarea>
+                <button class="ai-chat-send">${t('Send')}</button>
             </div>
         `;
         document.body.appendChild(root);
@@ -130,13 +131,13 @@ class AiChatPanel {
                 const time = ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
                 meta.textContent = `${label} ${time}${sentLabel}`;
             };
-            const ticker = setInterval(() => paint('⏳ Sending…'), 100);
+            const ticker = setInterval(() => paint(`⏳ ${t('Sending…')}`), 100);
 
             try {
                 const { context, sent } = this._buildContext();
                 sentLabel = sent.length ? `  ·  sent: ${sent.join(', ')}` : '  ·  sent: prompt only';
                 const systemPrompt =
-                    'You are an AI assistant inside JHEditor. Answer in the user\'s language (Japanese unless told otherwise). '
+                    `You are an AI assistant inside JHEditor. Answer in ${promptLanguageName()}. `
                     + 'Use Markdown. Be concise.';
                 const answer = await AIAgent.runSingleShot({
                     prompt: text,
@@ -184,8 +185,8 @@ class AiChatPanel {
         const hint = root.querySelector('#ai-chat-scope-hint');
         if (hint) {
             const s = scopeInfo();
-            hint.textContent = `Context scope: ${s.label} — ${s.hint} `
-                + 'Change it in Settings → Agent Integration.';
+            hint.textContent = t('Context scope: {label} — {hint}', { label: s.label, hint: s.hint })
+                + ' ' + t('Change it in Settings → Agent Integration.');
         }
 
         renderAll();

@@ -176,6 +176,8 @@ export const TableEditor = {
                 const input = cell.querySelector('input');
                 if (input) {
                     input.style.display = 'block';
+                    input.style.height = 'auto';
+                    input.style.height = `${input.scrollHeight}px`;
                     input.focus();
                     input.select();
                 }
@@ -260,6 +262,8 @@ export const TableEditor = {
                     const input = target.querySelector('input');
                     if (input) {
                         input.style.display = 'block';
+                        input.style.height = 'auto';
+                        input.style.height = `${input.scrollHeight}px`;
                         input.focus();
                         input.select(); 
                     }
@@ -267,6 +271,12 @@ export const TableEditor = {
                     target.focus();
                 }
             }
+        };
+
+        /** Match the box to its content, so nothing is hidden below the fold. */
+        const autoGrow = (el) => {
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
         };
 
         const createCellInstance = (r, c, value, isHeader = false) => {
@@ -280,10 +290,20 @@ export const TableEditor = {
             textSpan.textContent = value || '';
             cell.appendChild(textSpan);
 
-            const input = document.createElement('input');
-            input.type = 'text';
+            // A TEXTAREA, not an input. An <input type="text"> is single-line
+            // by definition, so a long cell scrolled sideways through a narrow
+            // column and you edited it through a letterbox — while the display
+            // span right beside it wrapped. This wraps the same way, and grows
+            // to fit, so editing looks like what you were just reading.
+            //
+            // Enter still COMMITS (see handleTableKey): a Markdown table cell
+            // cannot hold a real newline, so there is nothing for a newline to
+            // mean here.
+            const input = document.createElement('textarea');
+            input.rows = 1;
             input.value = value || '';
             input.style.display = 'none';
+            input.addEventListener('input', () => autoGrow(input));
             cell.appendChild(input);
 
             cell.onmousedown = (e) => {

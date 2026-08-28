@@ -42,6 +42,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
 import { setPaneActiveIndex } from './Panes.js';
+import { applyI18n } from '../utils/I18n.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let gitPanel = null;
 
     initScrollbarAutoHide();
+    applyI18n();
 
     // Persist the session + unsaved drafts on the way out. `pagehide` fires for
     // window close/reload where `beforeunload` may not in a webview, and
@@ -120,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // changes (start_lsp resolves asynchronously after a file opens).
             lspClient.onServerStatusChange = () => { try { updateStatusBar(); } catch (_) {} };
             SyntaxHighlighter.init().then(() => {
-                // Re-render highlights in the active view once Shiki is ready
+                // Re-render highlights in the active view once the highlighter is ready
                 const view = getCurrentView();
                 if (view && typeof view._renderHighlights === 'function') {
                     view._renderHighlights();
@@ -882,7 +884,9 @@ function setupCloseListener() {
         appWindow.onCloseRequested(async (event) => {
             // Both panes: quitting with the right-hand split's work unsaved was
             // just as final, and this only looked at the left one.
-            const dirty = [...(State.openFiles || []), ...(State.rightOpenFiles || [])]
+            // A buffer open in both panes is one object in two lists; the Set
+            // keeps it from being listed — and saved — twice.
+            const dirty = [...new Set([...(State.openFiles || []), ...(State.rightOpenFiles || [])])]
                 .filter((f) => f && f.isDirty && (!f.type || f.type === 'file'));
             if (!dirty.length) return;
 

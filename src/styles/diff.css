@@ -167,7 +167,9 @@
     cursor: text;
 }
 
-/* Ensure Shiki's span.line has no extra margin/padding */
+/* shiki wrapped each line in <span class="line">; the current highlighter
+   emits token spans directly, so this only still matters for a diff rendered
+   from an older cached payload. */
 .diff-code .line {
     padding: 0 !important;
     margin: 0 !important;
