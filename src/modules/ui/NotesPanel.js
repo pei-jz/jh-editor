@@ -9,6 +9,7 @@
  * `newNote()` creates a note and opens the panel (bound to Ctrl+Alt+M).
  */
 
+import { iconEl } from './Icons.js';
 const STORAGE_KEY = 'jh_notes_v1';
 const MAX_NOTE_BYTES = 512 * 1024; // one very large note must not blow the quota
 let _saveTimer = null;
@@ -135,10 +136,11 @@ function showPanel() {
     header.className = 'notes-header';
     const title = document.createElement('span');
     title.className = 'notes-header-title';
-    title.textContent = '📝 Quick Notes';
+    title.className = 'jh-icon-row';
+        title.replaceChildren(iconEl('note', { size: 14 }), document.createTextNode('Quick Notes'));
     const closeBtn = document.createElement('button');
     closeBtn.className = 'close-btn';
-    closeBtn.textContent = '×';
+    closeBtn.replaceChildren(iconEl('close', { size: 13 }));
     closeBtn.title = 'Close (Esc)';
     closeBtn.onclick = () => NotesPanel.close();
     header.append(title, closeBtn);
@@ -165,7 +167,8 @@ function showPanel() {
     footer.className = 'notes-sidebar-footer';
     const newBtn = document.createElement('button');
     newBtn.className = 'notes-new-btn';
-    newBtn.textContent = '+ New Note';
+    newBtn.className = (newBtn.className || '') + ' jh-icon-row';
+    newBtn.replaceChildren(iconEl('plus', { size: 12 }), document.createTextNode('New Note'));
     newBtn.onclick = () => {
         const note = NotesPanel.create();
         _activeId = note.id;
@@ -189,14 +192,14 @@ function showPanel() {
     tools.appendChild(titleInput);
     const pinBtn = document.createElement('button');
     pinBtn.className = 'notes-tool-btn';
-    pinBtn.textContent = '📌';
+    pinBtn.replaceChildren(iconEl('pin', { size: 13 }));
     pinBtn.title = 'Pin note';
     const previewBtn = document.createElement('button');
     previewBtn.className = 'notes-tool-btn';
     previewBtn.textContent = 'Preview';
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'notes-tool-btn';
-    deleteBtn.textContent = '🗑';
+    deleteBtn.replaceChildren(iconEl('trash', { size: 13 }));
     deleteBtn.title = 'Delete note';
     tools.append(pinBtn, previewBtn, deleteBtn);
     editor.appendChild(tools);
@@ -241,9 +244,14 @@ function showPanel() {
     const renderEditor = (note) => {
         currentNote = note;
         _activeId = note.id;
-        titleInput.value = note.pinned ? '📌 ' + firstLine(note.content) : firstLine(note.content);
+        // Pinned state belongs to the pin BUTTON, not to the title text. Putting
+        // it in the text meant the save path had to strip it back out again,
+        // and a note whose first line legitimately began with that character
+        // lost it.
+        titleInput.value = firstLine(note.content);
         input.value = note.content || '';
-        pinBtn.textContent = note.pinned ? '📌' : '📍';
+        pinBtn.replaceChildren(iconEl(note.pinned ? 'pin-filled' : 'pin', { size: 13 }));
+        pinBtn.classList.toggle('is-pinned', !!note.pinned);
         pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
         empty.style.display = 'none';
         input.style.display = previewOn ? 'none' : 'block';
@@ -274,7 +282,8 @@ function showPanel() {
             name.textContent = firstLine(n.content);
             const pin = document.createElement('span');
             pin.className = 'notes-item-pin';
-            pin.textContent = n.pinned ? '📌' : '';
+            pin.replaceChildren();
+        if (n.pinned) pin.appendChild(iconEl('pin-filled', { size: 11 }));
             const time = document.createElement('span');
             time.className = 'notes-item-time';
             time.textContent = fmtTime(n.updatedAt);
@@ -288,7 +297,7 @@ function showPanel() {
     input.oninput = persist;
     titleInput.oninput = () => {
         if (!currentNote) return;
-        const t = titleInput.value.replace(/^📌\s*/, '');
+        const t = titleInput.value;
         const body = currentNote.content || '';
         const m = body.match(/^#+\s*[^\n]*/);
         let next = body;
@@ -300,7 +309,12 @@ function showPanel() {
     pinBtn.onclick = () => {
         if (!currentNote) return;
         const updated = NotesPanel.togglePin(currentNote.id);
-        if (updated) { currentNote = updated; pinBtn.textContent = updated.pinned ? '📌' : '📍'; renderList(); }
+        if (updated) {
+            currentNote = updated;
+            pinBtn.replaceChildren(iconEl(updated.pinned ? 'pin-filled' : 'pin', { size: 13 }));
+            pinBtn.classList.toggle('is-pinned', !!updated.pinned);
+            renderList();
+        }
     };
     previewBtn.onclick = () => { if (currentNote) setPreview(!previewOn); };
     deleteBtn.onclick = () => {

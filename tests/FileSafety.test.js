@@ -247,13 +247,17 @@ describe('structural', () => {
     it('offers to save everything on quit, and names the files', () => {
         const i = app.indexOf('appWindow.onCloseRequested');
         const block = app.slice(i, app.indexOf('\n        });', i));
-        expect(block).toContain("{ label: 'Save all and quit', value: 'save', primary: true }");
+        // Labels go through t() now, so match the key rather than the literal.
+        expect(block).toContain("label: t('Save all and quit'), value: 'save', primary: true");
         expect(block).toContain('saveAllDirty(dirty)');
         expect(block).toContain('State.rightOpenFiles');
         expect(block).toContain('names.slice(0, 6)');
         // Quitting after a failed save loses exactly the work the user just
         // asked to keep.
-        expect(block).toContain('if (failed.length)');
+        // A cancelled Save As is reported apart from a save that FAILED —
+        // both leave the buffer dirty, but only one of them is a fault.
+        expect(block).toContain('const { failed, cancelled } = await saveAllDirty(dirty)');
+        expect(block).toContain('if (failed.length || cancelled.length)');
         expect(block).toContain('Nothing was closed.');
     });
 

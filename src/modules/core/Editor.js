@@ -1,4 +1,5 @@
 import { EL } from './Constants.js';
+import { iconEl } from '../ui/Icons.js';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { State } from './Store.js';
@@ -244,7 +245,7 @@ export function openCompareEditor() {
     }
 
     const file = {
-        name: '🔀 Compare Text',
+        name: 'Compare Text',
         path: virtualPath,
         content: '',
         type: 'compare',
@@ -264,7 +265,7 @@ export function openAgentTasksTab(taskId) {
     if (existingIndex >= 0) {
         setActiveTab(existingIndex);
     } else {
-        const name = taskId ? `🤖 Task #${taskId.substring(0, 8)}` : `🤖 Agent Tasks`;
+        const name = taskId ? `Task #${taskId.substring(0, 8)}` : 'Agent Tasks';
         const file = {
             name: name,
             path: virtualPath,
@@ -723,7 +724,7 @@ export function addViewUsageHint(container, file, options = {}) {
     const minBtn = document.createElement('button');
     minBtn.className = 'view-usage-min';
     minBtn.title = wasMin ? 'Show usage hints' : 'Minimize hints';
-    minBtn.textContent = wasMin ? '💡' : '—';
+    minBtn.replaceChildren(iconEl(wasMin ? 'chevron-up' : 'minimize', { size: 12 }));
 
     // Close, like the shortcut guide's ✕: gone for now, back next time this
     // view is rendered. Deliberately NOT persisted — minimize (—) is the
@@ -731,7 +732,7 @@ export function addViewUsageHint(container, file, options = {}) {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'view-usage-close';
     closeBtn.title = 'Close hints';
-    closeBtn.textContent = '✕';
+    closeBtn.replaceChildren(iconEl('close', { size: 12 }));
 
     const body = document.createElement('div');
     body.className = 'view-usage-body';
@@ -761,7 +762,7 @@ export function addViewUsageHint(container, file, options = {}) {
         const nowMin = !panel.classList.contains('minimized');
         panel.classList.toggle('minimized', nowMin);
         minBtn.title = nowMin ? 'Show usage hints' : 'Minimize hints';
-        minBtn.textContent = nowMin ? '💡' : '—';
+        minBtn.replaceChildren(iconEl(nowMin ? 'chevron-up' : 'minimize', { size: 12 }));
         localStorage.setItem(storageKey, nowMin ? '1' : '0');
     });
 
@@ -1067,7 +1068,7 @@ window.app.compareTwoFiles = compareTwoFiles;
 /** Open a folder-vs-folder comparison in its own tab. */
 window.app.compareTwoFolders = function (leftRoot, rightRoot) {
     if (!leftRoot || !rightRoot) return;
-    const name = `⇄ ${String(leftRoot).split(/[\\/]/).pop()} / ${String(rightRoot).split(/[\\/]/).pop()}`;
+    const name = `${String(leftRoot).split(/[\\/]/).pop()} / ${String(rightRoot).split(/[\\/]/).pop()}`;
     State.openFiles.push({
         name,
         // Unique virtual path: tabs are matched by path, so each comparison
@@ -1092,7 +1093,7 @@ window.app.openMarkdownResult = function (title, md) {
     const safeTitle = (title || 'AI Result').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
     const path = `ai://${safeTitle}-${Date.now()}.md`;
     const file = {
-        name: `🤖 ${safeTitle}`,
+        name: safeTitle,
         path,
         content: md || '',
         encoding: 'UTF-8',
@@ -1108,7 +1109,7 @@ window.app.openMarkdownResult = function (title, md) {
 // Open (or reuse) a tab showing workspace grep results (streaming when a
 // searchId is given — matches arrive live via grep-match/grep-done events).
 window.app.openSearchResults = function ({ query, matches, options, searchId, streaming }) {
-    const title = `🔍 ${String(query || '').slice(0, 30)}`;
+    const title = String(query || '').slice(0, 30);
     // Every search opens its own tab so earlier results stay available for
     // comparison. Each needs a unique path (tabs are matched by path).
     const file = {
@@ -1317,6 +1318,22 @@ export async function closeTab(index, pane = activePane()) {
     setupWatcher(newActiveIdx >= 0 ? openFiles[newActiveIdx] : null);
 }
 
+/**
+ * Which icon marks a tab. Regular files get none — the tab strip would be a
+ * wall of identical page glyphs, and the extension is already in the name.
+ * Only the tabs that are NOT a file on disk are worth marking.
+ */
+export function tabIconFor(file) {
+    if (!file) return null;
+    const path = String(file.path || '');
+    if (file.type === 'diff' || file.viewMode === 'diff') return 'diff';
+    if (file.type === 'compare' || file.viewMode === 'compare') return 'compare';
+    if (path.startsWith('agent://')) return 'robot';
+    if (path.startsWith('search://')) return 'search';
+    if (path.startsWith('ai://')) return 'sparkles';
+    return null;
+}
+
 export function renderTabs(targetPane = null) {
     // Tabs changed (opened / closed / reordered / dirtied) → persist the session
     // so a crash or restart comes back to the same place. Cheap + debounced
@@ -1345,6 +1362,16 @@ export function renderTabs(targetPane = null) {
                 fileName = file.path.replace(/\\/g, '/').split('/').pop();
             }
             
+            // Virtual tabs (diff / compare / agent / search results) used to
+            // carry an emoji at the front of file.name. That put a decoration
+            // inside a value the rest of the app treats as a name — and it is
+            // the tab STRIP that wants an icon, not the name.
+            const tabIcon = tabIconFor(file);
+            if (tabIcon) {
+                const ic = iconEl(tabIcon, { size: 12 });
+                ic.classList.add('tab-icon');
+                tab.appendChild(ic);
+            }
             const titleSpan = document.createElement('span');
             titleSpan.className = 'tab-title';
             titleSpan.textContent = fileName + (file.isDirty ? ' *' : '');
@@ -1388,7 +1415,7 @@ export function renderTabs(targetPane = null) {
             };
             const closeBtn = document.createElement('span');
             closeBtn.className = 'tab-close';
-            closeBtn.textContent = '✖';
+            closeBtn.replaceChildren(iconEl('close', { size: 12 }));
             closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(index, pane); };
             tab.appendChild(closeBtn);
             fragment.appendChild(tab);
@@ -2703,7 +2730,11 @@ export function updateStatusBar(forFile = null) {
     if (lspEl) {
         const st = (!isMd && file.path) ? lspClient.getServerStatusForFile(file.path) : null;
         if (st && st.status === 'unavailable') {
-            lspEl.textContent = `⚠ LSP (${st.language}) not running`;
+            lspEl.classList.add('jh-icon-row');
+        lspEl.replaceChildren(
+            iconEl('warning', { size: 12 }),
+            document.createTextNode(`LSP (${st.language}) not running`),
+        );
             lspEl.style.color = 'var(--warning-color, #e6a700)';
             lspEl.dataset.lang = st.language;
             lspEl.style.display = 'inline';

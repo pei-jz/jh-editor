@@ -1,4 +1,5 @@
 import { BaseView } from './BaseView.js';
+import { iconEl } from '../ui/Icons.js';
 import { State } from '../core/Store.js';
 import { EL } from '../core/Constants.js';
 import * as Markdown from '../utils/Markdown.js';
@@ -354,7 +355,7 @@ export class MarkdownView extends BaseView {
 
                 const icon = document.createElement('div');
                 icon.className = 'edit-icon';
-                icon.textContent = '✎';
+                icon.replaceChildren(iconEl('pencil', { size: 12 }));
                 icon.onclick = (e) => {
                     e.stopPropagation();
                     this.enterEditMode(div, blockText, index);

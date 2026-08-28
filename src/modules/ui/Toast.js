@@ -3,6 +3,7 @@
  * Replaces intrusive alert() calls with a smooth, non-blocking UI.
  */
 
+import { icon as svgIcon } from './Icons.js';
 class ToastManager {
     constructor() {
         this.container = null;
@@ -74,21 +75,23 @@ class ToastManager {
 
         // Styling based on type
         let borderLeftColor = 'var(--primary-color, #0d6efd)';
-        let icon = 'ℹ️';
+        let iconName = 'info';
 
         if (type === 'success') {
             borderLeftColor = '#28a745';
-            icon = '✅';
+            iconName = 'check-circle';
         } else if (type === 'error') {
             borderLeftColor = '#dc3545';
-            icon = '❌';
+            iconName = 'x-circle';
         } else if (type === 'warning') {
             borderLeftColor = '#ffc107';
-            icon = '⚠️';
+            iconName = 'warning';
         }
 
         toast.style.borderLeft = `4px solid ${borderLeftColor}`;
-        toast.innerHTML = `<span>${icon}</span><span style="white-space: pre-wrap;">${message}</span>`;
+        // The icon now takes the toast's own text colour, so it stays legible on
+        // every theme instead of being whatever the OS emoji font painted.
+        toast.innerHTML = `<span style="display:inline-flex;color:${borderLeftColor};">${svgIcon(iconName, { size: 15 })}</span><span style="white-space: pre-wrap;">${message}</span>`;
 
         this.container.appendChild(toast);
 

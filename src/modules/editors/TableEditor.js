@@ -1,3 +1,19 @@
+/**
+ * The editing control inside a cell.
+ *
+ * It is a <textarea> (so a long cell wraps instead of scrolling sideways
+ * through a letterbox). `querySelector('input')` does NOT match a textarea,
+ * and when the tag changed, three call sites kept asking for 'input' and
+ * silently got null: the box was never shown, never focused and never
+ * hidden again — while the display span WAS hidden, so a double-clicked
+ * cell just went blank and could not be typed into.
+ *
+ * Selecting both tags means the same mistake cannot happen twice.
+ */
+function cellEditor(cell) {
+    return cell ? cell.querySelector('textarea, input') : null;
+}
+
 export const TableEditor = {
     /**
      * Undo history for the visual table editor.
@@ -173,7 +189,7 @@ export const TableEditor = {
         if (cell) {
             cell.focus();
             if (editMode) {
-                const input = cell.querySelector('input');
+                const input = cellEditor(cell);
                 if (input) {
                     input.style.display = 'block';
                     input.style.height = 'auto';
@@ -250,7 +266,7 @@ export const TableEditor = {
                     if (this._state.isEditing) cell.classList.add('editing-cell');
                 }
 
-                const input = cell.querySelector('input');
+                const input = cellEditor(cell);
                 const textSpan = cell.querySelector('.cell-text');
                 if (input && !edit) input.style.display = 'none';
                 if (textSpan) textSpan.style.display = (edit && cell.classList.contains('active-cell')) ? 'none' : 'block';
@@ -259,7 +275,7 @@ export const TableEditor = {
             const target = table.querySelector(`[data-row="${this._state.activeRow}"][data-col="${this._state.activeCol}"]`);
             if (target) {
                 if (this._state.isEditing) {
-                    const input = target.querySelector('input');
+                        const input = cellEditor(target);
                     if (input) {
                         input.style.display = 'block';
                         input.style.height = 'auto';

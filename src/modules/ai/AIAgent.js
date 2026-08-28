@@ -139,9 +139,9 @@ class AIAgentFacade {
                             : JSON.stringify(pkt.data.text);
                         onAgentStatus?.(t);
                     } else if (pkt.event === 'tool_call' && pkt.data?.name) {
-                        onAgentStatus?.(`🛠️ ${pkt.data.name}`);
+                        onAgentStatus?.(pkt.data.name);
                     } else if (pkt.event === 'file_modified' && pkt.data?.path) {
-                        onAgentStatus?.(`📝 ${pkt.data.path}`);
+                        onAgentStatus?.(pkt.data.path);
                         // Auto-reload silently in the editor + refresh explorer
                         if (window.app?.reloadFileSilently) {
                             window.app.reloadFileSilently(pkt.data.path);

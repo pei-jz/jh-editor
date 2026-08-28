@@ -1,4 +1,5 @@
 import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
+import { icon as svgIcon } from './Icons.js';
 import { shortcuts } from '../core/ShortcutManager.js';
 
 // Friendly, purpose-oriented labels for each shortcut scope, in display order.
@@ -246,7 +247,7 @@ function renderShortcutList(list, filter, rerender) {
         const header = document.createElement('li');
         header.className = 'shortcut-group-header';
         header.innerHTML = `
-            <span class="group-toggle-icon">${isCollapsed ? '▶' : '▼'}</span>
+            <span class="group-toggle-icon jh-icon-rotate${isCollapsed ? '' : ' is-open'}">${svgIcon('chevron-right', { size: 11 })}</span>
             <span class="group-title">${meta.label}</span>
             ${meta.hint ? `<span class="sg-group-hint">${meta.hint}</span>` : ''}
             <span class="group-count">${filteredEntries.length}</span>

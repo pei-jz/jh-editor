@@ -1,4 +1,5 @@
 import AIAgent from '../ai/AIAgent.js';
+import { icon as svgIcon, iconEl } from './Icons.js';
 import { State } from '../core/Store.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
@@ -24,7 +25,7 @@ export class InlineAI {
 
         modal.innerHTML = `
             <div class="inline-ai-header">
-                <span class="model-badge">🤖 ${currentModel}</span>
+                <span class="model-badge jh-icon-row">${svgIcon('robot', { size: 12 })}${currentModel}</span>
                 <button class="inline-ai-close">×</button>
             </div>
             <div class="inline-ai-presets" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px;"></div>
@@ -80,7 +81,7 @@ export class InlineAI {
                         try {
                             if (!(await ensureJhaiConnected())) {
                                 this.resultArea.style.display = 'block';
-                                this.resultContent.textContent = '❌ Cannot reach J.H AI Agent. Please start the Agent.';
+                                this.resultContent.textContent = 'Cannot reach J.H AI Agent. Please start the Agent.';
                                 return;
                             }
                             runInlinePreset(pr.id, {}).catch((e) => console.warn('preset failed:', e));
@@ -298,14 +299,14 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 if (isConnectionError) {
                     this.resultContent.innerHTML = `
                         <div class="agent-connection-error" style="color: var(--error-color, #ff4d4f); padding: 8px;">
-                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">❌ Cannot reach J.H AI Agent</div>
+                            <div class="jh-icon-row" style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">${svgIcon('x-circle', { size: 14 })}Cannot reach J.H AI Agent</div>
                             <p style="margin: 4px 0 12px 0; font-size: 12px; color: var(--text-color); opacity: 0.8; line-height: 1.4;">
                                 The agent is not running, or the connection details are wrong.
                             </p>
                             <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--text-color); opacity: 0.8; line-height: 1.6;">
                                 <li>Check that the <strong>J.H AI Agent</strong> app is running.</li>
-                                <li>In the agent, press <strong>Settings → General → 📤 Export Connection</strong> — that writes out the details this editor reads.</li>
-                                <li>Or enter the URL and token by hand in <strong>⚙️ Settings → Agent</strong>.</li>
+                                <li>In the agent, press <strong>Settings → General → Export Connection</strong> — that writes out the details this editor reads.</li>
+                                <li>Or enter the URL and token by hand in <strong>Settings → Agent</strong>.</li>
                             </ol>
                             <div style="margin-top: 12px;">
                                 <button class="primary-btn" id="ai-reconnect-btn" style="padding: 4px 8px; font-size: 11px; cursor: pointer;">Test the connection and retry</button>
@@ -363,7 +364,8 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         visible.forEach((it) => {
             const b = document.createElement('button');
             b.className = 'inline-ai-intent-btn';
-            b.textContent = `✨ ${it.title}`;
+            b.className = (b.className || '') + ' jh-icon-row';
+            b.replaceChildren(iconEl('sparkles', { size: 12 }), document.createTextNode(it.title));
             b.title = `JHAI intent: ${it.id}`;
             b.style.cssText = 'background:rgba(10,108,255,0.15);border:1px solid rgba(10,108,255,0.4);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
             b.onclick = () => this.handleIntent(it.id, context);
@@ -439,7 +441,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             const msg = (e && e.message) || String(e);
             const low = msg.toLowerCase();
             if (low.includes('not available') || low.includes('not reachable') || low.includes('failed to fetch')) {
-                this.resultContent.textContent = '❌ Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.';
+                this.resultContent.textContent = 'Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.';
             } else {
                 this.resultContent.textContent = 'Error: ' + msg;
             }
@@ -452,7 +454,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         if (!this.resultContent) return;
         let text = null;
         if (event === 'status' && data.message) text = String(data.message);
-        else if (event === 'tool_call' && data.name) text = `🛠 ${data.name}`;
+        else if (event === 'tool_call' && data.name) text = data.name;
         else if (event === 'thought' && typeof data.text === 'string') text = data.text.replace(/\s+/g, ' ').slice(0, 100);
         if (text) this.resultContent.textContent = `⏳ ${text}`;
     }

@@ -152,7 +152,7 @@ let _adapter = null;
 /** Map a streaming task event to a short human status line (or null to ignore). */
 function statusTextFromEvent(event, data) {
     if (event === 'status' && data.message) return String(data.message);
-    if (event === 'tool_call' && data.name) return `🛠 ${data.name}`;
+    if (event === 'tool_call' && data.name) return data.name;
     if (event === 'thought') {
         const t = typeof data.text === 'string' ? data.text : '';
         if (t) return t.replace(/\s+/g, ' ').slice(0, 90);
@@ -204,7 +204,7 @@ function presentJhaiResult(env, entry) {
         const open = () => openCodeEditDiff(p);
         const ok = open();
         entry.setResult({
-            summary: ok ? '🔀 Opened a diff tab — review, then apply' : 'code-edit: could not show the diff',
+            summary: ok ? 'Opened a diff tab — review, then apply' : 'code-edit: could not show the diff',
             onOpen: ok ? open : null, actions, onAction,
         });
         return;
@@ -236,7 +236,7 @@ function presentJhaiResult(env, entry) {
     const open = () => { try { window.app.openMarkdownResult(title, md); } catch (e) { console.warn(e); } };
     open(); // auto-open in an editor tab
     entry.setResult({
-        summary: `📄 Opened "${title}" in an editor tab`,
+        summary: `Opened "${title}" in an editor tab`,
         onOpen: open,
         onInsert: () => editor.insertAtCursor(md),
         copyText: md, actions, onAction,
@@ -723,7 +723,7 @@ function _presentPresetResult(env, entry, anchor) {
         };
         openTab(); // auto-open in an editor tab
         entry.setResult({
-            summary: `📄 Opened "${title}" in an editor tab`,
+            summary: `Opened "${title}" in an editor tab`,
             onOpen: openTab,
             copyText: md,
         });
@@ -746,7 +746,7 @@ function _presentPresetResult(env, entry, anchor) {
     };
     // Don't steal focus: just surface a "レビュー" action in the dock chip.
     entry.setResult({
-        summary: '🔀 AI suggestion diff — review, then apply',
+        summary: 'AI suggestion diff — review, then apply',
         onOpen: open,
         copyText: code,
     });

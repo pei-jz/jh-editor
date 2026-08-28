@@ -19,6 +19,8 @@ export const SHORTCUTS = {
         { key: 'o', ctrl: true, cmd: 'app:outline-modal', description: 'Outline Navigation' },
         { key: 'p', ctrl: true, cmd: 'app:file-search', description: 'File Search' },
         { key: 'r', ctrl: true, shift: true, cmd: 'app:file-search', description: 'File Search' },
+        // Ctrl+Shift+P: the verb picker, next to Ctrl+P's noun picker.
+        { key: 'p', ctrl: true, shift: true, cmd: 'app:command-palette', description: 'Command Palette' },
         { key: 'g', ctrl: true, cmd: 'app:grep', description: 'Workspace Grep' },
         { key: 'l', ctrl: true, cmd: 'app:goto-line', description: 'Go to Line' },
         { key: 'v', ctrl: true, alt: true, cmd: 'app:toggle-vim', description: 'Toggle Vim (vi) Mode' },

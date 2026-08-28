@@ -87,23 +87,23 @@
 <body>
   <div id="custom-titlebar" data-tauri-drag-region>
     <div id="titlebar-left-tools">
-      <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer">☰</button>
-      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal">>_</button>
+      <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer" data-icon="menu" aria-label="Toggle Explorer"></button>
+      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal" data-icon="terminal" aria-label="Toggle Terminal"></button>
     </div>
-    <div class="titlebar-icon" data-tauri-drag-region>📝</div>
+    <div class="titlebar-icon" data-tauri-drag-region data-icon="logo" data-icon-size="15"></div>
     <div class="titlebar-title" data-tauri-drag-region>
       <span id="file-directory" class="file-path-display"></span>
       <span id="current-file" data-i18n="No file selected">No file selected</span>
     </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
     <div id="titlebar-right-tools">
-      <button id="notes-btn" class="titlebar-tool-btn" title="Notes (Quick Notes / Daily Note)" data-i18n-title="Notes (Quick Notes / Daily Note)">🗒️</button>
-      <button id="settings-btn" class="titlebar-tool-btn" title="Settings" data-i18n-title="Settings">⚙️</button>
+      <button id="notes-btn" class="titlebar-tool-btn" title="Notes (Quick Notes / Daily Note)" data-i18n-title="Notes (Quick Notes / Daily Note)" data-icon="note" aria-label="Notes"></button>
+      <button id="settings-btn" class="titlebar-tool-btn" title="Settings" data-i18n-title="Settings" data-icon="settings" aria-label="Settings"></button>
     </div>
     <div class="titlebar-controls">
-      <button class="titlebar-btn" id="titlebar-minimize" title="Minimize" data-i18n-title="Minimize">─</button>
-      <button class="titlebar-btn" id="titlebar-maximize" title="Maximize" data-i18n-title="Maximize">□</button>
-      <button class="titlebar-btn titlebar-close" id="titlebar-close" title="Close" data-i18n-title="Close">✕</button>
+      <button class="titlebar-btn" id="titlebar-minimize" title="Minimize" data-i18n-title="Minimize" data-icon="minimize" data-icon-size="14" aria-label="Minimize"></button>
+      <button class="titlebar-btn" id="titlebar-maximize" title="Maximize" data-i18n-title="Maximize" data-icon="maximize" data-icon-size="13" aria-label="Maximize"></button>
+      <button class="titlebar-btn titlebar-close" id="titlebar-close" title="Close" data-i18n-title="Close" data-icon="close" data-icon-size="14" aria-label="Close"></button>
     </div>
   </div>
   <div id="app">
@@ -177,7 +177,7 @@
                     <input type="text" id="find-input" placeholder="Search…" data-i18n-placeholder="Search…" autocomplete="off" spellcheck="false" />
                     <span id="search-match-count" class="search-count-badge"></span>
                   </div>
-                  <button id="close-search-btn" class="search-modal-close-btn" title="Close (Esc)" data-i18n-title="Close (Esc)">✕</button>
+                  <button id="close-search-btn" class="search-modal-close-btn" title="Close (Esc)" data-i18n-title="Close (Esc)" data-icon="close" data-icon-size="14" aria-label="Close"></button>
                 </div>
 
                 <!-- Options row (below input) -->
@@ -195,12 +195,12 @@
                     <span class="search-opt-hint">Alt+W</span>
                   </div>
                   <div class="search-opt-group">
-                    <button id="regex-preset-btn" class="search-opt-btn" title="Regex Templates" data-i18n-title="Regex Templates">📋</button>
+                    <button id="regex-preset-btn" class="search-opt-btn" title="Regex Templates" data-i18n-title="Regex Templates" data-icon="clipboard" data-icon-size="14" aria-label="Regex Templates"></button>
                     <span class="search-opt-hint">Alt+T</span>
                   </div>
                   <div class="search-opt-divider"></div>
                   <div class="search-opt-group">
-                    <button id="replace-mode-toggle-btn" class="search-opt-btn" title="Toggle Replace Mode" data-i18n-title="Toggle Replace Mode">⇄</button>
+                    <button id="replace-mode-toggle-btn" class="search-opt-btn" title="Toggle Replace Mode" data-i18n-title="Toggle Replace Mode" data-icon="replace" data-icon-size="14" aria-label="Toggle Replace Mode"></button>
                     <span class="search-opt-hint">Alt+P</span>
                   </div>
                 </div>
@@ -235,14 +235,14 @@
 
             <!-- Search Status Bar (shown while search is active) -->
             <div id="search-status-bar" class="search-status-bar" style="display:none;">
-              <span class="search-status-icon">🔍</span>
+              <span class="search-status-icon" data-icon="search" data-icon-size="13"></span>
               <span id="search-status-query" class="search-status-query"></span>
-              <button id="find-prev-btn" class="search-status-btn" title="Previous (Shift+F3)">↑</button>
+              <button id="find-prev-btn" class="search-status-btn" title="Previous (Shift+F3)" data-i18n-title="Previous (Shift+F3)" data-icon="chevron-up" data-icon-size="13" aria-label="Previous"></button>
               <span id="search-status-count" class="search-status-count">0 / 0</span>
-              <button id="find-next-btn" class="search-status-btn" title="Next (F3)">↓</button>
+              <button id="find-next-btn" class="search-status-btn" title="Next (F3)" data-i18n-title="Next (F3)" data-icon="chevron-down" data-icon-size="13" aria-label="Next"></button>
               <div class="search-status-spacer"></div>
-              <button id="search-status-reopen-btn" class="search-status-btn" title="Edit Search (Ctrl+F)" data-i18n="Edit">✏️ 編集</button>
-              <button id="search-status-clear-btn" class="search-status-btn search-status-clear" title="Close Search (Esc)">✕</button>
+              <button id="search-status-reopen-btn" class="search-status-btn" title="Edit Search (Ctrl+F)" data-i18n-title="Edit Search (Ctrl+F)" data-icon="pencil" data-icon-size="13"><span data-i18n="Edit">Edit</span></button>
+              <button id="search-status-clear-btn" class="search-status-btn search-status-clear" title="Close Search (Esc)" data-i18n-title="Close Search (Esc)" data-icon="close" data-icon-size="13" aria-label="Close Search"></button>
             </div>
           </div>
 
@@ -274,13 +274,13 @@
       <div id="terminal-panel" style="display: none; height: 200px; flex-direction: column;">
         <div id="terminal-header" class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px; height: 32px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); background-color: var(--header-bg);">
           <div style="display: flex; align-items: center; gap: 8px;">
-             <span style="color: var(--primary-color);">🐚</span> TERMINAL
+             <span style="color: var(--primary-color);" data-icon="terminal" data-icon-size="13"></span> <span data-i18n="TERMINAL">TERMINAL</span>
           </div>
           <div style="display: flex; gap: 8px;">
             <button id="new-terminal-btn" class="terminal-new-btn" title="New terminal">+</button>
             <select id="terminal-shell-select" title="Shell for the next terminal" style="background: var(--bg-color-secondary); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 3px; font-size: 10px; padding: 1px 4px; text-transform: none; font-weight: normal;"></select>
-            <button id="clear-terminal-btn" title="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">🗑️</button>
-            <button id="close-terminal-btn" title="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">✖</button>
+            <button id="clear-terminal-btn" title="Clear" data-i18n-title="Clear" data-icon="trash" data-icon-size="13" aria-label="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
+            <button id="close-terminal-btn" title="Close" data-i18n-title="Close" data-icon="close" data-icon-size="13" aria-label="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
           </div>
         </div>
         <div id="terminal-body" style="flex: 1; display: flex; min-height: 0;">
@@ -310,10 +310,10 @@
                screen — and it names the key so it only has to be clicked
                once. -->
           <button id="status-commands" class="status-commands"
-                  title="All commands and shortcuts (Ctrl+? or F1)" data-i18n-title="All commands and shortcuts (Ctrl+? or F1)">
-            <span class="status-commands-icon">⌘</span>
+                  title="Run a command (Ctrl+Shift+P)" data-i18n-title="Run a command (Ctrl+Shift+P)">
+            <span class="status-commands-icon" data-icon="command" data-icon-size="13"></span>
             <span class="status-commands-label" data-i18n="Commands">Commands</span>
-            <kbd>Ctrl+?</kbd>
+            <kbd>Ctrl+Shift+P</kbd>
           </button>
         </div>
       </div>
@@ -493,7 +493,7 @@
   <div id="preview-modal" style="display: none;">
     <div class="preview-header">
       <span data-i18n="Live Preview">Live Preview</span>
-      <span class="close-preview">✖</span>
+      <span class="close-preview" data-icon="close" data-icon-size="13" title="Close Preview" data-i18n-title="Close Preview"></span>
     </div>
     <div id="preview-content" class="md-body"></div>
   </div>
