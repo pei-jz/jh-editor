@@ -21,6 +21,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { t } from '../utils/I18n.js';
 import { iconEl } from '../ui/Icons.js';
 
 const WINDOW_LINES = 4000;   // lines held in the textarea at once
@@ -109,9 +110,9 @@ export class LargeFileEditView {
 
         const findInput = document.createElement('input');
         findInput.type = 'text';
-        findInput.placeholder = 'Search…';
+        findInput.placeholder = t('Search…');
         findInput.className = 'lfe-find-input';
-        findInput.title = 'Search (Enter = next, Shift+Enter = previous)';
+        findInput.title = t('Search (Enter = next, Shift+Enter = previous)');
         findInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -128,7 +129,7 @@ export class LargeFileEditView {
         saveBtn.className = 'lfe-save-btn';
         saveBtn.className = (saveBtn.className || '') + ' jh-icon-row';
         saveBtn.replaceChildren(iconEl('check', { size: 12 }), document.createTextNode('Save'));
-        saveBtn.title = 'Save (Ctrl+S)';
+        saveBtn.title = t('Save (Ctrl+S)');
         saveBtn.addEventListener('click', () => this.save());
 
         banner.append(info, findInput, findStatus, saveBtn);
@@ -168,6 +169,8 @@ export class LargeFileEditView {
     _measureLineHeight() {
         const probe = document.createElement('div');
         probe.className = 'lfe-line-probe';
+        // A font-metric probe, not text anyone reads: 'M' and 'g' between them
+        // span the ascender and the descender, which is what is being measured.
         probe.textContent = 'Mg';
         this.gutterInner.appendChild(probe);
         const h = probe.getBoundingClientRect().height;
@@ -405,7 +408,7 @@ export class LargeFileEditView {
             });
             if (!hit) {
                 this._activeMatch = null;
-                if (this.findStatus) this.findStatus.textContent = 'Not found';
+                if (this.findStatus) this.findStatus.textContent = t('Not found');
                 return;
             }
             this._activeMatch = { line: hit.line, col: hit.col, length: hit.length };

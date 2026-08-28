@@ -1,4 +1,5 @@
 import { Terminal } from '@xterm/xterm';
+import { t } from '../utils/I18n.js';
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
 import { invoke } from '@tauri-apps/api/core';
@@ -276,7 +277,7 @@ class TerminalManager {
             const x = document.createElement('button');
             x.className = 'terminal-list-close';
             x.textContent = 'X';
-            x.title = 'Close this terminal';
+            x.title = t('Close this terminal');
             x.onclick = (e) => { e.stopPropagation(); this.closeSession(s.id); };
             item.appendChild(x);
             list.appendChild(item);
@@ -434,11 +435,11 @@ class TerminalManager {
             e.preventDefault();
             e.stopPropagation();
             ContextMenu.show(e, [
-                { label: 'Copy  (Ctrl+Shift+C)', action: () => this.copySelection() },
-                { label: 'Paste  (Ctrl+V)', action: () => this.pasteFromClipboard() },
+                { label: t('Copy  (Ctrl+Shift+C)'), action: () => this.copySelection() },
+                { label: t('Paste  (Ctrl+V)'), action: () => this.pasteFromClipboard() },
                 { type: 'separator' },
-                { label: 'Select All  (Ctrl+Shift+A)', action: () => this.term?.selectAll() },
-                { label: 'Clear', action: () => this.term?.clear() },
+                { label: t('Select All  (Ctrl+Shift+A)'), action: () => this.term?.selectAll() },
+                { label: t('Clear'), action: () => this.term?.clear() },
             ]);
         });
 

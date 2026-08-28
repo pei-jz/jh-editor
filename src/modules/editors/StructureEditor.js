@@ -5,6 +5,7 @@
  * Follows Component Architecture Skill.
  */
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { t } from '../utils/I18n.js';
 
 export class StructureEditor {
     constructor(container, model, onUpdate, onSelectionChange, options = {}) {
@@ -406,7 +407,7 @@ export class StructureEditor {
 
     renderBreadcrumbs(container) {
         if (!this.state.selectedNodeId) {
-            container.textContent = 'Select a node';
+            container.textContent = t('Select a node');
             return;
         }
 

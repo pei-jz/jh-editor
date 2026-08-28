@@ -16,6 +16,7 @@
  */
 
 import { icon as svgIcon } from '../ui/Icons.js';
+import { t } from '../utils/I18n.js';
 const MAX_HISTORY = 20;
 
 function renderMarkdown(md) {

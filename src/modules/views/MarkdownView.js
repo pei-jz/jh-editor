@@ -1,4 +1,5 @@
 import { BaseView } from './BaseView.js';
+import { t } from '../utils/I18n.js';
 import { iconEl } from '../ui/Icons.js';
 import { State } from '../core/Store.js';
 import { EL } from '../core/Constants.js';
@@ -193,7 +194,7 @@ export class MarkdownView extends BaseView {
         const exportBtn = document.createElement('button');
         exportBtn.className = 'cm-toolbar-btn';
         exportBtn.innerHTML = `<svg class="cm-tb-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg><span>PDF</span>`;
-        exportBtn.title = 'Export as PDF';
+        exportBtn.title = t('Export as PDF');
         exportBtn.onclick = (e) => { e.stopPropagation(); this.exportToPdf(); };
         toolbar.appendChild(exportBtn);
 
@@ -201,7 +202,7 @@ export class MarkdownView extends BaseView {
         const backlinkBtn = document.createElement('button');
         backlinkBtn.className = 'cm-toolbar-btn';
         backlinkBtn.innerHTML = `<svg class="cm-tb-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg><span>Backlinks</span>`;
-        backlinkBtn.title = 'Find notes that [[link]] to this one';
+        backlinkBtn.title = t('Find notes that [[link]] to this one');
         backlinkBtn.onclick = (e) => { e.stopPropagation(); this.showBacklinks(); };
         toolbar.appendChild(backlinkBtn);
 
@@ -293,7 +294,7 @@ export class MarkdownView extends BaseView {
 
         const phantom = document.createElement('div');
         phantom.className = 'md-block phantom';
-        phantom.textContent = '+ Add Block';
+        phantom.textContent = t('+ Add Block');
         phantom.onclick = () => this.enterEditMode(phantom, '', blocks.length);
         if (State.vimState.selectedIndex === blocks.length) {
             phantom.classList.add('selected');
@@ -636,19 +637,19 @@ export class MarkdownView extends BaseView {
         const tools = [
             { label: 'B', wrap: '**', key: 'b' },
             { label: 'I', wrap: '*', key: 'i' },
-            { label: 'Link', wrap: ['[', '](url)'], key: 'k' },
+            { label: t('Link'), wrap: ['[', '](url)'], key: 'k' },
             { label: '#', prefix: '# ' },
             { label: '##', prefix: '## ' },
-            { label: 'List', prefix: '- ', key: 'u', shift: true },
-            { label: 'Num', prefix: '1. ', key: 'o', shift: true },
-            { label: 'Task', prefix: '- [ ] ', key: 't', shift: true },
-            { label: 'Quote', prefix: '> ', key: 'q', shift: true },
-            { label: 'Code', wrap: ['```\n', '\n```'], key: 'j', shift: true },
-            { label: 'HR', insert: '\n---\n', key: '-', shift: true },
-            { label: 'Table', insert: '\n| A | B |\n|---|---|\n| 1 | 2 |\n' },
+            { label: t('List'), prefix: '- ', key: 'u', shift: true },
+            { label: t('Num'), prefix: '1. ', key: 'o', shift: true },
+            { label: t('Task'), prefix: '- [ ] ', key: 't', shift: true },
+            { label: t('Quote'), prefix: '> ', key: 'q', shift: true },
+            { label: t('Code'), wrap: ['```\n', '\n```'], key: 'j', shift: true },
+            { label: t('HR'), insert: '\n---\n', key: '-', shift: true },
+            { label: t('Table'), insert: '\n| A | B |\n|---|---|\n| 1 | 2 |\n' },
             // Opens the helper (templates + live preview + syntax reference)
             // instead of dropping a stub the user then has to look up.
-            { label: 'Mermaid', helper: 'mermaid' }
+            { label: t('Mermaid'), helper: 'mermaid' }
         ];
 
         const applyFormat = (tool) => {
@@ -716,20 +717,20 @@ export class MarkdownView extends BaseView {
         // tab-separated text so Excel keeps the theme's colours and borders.
         const copyTableBtn = document.createElement('button');
         copyTableBtn.className = 'copy-table-btn jh-icon-row';
-        copyTableBtn.title = 'Copy the table (paste into Excel with formatting)';
+        copyTableBtn.title = t('Copy the table (paste into Excel with formatting)');
         copyTableBtn.innerHTML = svgIcon('copy-table', { size: 12 }) + '<span>Copy Table</span>';
         copyTableBtn.style.display = isTableMode ? '' : 'none';
         copyTableBtn.onmousedown = (e) => e.preventDefault();
         copyTableBtn.onclick = async () => {
             const rows = isTableMode ? tableData : TableEditor.parse(textarea.value);
             if (!rows || !rows.length) {
-                Toast.show('Nothing to copy — this block is not a table.', 'warning');
+                Toast.show(t('Nothing to copy — this block is not a table.'), 'warning');
                 return;
             }
             const ok = await TableEditor.copyToClipboard(rows);
             Toast.show(
-                ok ? 'Table copied — paste into Excel to keep the formatting.'
-                   : 'Could not reach the clipboard.',
+                ok ? t('Table copied — paste into Excel to keep the formatting.')
+                   : t('Could not reach the clipboard.'),
                 ok ? 'success' : 'error',
             );
         };
@@ -942,12 +943,12 @@ export class MarkdownView extends BaseView {
 
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn-cancel';
-        cancelBtn.textContent = 'Cancel (Esc)';
+        cancelBtn.textContent = t('Cancel (Esc)');
         cancelBtn.onclick = cancelAndClose;
 
         const saveBtn = document.createElement('button');
         saveBtn.className = 'btn-save';
-        saveBtn.textContent = 'Save (Ctrl+Enter)';
+        saveBtn.textContent = t('Save (Ctrl+Enter)');
         saveBtn.onclick = saveAndClose;
 
         toggleBtn.style.margin = '0';
@@ -1007,7 +1008,7 @@ export class MarkdownView extends BaseView {
         const head = document.createElement('div');
         head.className = 'mbe-head';
         const pos = total > 0 ? `${Math.min(blockIndex + 1, total)} / ${total}` : 'new';
-        head.innerHTML = `<span class="mbe-title">${this._escapeAttr(title || 'Edit Block')}</span>`
+        head.innerHTML = `<span class="mbe-title">${this._escapeAttr(title || t('Edit Block'))}</span>`
             + `<span class="mbe-pos">${this._escapeAttr(pos)}</span>`
             + `<span class="mbe-spacer"></span>`
             + `<button type="button" class="mbe-layout-btn" title="Switch source/preview layout (Ctrl+Alt+L)"></button>`
@@ -1022,13 +1023,13 @@ export class MarkdownView extends BaseView {
 
         const split = document.createElement('div');
         split.className = 'mbe-split';
-        split.title = 'Drag to resize';
+        split.title = t('Drag to resize');
 
         const right = document.createElement('div');
         right.className = 'mbe-right';
         const rightHead = document.createElement('div');
         rightHead.className = 'mbe-right-head';
-        rightHead.textContent = 'Preview';
+        rightHead.textContent = t('Preview');
         // Re-home the shared preview node; restore() puts it back on close.
         this._previewHome = { node: previewPane, parent: previewPane.parentElement, next: previewPane.nextSibling };
         previewPane.classList.add('mbe-preview');
@@ -1328,7 +1329,7 @@ export class MarkdownView extends BaseView {
             const message = count === 1
                 ? `Delete this block?\n\n  ${firstLine}`
                 : `Delete ${count} blocks?\n\n  ${firstLine}${count > 1 ? '\n  …' : ''}`;
-            const ok = await showConfirm(message, { title: 'Delete Block', kind: 'warning' });
+            const ok = await showConfirm(message, { title: t('Delete Block'), kind: 'warning' });
             if (!ok) return false;
         }
 

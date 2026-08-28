@@ -1,4 +1,5 @@
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
+import { t } from '../utils/I18n.js';
 import { iconEl } from '../ui/Icons.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
 import { shortcuts } from '../core/ShortcutManager.js';
@@ -690,7 +691,7 @@ class CsvView {
             upArrow.replaceChildren(iconEl('triangle-up', { size: 10 }));
             upArrow.style.cursor = 'pointer';
             upArrow.style.padding = '0 2px';
-            upArrow.title = 'Ascending';
+            upArrow.title = t('Ascending');
             upArrow.onmousedown = (e) => {
                 e.stopPropagation(); // prevent column selection
                 this.inputController.sortColumn(c, 'asc');
@@ -700,7 +701,7 @@ class CsvView {
             downArrow.replaceChildren(iconEl('triangle-down', { size: 10 }));
             downArrow.style.cursor = 'pointer';
             downArrow.style.padding = '0 2px';
-            downArrow.title = 'Descending';
+            downArrow.title = t('Descending');
             downArrow.onmousedown = (e) => {
                 e.stopPropagation(); // prevent column selection
                 this.inputController.sortColumn(c, 'desc');
@@ -1357,34 +1358,34 @@ class CsvController {
         if (r === -1) {
             // Column Header Context Menu
             menuItems = [
-                { label: 'Sort Ascending', action: () => this.sortColumn(c, 'asc') },
-                { label: 'Sort Descending', action: () => this.sortColumn(c, 'desc') },
+                { label: t('Sort Ascending'), action: () => this.sortColumn(c, 'asc') },
+                { label: t('Sort Descending'), action: () => this.sortColumn(c, 'desc') },
                 { type: 'separator' },
-                { label: 'Insert Column Left', action: () => { this.model.insertCol(c); this.view.updateData(); } },
-                { label: 'Insert Column Right', action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
-                { label: 'Insert Copied Columns Left', action: () => this.insertCopiedCols(c) },
-                { label: 'Insert Copied Columns Right', action: () => this.insertCopiedCols(c + 1) },
-                { label: 'Delete Column', action: () => { this.model.deleteCol(c); this.view.updateData(); } }
+                { label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
+                { label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
+                { label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
+                { label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
+                { label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
             ];
         } else {
             // Standard cell context menu
             menuItems = [
-                { label: 'Refresh', action: () => this.view.refreshSelection() },
+                { label: t('Refresh'), action: () => this.view.refreshSelection() },
                 { type: 'separator' },
-                { label: 'Transpose', action: () => this.transpose() },
+                { label: t('Transpose'), action: () => this.transpose() },
                 { type: 'separator' },
-                { label: 'Insert Row Above', action: () => { this.model.insertRow(r); this.view.updateData(); } },
-                { label: 'Insert Row Below', action: () => { this.model.insertRow(r + 1); this.view.updateData(); } },
-                { label: 'Insert Copied Rows Above', action: () => this.insertCopiedRows(r) },
-                { label: 'Insert Copied Rows Below', action: () => this.insertCopiedRows(r + 1) },
+                { label: t('Insert Row Above'), action: () => { this.model.insertRow(r); this.view.updateData(); } },
+                { label: t('Insert Row Below'), action: () => { this.model.insertRow(r + 1); this.view.updateData(); } },
+                { label: t('Insert Copied Rows Above'), action: () => this.insertCopiedRows(r) },
+                { label: t('Insert Copied Rows Below'), action: () => this.insertCopiedRows(r + 1) },
                 { type: 'separator' },
-                { label: 'Insert Column Left', action: () => { this.model.insertCol(c); this.view.updateData(); } },
-                { label: 'Insert Column Right', action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
-                { label: 'Insert Copied Columns Left', action: () => this.insertCopiedCols(c) },
-                { label: 'Insert Copied Columns Right', action: () => this.insertCopiedCols(c + 1) },
+                { label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
+                { label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
+                { label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
+                { label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
                 { type: 'separator' },
-                { label: 'Delete Row', action: () => { this.model.deleteRow(r); this.view.updateData(); } },
-                { label: 'Delete Column', action: () => { this.model.deleteCol(c); this.view.updateData(); } }
+                { label: t('Delete Row'), action: () => { this.model.deleteRow(r); this.view.updateData(); } },
+                { label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
             ];
         }
         ContextMenu.show(e, menuItems);
@@ -1979,7 +1980,7 @@ class CsvController {
     startJump() {
         this.jumpState.active = true;
         this.jumpState.buffer = '';
-        this.jumpDisplay.textContent = 'Jump: ';
+        this.jumpDisplay.textContent = t('Jump: ');
         this.jumpDisplay.style.display = 'block';
 
         clearTimeout(this.jumpState.timer);
@@ -1999,10 +2000,10 @@ class CsvController {
 
         if (e.key === 'Backspace') {
             this.jumpState.buffer = this.jumpState.buffer.slice(0, -1);
-            this.jumpDisplay.textContent = 'Jump: ' + this.jumpState.buffer;
+            this.jumpDisplay.textContent = t('Jump: ') + this.jumpState.buffer;
         } else if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
             this.jumpState.buffer += e.key.toUpperCase();
-            this.jumpDisplay.textContent = 'Jump: ' + this.jumpState.buffer;
+            this.jumpDisplay.textContent = t('Jump: ') + this.jumpState.buffer;
         }
 
         clearTimeout(this.jumpState.timer);

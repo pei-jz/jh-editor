@@ -13,6 +13,7 @@
  */
 
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
 import { icon as svgIcon } from '../ui/Icons.js';
 import { showAlert } from '../ui/Dialog.js';
 
@@ -105,18 +106,18 @@ export class TaskNotificationPanel {
             
             if (res.ok) {
                 dot.className = 'tnp-status-dot online';
-                dot.title = 'Connected to J.H AI Agent';
+                dot.title = t('Connected to J.H AI Agent');
                 this.isOffline = false;
                 await this._fetchTasks();
             } else {
                 dot.className = 'tnp-status-dot offline';
-                dot.title = 'Agent not responding';
+                dot.title = t('Agent not responding');
                 this.isOffline = true;
                 this._renderTaskList();
             }
         } catch (e) {
             dot.className = 'tnp-status-dot offline';
-            dot.title = 'Agent offline';
+            dot.title = t('Agent offline');
             this.isOffline = true;
             this._renderTaskList();
         }

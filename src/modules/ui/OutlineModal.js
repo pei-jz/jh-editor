@@ -1,4 +1,5 @@
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
 import { getCurrentView } from '../core/Editor.js';
 import { MarkdownView } from '../views/MarkdownView.js';
 
@@ -71,7 +72,7 @@ export const OutlineModal = {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'tab-search-input';
-        input.placeholder = 'Search headings...';
+        input.placeholder = t('Search headings...');
 
         const list = document.createElement('ul');
         list.className = 'tab-search-list';

@@ -1,21 +1,22 @@
 import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
+import { t } from '../utils/I18n.js';
 import { icon as svgIcon } from './Icons.js';
 import { shortcuts } from '../core/ShortcutManager.js';
 
 // Friendly, purpose-oriented labels for each shortcut scope, in display order.
 // Scopes found in SHORTCUTS but missing here still show up (with their raw name).
 const SCOPE_META = [
-    { scope: 'GLOBAL',          label: 'General',        hint: 'Works anywhere' },
-    { scope: 'EDITOR',          label: 'Editor',         hint: 'Code & text editing' },
-    { scope: 'EXPLORER',        label: 'Explorer',       hint: 'File tree' },
-    { scope: 'SEARCH',          label: 'Search Panel',   hint: 'Find & replace' },
-    { scope: 'MARKDOWN',        label: 'Markdown Edit',  hint: 'Editing a block' },
-    { scope: 'MARKDOWN_TABLE',  label: 'Markdown Table', hint: 'Table editor' },
-    { scope: 'MARKDOWN_BLOCK',  label: 'Markdown Select', hint: 'Block selected' },
-    { scope: 'CSV',             label: 'CSV Grid',       hint: 'Cell selection' },
-    { scope: 'CSV_EDIT',        label: 'CSV Cell Edit',  hint: 'Editing a cell' },
-    { scope: 'STRUCTURE_EDIT',  label: 'Structure Edit', hint: 'XML/JSON tree' },
-    { scope: 'AI_REVIEW',       label: 'AI Review',      hint: 'Diff review' },
+    { scope: 'GLOBAL',          label: t('General'),        hint: 'Works anywhere' },
+    { scope: 'EDITOR',          label: t('Editor'),         hint: 'Code & text editing' },
+    { scope: 'EXPLORER',        label: t('Explorer'),       hint: 'File tree' },
+    { scope: 'SEARCH',          label: t('Search Panel'),   hint: 'Find & replace' },
+    { scope: 'MARKDOWN',        label: t('Markdown Edit'),  hint: 'Editing a block' },
+    { scope: 'MARKDOWN_TABLE',  label: t('Markdown Table'), hint: 'Table editor' },
+    { scope: 'MARKDOWN_BLOCK',  label: t('Markdown Select'), hint: 'Block selected' },
+    { scope: 'CSV',             label: t('CSV Grid'),       hint: 'Cell selection' },
+    { scope: 'CSV_EDIT',        label: t('CSV Cell Edit'),  hint: 'Editing a cell' },
+    { scope: 'STRUCTURE_EDIT',  label: t('Structure Edit'), hint: 'XML/JSON tree' },
+    { scope: 'AI_REVIEW',       label: t('AI Review'),      hint: 'Diff review' },
 ];
 
 // How many category chips per row. Chips are laid out on a fixed grid so the
@@ -204,7 +205,7 @@ function renderCategoryBar(list, filter, rerender) {
 
     const help = document.createElement('div');
     help.className = 'sg-cat-help';
-    help.textContent = 'Alt + key to switch category · type to filter · • marks the current mode · Esc to close';
+    help.textContent = t('Alt + key to switch category · type to filter · • marks the current mode · Esc to close');
     bar.appendChild(help);
 
     renderShortcutList(list, filter, rerender);

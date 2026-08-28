@@ -1,4 +1,5 @@
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
 import { icon as svgIcon, iconEl, iconForFile } from './Icons.js';
 import { openFile } from '../core/Editor.js';
 import * as FS from '../utils/FileSystem.js';
@@ -59,7 +60,7 @@ export const FileSearchModal = {
         // Status bar
         const statusBar = document.createElement('div');
         statusBar.style.cssText = 'padding: 4px 12px; font-size: 11px; opacity: 0.5; border-bottom: 1px solid var(--border-color);';
-        statusBar.textContent = 'Loading files...';
+        statusBar.textContent = t('Loading files...');
 
         const list = document.createElement('ul');
         list.className = 'tab-search-list';
@@ -90,7 +91,7 @@ export const FileSearchModal = {
                 emptyMsg.className = 'tab-search-item';
                 emptyMsg.style.justifyContent = 'center';
                 emptyMsg.style.opacity = '0.5';
-                emptyMsg.textContent = 'No matching files found';
+                emptyMsg.textContent = t('No matching files found');
                 list.appendChild(emptyMsg);
                 return;
             }
@@ -249,7 +250,7 @@ export const FileSearchModal = {
                 renderList();
             } catch (err) {
                 console.error('File search failed:', err);
-                statusBar.textContent = 'Error loading files';
+                statusBar.textContent = t('Error loading files');
             }
         };
 
@@ -333,7 +334,7 @@ export const FileSearchModal = {
 
         // Pre-load cache in background
         if (!_fileCache || _fileCacheDir !== State.currentDir) {
-            statusBar.textContent = 'Indexing files...';
+            statusBar.textContent = t('Indexing files...');
             FS.listAllFiles(State.currentDir).then(files => {
                 const totalCount = files.length;
                 if (totalCount > FILE_CACHE_LIMIT) {
@@ -348,7 +349,7 @@ export const FileSearchModal = {
                     statusBar.textContent = `${totalCount.toLocaleString()} files indexed`;
                 }
             }).catch(err => {
-                statusBar.textContent = 'Failed to index files';
+                statusBar.textContent = t('Failed to index files');
                 console.error('File indexing failed:', err);
             });
         } else {

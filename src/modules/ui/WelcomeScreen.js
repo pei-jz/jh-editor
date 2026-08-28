@@ -1,4 +1,5 @@
 import { exists } from '../utils/FileSystem.js';
+import { t } from '../utils/I18n.js';
 import { showAlert } from './Dialog.js';
 
 const EL = {
@@ -125,7 +126,7 @@ function renderRecents(onWorkspaceSelect) {
     list.innerHTML = '';
 
     if (recents.length === 0) {
-        list.innerHTML = '<li class="no-recents">No recent workspaces</li>';
+        list.innerHTML = `<li class="no-recents">${t('No recent workspaces')}</li>`;
         return;
     }
 
@@ -160,7 +161,7 @@ function renderRecents(onWorkspaceSelect) {
         newWinBtn.className = 'recent-item-newwin';
         newWinBtn.type = 'button';
         newWinBtn.textContent = '⧉';
-        newWinBtn.title = 'Open in a new window';
+        newWinBtn.title = t('Open in a new window');
         newWinBtn.onclick = (e) => {
             e.stopPropagation();
             try { window.app?.openWorkspaceInNewWindow?.(path); } catch (_) {}

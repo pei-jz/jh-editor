@@ -1,4 +1,5 @@
 import { EL } from './Constants.js';
+import { t } from '../utils/I18n.js';
 import { State } from './Store.js';
 import { iconEl, iconForFile } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
@@ -708,19 +709,19 @@ class VirtualExplorer {
             const paths = Array.from(this.selectedPaths);
             const isDir = item.type === 'DIRECTORY';
             const menuItems = [
-                { label: 'Refresh', action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
+                { label: t('Refresh'), action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
                 { type: 'separator' },
-                { label: 'New File', action: () => handleNewFile(isDir ? item.path : FS.getParentDir(item.path)) },
-                { label: 'New Folder', action: () => handleNewFolder(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('New File'), action: () => handleNewFile(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('New Folder'), action: () => handleNewFolder(isDir ? item.path : FS.getParentDir(item.path)) },
                 { type: 'separator' },
-                { label: 'Rename', action: () => handleRename(paths[0]) },
+                { label: t('Rename'), action: () => handleRename(paths[0]) },
                 { label: `Delete (${paths.length})`, action: () => handleDelete(paths) },
                 { type: 'separator' },
                 { label: `Cut (${paths.length})`, action: () => handleCut(paths) },
                 { label: `Copy (${paths.length})`, action: () => handleCopy(paths) },
-                { label: 'Paste', action: () => handlePaste(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('Paste'), action: () => handlePaste(isDir ? item.path : FS.getParentDir(item.path)) },
                 { type: 'separator' },
-                { label: 'Find in Folder', action: () => {
+                { label: t('Find in Folder'), action: () => {
                     // Grep within this folder (a file → its parent folder).
                     const dir = isDir ? item.path : FS.getParentDir(item.path);
                     GrepModal.show(dir);
@@ -881,16 +882,16 @@ export function initExplorer(openCallback, cbObj) {
         if (e.target.closest('.tree-item')) return;
         e.preventDefault();
         ContextMenu.show(e, [
-            { label: 'New File', action: () => handleNewFile(State.currentDir) },
-            { label: 'New Folder', action: () => handleNewFolder(State.currentDir) },
+            { label: t('New File'), action: () => handleNewFile(State.currentDir) },
+            { label: t('New Folder'), action: () => handleNewFolder(State.currentDir) },
             { type: 'separator' },
-            { label: 'Reveal in File Manager', action: async () => {
+            { label: t('Reveal in File Manager'), action: async () => {
                 try {
                     await invoke('reveal_in_file_manager', { path: State.currentDir });
                 } catch (err) { console.error('reveal_in_file_manager failed', err); }
             } },
             { type: 'separator' },
-            { label: 'Refresh All', action: () => loadExplorer(true) }
+            { label: t('Refresh All'), action: () => loadExplorer(true) }
         ]);
     });
 

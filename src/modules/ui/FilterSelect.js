@@ -1,3 +1,4 @@
+import { t } from '../utils/I18n.js';
 /**
  * FilterSelect.js — a <select> you can type into.
  *
@@ -153,7 +154,7 @@ export function createFilterSelect({
         if (!visible.length) {
             const empty = document.createElement('div');
             empty.className = 'filter-select-empty';
-            empty.textContent = 'No match';
+            empty.textContent = t('No match');
             list.appendChild(empty);
         }
         setActive(visible.indexOf(current) >= 0 ? visible.indexOf(current) : (visible.length ? 0 : -1));
