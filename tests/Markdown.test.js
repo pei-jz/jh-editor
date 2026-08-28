@@ -48,9 +48,25 @@ describe('configureMarkdown', () => {
             return markedUse.mock.calls[0][0].renderer.code;
         };
 
-        it('wraps an explicit ```mermaid block', () => {
+        /* The source is ESCAPED into the div, not interpolated raw. Mermaid
+           labels legitimately contain markup — `A[Editor.js<br/>tabs]` is how
+           you get two lines in a node — and injecting the fence as HTML let the
+           browser consume that `<br/>` as a real element before mermaid ever
+           saw it. What reached the parser was `A[Editor.jstabs, panes]`: a
+           comma in an unquoted label, i.e. "Syntax error in text" on the first
+           render, which then "fixed itself" on a later one. */
+        it('wraps an explicit ```mermaid block, escaped', () => {
             expect(codeRenderer()('graph TD; A-->B;', 'mermaid'))
-                .toBe('<div class="mermaid">graph TD; A-->B;</div>');
+                .toBe('<div class="mermaid">graph TD; A--&gt;B;</div>');
+        });
+
+        it('hands mermaid back the markup its labels rely on', () => {
+            const html = codeRenderer()('graph TB\n A[Editor.js<br/>tabs]', 'mermaid');
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            // textContent is what mermaid.run() parses.
+            expect(div.querySelector('.mermaid').textContent)
+                .toBe('graph TB\n A[Editor.js<br/>tabs]');
         });
 
         it('detects diagram syntax even without the language tag', () => {

@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "J.H Editor",
   "version": "0.1.0",
-  "identifier": "com.jh-editer.app",
+  "identifier": "com.jh-editor.app",
   "build": {
     "devUrl": "http://localhost:1425",
     "frontendDist": "../dist",

@@ -689,7 +689,7 @@ export class MarkdownView extends BaseView {
             if (this.renderEditor) this.renderEditor();
 
             setTimeout(() => {
-                this.selectBlock(blockIndex);
+                this.selectBlock(blockIndex, { reveal: 'center' });
             }, 50);
         };
 
@@ -1048,7 +1048,26 @@ export class MarkdownView extends BaseView {
         if (this.updateOutline) this.updateOutline();
     }
 
-    selectBlock(index) {
+    /**
+     * Put the cursor on a block.
+     *
+     * @param {number} index
+     * @param {object} [opts]
+     * @param {'nearest'|'center'} [opts.reveal='nearest']
+     *   `nearest` for arrow-key navigation, where scrolling the page under a
+     *   reader who can already see the target is worse than not scrolling.
+     *   `center` after an EDIT, where the block has just been re-rendered at a
+     *   new height and 'nearest' parks it flush against the top or bottom edge
+     *   — which reads as "it scrolled to the wrong place".
+     * @param {boolean} [opts.focus=true]
+     *   False for the automatic "park the cursor on the visible page" call when
+     *   book mode opens. That runs 150ms after the view is built, which is
+     *   AFTER the explorer's own re-focus, so it took the keyboard back from
+     *   whatever the user had just clicked: arrows moved blocks and F2 opened a
+     *   block editor while the explorer looked focused.
+     */
+    selectBlock(index, opts = {}) {
+        const { reveal = 'nearest', focus = true } = opts;
         if (State.activeTabIndex < 0) return;
         // Bounds must come from the ACTUAL blocks. Re-splitting the raw text on
         // blank lines ignores fenced code, so a document with ``` blocks
@@ -1089,15 +1108,19 @@ export class MarkdownView extends BaseView {
                         const pageScroll = pageEl.scrollTop;
                         const pageHeight = pageEl.clientHeight;
 
-                        if (blockTop < pageScroll) {
+                        if (reveal === 'center') {
+                            const middle = blockTop - (pageHeight - b.offsetHeight) / 2;
+                            pageEl.scrollTo({ top: Math.max(0, middle), behavior: 'smooth' });
+                        } else if (blockTop < pageScroll) {
                             pageEl.scrollTo({ top: Math.max(0, blockTop - 20), behavior: 'smooth' });
                         } else if (blockBottom > pageScroll + pageHeight) {
                             pageEl.scrollTo({ top: blockBottom - pageHeight + 20, behavior: 'smooth' });
                         }
                     }
-                } else {
-                    b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else if (typeof b.scrollIntoView === 'function') {
+                    b.scrollIntoView({ behavior: 'smooth', block: reveal });
                 }
+                if (!focus) return;
                 b.focus({ preventScroll: true });
                 const range = document.createRange();
                 range.selectNodeContents(b);
@@ -2031,11 +2054,12 @@ export class MarkdownView extends BaseView {
                 const orientation = this.pageFlipInstance.getOrientation();
                 const onSpread = selPage === left || (orientation === 'landscape' && selPage === left + 1);
                 if (onSpread) {
-                    this.selectBlock(anchor);
+                    // Selection only: see selectBlock's `focus` option.
+                    this.selectBlock(anchor, { focus: false });
                     return;
                 }
             }
-            this._selectFirstBlockOfPage(left);
+            this._selectFirstBlockOfPage(left, { focus: false });
         }, 150);
     }
 

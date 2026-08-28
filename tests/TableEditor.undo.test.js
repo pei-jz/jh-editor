@@ -98,7 +98,7 @@ describe('TableEditor history', () => {
     // Typing fires per keystroke; an undo per character is not what anyone
     // means by undo.
     it('collapses a run of typing in one cell into a single step', () => {
-        const input = cell(1, 0).querySelector('input');
+        const input = cell(1, 0).querySelector('textarea');
         for (const value of ['x', 'xy', 'xyz']) {
             input.value = value;
             input.dispatchEvent(new Event('input'));
@@ -110,7 +110,7 @@ describe('TableEditor history', () => {
 
     it('keeps typing in different cells as separate steps', () => {
         const type = (r, c, value) => {
-            const input = cell(r, c).querySelector('input');
+            const input = cell(r, c).querySelector('textarea');
             input.value = value;
             input.dispatchEvent(new Event('input'));
         };

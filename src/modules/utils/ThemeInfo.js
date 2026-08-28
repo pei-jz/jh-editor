@@ -2,7 +2,7 @@
  * ThemeInfo.js — one answer to "is the current theme dark?"
  *
  * Four places used to decide this with their own hand-written allowlist of
- * theme classes: the Mermaid renderer, the Shiki highlighter, the CodeMirror
+ * theme classes: the Mermaid renderer, the syntax highlighter, the CodeMirror
  * syntax palette and the terminal. Every theme added since drifted out of one
  * list or another, and the symptom is always the same — a light palette drawn
  * on a dark surface, or the reverse, at 1–2:1 contrast.

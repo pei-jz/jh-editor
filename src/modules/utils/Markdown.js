@@ -2,6 +2,20 @@
 import { SyntaxHighlighter } from './SyntaxHighlighter.js';
 import { isDarkTheme } from './ThemeInfo.js';
 
+/**
+ * Escape a mermaid source so the DOM hands it back unchanged.
+ *
+ * Only the three characters that make the HTML parser do something. Quotes are
+ * left alone: this lands in a text node, not an attribute, and mermaid's own
+ * syntax uses them.
+ */
+function escapeForMermaid(code) {
+    return String(code == null ? '' : code)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
 export function configureMarkdown() {
     // Dependency Check
     if (typeof marked === 'undefined') {
@@ -25,7 +39,14 @@ export function configureMarkdown() {
             const isMermaidContent = !isMermaid && /^\s*(graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|flowchart)\s/.test(code);
 
             if (isMermaid || isMermaidContent) {
-                return `<div class="mermaid">${code}</div>`;
+                // ESCAPED, not interpolated raw. Mermaid labels legitimately
+                // contain markup — `A[Editor.js<br/>tabs]` is how you get two
+                // lines in a node — and injecting the fence as HTML let the
+                // browser consume that `<br/>` as a real element before mermaid
+                // ever saw it. What reached the parser was
+                // `A[Editor.jstabs, panes]`: a comma in an unquoted label, i.e.
+                // "Syntax error in text" on the very first render.
+                return `<div class="mermaid">${escapeForMermaid(code)}</div>`;
             }
             return false; // Toggle default renderer
         }

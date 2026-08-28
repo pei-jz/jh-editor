@@ -1,4 +1,4 @@
-import { ShikiHighlighter } from '../utils/ShikiHighlighter.js';
+import { highlightCode, escapeHtml } from '../utils/CMHighlighter.js';
 import * as Diff from 'diff';
 
 export class DiffEditor {
@@ -20,7 +20,7 @@ export class DiffEditor {
         this.rightLabel = options.rightLabel || 'Modified (Select to Apply)';
         this.onBack = typeof options.onBack === 'function' ? options.onBack : null;
 
-        // Determine language for Shiki
+        // Determine the language for the highlighter
         this.lang = this.filePath.split('.').pop() || 'javascript';
 
 
@@ -118,7 +118,7 @@ export class DiffEditor {
         this.container.style.padding = '0'; // Override global layout paddings
         this.container.style.overflow = 'hidden'; // Prevent outer scrollbars completely
 
-        // Large files: skip Shiki entirely (tokenizing the whole file is the
+        // Large files: skip highlighting entirely (tokenizing the whole file is the
         // dominant cost) and render escaped plain text instead. Unchanged blocks
         // are also collapsed in renderSame() to cut the DOM node count.
         const LARGE_DIFF_BYTES = 300 * 1024;
@@ -126,20 +126,17 @@ export class DiffEditor {
 
         let origHtml, modHtml;
         if (this.plainMode) {
-            origHtml = ShikiHighlighter.escapeHtml(this.originalContent);
-            modHtml = ShikiHighlighter.escapeHtml(this.modifiedContent);
+            origHtml = escapeHtml(this.originalContent);
+            modHtml = escapeHtml(this.modifiedContent);
         } else {
-            // Initialize Shiki
-            await ShikiHighlighter.init();
-
-            // Highlight full contents and split into lines.
-            // NOTE: the default light theme adds no body class, so a naive
-            // !contains('theme-light') test always returned true and forced
-            // github-dark (light tokens on a light bg → unreadable). Use the shared
-            // detector instead.
-            const theme = ShikiHighlighter.getActiveTheme();
-            origHtml = ShikiHighlighter.highlight(this.originalContent, this.lang, theme);
-            modHtml = ShikiHighlighter.highlight(this.modifiedContent, this.lang, theme);
+            // Synchronous, and themed by CSS rather than by picking a palette
+            // here. Choosing one used to be its own bug: the default light
+            // theme adds no body class, so a naive !contains('theme-light')
+            // test always forced the dark palette onto a light background.
+            // `tok-*` classes take their colour from the active theme, so there
+            // is no palette to choose and nothing to get wrong.
+            origHtml = highlightCode(this.originalContent, this.lang);
+            modHtml = highlightCode(this.modifiedContent, this.lang);
         }
 
         this.origHtmlLines = origHtml.split('\n');
@@ -574,7 +571,7 @@ export class DiffEditor {
     /**
      * Wrap spaces/tabs in marker spans so they can be seen.
      *
-     * Operates on TEXT NODES only — the row HTML comes from Shiki and must not
+     * Operates on TEXT NODES only — the row HTML comes from the highlighter and must not
      * be re-parsed or string-replaced (that would corrupt the token markup and
      * shift the word-diff offsets). The span keeps the real whitespace as its
      * content and CSS paints the glyph via ::before, so column alignment and
@@ -1129,7 +1126,10 @@ export class DiffEditor {
         const code = document.createElement('div');
         code.className = 'diff-code';
         
-        // Strip out the wrapper <span class="line"> that Shiki puts around lines, because we just need the inner spans
+        // Left over from shiki, which wrapped each line in <span class="line">.
+        // CMHighlighter emits the token spans directly, so this now matches
+        // nothing — kept because a line that IS exactly one such span (from an
+        // older cached render) should still unwrap rather than show the markup.
         let finalHtml = textOrHtml || ' ';
         if (isHtml && typeof textOrHtml === 'string') {
             const match = textOrHtml.match(/^<span class="line">(.*)<\/span>$/);

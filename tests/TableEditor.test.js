@@ -114,7 +114,7 @@ describe('TableEditor', () => {
             vi.runAllTimers();
             const table = container.querySelector('table');
             const cell = table.querySelector('[data-row="1"][data-col="0"]');
-            const input = cell.querySelector('input');
+            const input = cell.querySelector('textarea');
 
             input.value = 'NewVal';
             input.dispatchEvent(new Event('input'));

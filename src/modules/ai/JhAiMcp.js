@@ -26,6 +26,7 @@ import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { activityPanel } from './JhAiActivityPanel.js';
 import { allows, refusal, isPrivatePath } from './ContextScope.js';
+import { promptLanguageName } from '../utils/I18n.js';
 
 // Unique per-process id so the AI-Hub can tell multiple JHEditor instances
 // apart (all register as app="jheditor"). Sent on the MCP WS query and in the
@@ -435,7 +436,7 @@ export async function initJhEditorMcp() {
         systemPrompt:
             'You are an assistant that summarizes logs for the currently edited document.\n' +
             'First, use get_buffer to retrieve the content, then aggregate the count, time periods, categories, etc., ' +
-            'and summarize the results in a readable Markdown table.\n\n' +
+            `and summarize the results in a readable Markdown table (in ${promptLanguageName()}).\n\n` +
             'HOW TO RETURN RESULTS (STRICTLY ENFORCED):\n' +
             '- You MUST return the result by calling the present_result tool with kind="markdown" ' +
             'and put the full text of your deliverable into the `markdown` argument. ' +
@@ -451,7 +452,7 @@ export async function initJhEditorMcp() {
         tier: 'fast',
         systemPrompt:
             'You are a code/text explanation assistant.\n' +
-            'First, use get_selection to get the selected text, and briefly explain in Japanese what it does, ' +
+            `First, use get_selection to get the selected text, and briefly explain in ${promptLanguageName()} what it does, ` +
             'key points, and caveats using Markdown. If the selection is empty, use get_buffer to look at the whole document and provide an overview.\n\n' +
             'HOW TO RETURN RESULTS (STRICTLY ENFORCED):\n' +
             '- You MUST return the result by calling the present_result tool with kind="markdown" ' +
@@ -483,7 +484,7 @@ export async function initJhEditorMcp() {
             'The argument name is exactly `markdown` (do not use content, text, or md).\n' +
             '- Code modification/generation: Put the full revised code into a single ```language fenced code block ' +
             'and pass it in the `markdown` argument so it can be inserted (do NOT return it as body text).\n' +
-            '- Explanation/Summary/Analysis: Pass readable Markdown (in Japanese) in the `markdown` argument.\n' +
+            '- Explanation/Summary/Analysis: Pass readable Markdown (in ' + promptLanguageName() + ') in the `markdown` argument.\n' +
             '- Call present_result FIRST, and then call finish_task with a short one-line summary. ' +
             'Do not skip present_result. Do not put the result only in the finish_task summary.\n' +
             '- Thought notes such as OBSERVE / PLAN are for internal use and are not the deliverable itself.',
@@ -593,7 +594,7 @@ export async function runJhaiFreeform(prompt, contextText, { onEvent } = {}) {
         console.warn('[JhAiMcp] WS not connected — JHAI may not see the tools. Is J.H AI Agent running?');
     }
     const userPrompt = contextText
-        ? `${prompt}\n\n--- 対象/カーソル周辺のコンテキスト ---\n${contextText}`
+        ? `${prompt}\n\n${_freeformContextLabel()}\n${contextText}`
         : prompt;
     return startJhaiTask({ intentId: 'freeform', prompt: userPrompt, title: prompt, onEvent }).completed;
 }
@@ -609,7 +610,7 @@ const INLINE_PRESETS = {
         // 'doc' → the result opens as a read-only Markdown tab (not written into
         // the buffer, not a diff). The AI explanation is reference material.
         mode: 'doc',
-        instruction: '次の選択コード/テキストが何をしているかを、日本語で分かりやすく説明してください。コードは書き換えないでください。',
+        instruction: '次の選択コード/テキストが何をしているかを説明してください。コードは書き換えないでください。',
     },
     refactor: {
         title: 'Refactor',
@@ -637,6 +638,48 @@ function _extractCodeBlock(md) {
     if (!md) return '';
     const m = String(md).match(/```[a-zA-Z0-9_-]*\n([\s\S]*?)```/);
     return m ? m[1].replace(/\n$/, '') : '';
+}
+
+/** Format rule for an inline preset, in the configured UI language. */
+function _presetFormatRule(mode) {
+    const lang = promptLanguageName();
+    const rules = {
+        replace: {
+            en: 'Reply by calling present_result(kind="markdown") exactly once, and put the full transformed text into the `markdown` argument as a single ```code block``` only (no explanatory text).\n\n',
+            ja: '返答は present_result(kind="markdown") を1回だけ呼び、変換後の全文を1つの ```コードブロック``` のみで `markdown` 引数に入れて返してください（説明文は不要）。\n\n',
+            zh: '请恰好调用一次 present_result(kind="markdown")，并将转换后的全文仅以一个 ```代码块``` 形式放入 `markdown` 参数（不要说明文字）。\n\n',
+            ko: 'present_result(kind="markdown")을 정확히 한 번 호출하고, 변환된 전체 텍스트를 하나의 ```코드 블록```으로만 `markdown` 인자에 넣어 반환하세요(설명 없음).\n\n',
+        },
+        doc: {
+            en: 'Reply by calling present_result(kind="markdown") exactly once, and put the full explanation into the `markdown` argument. Do not call other kinds such as answer, and do not add an extra empty present_result.\n\n',
+            ja: '返答は present_result(kind="markdown") を1回だけ呼び、説明の全文を `markdown` 引数に入れて返してください。answer など他の kind や、空の present_result を追加で呼ばないでください。\n\n',
+            zh: '请恰好调用一次 present_result(kind="markdown")，并将完整说明放入 `markdown` 参数。不要调用 answer 等其他 kind，也不要额外调用空的 present_result。\n\n',
+            ko: 'present_result(kind="markdown")을 정확히 한 번 호출하고 설명 전체를 `markdown` 인자에 넣어 반환하세요. answer 등 다른 kind나 빈 present_result를 추가로 호출하지 마세요.\n\n',
+        },
+    };
+    return rules[mode]?.[lang] || rules[mode]?.en || '';
+}
+
+/** The "--- selection ---" separator in the prompt, in the configured language. */
+function _presetSelectionLabel() {
+    const lang = promptLanguageName();
+    return {
+        en: '--- selection ---',
+        ja: '--- 選択 ---',
+        zh: '--- 选择 ---',
+        ko: '--- 선택 ---',
+    }[lang] || '--- selection ---';
+}
+
+/** The "--- context around cursor ---" separator, in the configured language. */
+function _freeformContextLabel() {
+    const lang = promptLanguageName();
+    return {
+        en: '--- context around the cursor ---',
+        ja: '--- 対象/カーソル周辺のコンテキスト ---',
+        zh: '--- 光标周围的上下文 ---',
+        ko: '--- 커서 주변 컨텍스트 ---',
+    }[lang] || '--- context around the cursor ---';
 }
 
 // Apply an accepted proposal back to the file/selection it came from.
@@ -734,15 +777,13 @@ export async function runInlinePreset(preset, { onEvent } = {}) {
     };
 
     let formatRule = '';
-    if (def.mode === 'replace') {
-        formatRule = '返答は present_result(kind="markdown") を1回だけ呼び、変換後の全文を1つの ```コードブロック``` のみで `markdown` 引数に入れて返してください（説明文は不要）。\n\n';
-    } else if (def.mode === 'doc') {
-        formatRule = '返答は present_result(kind="markdown") を1回だけ呼び、説明の全文を `markdown` 引数に入れて返してください。answer など他の kind や、空の present_result を追加で呼ばないでください。\n\n';
+    if (def.mode === 'replace' || def.mode === 'doc') {
+        formatRule = _presetFormatRule(def.mode);
     }
     const prompt =
         `${def.instruction}\n\n` +
         formatRule +
-        `--- 選択 ---\n${selection || '(選択なし)'}\n`;
+        `${_presetSelectionLabel()}\n${selection || '(選択なし)'}\n`;
 
     return startJhaiTask({
         intentId: 'freeform',

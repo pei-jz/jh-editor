@@ -194,32 +194,35 @@ describe('Panes — shared backend handles', () => {
     beforeEach(reset);
 
     it('sees no user for an absent handle', () => {
-        expect(handleStillInUse('largeId', null, null)).toBe(false);
-        expect(handleStillInUse('largeId', undefined, null)).toBe(false);
+        expect(handleStillInUse('largeId', null)).toBe(false);
+        expect(handleStillInUse('largeId', undefined)).toBe(false);
     });
 
-    // Splitting clones the file object, so the same mmap id lives in both panes.
-    // Closing one tab must not free the handle the other is still reading from.
-    it('detects a clone in the other pane holding the same id', () => {
-        const left = mk('/ws/huge.log', { largeId: 7 });
-        const right = { ...left };
-        State.openFiles = [left];
-        State.rightOpenFiles = [right];
-        expect(handleStillInUse('largeId', 7, right)).toBe(true);
+    /* This took an `exclude` argument that skipped one file by object identity,
+       meaning "everyone except the tab I am closing". A split SHARES the buffer
+       object now, so the other pane's entry is that same object and was skipped
+       too — the mmap handle was freed underneath a pane still reading from it.
+       The caller removes its tab first, so the lists are simply the truth. */
+    it('sees the other pane still holding the same id', () => {
+        const shared = mk('/ws/huge.log', { largeId: 7 });
+        State.openFiles = [];                 // the left tab was just closed
+        State.rightOpenFiles = [shared];
+        expect(handleStillInUse('largeId', 7)).toBe(true);
     });
 
-    it('reports free once the last holder is the one being closed', () => {
-        const only = mk('/ws/huge.log', { largeId: 7 });
-        State.openFiles = [only];
-        expect(handleStillInUse('largeId', 7, only)).toBe(false);
+    it('reports free once the last holder has gone', () => {
+        State.openFiles = [];
+        State.rightOpenFiles = [];
+        expect(handleStillInUse('largeId', 7)).toBe(false);
     });
 
     it('distinguishes handle kinds', () => {
         const a = mk('/ws/a', { editId: 3 });
         const b = mk('/ws/b', { largeId: 3 });
         State.openFiles = [a, b];
-        expect(handleStillInUse('editId', 3, a)).toBe(false);
-        expect(handleStillInUse('largeId', 3, a)).toBe(true);
+        expect(handleStillInUse('editId', 3)).toBe(true);
+        expect(handleStillInUse('largeId', 3)).toBe(true);
+        expect(handleStillInUse('editId', 9)).toBe(false);
     });
 });
 

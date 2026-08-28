@@ -300,6 +300,9 @@ describe('one language in the interface', () => {
         if (!JA.test(line)) return false;
         if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return false;
         if (/(instruction|prompt|formatRule|systemPrompt)\s*[:=]/.test(t)) return false;
+        // Per-language prompt maps: `ja: '…'` inside an `{ en:…, ja:… }` block are
+        // model prompts (they choose the answer's language), not interface chrome.
+        if (/^(en|ja|zh|ko)\s*:/.test(t)) return false;
         if (/font(String|-family|Family)|BIZ UD|Meiryo|Gothic|Mincho/i.test(t)) return false;
         return true;
     });
@@ -311,12 +314,14 @@ describe('one language in the interface', () => {
         });
     }
 
-    // The point is that the AI still answers in Japanese; the prompts are why.
-    it('leaves the model prompts alone', () => {
+    // Prompts decide the language of the answers and now FOLLOW the UI language:
+    // the Japanese instruction is one of the supported languages, not a hardcoded
+    // default. The UI-language independence is what this is really asserting.
+    it('keeps the model prompts language-aware', () => {
         expect(read('src/modules/ui/SelectionActions.js'))
-            .toMatch(/instruction: '[^']*[぀-ヿ一-鿿]/);
+            .toMatch(/ja:\s*'選択されたテキストを簡潔に要約/);
         expect(read('src/modules/ai/JhAiMcp.js'))
-            .toMatch(/instruction: '[^']*[぀-ヿ一-鿿]/);
+            .toMatch(/instruction:\s*'次の選択コード/);
     });
 });
 

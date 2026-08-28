@@ -92,7 +92,7 @@ the agent's model calls back into the editor for context.
 
 ### 🎨 Customization
 
-- **8 themes** — Light, Dark, Midnight, Latte, Solarized Light, Solarized Dark, Paper, Paper (Subtle)
+- **11 themes** — Light, Dark, Midnight, Latte, Solarized Light, Solarized Dark, Paper, Bamboo Slip, Ink Brush, Nord, Hanging Scroll
 - **Fonts** — separate family/size for editor, UI and terminal
 - **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`)
 - **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar)
@@ -166,14 +166,17 @@ npm run tauri build
 # Unit tests (vitest, jsdom)
 npm test
 
-# With coverage — thresholds are enforced
+# With coverage — thresholds are checked when run with coverage
 npm run test:coverage
 ```
 
-Coverage gates apply to the **logic** layer (utils, `Store`, `Session`, `Panes`,
-`ShortcutManager`, `PluginManager`): 90% statements / lines / functions, 85% branches.
-Views and editors are driven by real widgets and are covered by the Playwright suite in
-`tests/e2e/` instead — holding them to a unit-test threshold would only invite fake tests.
+Coverage thresholds (90% statements / lines / functions, 85% branches) apply to
+the **logic** layer (utils, `Store`, `Session`, `Panes`, `ShortcutManager`,
+`PluginManager`) and are enforced by `npm run test:coverage` — `npm test` runs the
+unit suite without the coverage gate. Views and editors are driven by real
+widgets; they are covered by the Playwright suite in `tests/e2e/`, which verifies
+UI wiring that runs in a plain browser (settings/theme switching, new-file and
+shortcut-guide modals).
 
 ### Recommended IDE setup
 

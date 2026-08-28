@@ -84,7 +84,7 @@ describe.each(PALETTE_THEMES)('theme %s', (name) => {
     });
 
     it('is offered in the settings selector', () => {
-        expect(read('index.html')).toContain(`<option value="${name}">`);
+        expect(read('index.html')).toContain(`<option value="${name}"`);
     });
 
     it('is cleared when switching away', () => {
@@ -169,7 +169,7 @@ describe('removed themes', () => {
 
     it('leaves the bold Paper theme in place', () => {
         expect(themeBlock('paper')).toContain('--bg-color: #f3e9d0;');
-        expect(read('index.html')).toContain('<option value="paper">');
+        expect(read('index.html')).toContain('<option value="paper"');
     });
 });
 
@@ -183,12 +183,15 @@ describe('theme labels', () => {
             ['nord', 'Nord'],
             ['kakejiku', 'Hanging Scroll'],
         ]) {
-            expect(options, value).toContain(`<option value="${value}">${label}</option>`);
+            // The English label is the i18n fallback: the option carries it as
+            // textContent and as the data-i18n key (translated in the UI).
+            expect(options, value).toContain(`<option value="${value}" data-i18n="${label}">${label}</option>`);
         }
     });
 
     // The value is the CSS class and the localStorage key; renaming a LABEL
-    // must never drag it along or every saved setting breaks.
+    // must never drag it along or every saved setting breaks. Localised labels
+    // live in I18n.js keyed by the English fallback, not in the selector.
     it('carries no Japanese in the selector', () => {
         const i = options.indexOf('<select id="theme-selector">');
         const list = options.slice(i, options.indexOf('</select>', i));
@@ -219,8 +222,10 @@ describe('dark-theme detection', () => {
     });
 
     it('is the only list: no consumer keeps its own', () => {
+        // ShikiHighlighter.js was on this list until shiki was removed; its
+        // job now belongs to CMHighlighter, which needs no dark/light decision
+        // at all — the tok-* classes take their colour from the theme.
         for (const f of ['src/modules/utils/Markdown.js',
-            'src/modules/utils/ShikiHighlighter.js',
             'src/modules/views/CodeMirrorView.js']) {
             const src = read(f);
             expect(src, f).toContain('ThemeInfo.js');

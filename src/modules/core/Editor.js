@@ -12,6 +12,7 @@ import { lspClient } from '../lsp/LspClient.js';
 import { CodeFormatter } from '../utils/CodeFormatter.js';
 import { formatAsync } from '../utils/AsyncFormatter.js';
 import { TabSearch } from '../ui/TabSearch.js';
+import { t } from '../utils/I18n.js';
 
 import { CodeMirrorView } from '../views/CodeMirrorView.js';
 import { LargeFileEditView } from '../views/LargeFileEditView.js';
@@ -60,12 +61,35 @@ let rightView = null;
 /** Release the Rust-side handles owned by a tab, unless a sibling shares them. */
 function releaseFileHandles(file) {
     if (!file) return;
-    if (file.largeId != null && !handleStillInUse('largeId', file.largeId, file)) {
+    // Call this AFTER the tab has been removed from its pane: the lists are
+    // what decides whether anyone still holds the handle.
+    if (file.largeId != null && !handleStillInUse('largeId', file.largeId)) {
         invoke('large_file_close', { id: file.largeId }).catch(() => {});
     }
-    if (file.editId != null && !handleStillInUse('editId', file.editId, file)) {
+    if (file.editId != null && !handleStillInUse('editId', file.editId)) {
         invoke('editable_close', { id: file.editId }).catch(() => {});
     }
+}
+
+/**
+ * Keep the other pane's view of the SAME buffer in step.
+ *
+ * A split shares the buffer object (see splitEditor), so both panes are views
+ * of one document and both must show the same text. Without this the idle pane
+ * kept the text it was rendered with, and typing in it later wrote that stale
+ * document back over the other pane's work — the divergence the shared object
+ * was meant to end, just moved one level down.
+ *
+ * Only a view showing the same buffer OBJECT is mirrored: two tabs on the same
+ * path that were opened separately are separate buffers, and always were.
+ */
+function mirrorToSibling(file, changes, sourceView) {
+    if (!State.splitMode) return;
+    const sibling = sourceView === leftView ? rightView : leftView;
+    if (!sibling || sibling === sourceView) return;
+    if (sibling.file !== file) return;
+    if (typeof sibling.applyRemoteChanges !== 'function') return;
+    sibling.applyRemoteChanges(changes);
 }
 
 export function getCurrentView() {
@@ -339,11 +363,21 @@ export async function closeAllTabs(action = 'prompt') {
     // action can be: 'prompt' (undefined), true (save), false (discard), or 'force' (discard)
     if (action === undefined) action = 'prompt';
 
-    const hasDirty = State.openFiles.some(f => f.isDirty);
+    // Both panes: quitting/closing with the right-hand split's work unsaved
+    // is just as final. Save and dirty-check must cover both, not just the
+    // left one.
+    const allFiles = [...State.openFiles, ...State.rightOpenFiles];
+    const hasDirty = allFiles.some(f => f.isDirty);
     
     if (action === true || action === 'save') {
-        for (const file of State.openFiles) {
+        // One buffer open in both panes is now literally one object, so
+        // identity dedups it exactly — and there is no longer a second,
+        // divergent copy whose edits a path-based dedup could silently drop.
+        const seen = new Set();
+        for (const file of allFiles) {
             if (!file.isDirty || !file.path) continue;
+            if (seen.has(file)) continue;
+            seen.add(file);
             if (file.isEditing && file.editId != null) {
                 // Rope-backed huge file: write via the backend, not file.content.
                 try { await invoke('editable_save', { id: file.editId, path: file.path }); } catch (e) { console.error(e); }
@@ -562,9 +596,11 @@ export function renderEditor(targetPane = null) {
                 view.render(file.content, file);
             }
         } else {
-            view = new CodeMirrorView(container, { 
-                updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); }, 
-                renderTabs: () => renderTabs(pane) 
+            view = new CodeMirrorView(container, {
+                pane,
+                updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
+                renderTabs: () => renderTabs(pane),
+                onDocChanged: mirrorToSibling,
             });
             view.render(file.content, file);
         }
@@ -1258,7 +1294,8 @@ export async function closeTab(index, pane = activePane()) {
 
     // Free any Rust-side handles tied to this tab (mmap viewer / rope editor).
     // These are owned by the tab, not the view, so they outlive tab switches —
-    // but a split clones the file object, so only release what nobody else holds.
+    // and a split SHARES the buffer, so only release what nobody else holds.
+    // The splice above already happened, which is what makes that check valid.
     releaseFileHandles(file);
 
     const newActiveIdx = activeIndexAfterRemoval(index, activeIdx, openFiles.length);
@@ -1703,11 +1740,17 @@ export function splitEditor(options = {}) {
     }
 
     if (seed && State.rightOpenFiles.length === 0 && State.openFiles.length > 0 && State.activeTabIndex >= 0) {
-        const activeFile = State.openFiles[State.activeTabIndex];
-        // Shallow clone: the two panes are independent tabs over the same file.
-        // Any backend handle is shared, which releaseFileHandles() accounts for.
-        const cloned = { ...activeFile };
-        State.rightOpenFiles.push(cloned);
+        // The SAME object, not a copy. Splitting duplicates the current file —
+        // the convention VS Code and JetBrains both follow — and it only works
+        // if the two panes are two views of ONE document. A `{ ...activeFile }`
+        // clone diverged the moment either side was typed into: one path, two
+        // texts, `file.content` set by whichever pane wrote last, and a save
+        // that picked one of them arbitrarily.
+        //
+        // Both panes therefore share dirty state, encoding, EOL and any backend
+        // handle. What must NOT be shared is per-view state (cursor, scroll,
+        // undo history) — that is keyed by pane, see CodeMirrorView.
+        State.rightOpenFiles.push(State.openFiles[State.activeTabIndex]);
         State.rightActiveTabIndex = 0;
     }
 
@@ -2018,7 +2061,7 @@ export function updateToolbar() {
             if (EL.currentFileLabel) EL.currentFileLabel.textContent = fullPath;
         }
     } else {
-        if (EL.currentFileLabel) EL.currentFileLabel.textContent = 'No file selected';
+        if (EL.currentFileLabel) EL.currentFileLabel.textContent = t('No file selected');
         if (EL.fileDirectoryLabel) EL.fileDirectoryLabel.textContent = '';
     }
 }

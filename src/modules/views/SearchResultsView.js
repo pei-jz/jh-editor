@@ -6,6 +6,20 @@ import { State } from '../core/Store.js';
 // so results keep accumulating into file.matches even while this tab isn't
 // active); when active, the model calls appendMatches()/setDone() live. On
 // (re)construction the view renders whatever file.matches has accumulated.
+/**
+ * Send the next `openFile` to the pane the results are NOT in.
+ *
+ * A results list is something you work THROUGH: opening each hit over the list
+ * itself replaces the very thing you are walking down. With the editor split,
+ * the other pane is free, so the hit lands there and the list stays put.
+ *
+ * No-op when there is no split — there is nowhere else to put it.
+ */
+function openHitInOtherPane() {
+    if (!State.splitMode) return;
+    State.activePane = State.activePane === 'right' ? 'left' : 'right';
+}
+
 export class SearchResultsView {
     constructor(container, file) {
         this.container = container;
@@ -262,7 +276,12 @@ export class SearchResultsView {
             lineEl.appendChild(this._renderLineText(m.text));
             // forcePlainText: grep reports line numbers, and only the plain-text
             // editor can jump to one (structure/CSV views aren't line-addressable).
-            lineEl.onclick = () => { try { window.app.openFile(m.path, false, m.line, true); } catch (e) { console.warn(e); } };
+            lineEl.onclick = () => {
+                try {
+                    openHitInOtherPane();
+                    window.app.openFile(m.path, false, m.line, true);
+                } catch (e) { console.warn(e); }
+            };
             g.linesDiv.appendChild(lineEl);
             g.count += 1;
             g.countEl.textContent = String(g.count);

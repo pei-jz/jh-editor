@@ -5,6 +5,7 @@ import { State } from '../core/Store.js';
 import { ContextMenu } from './ContextMenu.js';
 import AIAgent from '../ai/AIAgent.js';
 import { open } from '@tauri-apps/plugin-shell';
+import { promptLanguageName } from '../utils/I18n.js';
 
 /**
  * Strip quoting that leaked out of the shell.
@@ -23,6 +24,22 @@ import { open } from '@tauri-apps/plugin-shell';
  */
 export function cleanRef(name) {
     return String(name).trim().replace(/^["'\\]+|["'\\]+$/g, '').trim();
+}
+
+/**
+ * The git-diff → commit-message prompt, in the configured UI language.
+ * The summary line is conventional-commit (always English-ish); a longer body,
+ * if the model writes one, follows the UI language.
+ */
+export function commitMessagePrompt(diff) {
+    const lang = promptLanguageName();
+    const body = {
+        en: 'Below is a git diff. Generate exactly ONE conventional-commit message for it.\n\nConstraints:\n- First line: summary (within 50 chars, with a prefix).\n- If needed, a longer description after a blank line.\n- Return ONLY the commit message, no commentary or notes.',
+        ja: '以下は git diff です。これに対する規約準拠のコミットメッセージを1件だけ生成してください。\n\n制約:\n- 1行目に summary（50文字以内、prefix 付き）。\n- 必要なら空行の後に詳細な説明。\n- 説明や注釈は含めず、コミットメッセージのみを返す。',
+        zh: '以下是 git diff。请为它生成恰好一条符合规范的提交信息。\n\n约束:\n- 第一行：summary（不超过 50 字符，带前缀）。\n- 如有必要，在空行后给出更长的描述。\n- 只返回提交信息，不要包含说明或注释。',
+        ko: '아래는 git diff입니다. 이에 대한 규칙을 준수하는 커밋 메시지를 정확히 하나만 생성하세요.\n\n제약:\n- 첫 줄: summary(50자 이내, prefix 포함).\n- 필요하면 빈 줄 뒤에 상세 설명.\n- 설명이나 주석 없이 커밋 메시지만 반환하세요.',
+    }[lang] || 'Below is a git diff. Generate exactly ONE conventional-commit message for it.\n\nConstraints:\n- First line: summary (within 50 chars, with a prefix).\n- If needed, a longer description after a blank line.\n- Return ONLY the commit message, no commentary or notes.';
+    return `${body}\n\n--- git diff ---\n${diff}`;
 }
 /**
  * Split a git remote into the pieces a web URL needs.
@@ -1680,16 +1697,8 @@ class GitPanel {
 
         try {
             const message = await AIAgent.runSingleShot({
-                prompt: `以下は git diff です。これに対する規約準拠のコミットメッセージを1件だけ生成してください。
-
-制約:
-- 1行目に summary（50文字以内、prefix 付き）。
-- 必要なら空行の後に詳細な説明。
-- 説明や注釈は含めず、コミットメッセージのみを返す。
-
---- git diff ---
-${diff.slice(0, 12000)}`,
-                systemPrompt: 'You generate a concise conventional-commit message from a git diff. Respond in English.',
+                prompt: commitMessagePrompt(diff.slice(0, 12000)),
+                systemPrompt: `You generate a concise conventional-commit message from a git diff. The summary line stays in English; respond in ${promptLanguageName()} for any longer description.`,
             });
             const cleaned = (message || '').trim().replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/, '').trim();
             input.value = cleaned || '';

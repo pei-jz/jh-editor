@@ -1,90 +1,154 @@
 import { describe, it, expect } from 'vitest';
-import { highlightCode } from '../src/modules/utils/CMHighlighter.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-// Strip tags to recover the plain text the browser would show.
-const textOf = (html) => html.replace(/<[^>]+>/g, '');
-const unescape = (s) => s
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
+import { highlightCode, escapeHtml, supportedLanguages } from '../src/modules/utils/CMHighlighter.js';
+import { SyntaxHighlighter } from '../src/modules/utils/SyntaxHighlighter.js';
 
-describe('CMHighlighter.highlightCode', () => {
-    it('emits tok-* classes for a known language', () => {
-        const html = highlightCode('const x = 1;', 'js');
-        expect(html).toContain('tok-keyword');
-        expect(html).toContain('tok-number');
+const here = dirname(fileURLToPath(import.meta.url));
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+
+/* Two engines did this job: CodeMirror inside the editor, shiki everywhere
+   else. shiki shipped 6.8 MB of TextMate grammars for languages nothing here
+   asked for, and burned its colours into style="color:#…" so the output could
+   not follow the app's themes. The editor's own parsers do both jobs now. */
+
+describe('highlighting code', () => {
+    /** Token classes in the output, without the tok- prefix. */
+    const tokens = (html) => [...html.matchAll(/class="([^"]+)"/g)]
+        .flatMap((m) => m[1].split(/\s+/))
+        .filter((c) => c.startsWith('tok-'))
+        .map((c) => c.slice(4));
+
+    it('colours the languages the editor itself knows', () => {
+        for (const [code, lang] of [
+            ['const a = 1;', 'js'],
+            ['x = 1', 'python'],
+            ['SELECT 1 FROM t', 'sql'],
+            ['fn main() {}', 'rs'],
+            ['{"a": 1}', 'json'],
+            ['a: 1', 'yaml'],
+        ]) {
+            expect(tokens(highlightCode(code, lang)).length, lang).toBeGreaterThan(0);
+        }
     });
 
-    it('preserves the source text exactly', () => {
-        const code = 'function f(a) {\n  return a + 1;\n}';
-        expect(unescape(textOf(highlightCode(code, 'js')))).toBe(code);
+    /* These are the ones shiki used to cover and CodeMirror's own packages do
+       not. They come from @codemirror/legacy-modes, and getting the wrapper
+       wrong is silent: StreamLanguage.define() IS the Language, while a
+       lang-* package wraps it in `.language`, so reading only `.language` left
+       every one of them falling through to plain text. */
+    it('colours the ones that come from the legacy modes', () => {
+        for (const [code, lang] of [
+            ['echo $PWD', 'bash'],
+            ['func main() {}', 'go'],
+            ['def f; end', 'ruby'],
+            ['a = 1', 'toml'],
+            ['FROM node:20', 'dockerfile'],
+            ['Write-Host 1', 'powershell'],
+            ['key=value', 'ini'],
+        ]) {
+            expect(tokens(highlightCode(code, lang)).length, lang).toBeGreaterThan(0);
+        }
     });
 
-    it('escapes HTML so source code can never inject markup', () => {
-        const html = highlightCode('const s = "<script>alert(1)</script>";', 'js');
+    it('reads a fence tag as well as a file extension', () => {
+        expect(highlightCode('const a=1', 'javascript')).toContain('tok-');
+        expect(highlightCode('const a=1', 'js')).toContain('tok-');
+        expect(highlightCode('const a=1', '.JS')).toContain('tok-');
+    });
+
+    // Plain text is readable; a wrong grammar is not.
+    it('falls back to escaped text rather than guessing', () => {
+        expect(highlightCode('<b>&</b>', 'nosuchlang')).toBe('&lt;b&gt;&amp;&lt;/b&gt;');
+        expect(highlightCode('a < b', '')).toBe('a &lt; b');
+        expect(highlightCode('a < b', null)).toBe('a &lt; b');
+    });
+
+    it('escapes what it colours, too', () => {
+        const html = highlightCode('const s = "<script>";', 'js');
         expect(html).not.toContain('<script>');
         expect(html).toContain('&lt;script&gt;');
     });
 
-    it('escapes ampersands and quotes', () => {
-        const html = highlightCode('const s = "a & b\'c";', 'js');
-        expect(html).toContain('&amp;');
-        expect(unescape(textOf(html))).toBe('const s = "a & b\'c";');
+    it('handles empty and null input without throwing', () => {
+        expect(highlightCode('', 'js')).toBe('');
+        expect(highlightCode(null, 'js')).toBe('');
+        expect(escapeHtml(undefined)).toBe('');
     });
 
-    it('falls back to plain escaped text for an unknown language', () => {
-        const html = highlightCode('<b>hi</b>', 'unknownlang');
-        expect(html).toBe('&lt;b&gt;hi&lt;/b&gt;');
-        expect(html).not.toContain('tok-');
+    it('covers more languages than it did before', () => {
+        // The old map had ~25 extensions; the point of the move was not to lose
+        // the shells and config formats shiki carried.
+        expect(supportedLanguages().length).toBeGreaterThan(50);
+        for (const lang of ['bash', 'go', 'toml', 'ini', 'dockerfile', 'powershell']) {
+            expect(supportedLanguages(), lang).toContain(lang);
+        }
+    });
+});
+
+describe('the app-wide façade', () => {
+    it('routes every caller to the same engine', () => {
+        const src = read('src/modules/utils/SyntaxHighlighter.js');
+        expect(src).toContain("from './CMHighlighter.js'");
+        expect(src).not.toContain('Shiki');
+        expect(SyntaxHighlighter.highlight('const a=1', 'js')).toContain('tok-');
     });
 
-    it('treats a missing language as unknown', () => {
-        expect(highlightCode('plain', undefined)).toBe('plain');
-        expect(highlightCode('plain', null)).toBe('plain');
-        expect(highlightCode('plain', '')).toBe('plain');
+    // Several views await init() before their first render.
+    it('keeps init() so existing callers still work', async () => {
+        await expect(SyntaxHighlighter.init()).resolves.toBe(true);
     });
+});
 
-    it('is case-insensitive about the extension', () => {
-        expect(highlightCode('const x=1;', 'JS')).toContain('tok-keyword');
-    });
-
-    it.each([
-        ['js', 'const a = 1;'],
-        ['ts', 'let a: number = 1;'],
-        ['json', '{"a": 1}'],
-        ['css', 'a { color: red; }'],
-        ['html', '<p>x</p>'],
-        ['xml', '<a b="c"/>'],
-        ['py', 'def f():\n    return 1'],
-        ['java', 'class A {}'],
-        ['sql', 'SELECT 1'],
-        ['rs', 'fn main() {}'],
-        ['cpp', 'int main(){}'],
-        ['yaml', 'a: 1'],
-        ['svelte', '<script>let count = 0;</script>'],
-        ['md', '# title'],
-    ])('supports %s', (lang, code) => {
-        const html = highlightCode(code, lang);
-        expect(unescape(textOf(html))).toBe(code);
-    });
-
-    it('maps aliases onto the same grammar family', () => {
-        for (const ext of ['jsx', 'mjs', 'cjs', 'tsx', 'htm', 'scss', 'less', 'yml', 'xsd', 'wsdl', 'h', 'hpp', 'c']) {
-            expect(() => highlightCode('x', ext)).not.toThrow();
+describe('shiki is gone', () => {
+    it('is not imported anywhere', () => {
+        for (const f of [
+            'src/modules/utils/SyntaxHighlighter.js',
+            'src/modules/editors/DiffEditor.js',
+            'src/modules/views/CodeMirrorView.js',
+            'src/modules/views/MarkdownView.js',
+            'src/modules/ui/InlineAI.js',
+            'src/modules/utils/Markdown.js',
+        ]) {
+            expect(read(f), f).not.toMatch(/ShikiHighlighter|from ['"]shiki/);
         }
     });
 
-    it('highlights svelte with tok-* classes', () => {
-        const html = highlightCode('<script>let count = 0;</script>', 'svelte');
-        expect(unescape(textOf(html))).toBe('<script>let count = 0;</script>');
+    it('is not a dependency', () => {
+        const pkg = JSON.parse(read('package.json'));
+        const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+        expect(Object.keys(deps)).not.toContain('shiki');
+        // ...and the chunking rule that existed only to keep it out of vendor.
+        expect(read('vite.config.js')).not.toContain("id.includes('shikijs')");
+    });
+});
+
+/* The token colours were two hard-coded One Dark palettes, chosen by
+   `body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark)` — a
+   hand-written list of dark themes that never kept up. Bamboo, sumi-e, nord and
+   hanging-scroll all fell on the wrong side of it. */
+describe('token colours follow the theme', () => {
+    const css = read('src/styles/editor.css');
+
+    it('takes them from the theme palette, not a fixed one', () => {
+        for (const token of ['--hl-keyword', '--hl-string', '--hl-comment', '--hl-function']) {
+            expect(css, token).toContain(`var(${token})`);
+        }
     });
 
-    it('handles an empty document', () => {
-        expect(highlightCode('', 'js')).toBe('');
+    it('keeps no hand-written list of dark themes', () => {
+        // Only SELECTORS count: the comment above the block quotes the old one
+        // so the reason it went is on the record.
+        const selectors = css.split('\n').filter((l) => l.includes('{'));
+        expect(selectors.join('\n')).not.toContain(':not(.theme-midnight)');
     });
 
-    it('keeps leading whitespace (indentation must survive)', () => {
-        const code = '    indented();';
-        expect(unescape(textOf(highlightCode(code, 'js')))).toBe(code);
+    // They are no longer scoped to BookMode: the same classes are used by the
+    // preview, the diff panes and inline AI.
+    it('applies outside the printed page', () => {
+        expect(css).toMatch(/\n\.tok-keyword,/);
+        expect(css).not.toContain('.stf__page .tok-keyword');
     });
 });

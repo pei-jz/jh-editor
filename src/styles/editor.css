@@ -65,18 +65,33 @@
     background-color: var(--bg-color);
 }
 
-.visual-table-editor input {
+/* The cell editor is a <textarea> so it wraps like the text it replaces. */
+.visual-table-editor input,
+.visual-table-editor textarea {
     width: 100%;
     padding: 8px 12px;
     border: none;
     outline: none;
     font-size: 14px;
     font-family: inherit;
+    line-height: 1.5;
     background-color: transparent;
     color: var(--text-color);
+    box-sizing: border-box;
+    display: block;
 }
 
-.visual-table-editor input:focus {
+.visual-table-editor textarea {
+    /* Height is set from scrollHeight as you type; no inner scrollbar and no
+       drag handle, so the cell looks like a cell rather than a form field. */
+    resize: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.visual-table-editor input:focus,
+.visual-table-editor textarea:focus {
     background-color: rgba(var(--primary-color-rgb), 0.05);
 }
 
@@ -90,7 +105,13 @@
 .visual-table-editor .cell-text {
     padding: 8px 12px;
     min-height: 1em;
-    word-break: break-all;
+    line-height: 1.5;
+    /* `break-all` split ordinary words mid-letter. Wrap at word boundaries and
+       only break a token that genuinely cannot fit — which is what the preview
+       does, and the two are meant to look the same. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .visual-table-editor th .cell-text {
@@ -1842,10 +1863,14 @@ body.theme-solarized-light .md-view-mode-toggle {
     color: #1e1e1e !important;
 }
 
-/* Override shiki/token inline span colors so active-hit text stays readable */
-.pt-book-page mark.search-active *,
-.plain-text-page mark.search-active * {
-    color: #1e1e1e !important;
+/* A search hit has to win over the syntax colour underneath it.
+   This existed because shiki wrote `style="color:#…"` on every token, which no
+   stylesheet can outrank without !important. The tokens are classes now, so
+   this is a plain override — and it takes its colour from the mark instead of
+   a hard-coded near-black that was invisible on a dark mark. */
+.pt-book-page mark.search-active [class*="tok-"],
+.plain-text-page mark.search-active [class*="tok-"] {
+    color: inherit;
 }
 
 /* Book Mode Enhancements */
@@ -1890,50 +1915,84 @@ body.theme-solarized-light .md-view-mode-toggle {
     font-family: inherit !important;
 }
 
-/* CodeMirror-style .tok-* token classes for BookMode syntax highlighting */
-.stf__page .tok-keyword        { color: #c678dd; }
-.stf__page .tok-atom           { color: #d19a66; }
-.stf__page .tok-number         { color: #d19a66; }
-.stf__page .tok-def            { color: #61afef; }
-.stf__page .tok-variableName   { color: #e06c75; }
-.stf__page .tok-typeName       { color: #e5c07b; }
-.stf__page .tok-className      { color: #e5c07b; }
-.stf__page .tok-propertyName   { color: #e06c75; }
-.stf__page .tok-function       { color: #61afef; }
-.stf__page .tok-string         { color: #98c379; }
-.stf__page .tok-comment        { color: #5c6370; font-style: italic; }
-.stf__page .tok-tagName        { color: #e06c75; }
-.stf__page .tok-attributeName  { color: #d19a66; }
-.stf__page .tok-operator       { color: #56b6c2; }
-.stf__page .tok-punctuation    { color: #abb2bf; }
-.stf__page .tok-bracket        { color: #abb2bf; }
-.stf__page .tok-meta           { color: #61afef; }
-.stf__page .tok-labelName      { color: #e06c75; }
-.stf__page .tok-self           { color: #e06c75; }
-.stf__page .tok-heading        { color: #e06c75; font-weight: bold; }
-.stf__page .tok-emphasis       { font-style: italic; }
-.stf__page .tok-strong         { font-weight: bold; }
-.stf__page .tok-link           { color: #61afef; text-decoration: underline; }
-.stf__page .tok-invalid        { color: #fff; background: #e06c75; }
+/* ── Syntax tokens outside the editor ──────────────────────────────────────
+   `tok-*` classes come from CMHighlighter (Lezer's classHighlighter) and appear
+   wherever code is rendered as HTML rather than edited: Markdown preview code
+   fences, the diff panes, inline-AI results, and BookMode's printed pages.
 
-/* Light theme overrides for .tok-* classes */
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-keyword        { color: #a626a4; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-atom           { color: #986801; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-number         { color: #986801; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-def            { color: #4078f2; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-variableName   { color: #e45649; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-typeName       { color: #c18401; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-className      { color: #c18401; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-propertyName   { color: #e45649; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-function       { color: #4078f2; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-string         { color: #50a14f; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-comment        { color: #a0a1a7; font-style: italic; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-tagName        { color: #e45649; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-attributeName  { color: #986801; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-operator       { color: #0184bc; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-punctuation    { color: #383a42; }
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .stf__page .tok-bracket        { color: #383a42; }
+   The colours are the theme's own `--hl-*` tokens, the same ones the editor
+   highlights with — so a fence in the preview matches the editor beside it, in
+   every theme, including ones added later.
 
+   This replaced two hard-coded One Dark palettes selected by
+   `body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark)`. That
+   list had to name every dark theme by hand and never did: bamboo, sumi-e,
+   nord and hanging-scroll all fell on the wrong side of it and were coloured
+   for the opposite background. */
+.tok-keyword,
+.tok-modifier,
+.tok-self        { color: var(--hl-keyword); }
+.tok-controlKeyword,
+.tok-moduleKeyword { color: var(--hl-control-flow, var(--hl-keyword)); }
+.tok-string,
+.tok-string2,
+.tok-regexp,
+.tok-special     { color: var(--hl-string); }
+.tok-comment,
+.tok-lineComment,
+.tok-blockComment,
+.tok-docComment  { color: var(--hl-comment); font-style: italic; }
+.tok-number,
+.tok-integer,
+.tok-float       { color: var(--hl-number, var(--hl-literal)); }
+.tok-atom,
+.tok-bool,
+.tok-null,
+.tok-literal,
+.tok-unit        { color: var(--hl-literal); }
+.tok-function,
+.tok-definition,
+.tok-def,
+.tok-macroName   { color: var(--hl-function); }
+.tok-variableName,
+.tok-propertyName,
+.tok-labelName,
+.tok-attributeName,
+.tok-local       { color: var(--hl-variable); }
+.tok-typeName,
+.tok-className,
+.tok-namespace,
+.tok-tagName     { color: var(--hl-built-in); }
+.tok-operator,
+.tok-derefOperator,
+.tok-arithmeticOperator,
+.tok-logicOperator,
+.tok-compareOperator,
+.tok-punctuation,
+.tok-separator,
+.tok-bracket,
+.tok-paren,
+.tok-brace,
+.tok-squareBracket,
+.tok-angleBracket { color: var(--hl-operator, var(--text-color)); }
+.tok-meta,
+.tok-processingInstruction,
+.tok-annotation  { color: var(--hl-built-in); }
+
+/* Markdown structure, which Lezer also tags. */
+.tok-heading     { color: var(--hl-keyword); font-weight: bold; }
+.tok-emphasis    { font-style: italic; }
+.tok-strong      { font-weight: bold; }
+.tok-strikethrough { text-decoration: line-through; }
+.tok-link,
+.tok-url         { color: var(--hl-function); text-decoration: underline; }
+.tok-monospace   { color: var(--hl-string); }
+
+/* A parse error should be visible, not invisible. */
+.tok-invalid {
+    color: var(--bg-color);
+    background: var(--error-color, #d9534f);
+}
 
 /* ============================================================
    LargeFileView — read-only virtualized viewer for huge files

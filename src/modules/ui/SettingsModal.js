@@ -14,6 +14,7 @@ import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
+import { getLanguage, setLanguage } from '../utils/I18n.js';
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -173,11 +174,20 @@ export function initSettingsModal() {
     const viewModeSelector = document.getElementById('view-mode-selector');
     const fontSizeInput = document.getElementById('font-size-input');
     const fontFamilySelector = document.getElementById('font-family-selector');
+    const languageSelector = document.getElementById('language-selector');
 
     // Load saved font family
     const savedFont = localStorage.getItem('settings_fontFamily') || 'consolas';
     applyFontFamily(savedFont);
     if (fontFamilySelector) fontFamilySelector.value = savedFont;
+
+    // Language
+    if (languageSelector) {
+        languageSelector.value = getLanguage();
+        languageSelector.onchange = (e) => {
+            setLanguage(e.target.value);
+        };
+    }
 
     // Font Size Logic
     if (fontSizeInput) {
