@@ -567,9 +567,18 @@ export class MarkdownView extends BaseView {
             dispatchEvent() { _cmInputHandlers.forEach((h) => h()); },
         };
 
+        // Two elements, not one: the copy button is positioned against the
+        // HOST, while the table scrolls inside the inner div. Absolutely
+        // positioning the button inside the scroller would have it slide out of
+        // view the moment a wide table was scrolled sideways.
+        const tableHost = document.createElement('div');
+        tableHost.className = 'table-editor-host';
+        tableHost.style.display = isTableMode ? 'block' : 'none';
+
         const tableContainer = document.createElement('div');
+        tableContainer.className = 'table-editor-scroll';
         tableContainer.style.overflow = 'auto';
-        tableContainer.style.display = isTableMode ? 'block' : 'none';
+        tableHost.appendChild(tableContainer);
 
         const syncTableToText = () => {
             textarea.value = TableEditor.serialize(tableData);
@@ -596,7 +605,7 @@ export class MarkdownView extends BaseView {
                     }
                     TableEditor.render(tableContainer, tableData, syncTableToText);
                     textarea.style.display = 'none';
-                    tableContainer.style.display = 'block';
+                    tableHost.style.display = 'block';
                     syncTableToText();
                 } else {
                     showAlert('Current text is not recognized as a valid table.', { title: 'Invalid Table', kind: 'info' });
@@ -604,12 +613,10 @@ export class MarkdownView extends BaseView {
                 }
             } else {
                 textarea.style.display = 'block';
-                tableContainer.style.display = 'none';
+                tableHost.style.display = 'none';
                 textarea.focus();
             }
             this._updateToggleText(toggleBtn, isTableMode);
-            // Copying a table only means something in table mode.
-            if (this._copyTableBtn) this._copyTableBtn.style.display = isTableMode ? '' : 'none';
         };
 
         const showAltHints = () => {
@@ -710,32 +717,10 @@ export class MarkdownView extends BaseView {
             toolbar.appendChild(btn);
         });
 
-        // Copy the WHOLE table, formatted. Selecting every cell first and
-        // copying the range gets the same content, but the reason anyone wants
-        // a table out of here is to paste it into a spreadsheet — so that is
-        // one button, and it puts styled HTML on the clipboard alongside the
-        // tab-separated text so Excel keeps the theme's colours and borders.
-        const copyTableBtn = document.createElement('button');
-        copyTableBtn.className = 'copy-table-btn jh-icon-row';
-        copyTableBtn.title = t('Copy the table (paste into Excel with formatting)');
-        copyTableBtn.innerHTML = svgIcon('copy-table', { size: 12 }) + '<span>Copy Table</span>';
-        copyTableBtn.style.display = isTableMode ? '' : 'none';
-        copyTableBtn.onmousedown = (e) => e.preventDefault();
-        copyTableBtn.onclick = async () => {
-            const rows = isTableMode ? tableData : TableEditor.parse(textarea.value);
-            if (!rows || !rows.length) {
-                Toast.show(t('Nothing to copy — this block is not a table.'), 'warning');
-                return;
-            }
-            const ok = await TableEditor.copyToClipboard(rows);
-            Toast.show(
-                ok ? t('Table copied — paste into Excel to keep the formatting.')
-                   : t('Could not reach the clipboard.'),
-                ok ? 'success' : 'error',
-            );
-        };
-        toolbar.appendChild(copyTableBtn);
-        this._copyTableBtn = copyTableBtn;
+        // Copying the table is a control ON the table now — TableEditor draws a
+        // small button in its corner — rather than a second entry here. Two
+        // buttons for one action is how a toolbar stops being scannable, and a
+        // control that acts on the table belongs next to the table.
 
         const destroyBlockCM = () => {
             if (this._blockCM) { this._blockCM.destroy(); this._blockCM = null; }
@@ -894,15 +879,6 @@ export class MarkdownView extends BaseView {
         };
 
         const handleKeyDown = (e) => {
-            // Ctrl+Alt+L: swap the source/preview axis without reaching for the
-            // header button. Checked before the Alt-hint branch, which would
-            // otherwise swallow it.
-            if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'l' || e.key === 'L')) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof this._toggleEditLayout === 'function') this._toggleEditLayout();
-                return;
-            }
             if (e.key === 'Alt') {
                 e.preventDefault();
                 toggleAltHints();
@@ -1113,6 +1089,25 @@ export class MarkdownView extends BaseView {
             if (e.target === overlay && typeof onBackdropClose === 'function') onBackdropClose();
         });
 
+        // Ctrl+Alt+L, on the OVERLAY in the CAPTURE phase.
+        //
+        // Bound to the source pane in the bubble phase, it never arrived: focus
+        // is inside CodeMirror, whose keymap runs first, and ShortcutManager
+        // listens on window in the capture phase — so by the time the event
+        // bubbled back out, other handlers had already had it.
+        //
+        // `e.code` as well as `e.key`, because holding Alt changes the reported
+        // CHARACTER on several layouts (Ctrl+Alt is AltGr on some Windows
+        // keyboards) while the physical key stays KeyL. The codebase already
+        // does this for Ctrl+\ — same reason.
+        overlay.addEventListener('keydown', (e) => {
+            const isL = e.code === 'KeyL' || String(e.key).toLowerCase() === 'l';
+            if (!isL || !e.altKey || !(e.ctrlKey || e.metaKey)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            toggleLayout();
+        }, true);
+
         this._editOverlay = overlay;
     }
 
@@ -1313,6 +1308,11 @@ export class MarkdownView extends BaseView {
      * so the answer is not blind.
      */
     async deleteSelectedBlocks() {
+        // Re-entrancy guard. The confirm below is awaited, so a second call
+        // arriving while it is open would ask about a range the first call is
+        // about to change — and answering one dialog would not obviously be
+        // answering the other.
+        if (this._deleting) return false;
         const range = this.selectedRange();
         if (!range || !Array.isArray(this.blocksData) || !this.blocksData.length) return false;
 
@@ -1327,9 +1327,18 @@ export class MarkdownView extends BaseView {
         if (hasContent) {
             const firstLine = String(doomed[0] || '').split('\n')[0].slice(0, 60);
             const message = count === 1
-                ? `Delete this block?\n\n  ${firstLine}`
-                : `Delete ${count} blocks?\n\n  ${firstLine}${count > 1 ? '\n  …' : ''}`;
-            const ok = await showConfirm(message, { title: t('Delete Block'), kind: 'warning' });
+                ? `${t('Delete this block?')}\n\n  ${firstLine}`
+                : `${t('Delete {n} blocks?', { n: count })}\n\n  ${firstLine}\n  …`;
+            // Held across the await: a second Delete arriving while this is
+            // open would ask about a range the first call is about to change,
+            // and answering one dialog would not obviously answer the other.
+            this._deleting = true;
+            let ok = false;
+            try {
+                ok = await showConfirm(message, { title: t('Delete Block'), kind: 'warning' });
+            } finally {
+                this._deleting = false;
+            }
             if (!ok) return false;
         }
 
@@ -1424,6 +1433,10 @@ export class MarkdownView extends BaseView {
         }
         if (cmd === 'md-block:delete') {
             if (e && e.preventDefault) e.preventDefault();
+            // Stamp the event so _navKeyHandler — which listens on the same
+            // target in the same phase, and so cannot be stopped from here —
+            // knows this keypress is already spoken for.
+            if (e) e.__mdBlockDelete = true;
             this.deleteSelectedBlocks();
             return true;
         }
@@ -1471,10 +1484,15 @@ export class MarkdownView extends BaseView {
                 ? this.file._mdSelBlock : -1;
             State.vimState.selectedIndex = saved;
             this._selFilePath = path;
+            // The anchor belongs to the block list it was set against. Carrying
+            // it into another document turned the first F2 into a multi-block
+            // edit spanning from a block in the PREVIOUS file's numbering.
+            this._selAnchor = null;
         }
         const idx = State.vimState.selectedIndex;
         if (typeof idx !== 'number' || isNaN(idx) || idx < 0 || idx > blockCount) {
             State.vimState.selectedIndex = -1;
+            this._selAnchor = null;
         }
     }
 
@@ -1588,6 +1606,9 @@ export class MarkdownView extends BaseView {
             e.stopPropagation();
 
             if (isDelete) {
+                // Already handled by the MARKDOWN_BLOCK scope for this event.
+                if (e.__mdBlockDelete) return;
+                e.__mdBlockDelete = true;
                 this.deleteSelectedBlocks();
                 return;
             }

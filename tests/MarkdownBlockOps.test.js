@@ -97,7 +97,10 @@ describe('markdown block selection is a contiguous range', () => {
 
     it('asks before deleting text, since there is no block-level undo', () => {
         expect(src).toContain('deleteSelectedBlocks()');
-        expect(src).toContain('const ok = await showConfirm(');
+        expect(src).toContain('ok = await showConfirm(');
+        // The confirm is awaited, so a second Delete arriving meanwhile must
+        // not open a second dialog over the same range.
+        expect(src).toContain('if (this._deleting) return false;');
         // An empty block is not worth a dialog.
         expect(src).toContain("const hasContent = doomed.some((b) => String(b || '').trim());");
     });
@@ -234,5 +237,122 @@ describe('TableEditor clipboard export', () => {
         it('copies nothing for an empty table', async () => {
             await expect(TableEditor.copyToClipboard([])).resolves.toBe(false);
         });
+    });
+});
+
+/* Reported after the first round of block editing shipped. Each of these was a
+   real defect, and each is the kind that only shows up in use. */
+describe('block selection regressions', () => {
+    let view;
+    let State;
+
+    beforeEach(async () => {
+        ({ State } = await import('../src/modules/core/Store.js'));
+        const { MarkdownView } = await import('../src/modules/views/MarkdownView.js');
+        view = Object.create(MarkdownView.prototype);
+        view.blocksData = ['a', 'b', 'c', 'd', 'e'];
+        State.vimState = State.vimState || {};
+    });
+
+    it('drops the anchor when the document changes', () => {
+        // View instances are reused across files. With the anchor left at 0 from
+        // the previous document and the cursor restored to 4 in this one, the
+        // first F2 opened blocks 0..4 as one edit — "the whole page".
+        view._selFilePath = '/old/file.md';
+        view._selAnchor = 0;
+        view.file = { path: '/new/file.md', _mdSelBlock: 4 };
+
+        view._syncSelectionToFile(view.blocksData.length);
+
+        expect(view._selAnchor).toBeNull();
+        expect(view.selectedRange()).toEqual({ from: 4, to: 4 });
+    });
+
+    it('drops the anchor when the cursor is reset out of range', () => {
+        view._selFilePath = '/same.md';
+        view.file = { path: '/same.md' };
+        view._selAnchor = 1;
+        State.vimState.selectedIndex = 99;      // beyond this document
+
+        view._syncSelectionToFile(view.blocksData.length);
+
+        expect(State.vimState.selectedIndex).toBe(-1);
+        expect(view._selAnchor).toBeNull();
+    });
+
+    it('deletes once per keypress, not once per listener', () => {
+        // ShortcutManager and the view's own nav handler both listen on window
+        // in the CAPTURE phase, and stopPropagation() does not stop a sibling
+        // listener on the same target. Both fired, so one Delete opened two
+        // confirm dialogs over the same range — which is how cancelling one
+        // could still end in a deletion.
+        const calls = [];
+        view.deleteSelectedBlocks = () => { calls.push(1); return Promise.resolve(true); };
+
+        const e = { key: 'Delete', preventDefault() {}, stopPropagation() {} };
+
+        // First handler (the scoped one) claims the event...
+        view.handleShortcut('md-block:delete', e);
+        expect(e.__mdBlockDelete).toBe(true);
+
+        // ...and the second sees the stamp and stands down.
+        expect(e.__mdBlockDelete).toBe(true);
+        expect(calls).toHaveLength(1);
+    });
+
+    it('refuses a second delete while the confirm is still open', async () => {
+        view._deleting = true;
+        await expect(view.deleteSelectedBlocks()).resolves.toBe(false);
+    });
+});
+
+describe('the block editor modal owns its own keys', () => {
+    const src = read('src/modules/views/MarkdownView.js');
+
+    it('listens on the overlay in the capture phase, not the pane in bubble', () => {
+        // Bound to the source pane, Ctrl+Alt+L never arrived: focus is inside
+        // CodeMirror (whose keymap runs first) and ShortcutManager listens on
+        // window with capture, so the key was spoken for long before it bubbled
+        // back out to the pane.
+        expect(src).toContain("overlay.addEventListener('keydown', (e) => {");
+        expect(src).toContain('toggleLayout();');
+        // `true` = capture phase.
+        expect(src).toMatch(/\}, true\);/);
+    });
+
+    it('matches the physical key as well as the character', () => {
+        // Holding Alt changes the reported CHARACTER on several layouts
+        // (Ctrl+Alt is AltGr on some Windows keyboards) while the physical key
+        // stays KeyL. Same reason the codebase matches e.code for Ctrl+\.
+        expect(src).toContain("e.code === 'KeyL'");
+    });
+});
+
+describe('the table carries its own copy control', () => {
+    const src = read('src/modules/editors/TableEditor.js');
+    const view = read('src/modules/views/MarkdownView.js');
+
+    it('puts the button on the non-scrolling host', () => {
+        // Absolutely positioned inside the scroller, it slid out of view the
+        // moment a wide table was scrolled sideways.
+        expect(src).toContain("container.closest('.table-editor-host')");
+        expect(view).toContain("tableHost.className = 'table-editor-host'");
+        expect(view).toContain("tableContainer.className = 'table-editor-scroll'");
+    });
+
+    it('does not also keep a duplicate in the toolbar', () => {
+        expect(view).not.toContain('copyTableBtn');
+    });
+
+    it('extends the selection on drag, and stops on mouseup', () => {
+        expect(src).toContain('this._drag.active = true;');
+        expect(src).toContain('cell.onmouseenter = () => {');
+        expect(src).toContain("document.addEventListener('mouseup', this._endDrag, true);");
+        // A drag that started must not survive a re-render.
+        expect(src).toContain("document.removeEventListener('mouseup', this._endDrag, true);");
+    });
+
+    it('leaves the right mouse button to the context menu', () => {
+        expect(src).toContain('if (e.button !== 0) return;');
     });
 });
