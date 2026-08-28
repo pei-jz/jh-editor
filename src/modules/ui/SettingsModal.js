@@ -1,4 +1,5 @@
 import { shortcuts } from '../core/ShortcutManager.js';
+import { icon as svgIcon, iconEl } from './Icons.js';
 import * as Layout from '../core/Layout.js';
 import { EL } from '../core/Constants.js';
 import { State } from '../core/Store.js';
@@ -330,11 +331,11 @@ export function initSettingsModal() {
             <div class="settings-section-title">Agent Integration</div>
 
             <div id="agent-conn-status" style="margin-bottom:15px; padding:10px 12px; border-radius:6px; background:rgba(0,180,255,0.07); border:1px solid rgba(0,180,255,0.25); font-size:12px;">
-                <strong>🔍 Discovering connection…</strong>
+                <strong class="jh-icon-row">${svgIcon('search', { size: 13 })}Discovering connection…</strong>
             </div>
 
             <div class="settings-description" style="margin-bottom:15px; padding:8px; background:rgba(0,200,150,0.05); border-left:3px solid rgba(0,200,150,0.5); font-size:12px;">
-                ℹ️ <strong>Auto-discovery is preferred.</strong> In J.H AI Agent → Settings → General, click <strong>📤 Export Connection</strong>.
+                <strong>Auto-discovery is preferred.</strong> In J.H AI Agent → Settings → General, click <strong>Export Connection</strong>.
                 The settings below are <em>manual overrides</em> — leave them blank to use whatever JH AI Agent exported.
             </div>
 
@@ -357,7 +358,7 @@ export function initSettingsModal() {
             <div class="settings-section-title">Context Scope</div>
 
             <div class="settings-description" style="margin-bottom:12px; padding:8px; background:rgba(255,180,0,0.06); border-left:3px solid rgba(255,180,0,0.55); font-size:12px;">
-                🔒 How much of the editor the AI may read. The agent PULLS this itself while a task
+                How much of the editor the AI may read. The agent PULLS this itself while a task
                 runs — it is not sent unless a tool asks for it, and nothing here is sent when no
                 task is running. Personal notes are excluded at every level.
             </div>
@@ -443,7 +444,9 @@ export function initSettingsModal() {
                         ? 'fallback (no config found)'
                         : `auto-discovered (${cfg.source})`;
                 const dotColor = reachable ? '#3cb371' : '#d9534f';
-                const stateLabel = reachable ? '✅ Reachable' : '❌ Not responding';
+                const stateLabel = reachable
+            ? svgIcon('check-circle', { size: 12 }) + ' Reachable'
+            : svgIcon('x-circle', { size: 12 }) + ' Not responding';
                 status.innerHTML = `
                     <div style="display:flex; align-items:center; gap:8px;">
                         <span style="width:10px;height:10px;border-radius:50%;background:${dotColor};display:inline-block;"></span>
@@ -457,7 +460,7 @@ export function initSettingsModal() {
             } catch (e) {
                 const status = container.querySelector('#agent-conn-status');
                 if (status) {
-                    status.innerHTML = `<span style="color:#d9534f;">⚠ Discovery failed: ${e.message || e}</span>`;
+                    status.innerHTML = `<span class="jh-icon-row" style="color:#d9534f;">${svgIcon('warning', { size: 12 })}Discovery failed: ${e.message || e}</span>`;
                 }
             }
         })();
@@ -934,7 +937,9 @@ export function initSettingsModal() {
 
                 const arrow = document.createElement('span');
                 arrow.className = 'snippet-group-arrow';
-                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+                arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+            arrow.classList.add('jh-icon-rotate');
+            arrow.classList.toggle('is-open', !collapsed.has(category));
 
                 const label = document.createElement('span');
                 label.className = 'snippet-group-name';
@@ -957,7 +962,9 @@ export function initSettingsModal() {
                     writeCollapsed(now);
                     const open = !now.has(category);
                     groupBody.style.display = open ? '' : 'none';
-                    arrow.textContent = open ? '▼' : '▶';
+                    arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+                arrow.classList.add('jh-icon-rotate');
+                arrow.classList.toggle('is-open', !!open);
                     head.setAttribute('aria-expanded', String(open));
                 };
 
@@ -1135,7 +1142,9 @@ export function initSettingsModal() {
 
                 const arrow = document.createElement('span');
                 arrow.className = 'snippet-group-arrow';
-                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+                arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+            arrow.classList.add('jh-icon-rotate');
+            arrow.classList.toggle('is-open', !collapsed.has(category));
                 const name = document.createElement('span');
                 name.className = 'snippet-group-name';
                 name.textContent = category;
@@ -1254,10 +1263,12 @@ export function initSettingsModal() {
             try {
                 new RegExp(src);
                 checkEl.style.color = 'var(--git-staged-color, #4a7a4a)';
-                checkEl.textContent = '✓ valid';
+                checkEl.classList.add('jh-icon-row');
+                checkEl.replaceChildren(iconEl('check', { size: 12 }), document.createTextNode('valid'));
             } catch (e) {
                 checkEl.style.color = 'var(--error-color, #d9534f)';
-                checkEl.textContent = `✗ ${e.message}`;
+                checkEl.classList.add('jh-icon-row');
+                checkEl.replaceChildren(iconEl('x', { size: 12 }), document.createTextNode(e.message));
             }
         };
         patInput.addEventListener('input', check);

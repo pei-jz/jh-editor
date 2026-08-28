@@ -38,9 +38,13 @@ function _injectStyles() {
     .filter-select-input:focus { border-color: var(--primary-color); }
     /* A caret so the control still reads as a dropdown, not a text field. */
     .filter-select::after {
-        content: '▾';
+        content: '';
         position: absolute; right: 7px; top: 50%;
         transform: translateY(-50%);
+        width: 0; height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid currentColor;
         font-size: 9px; opacity: 0.6; pointer-events: none;
         color: var(--text-color);
     }

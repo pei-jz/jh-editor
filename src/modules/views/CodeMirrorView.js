@@ -1,4 +1,5 @@
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
+import { icon as svgIcon } from '../ui/Icons.js';
 import { EditorView, Decoration, MatchDecorator, ViewPlugin, WidgetType, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, hoverTooltip } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, insertTab, indentLess, undo, redo, historyField } from '@codemirror/commands';
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit, defaultHighlightStyle, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
@@ -1617,7 +1618,7 @@ export class CodeMirrorView {
         header.style.fontWeight = 'bold';
         header.style.display = 'flex';
         header.style.justifyContent = 'space-between';
-        header.innerHTML = `<span>References (${results.length})</span><span style="cursor:pointer;" id="close-ref-modal-btn">✖</span>`;
+        header.innerHTML = `<span>References (${results.length})</span><span style="cursor:pointer;" id="close-ref-modal-btn">${svgIcon('close', { size: 12 })}</span>`;
         container.appendChild(header);
 
         const closeBtn = header.querySelector('#close-ref-modal-btn');

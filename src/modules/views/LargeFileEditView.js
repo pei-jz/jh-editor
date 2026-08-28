@@ -21,6 +21,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { iconEl } from '../ui/Icons.js';
 
 const WINDOW_LINES = 4000;   // lines held in the textarea at once
 const RELOAD_MARGIN = 800;   // re-center the window when within this many lines of an edge
@@ -125,7 +126,8 @@ export class LargeFileEditView {
 
         const saveBtn = document.createElement('button');
         saveBtn.className = 'lfe-save-btn';
-        saveBtn.textContent = '💾 Save';
+        saveBtn.className = (saveBtn.className || '') + ' jh-icon-row';
+        saveBtn.replaceChildren(iconEl('check', { size: 12 }), document.createTextNode('Save'));
         saveBtn.title = 'Save (Ctrl+S)';
         saveBtn.addEventListener('click', () => this.save());
 
@@ -176,7 +178,9 @@ export class LargeFileEditView {
     _updateInfo() {
         if (!this.info) return;
         const enc = this.file && this.file.encoding ? ` · ${this.file.encoding}` : '';
-        this.info.textContent = `✏️ Edit mode (large file) · ${this.lineCount.toLocaleString()} lines${enc}`;
+        this.info.classList.add('jh-icon-row');
+        this.info.replaceChildren(iconEl('pencil', { size: 12 }), document.createTextNode(
+            `Edit mode (large file) · ${this.lineCount.toLocaleString()} lines${enc}`));
     }
 
     _gutterWidthCss() {

@@ -11,6 +11,7 @@
  */
 
 import AIAgent from '../ai/AIAgent.js';
+import { icon as svgIcon } from './Icons.js';
 import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
 import { t, promptLanguageName } from '../utils/I18n.js';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
@@ -62,7 +63,7 @@ class AiChatPanel {
 
         root.innerHTML = `
             <div class="ai-chat-header">
-                <span class="ai-chat-header-title">🤖 ${t('AI Chat')}</span>
+                <span class="ai-chat-header-title jh-icon-row">${svgIcon('robot', { size: 14 })}${t('AI Chat')}</span>
                 <button class="clear-btn" title="${t('Clear history')}">${t('Clear')}</button>
                 <button class="close-btn" title="${t('Close')}">×</button>
             </div>
@@ -163,7 +164,7 @@ class AiChatPanel {
                 assistant.role = 'assistant';
                 if (bodyEl) {
                     bodyEl.parentElement.classList.add('error');
-                    bodyEl.innerHTML = `❌ ${String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
+                    bodyEl.innerHTML = `<span class="jh-icon-row">${svgIcon('x-circle', { size: 13 })}${String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`;
                 }
             } finally {
                 clearInterval(ticker);

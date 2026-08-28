@@ -1,4 +1,5 @@
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
+import { iconEl } from '../ui/Icons.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
 import { shortcuts } from '../core/ShortcutManager.js';
 import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
@@ -686,7 +687,7 @@ class CsvView {
             sortControls.style.pointerEvents = 'auto'; // allow click
 
             const upArrow = document.createElement('span');
-            upArrow.textContent = '▲';
+            upArrow.replaceChildren(iconEl('triangle-up', { size: 10 }));
             upArrow.style.cursor = 'pointer';
             upArrow.style.padding = '0 2px';
             upArrow.title = 'Ascending';
@@ -696,7 +697,7 @@ class CsvView {
             };
 
             const downArrow = document.createElement('span');
-            downArrow.textContent = '▼';
+            downArrow.replaceChildren(iconEl('triangle-down', { size: 10 }));
             downArrow.style.cursor = 'pointer';
             downArrow.style.padding = '0 2px';
             downArrow.title = 'Descending';

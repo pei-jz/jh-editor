@@ -234,3 +234,45 @@ body.theme-kakejiku {
     flex: 1;
     min-width: 0;
 }
+
+/* ── Icons ────────────────────────────────────────────────────────────
+   Inline SVG replacing the emoji the UI used to draw with. The point of
+   `currentColor` is that an icon inherits the colour of whatever it sits in,
+   so it follows the theme instead of staying whatever colour the OS emoji
+   font picked. `vertical-align` and the flex-shrink guard are what emoji
+   never gave us: an icon that lines up with its label and does not get
+   squashed when the row runs out of room. */
+.jh-icon {
+    display: inline-block;
+    vertical-align: -0.145em;
+    flex: none;
+    color: inherit;
+}
+
+/* An icon sitting next to a label in a button or list row. Buttons that hold
+   only an icon are unaffected — the gap has nothing to space. */
+button > .jh-icon + span,
+.jh-icon + span {
+    margin-left: 6px;
+}
+
+/* Rows that mix an icon with text: keep them on one baseline rather than
+   letting the icon push the line height around. */
+.jh-icon-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* Disclosure triangles rotate rather than swapping glyph, so the state change
+   reads as one control moving instead of two different marks. */
+.jh-icon-rotate {
+    transition: transform 0.15s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .jh-icon-rotate { transition: none; }
+}
+.jh-icon-rotate.is-open {
+    transform: rotate(90deg);
+}

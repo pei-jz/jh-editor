@@ -15,6 +15,7 @@
  * <pre>). No framework.
  */
 
+import { icon as svgIcon } from '../ui/Icons.js';
 const MAX_HISTORY = 20;
 
 function renderMarkdown(md) {
@@ -57,7 +58,7 @@ class JhAiActivityPanel {
         ].join(';');
         root.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:#2a2a2a;border-bottom:1px solid #444;">
-                <strong style="font-size:12px;">🤖 AI Activity</strong>
+                <strong class="jh-icon-row" style="font-size:12px;">${svgIcon('robot', { size: 13 })}AI Activity</strong>
                 <span>
                     <button class="jhai-act-clear" title="Clear finished" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;">Clear</button>
                     <button class="jhai-act-hide" title="Hide" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:15px;line-height:1;">×</button>
@@ -140,13 +141,13 @@ class JhAiActivityPanel {
             onAbort(fn) { abortFn = fn; },
             setResult(opts = {}) {
                 self._renderResult(card, opts || {});
-                self._finishState(card, 'done', '✓ Done');
+                self._finishState(card, 'done', 'Done');
             },
             setError(msg) {
                 const body = card.querySelector('.jhai-act-body');
                 body.style.display = 'block';
                 body.innerHTML = `<span style="color:#ff6b6b;">Error: ${(msg || '').replace(/</g, '&lt;')}</span>`;
-                self._finishState(card, 'error', '⚠ Failed');
+                self._finishState(card, 'error', 'Failed');
             },
             remove() { card.remove(); },
         };

@@ -1,6 +1,8 @@
 import { State } from '../core/Store.js';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { icon as svgIcon } from './Icons.js';
+import { t } from '../utils/I18n.js';
 
 // Ctrl+G: workspace grep. Pick a folder + subfolder toggle + options, run the
 // search, and show the results in a tab (see window.app.openSearchResults).
@@ -110,7 +112,7 @@ export const GrepModal = {
         folderPath.textContent = folder || '';
         folderPath.title = folder || '';
         const folderBtn = document.createElement('button');
-        folderBtn.textContent = '📁 Choose Folder';
+        folderBtn.innerHTML = svgIcon('folder', { size: 13 }) + `<span>${t('Choose Folder')}</span>`;
         folderBtn.className = 'grep-btn';
         folderBtn.onclick = async () => {
             try {
@@ -164,7 +166,7 @@ export const GrepModal = {
         const status = document.createElement('span');
         status.style.cssText = 'flex:1; font-size:12px; opacity:0.75;';
         const searchBtn = document.createElement('button');
-        searchBtn.textContent = '🔍 Search';
+        searchBtn.innerHTML = svgIcon('search', { size: 13 }) + `<span>${t('Search')}</span>`;
         searchBtn.className = 'grep-btn grep-btn-primary';
         footer.append(status, searchBtn);
 

@@ -1,5 +1,6 @@
 import { EL } from './Constants.js';
 import { State } from './Store.js';
+import { iconEl, iconForFile } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -477,7 +478,9 @@ class VirtualExplorer {
         const arrow = document.createElement('span');
         arrow.className = 'tree-arrow';
         if (isDir) {
-            arrow.textContent = '▶';
+            // `.tree-arrow.expanded` already rotates this 90°, so one
+            // chevron covers both states instead of swapping glyphs.
+            arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
             arrow.style.visibility = 'visible';
             if (item.expanded) {
                 arrow.classList.add('expanded');
@@ -494,7 +497,7 @@ class VirtualExplorer {
 
         const icon = document.createElement('span');
         icon.className = 'tree-icon';
-        icon.textContent = isDir ? (item.expanded ? '📂' : '📁') : '📄';
+        icon.replaceChildren(iconEl(iconForFile(item.name, isDir, item.expanded), { size: 14 }));
 
         const label = document.createElement('span');
         label.textContent = item.name;
@@ -748,14 +751,14 @@ class VirtualExplorer {
             if (selectedFiles.length === 2 && selectedDirs.length === 0) {
                 const [leftPath, rightPath] = selectedFiles;
                 menuItems.splice(1, 0,
-                    { label: `Compare: ${FS.getBasename(leftPath)} ⇄ ${FS.getBasename(rightPath)}`,
+                    { label: `Compare: ${FS.getBasename(leftPath)} / ${FS.getBasename(rightPath)}`,
                       action: () => window.app.compareTwoFiles(leftPath, rightPath) },
                     { type: 'separator' },
                 );
             } else if (selectedDirs.length === 2 && selectedFiles.length === 0) {
                 const [leftDir, rightDir] = selectedDirs;
                 menuItems.splice(1, 0,
-                    { label: `Compare Folders: ${FS.getBasename(leftDir)} ⇄ ${FS.getBasename(rightDir)}`,
+                    { label: `Compare Folders: ${FS.getBasename(leftDir)} / ${FS.getBasename(rightDir)}`,
                       action: () => window.app.compareTwoFolders(leftDir, rightDir) },
                     { type: 'separator' },
                 );

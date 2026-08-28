@@ -20,6 +20,8 @@ import { initWelcomeScreen, showWelcomeScreen, hideWelcomeScreen } from '../ui/W
 import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal } from '../ui/SettingsModal.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
+import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
+import { applyIcons } from '../ui/Icons.js';
 import { OutlineModal } from '../ui/OutlineModal.js';
 import { FileSearchModal } from '../ui/FileSearchModal.js';
 import { GrepModal } from '../ui/GrepModal.js';
@@ -42,7 +44,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
 import { setPaneActiveIndex } from './Panes.js';
-import { applyI18n } from '../utils/I18n.js';
+import { applyI18n, t } from '../utils/I18n.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -162,6 +164,10 @@ async function bootstrap() {
     let gitPanel = null;
 
     initScrollbarAutoHide();
+    // Static chrome declares icons as data-icon and they are drawn here.
+    // Safe to do before paint: the window is still hidden, so there is no
+    // moment where the buttons are visibly empty.
+    applyIcons();
     applyI18n();
 
     // Persist the session + unsaved drafts on the way out. `pagehide` fires for
@@ -236,7 +242,11 @@ async function bootstrap() {
                 const branchEl = document.getElementById('status-git-branch');
                 if (branchEl) {
                     if (status && status.branch) {
-                        branchEl.textContent = `🌿 ${status.branch}`;
+                        branchEl.classList.add('jh-icon-row');
+                        branchEl.replaceChildren(
+                            iconEl('branch', { size: 12 }),
+                            document.createTextNode(status.branch),
+                        );
                         branchEl.style.display = 'inline';
                     } else {
                         branchEl.style.display = 'none';
@@ -270,6 +280,26 @@ async function bootstrap() {
         setTimeout(deferInits, 500);
     }
 
+    /**
+     * Enter the editor with NO workspace.
+     *
+     * "Open File" and "New File" are the answer to "I just want to write
+     * something", so neither adopts a folder. That has to be done explicitly:
+     * the explorer, workspace grep and the Git panel all key off
+     * `State.currentDir`, and leaving it set — or leaving the empty explorer
+     * on screen — presents a workspace the user never chose.
+     *
+     * Same shape as the single-file launch argument path (`checkLaunchArgs`),
+     * which is why both go through here instead of each doing it their own way.
+     */
+    function startWorkspaceless() {
+        State.currentDir = '';
+        State.isExplorerVisible = false;
+        if (EL.explorer) EL.explorer.style.display = 'none';
+        showMainLayout();
+    }
+    window.app.startWorkspaceless = startWorkspaceless;
+
     // 2.2 Welcome Screen (Visible Part)
     initWelcomeScreen(
         async (path) => {
@@ -277,15 +307,13 @@ async function bootstrap() {
             showMainLayout();
         },
         {
-            // Both of these leave State.currentDir unset: the editor works
-            // workspace-less, and the explorer picks one up later if the user
-            // opens one.
             onOpenFile: async (path) => {
-                showMainLayout();
+                startWorkspaceless();
                 await openFile(path);
+                window.app.updateWindowTitle?.(path);
             },
             onNewFile: () => {
-                showMainLayout();
+                startWorkspaceless();
                 createNewFileAction();
             },
         },
@@ -470,7 +498,11 @@ async function bootstrap() {
     // A shortcut cannot tell you it exists, so the shortcut guide gets a
     // permanent, visible way in. It shows its own key, so it is a lesson as
     // much as a button.
-    EL.statusCommandsBtn?.addEventListener('click', () => toggleShortcutGuide());
+    // The always-visible way in. It used to open the shortcut GUIDE, which
+    // only lists things and only the things that have a key bound; it now
+    // opens the palette, which lists everything and runs it. The guide is
+    // still one row down the palette, and still on F1.
+    EL.statusCommandsBtn?.addEventListener('click', () => CommandPalette.toggle());
 
     // 3. Global Event Listeners
     if (EL.newFileBtn) EL.newFileBtn.addEventListener('click', createNewFileAction);
@@ -597,6 +629,7 @@ async function bootstrap() {
         'app:replace-next': replaceNext,
         'app:refresh-explorer': loadExplorer,
         'app:shortcut-guide': toggleShortcutGuide,
+        'app:command-palette': () => CommandPalette.toggle(),
         'app:focus-explorer': focusExplorer,
         'app:focus-editor': () => focusEditor({ toStart: true }),
         'app:agent-tasks': () => {
@@ -731,6 +764,11 @@ async function bootstrap() {
             globalActions[cmd](e);
         }
     };
+
+    // The palette runs commands through exactly the path a keystroke takes —
+    // active view first, global action second. Anything else would give a
+    // command two behaviours depending on how it was invoked.
+    initCommandPalette((cmd) => delegateToView(cmd)(null));
 
     // Skip GLOBAL as it's handled separately above. IMPORTANT: only register
     // the view-delegation fallback for commands that NO module has already
@@ -960,9 +998,14 @@ async function checkLaunchArgs() {
         }
 
         // File → open directly as a workspace-less view in this window.
-        State.isExplorerVisible = false;
-        if (EL.explorer) EL.explorer.style.display = 'none';
+        // Same helper the Welcome screen's "Open File" uses, so the two cannot
+        // drift into treating a lone file differently.
         hideWelcomeScreen();
+        if (window.app.startWorkspaceless) window.app.startWorkspaceless();
+        else {
+            State.isExplorerVisible = false;
+            if (EL.explorer) EL.explorer.style.display = 'none';
+        }
         await openFile(target);
         showMain();
         window.app.updateWindowTitle?.(target);
@@ -975,26 +1018,60 @@ async function checkLaunchArgs() {
 }
 
 /**
+ * A buffer that has never been written to disk, so saving it must ask the user
+ * where to put it. Same test `saveCurrentFile()` applies before opening its
+ * Save As dialog — a relative path counts as "not yet on disk".
+ */
+function needsSaveLocation(file) {
+    const p = file && file.path;
+    return !(p && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/')));
+}
+
+/**
  * Save every dirty buffer, whichever pane it is in.
  *
- * Returns the names it could not save. Each file is made active first because
- * saveCurrentFile() works on the active tab — saving them in place would write
- * the front file's text once per dirty buffer.
+ * Each file is made active first because saveCurrentFile() works on the active
+ * tab — saving them in place would write the front file's text once per dirty
+ * buffer.
+ *
+ * Two things make this more than a loop:
+ *
+ *  - Buffers that already have a path go FIRST. They save without asking
+ *    anything, and the old order could reach an untitled buffer, have the user
+ *    cancel its Save As, and abandon the quit with work still unwritten that
+ *    needed no dialog at all.
+ *  - Cancelling a Save As is reported separately from a save that FAILED.
+ *    Both left the buffer dirty, so both used to come back as "Could not
+ *    save" — telling the user something went wrong when they had simply
+ *    changed their mind.
+ *
+ * Returns `{ failed, cancelled }`, both arrays of display names.
  */
 async function saveAllDirty(dirty) {
+    const ordered = [
+        ...dirty.filter((f) => !needsSaveLocation(f)),
+        ...dirty.filter((f) => needsSaveLocation(f)),
+    ];
+
     const failed = [];
-    for (const file of dirty) {
+    const cancelled = [];
+
+    for (const file of ordered) {
+        // Captured before saving: a successful Save As gives the file a path,
+        // so asking afterwards would always answer "no".
+        const willPrompt = needsSaveLocation(file);
+        const label = file.name || file.path || 'Untitled';
         try {
             const pane = (State.rightOpenFiles || []).includes(file) ? 'right' : 'left';
             const index = (pane === 'right' ? State.rightOpenFiles : State.openFiles).indexOf(file);
             if (index >= 0) setPaneActiveIndex(pane, index);
             await saveCurrentFile();
-            if (file.isDirty) failed.push(file.name || file.path || 'Untitled');
+            if (file.isDirty) (willPrompt ? cancelled : failed).push(label);
         } catch (e) {
-            failed.push(file.name || file.path || 'Untitled');
+            failed.push(label);
         }
     }
-    return failed;
+    return { failed, cancelled };
 }
 
 function setupCloseListener() {
@@ -1013,31 +1090,51 @@ function setupCloseListener() {
 
             // Name them. "You have unsaved changes" leaves the reader deciding
             // blind about work they cannot see from the dialog.
-            const names = dirty.map((f) => f.name || f.path || 'Untitled');
+            const names = dirty.map((f) => f.name || f.path || t('Untitled'));
             const shown = names.slice(0, 6).join('\n  • ');
-            const more = names.length > 6 ? `\n  …and ${names.length - 6} more` : '';
+            const more = names.length > 6 ? `\n  ${t('…and {n} more').replace('{n}', names.length - 6)}` : '';
+
+            // "Save all" on a never-saved buffer opens a Save As dialog, one per
+            // buffer. Finding that out only after committing to quit is a
+            // surprise; saying so in the dialog makes it a choice.
+            const promptCount = dirty.filter(needsSaveLocation).length;
+            const promptNote = promptCount
+                ? '\n\n' + t('{n} of these have never been saved — you will be asked where to put each one.')
+                    .replace('{n}', promptCount)
+                : '';
 
             const choice = await showDialog({
-                title: 'Unsaved Changes',
+                title: t('Unsaved Changes'),
                 kind: 'warning',
-                message: `${names.length} file${names.length === 1 ? '' : 's'} `
-                    + `${names.length === 1 ? 'has' : 'have'} unsaved changes:\n\n  • ${shown}${more}`,
+                message: t('{n} file(s) have unsaved changes:').replace('{n}', names.length)
+                    + `\n\n  • ${shown}${more}${promptNote}`,
                 buttons: [
-                    { label: 'Cancel', value: 'cancel', cancel: true },
-                    { label: 'Quit without saving', value: 'discard' },
-                    { label: 'Save all and quit', value: 'save', primary: true },
+                    { label: t('Cancel'), value: 'cancel', cancel: true },
+                    { label: t('Quit without saving'), value: 'discard' },
+                    { label: t('Save all and quit'), value: 'save', primary: true },
                 ],
             });
 
             if (choice === 'save') {
-                const failed = await saveAllDirty(dirty);
+                const { failed, cancelled } = await saveAllDirty(dirty);
                 // A save that did not happen must not be followed by a quit:
                 // the user was told why, and quitting now loses exactly the
                 // work they just asked to keep.
-                if (failed.length) {
+                if (failed.length || cancelled.length) {
+                    const parts = [];
+                    if (failed.length) {
+                        parts.push(t('Could not save:') + `\n  • ${failed.join('\n  • ')}`);
+                    }
+                    if (cancelled.length) {
+                        parts.push(t('No location was chosen for:') + `\n  • ${cancelled.join('\n  • ')}`);
+                    }
                     await showAlert(
-                        `Could not save:\n  • ${failed.join('\n  • ')}\n\nNothing was closed.`,
-                        { title: 'Save Failed', kind: 'error' },
+                        parts.join('\n\n') + '\n\n' + t('Nothing was closed.'),
+                        {
+                            title: failed.length ? t('Save Failed') : t('Save Incomplete'),
+                            // A cancelled Save As is a choice, not a fault.
+                            kind: failed.length ? 'error' : 'warning',
+                        },
                     );
                     return;
                 }
