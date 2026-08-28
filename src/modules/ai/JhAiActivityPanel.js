@@ -33,8 +33,8 @@ function btn(label, primary = false) {
     b.textContent = label;
     b.style.cssText = `border:none;border-radius:5px;cursor:pointer;font-size:11px;padding:4px 9px;`
         + (primary
-            ? 'background:#0a6cff;color:#fff;'
-            : 'background:rgba(255,255,255,0.1);color:#ddd;');
+            ? 'background:var(--primary-color);color:var(--text-on-primary);'
+            : 'background:var(--control-bg);color:var(--text-color);');
     return b;
 }
 
@@ -53,16 +53,19 @@ class JhAiActivityPanel {
             'position:fixed', 'right:16px', 'bottom:16px', 'z-index:9998',
             'width:360px', 'max-width:calc(100vw - 32px)', 'max-height:70vh',
             'display:none', 'flex-direction:column',
-            'background:#1e1e1e', 'color:#ddd', 'border:1px solid #444',
-            'border-radius:8px', 'box-shadow:0 6px 24px rgba(0,0,0,.5)',
+            // Was a fixed dark dock (#1e1e1e / #ddd / #444), which on the six light
+        // themes floated as a black box over a pale document.
+        'background:var(--overlay-bg)', 'color:var(--text-color)',
+        'border:1px solid var(--overlay-border)',
+            'border-radius:8px', 'box-shadow:var(--overlay-shadow)',
             'font-family:system-ui,Segoe UI,sans-serif', 'font-size:12px', 'overflow:hidden',
         ].join(';');
         root.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:#2a2a2a;border-bottom:1px solid #444;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:var(--header-bg);border-bottom:1px solid #444;">
                 <strong class="jh-icon-row" style="font-size:12px;">${svgIcon('robot', { size: 13 })}AI Activity</strong>
                 <span>
-                    <button class="jhai-act-clear" title="Clear finished" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:12px;">Clear</button>
-                    <button class="jhai-act-hide" title="Hide" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:15px;line-height:1;">×</button>
+                    <button class="jhai-act-clear" title="Clear finished" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;">Clear</button>
+                    <button class="jhai-act-hide" title="Hide" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:15px;line-height:1;">×</button>
                 </span>
             </div>
             <div class="jhai-act-list" style="overflow:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:8px;"></div>
@@ -96,14 +99,14 @@ class JhAiActivityPanel {
         this._show();
         const card = document.createElement('div');
         card.dataset.state = 'running';
-        card.style.cssText = 'border:1px solid #3a3a3a;border-radius:6px;background:#232323;padding:8px;display:flex;flex-direction:column;gap:6px;position:relative;';
+        card.style.cssText = 'border:1px solid var(--divider-color);border-radius:6px;background:var(--surface-raised);padding:8px;display:flex;flex-direction:column;gap:6px;position:relative;';
         card.innerHTML = `
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
                 <span class="jhai-act-title" style="font-weight:600;word-break:break-word;flex:1;line-height:1.2;padding-top:2px;padding-right:24px;"></span>
                 <button class="jhai-act-stop" style="border:none;border-radius:4px;cursor:pointer;font-size:11px;padding:3px 8px;background:#7a2a2a;color:#fff;flex-shrink:0;">Stop</button>
             </div>
             <button class="jhai-act-remove" title="Remove this task" style="display:none;position:absolute;top:4px;right:6px;background:none;border:none;color:#888;cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;z-index:1;">&times;</button>
-            <div class="jhai-act-status" style="color:#9bd;display:flex;align-items:center;gap:6px;">
+            <div class="jhai-act-status" style="color:var(--text-muted);display:flex;align-items:center;gap:6px;">
                 <span class="jhai-act-spin" style="display:inline-block;width:10px;height:10px;border:2px solid #555;border-top-color:#0a6cff;border-radius:50%;animation:jhai-spin 0.8s linear infinite;"></span>
                 <span class="jhai-act-status-text">Starting…</span>
             </div>

@@ -63,6 +63,9 @@ function keysInUse() {
         'src/modules/utils/MermaidRecipes.js',
         'src/modules/ui/RegexPresets.js',
         'src/modules/core/CommandRegistry.js',
+        // Theme names live in the registry and the <option> elements are built
+        // from it, so the label there IS the key.
+        'src/modules/utils/Themes.js',
     ]) {
         const table = read(f);
         for (const m of table.matchAll(/label: '((?:[^'\\]|\\.)+)'/g)) {

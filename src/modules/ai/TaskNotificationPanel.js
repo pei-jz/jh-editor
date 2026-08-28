@@ -513,7 +513,7 @@ export class TaskNotificationPanel {
                             <span class="tnp-empty-hint" style="max-width: 400px; line-height: 1.5; margin-bottom: 12px;">
                                 The editor could not reach the agent. Check that the agent server is running.
                             </span>
-                            <div style="text-align: left; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
+                            <div style="text-align: left; background: var(--surface-sunken); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
                                 <strong class="jh-icon-row" style="margin-bottom: 6px;">${svgIcon('lightbulb', { size: 13 })}To reconnect:</strong>
                                 <ol style="margin: 0; padding-left: 18px; line-height: 1.6; opacity: 0.8;">
                                     <li>Start the <strong>J.H AI Agent</strong> app.</li>
@@ -587,14 +587,14 @@ export class TaskNotificationPanel {
                     if (pendingApproval) {
                         const globalIdx = (task.messages || []).indexOf(pendingApproval);
                         approvalHtml = `
-                            <div class="tnp-msg-approval" style="margin-bottom: 16px; padding: 16px; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 8px;">
-                                <h4 style="margin: 0 0 8px 0; color: #ffc107; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                            <div class="tnp-msg-approval" style="margin-bottom: 16px; padding: 16px; background: var(--warning-soft); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 8px;">
+                                <h4 style="margin: 0 0 8px 0; color: var(--warning-color); font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px;">
                                     Approval Required
                                 </h4>
                                 <div style="font-size: 13px; margin-bottom: 12px; line-height: 1.4;">
                                     ${pendingApproval.data?.message || 'The agent requires your confirmation to proceed.'}
                                 </div>
-                                ${pendingApproval.data?.command ? `<pre style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap;">${this._escapeHtml(pendingApproval.data.command)}</pre>` : ''}
+                                ${pendingApproval.data?.command ? `<pre style="background: var(--surface-sunken); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap;">${this._escapeHtml(pendingApproval.data.command)}</pre>` : ''}
                                 <div class="tnp-approval-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
                                     <button id="tnp-approve-${task.id}-${globalIdx}" class="tnp-btn-approve" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">${svgIcon('check', { size: 12 })}<span>Approve</span></button>
                                     <button id="tnp-deny-${task.id}-${globalIdx}" class="tnp-btn-deny" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">${svgIcon('x', { size: 12 })}<span>Deny</span></button>
@@ -610,7 +610,7 @@ export class TaskNotificationPanel {
                         const latestAction = [...(task.messages || [])].reverse().find(msg => msg.type === 'tool' || msg.type === 'status');
                         
                         runningProgressHtml = `
-                            <div class="tnp-detail-progress-card" style="padding: 12px; background: rgba(55, 148, 255, 0.05); border: 1px solid rgba(55, 148, 255, 0.15); border-radius: 8px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+                            <div class="tnp-detail-progress-card" style="padding: 12px; background: var(--primary-soft); border: 1px solid rgba(55, 148, 255, 0.15); border-radius: 8px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <span style="font-size: 12px; font-weight: 600; color: var(--primary-color);">⏳ Agent is executing...</span>
                                     <span style="font-size: 12px; font-weight: 700; color: var(--primary-color);">${progressPct}%</span>
@@ -618,7 +618,7 @@ export class TaskNotificationPanel {
                                 <div class="tnp-progress-bar"><div class="tnp-progress-fill" style="width: ${progressPct}%"></div></div>
                                 
                                 ${latestThought ? `
-                                    <div class="tnp-detail-latest-thought" style="font-size: 12px; color: var(--text-secondary); background: rgba(0,0,0,0.15); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--primary-color);">
+                                    <div class="tnp-detail-latest-thought" style="font-size: 12px; color: var(--text-secondary); background: var(--surface-sunken); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--primary-color);">
                                         <strong style="font-size: 10px; text-transform: uppercase; display: block; opacity: 0.6; margin-bottom: 4px; font-family: sans-serif;">Latest Thought</strong>
                                         <span style="font-style: italic;">"${this._escapeHtml(latestThought.text)}"</span>
                                     </div>
@@ -641,8 +641,8 @@ export class TaskNotificationPanel {
                             ? marked.parse(task.finalResponse)
                             : `<p>${this._escapeHtml(task.finalResponse)}</p>`;
                         finalResponseHtml = `
-                            <div class="tnp-final-response" style="margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.015); border: 1px solid var(--border-color); border-radius: 8px;">
-                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #4caf50; display: flex; align-items: center; gap: 6px;">
+                            <div class="tnp-final-response" style="margin-bottom: 16px; padding: 16px; background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 8px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: var(--success-color); display: flex; align-items: center; gap: 6px;">
                                     Final Response / Report
                                 </h4>
                                 <div class="tnp-markdown-body" style="font-size: 13px; line-height: 1.5; color: var(--text-color); overflow-x: auto; user-select: text;">
@@ -667,13 +667,13 @@ export class TaskNotificationPanel {
                                         const basename = filePath.split(/[\\/]/).pop() || '?';
                                         const hasRichContent = typeof f === 'object' && f.original !== undefined && f.current !== undefined;
                                         return `
-                                            <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
+                                            <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-sunken); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
                                                 <div style="display: flex; flex-direction: column; min-width: 0; text-align: left;">
                                                     <span style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" class="jh-icon-row">${svgIcon('file', { size: 12 })}${basename}</span>
                                                     <span style="font-size: 10px; opacity: 0.6; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: monospace;" title="${filePath}">${filePath}</span>
                                                 </div>
                                                 <div style="display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px;">
-                                                    <button class="tnp-btn-file-open jh-icon-row" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">${svgIcon('folder-open', { size: 11 })}Open</button>
+                                                    <button class="tnp-btn-file-open jh-icon-row" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: var(--control-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">${svgIcon('folder-open', { size: 11 })}Open</button>
                                                     ${filePath ? `
                                                         <button class="tnp-btn-file-diff jh-icon-row" data-task-id="${task.id}" data-file-idx="${fIdx}" style="padding: 4px 10px; font-size: 11px; background: var(--primary-color); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 500;">${svgIcon('search', { size: 11 })}Diff</button>
                                                     ` : ''}
