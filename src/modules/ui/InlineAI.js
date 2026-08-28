@@ -45,7 +45,7 @@ export class InlineAI {
                 <button class="review-btn accept-btn">Accept <span class="shortcut">Alt+↵</span></button>
                 <button class="review-btn reject-btn">Reject <span class="shortcut">Esc</span></button>
             </div>
-            <div class="inline-ai-result" style="display:none; max-height: 250px; overflow-y: auto; overflow-x: hidden; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 8px; background: rgba(0,0,0,0.2); margin-top: 5px;">
+            <div class="inline-ai-result" style="display:none; max-height: 250px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--control-border); border-radius: 6px; padding: 8px; background: var(--surface-sunken); margin-top: 5px;">
                 <div class="result-content" style="font-size: 13px; line-height: 1.4;"></div>
             </div>
         `;
@@ -77,7 +77,11 @@ export class InlineAI {
                     b.className = 'inline-ai-preset-btn';
                     b.textContent = pr.title;
                     b.title = `AI: ${pr.title} (runs on the selection → review as a diff)`;
-                    b.style.cssText = 'background:rgba(10,108,255,0.14);border:1px solid rgba(10,108,255,0.4);color:inherit;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px;';
+                    // The accent at a usable strength, from the theme — this was the
+                    // DEFAULT accent frozen as a literal, so it stayed blue on
+                    // the ink-brush and bamboo themes.
+                    b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);'
+                        + 'color:inherit;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px;';
                     b.onclick = async () => {
                         try {
                             if (!(await ensureJhaiConnected())) {
@@ -368,7 +372,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             b.className = (b.className || '') + ' jh-icon-row';
             b.replaceChildren(iconEl('sparkles', { size: 12 }), document.createTextNode(it.title));
             b.title = `JHAI intent: ${it.id}`;
-            b.style.cssText = 'background:rgba(10,108,255,0.15);border:1px solid rgba(10,108,255,0.4);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
+            b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
             b.onclick = () => this.handleIntent(it.id, context);
             bar.appendChild(b);
         });

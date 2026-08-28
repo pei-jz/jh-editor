@@ -61,7 +61,7 @@ class ToastManager {
         toast.style.border = '1px solid var(--border-color, rgba(0,0,0,0.15))';
         toast.style.padding = '12px 20px';
         toast.style.borderRadius = '6px';
-        toast.style.boxShadow = '0 10px 24px rgba(0,0,0,0.35)';
+        toast.style.boxShadow = 'var(--overlay-shadow, 0 10px 24px rgba(0,0,0,0.35))';
         toast.style.fontSize = '13px';
         toast.style.fontWeight = '500';
         toast.style.maxWidth = 'min(520px, 60vw)';
@@ -78,13 +78,13 @@ class ToastManager {
         let iconName = 'info';
 
         if (type === 'success') {
-            borderLeftColor = '#28a745';
+            borderLeftColor = 'var(--success-color, #28a745)';
             iconName = 'check-circle';
         } else if (type === 'error') {
-            borderLeftColor = '#dc3545';
+            borderLeftColor = 'var(--danger-color, #dc3545)';
             iconName = 'x-circle';
         } else if (type === 'warning') {
-            borderLeftColor = '#ffc107';
+            borderLeftColor = 'var(--warning-color, #ffc107)';
             iconName = 'warning';
         }
 

@@ -16,6 +16,7 @@ import {
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
+import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
 
 /**
  * Fill in the About block at the bottom of the General tab.
@@ -233,6 +234,19 @@ export function initSettingsModal() {
 
     // Load saved theme
     const savedTheme = localStorage.getItem('theme') || 'light';
+    // Build the picker from the registry rather than from markup: a theme
+    // added to Themes.js appears here without anyone remembering to add an
+    // <option>, and the label goes through t() like every other string.
+    if (themeSelector && !themeSelector.options.length) {
+        for (const th of THEMES) {
+            const opt = document.createElement('option');
+            opt.value = th.id;
+            opt.textContent = t(th.label);
+            opt.setAttribute('data-i18n', th.label);
+            themeSelector.appendChild(opt);
+        }
+    }
+
     applyTheme(savedTheme);
     if (themeSelector) themeSelector.value = savedTheme;
 
@@ -1313,9 +1327,11 @@ export function initSettingsModal() {
 }
 
 export function applyTheme(theme) {
-    document.body.classList.remove('theme-dark', 'theme-midnight', 'theme-latte', 'theme-solarized-dark', 'theme-solarized-light', 'theme-paper', 'theme-bamboo-ancient',
-        'theme-sumi-e', 'theme-nord', 'theme-kakejiku');
-    if (theme && theme !== 'light') {
+    // Derived from the registry, not repeated here. A theme missing from this
+    // list used to leave TWO theme classes on <body> at once, after which the
+    // palette depended on stylesheet order rather than on the setting.
+    document.body.classList.remove(...themeClasses());
+    if (theme && theme !== 'light' && isKnownTheme(theme)) {
         document.body.classList.add(`theme-${theme}`);
     }
 

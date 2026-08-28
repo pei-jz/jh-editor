@@ -262,7 +262,8 @@ Per-file reference docs (methods and branches) live under `docs/`, in Japanese a
 > covered yet.
 
 For cutting a build — version bumping, signing, and wiring automatic updates —
-see **[docs/RELEASE.md](docs/RELEASE.md)**.
+see **[docs/RELEASE.md](docs/RELEASE.md)**. For adding a theme, or writing a
+component that follows one, see **[docs/THEMING.md](docs/THEMING.md)**.
 
 ---
 

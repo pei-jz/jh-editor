@@ -1,3 +1,5 @@
+import { darkThemeClasses } from './Themes.js';
+
 /**
  * ThemeInfo.js — one answer to "is the current theme dark?"
  *
@@ -7,29 +9,19 @@
  * list or another, and the symptom is always the same — a light palette drawn
  * on a dark surface, or the reverse, at 1–2:1 contrast.
  *
- * Themes carry no "dark" flag of their own, so this is still a list. The point
- * is that it is now ONE list: adding a theme means editing this file, and every
- * consumer follows.
+ * The list itself has since moved again, into `Themes.js`, where the palette,
+ * the picker and this flag are declared together — a theme cannot now be added
+ * without saying whether it is dark.
  *
- * A theme belongs here when its EDITOR SURFACE (--bg-color) is dark. Hanging
- * Scroll is deliberately absent: its mounting is indigo but the sheet you read
- * is moon-white silk, so code, diagrams and Markdown all want light palettes.
+ * A theme counts as dark when its EDITOR SURFACE (--bg-color) is dark.
  */
-const DARK_THEMES = [
-    'theme-dark',
-    'theme-midnight',
-    'theme-solarized-dark',
-    'theme-bamboo-ancient',
-    'theme-nord',
-    'dark-mode',        // legacy class, still set by some older paths
-];
 
 /** @returns {boolean} true when the editor surface is dark. */
 export function isDarkTheme() {
     if (typeof document === 'undefined' || !document.body) return false;
     const c = document.body.classList;
-    return DARK_THEMES.some((t) => c.contains(t));
+    return darkThemeClasses().some((t) => c.contains(t));
 }
 
 /** The theme classes considered dark. Exported for tests and diagnostics. */
-export { DARK_THEMES };
+export const DARK_THEMES = darkThemeClasses();

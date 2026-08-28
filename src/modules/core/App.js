@@ -21,7 +21,7 @@ import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal } from '../ui/SettingsModal.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
 import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
-import { applyIcons } from '../ui/Icons.js';
+import { applyIcons, iconEl } from '../ui/Icons.js';
 import { OutlineModal } from '../ui/OutlineModal.js';
 import { FileSearchModal } from '../ui/FileSearchModal.js';
 import { GrepModal } from '../ui/GrepModal.js';

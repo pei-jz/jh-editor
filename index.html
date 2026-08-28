@@ -351,19 +351,9 @@
           <div id="settings-general" class="settings-pane">
             <div class="settings-option">
               <label data-i18n="Theme">Theme</label>
-              <select id="theme-selector">
-                <option value="light" data-i18n="Light">Light</option>
-                <option value="dark" data-i18n="Dark">Dark</option>
-                <option value="midnight" data-i18n="Midnight">Midnight</option>
-                <option value="latte" data-i18n="Latte">Latte</option>
-                <option value="solarized-dark" data-i18n="Solarized Dark">Solarized Dark</option>
-                <option value="solarized-light" data-i18n="Solarized Light">Solarized Light</option>
-                <option value="paper" data-i18n="Paper">Paper</option>
-                <option value="bamboo-ancient" data-i18n="Bamboo Slip">Bamboo Slip</option>
-                <option value="sumi-e" data-i18n="Ink Brush">Ink Brush</option>
-                <option value="nord" data-i18n="Nord">Nord</option>
-                <option value="kakejiku" data-i18n="Hanging Scroll">Hanging Scroll</option>
-              </select>
+              <!-- Options are built from utils/Themes.js at startup;
+                   adding a theme there is enough. -->
+              <select id="theme-selector"></select>
             </div>
             <div class="settings-option">
               <label data-i18n="Language">Language</label>
