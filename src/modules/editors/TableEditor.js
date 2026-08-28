@@ -14,6 +14,41 @@ function cellEditor(cell) {
     return cell ? cell.querySelector('textarea, input') : null;
 }
 
+/** Escape a cell value for insertion into the generated HTML table. */
+function esc(v) {
+    return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+/**
+ * Resolve the current theme's table colours to literal values.
+ *
+ * The clipboard leaves the app, so `var(--border-color)` means nothing on the
+ * other side — Excel needs the colour itself. Custom properties compute to
+ * their declared value, which in every theme here is a literal, so reading
+ * them off the body is enough.
+ */
+function themeTableColors() {
+    const fallback = {
+        headerBg: '#f2f2f2', bg: '#ffffff', text: '#111111', border: '#c9c9c9',
+    };
+    try {
+        const cs = getComputedStyle(document.body);
+        const v = (name, alt) => ((cs.getPropertyValue(name) || '').trim() || alt);
+        return {
+            headerBg: v('--table-header-bg', fallback.headerBg),
+            bg: v('--bg-color', fallback.bg),
+            text: v('--text-color', fallback.text),
+            border: v('--border-color', fallback.border),
+        };
+    } catch (_) {
+        return fallback;
+    }
+}
+
 export const TableEditor = {
     /**
      * Undo history for the visual table editor.
@@ -28,6 +63,137 @@ export const TableEditor = {
      * array from parse() and should start over.
      */
     _history: null,
+
+    /**
+     * The table as tab-separated text — what a spreadsheet reads when it gets
+     * plain text, and what the existing cell-range copy already produced.
+     */
+    toTsv(data, range = null) {
+        if (!Array.isArray(data) || !data.length) return '';
+        const r1 = range ? range.r1 : 0;
+        const r2 = range ? range.r2 : data.length - 1;
+        const c1 = range ? range.c1 : 0;
+        const c2 = range ? range.c2 : (data[0] ? data[0].length - 1 : 0);
+
+        const rows = [];
+        for (let r = r1; r <= r2 && r < data.length; r++) {
+            const cells = [];
+            for (let c = c1; c <= c2; c++) cells.push((data[r] && data[r][c]) || '');
+            rows.push(cells.join('\t'));
+        }
+        return rows.join('\n');
+    },
+
+    /**
+     * The table as a styled HTML table.
+     *
+     * Excel, Word and Google Sheets all prefer `text/html` off the clipboard
+     * when it is there, and they honour INLINE styles on the cells — so this
+     * is how the paste arrives formatted rather than as bare text. The colours
+     * are the current theme's, resolved to literals, because a paste that
+     * looks like what was on screen is the point of the exercise.
+     *
+     * First row is treated as the header, matching Markdown's own table rule.
+     */
+    toHtml(data, opts = {}) {
+        if (!Array.isArray(data) || !data.length) return '';
+        const c = themeTableColors();
+        // SINGLE quotes around the family names. The stack goes inside a
+        // style="..." attribute, so a double quote here closes the attribute
+        // early and the rest of the declaration becomes stray markup — the
+        // table arrived in Excel unstyled and malformed.
+        const font = opts.fontFamily
+            || "Calibri, 'Segoe UI', 'Yu Gothic UI', Meiryo, sans-serif";
+
+        const cellBase = `border:1px solid ${c.border};padding:4px 8px;`
+            + `color:${c.text};font-family:${font};font-size:11pt;`
+            // Long cells should wrap in the spreadsheet the way they wrap here,
+            // rather than spilling across neighbouring columns.
+            + 'vertical-align:top;white-space:normal;';
+
+        const head = (data[0] || []).map((v) =>
+            `<th style="${cellBase}background-color:${c.headerBg};font-weight:bold;text-align:center;">${esc(v)}</th>`
+        ).join('');
+
+        const body = data.slice(1).map((row) =>
+            '<tr>' + (row || []).map((v) =>
+                `<td style="${cellBase}background-color:${c.bg};">${esc(v)}</td>`
+            ).join('') + '</tr>'
+        ).join('');
+
+        return `<table style="border-collapse:collapse;">`
+            + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    },
+
+    /**
+     * Put the whole table on the clipboard as both HTML and text.
+     *
+     * Two routes, because neither is universally available: the async
+     * Clipboard API needs a secure context and a permission the webview does
+     * not always grant, and `execCommand` is deprecated but still the only
+     * thing that reliably carries multiple flavours from a button click. The
+     * fallback selects a detached node and lets a one-shot `copy` listener
+     * fill in both types, so the user never sees the scratch markup.
+     *
+     * @returns {Promise<boolean>} whether anything reached the clipboard
+     */
+    async copyToClipboard(data, range = null) {
+        const text = this.toTsv(data, range);
+        const html = this.toHtml(
+            range
+                ? data.slice(range.r1, range.r2 + 1).map((row) => row.slice(range.c1, range.c2 + 1))
+                : data,
+        );
+        if (!text) return false;
+
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.write === 'function'
+                && typeof ClipboardItem !== 'undefined') {
+                await navigator.clipboard.write([new ClipboardItem({
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                    'text/plain': new Blob([text], { type: 'text/plain' }),
+                })]);
+                return true;
+            }
+        } catch (_) {
+            /* fall through to the execCommand route */
+        }
+
+        try {
+            const onCopy = (e) => {
+                e.clipboardData.setData('text/html', html);
+                e.clipboardData.setData('text/plain', text);
+                e.preventDefault();
+            };
+            document.addEventListener('copy', onCopy, { once: true, capture: true });
+
+            // Something has to be selected for execCommand('copy') to fire at
+            // all; the listener above replaces whatever this node contains.
+            const scratch = document.createElement('div');
+            scratch.setAttribute('aria-hidden', 'true');
+            scratch.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre;';
+            scratch.textContent = text;
+            document.body.appendChild(scratch);
+
+            const sel = window.getSelection();
+            const saved = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+            const r = document.createRange();
+            r.selectNodeContents(scratch);
+            sel.removeAllRanges();
+            sel.addRange(r);
+
+            const ok = document.execCommand('copy');
+
+            sel.removeAllRanges();
+            if (saved) sel.addRange(saved);
+            scratch.remove();
+            document.removeEventListener('copy', onCopy, { capture: true });
+            return ok;
+        } catch (e) {
+            console.error('Table copy failed', e);
+            return false;
+        }
+    },
 
     _ensureHistory(data) {
         if (this._history && this._history.data === data) return this._history;
@@ -500,15 +666,16 @@ export const TableEditor = {
             const c1 = Math.min(this._state.activeCol, this._state.selectionEndCol);
             const c2 = Math.max(this._state.activeCol, this._state.selectionEndCol);
 
-            let copyText = "";
-            for (let r = r1; r <= r2; r++) {
-                let rowText = [];
-                for (let c = c1; c <= c2; c++) {
-                    rowText.push(data[r][c] || "");
-                }
-                copyText += rowText.join("\t") + (r === r2 ? "" : "\n");
-            }
+            const range = { r1, r2, c1, c2 };
+            const copyText = this.toTsv(data, range);
             e.clipboardData.setData('text/plain', copyText);
+            // The same selection as styled HTML, so pasting a range into Excel
+            // arrives formatted instead of as bare tab-separated text. Plain
+            // text is still there for editors that want it.
+            try {
+                const slice = data.slice(r1, r2 + 1).map((row) => row.slice(c1, c2 + 1));
+                e.clipboardData.setData('text/html', this.toHtml(slice));
+            } catch (_) { /* text/plain is enough on its own */ }
             e.preventDefault();
             e.stopPropagation();
         };

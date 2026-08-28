@@ -101,13 +101,13 @@ describe('MarkdownView block cursor anchoring', () => {
         it('moves normally once the cursor is on the shown spread', () => {
             State.vimState.selectedIndex = 5;
             view.navigateBlock(1);
-            expect(view.selectBlock).toHaveBeenCalledWith(6);
+            expect(view.selectBlock).toHaveBeenCalledWith(6, { extend: false });
         });
 
         it('treats the right-hand page of the spread as visible', () => {
             State.vimState.selectedIndex = 6; // page 3 = right page of spread 2
             view.navigateBlock(-1);
-            expect(view.selectBlock).toHaveBeenCalledWith(5);
+            expect(view.selectBlock).toHaveBeenCalledWith(5, { extend: false });
         });
     });
 
@@ -236,7 +236,7 @@ describe('MarkdownView block cursor anchoring', () => {
 
         it('still moves the block when no modal is open', () => {
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
-            expect(view.navigateBlock).toHaveBeenCalledWith(1);
+            expect(view.navigateBlock).toHaveBeenCalledWith(1, { extend: false });
         });
     });
 });

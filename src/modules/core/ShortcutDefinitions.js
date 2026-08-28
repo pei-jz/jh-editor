@@ -229,10 +229,16 @@ export const SHORTCUTS = {
     MARKDOWN_BLOCK: [
         { key: 'ArrowUp', cmd: 'md-block:nav', description: 'Previous Block' },
         { key: 'ArrowDown', cmd: 'md-block:nav', description: 'Next Block' },
+        { key: 'ArrowUp', shift: true, cmd: 'md-block:extend', description: 'Extend Selection Up' },
+        { key: 'ArrowDown', shift: true, cmd: 'md-block:extend', description: 'Extend Selection Down' },
         { key: 'ArrowUp', alt: true, cmd: 'md-block:move', description: 'Move Block Up' },
         { key: 'ArrowDown', alt: true, cmd: 'md-block:move', description: 'Move Block Down' },
         { key: 'Enter', cmd: 'md-block:edit', description: 'Edit Block' },
-        { key: 'F2', cmd: 'md-block:edit', description: 'Edit Block' }
+        { key: 'F2', cmd: 'md-block:edit', description: 'Edit Block' },
+        // Deleting a block used to mean opening it, clearing the text and
+        // saving. Ctrl+click or Shift+arrow first to remove several at once.
+        { key: 'Delete', cmd: 'md-block:delete', description: 'Delete Block(s)' },
+        { key: 'Backspace', cmd: 'md-block:delete', description: 'Delete Block(s)' }
     ],
     AI_REVIEW: [
         { key: 'a', alt: true, cmd: 'ai-review:accept', description: 'Accept Change' },
