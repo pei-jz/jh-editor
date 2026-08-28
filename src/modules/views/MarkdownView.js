@@ -4,6 +4,8 @@ import { State } from '../core/Store.js';
 import { EL } from '../core/Constants.js';
 import * as Markdown from '../utils/Markdown.js';
 import { escapeForMermaid } from '../utils/Markdown.js';
+import { icon as svgIcon } from '../ui/Icons.js';
+import { Toast } from '../ui/Toast.js';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { TableEditor } from '../editors/TableEditor.js';
 import { open } from '@tauri-apps/plugin-shell';
@@ -14,7 +16,7 @@ import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import * as MdAssets from '../utils/MarkdownAssets.js';
 import { MermaidHelper } from '../ui/MermaidHelper.js';
-import { showAlert } from '../ui/Dialog.js';
+import { showAlert, showConfirm } from '../ui/Dialog.js';
 import { enableLightbox } from '../ui/Lightbox.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
@@ -26,6 +28,9 @@ import { markdown } from '@codemirror/lang-markdown';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 
 /* global marked */
+
+/** Remembered source/preview axis for the block-edit modal. */
+const MBE_LAYOUT_KEY = 'settings_mdBlockEditLayout';
 
 /** Styles for the block-edit modal (source left, live preview right). */
 function _injectBlockEditStyles() {
@@ -63,6 +68,30 @@ function _injectBlockEditStyles() {
 
     .mbe-body { flex: 1; display: flex; min-height: 0; }
     .mbe-left { flex: 1 1 55%; min-width: 260px; display: flex; flex-direction: column; min-height: 0; }
+
+    /* Stacked layout: source above, preview below.
+       A wide document (a table, a long code fence) is unreadable in a half-
+       width column, and side-by-side halves the width of exactly the content
+       that needs it most. The panes swap axis; nothing else about the modal
+       changes, so the same splitter drag works in both. Inline flex-basis set
+       by a previous drag is cleared on switch, because a width in pixels is
+       not a height. */
+    .mbe-body.mbe-vertical { flex-direction: column; }
+    .mbe-body.mbe-vertical > .mbe-left { flex: 1 1 55%; min-width: 0; min-height: 140px; }
+    .mbe-body.mbe-vertical > .mbe-right {
+        flex: 1 1 45%; min-width: 0; min-height: 120px;
+        border-left: none; border-top: 1px solid var(--border-color);
+    }
+    .mbe-body.mbe-vertical > .mbe-split { flex: 0 0 5px; cursor: row-resize; }
+
+    .mbe-layout-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: none; border: 1px solid var(--border-color);
+        color: inherit; border-radius: 4px; padding: 2px 7px;
+        font-size: 11px; cursor: pointer;
+    }
+    .mbe-layout-btn:hover { background: var(--hover-color); }
+    .mbe-layout-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
     /* The editor container fills the pane instead of hugging a block. */
     .mbe-left .editor-block-container { flex: 1; min-height: 0; }
     .mbe-left .block-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -251,10 +280,14 @@ export class MarkdownView extends BaseView {
             this.container.appendChild(div);
             this.observer.observe(div);
 
-            // Add click listener for selection
+            // Add click listener for selection.
+            // Ctrl or Shift extends the range from the anchor. Both, because
+            // Shift is the convention for a contiguous range and Ctrl is what
+            // most people reach for when they want "and this one too" —
+            // and the range here is contiguous either way.
             div.onclick = (e) => {
                 if (div.classList.contains('editing')) return;
-                this.selectBlock(i);
+                this.selectBlock(i, { extend: e.ctrlKey || e.metaKey || e.shiftKey });
             };
         });
 
@@ -403,8 +436,11 @@ export class MarkdownView extends BaseView {
         });
     }
 
-    enterEditMode(blockElement, originalText, blockIndex) {
+    enterEditMode(blockElement, originalText, blockIndex, opts = {}) {
         if (blockElement.classList.contains('editing')) return;
+        // >1 when several blocks were joined into this editor; the save path
+        // then replaces that many blocks instead of one.
+        const rangeCount = Math.max(1, opts.rangeCount || 1);
 
         State.vimState.mode = 'insert';
 
@@ -571,6 +607,8 @@ export class MarkdownView extends BaseView {
                 textarea.focus();
             }
             this._updateToggleText(toggleBtn, isTableMode);
+            // Copying a table only means something in table mode.
+            if (this._copyTableBtn) this._copyTableBtn.style.display = isTableMode ? '' : 'none';
         };
 
         const showAltHints = () => {
@@ -671,13 +709,40 @@ export class MarkdownView extends BaseView {
             toolbar.appendChild(btn);
         });
 
+        // Copy the WHOLE table, formatted. Selecting every cell first and
+        // copying the range gets the same content, but the reason anyone wants
+        // a table out of here is to paste it into a spreadsheet — so that is
+        // one button, and it puts styled HTML on the clipboard alongside the
+        // tab-separated text so Excel keeps the theme's colours and borders.
+        const copyTableBtn = document.createElement('button');
+        copyTableBtn.className = 'copy-table-btn jh-icon-row';
+        copyTableBtn.title = 'Copy the table (paste into Excel with formatting)';
+        copyTableBtn.innerHTML = svgIcon('copy-table', { size: 12 }) + '<span>Copy Table</span>';
+        copyTableBtn.style.display = isTableMode ? '' : 'none';
+        copyTableBtn.onmousedown = (e) => e.preventDefault();
+        copyTableBtn.onclick = async () => {
+            const rows = isTableMode ? tableData : TableEditor.parse(textarea.value);
+            if (!rows || !rows.length) {
+                Toast.show('Nothing to copy — this block is not a table.', 'warning');
+                return;
+            }
+            const ok = await TableEditor.copyToClipboard(rows);
+            Toast.show(
+                ok ? 'Table copied — paste into Excel to keep the formatting.'
+                   : 'Could not reach the clipboard.',
+                ok ? 'success' : 'error',
+            );
+        };
+        toolbar.appendChild(copyTableBtn);
+        this._copyTableBtn = copyTableBtn;
+
         const destroyBlockCM = () => {
             if (this._blockCM) { this._blockCM.destroy(); this._blockCM = null; }
         };
 
         const saveAndClose = () => {
             const finalContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
-            this.saveBlock(blockIndex, finalContent);
+            this.saveBlock(blockIndex, finalContent, rangeCount);
             destroyBlockCM();
             blockElement.classList.remove('editing');
             previewModal.style.display = 'none';
@@ -828,6 +893,15 @@ export class MarkdownView extends BaseView {
         };
 
         const handleKeyDown = (e) => {
+            // Ctrl+Alt+L: swap the source/preview axis without reaching for the
+            // header button. Checked before the Alt-hint branch, which would
+            // otherwise swallow it.
+            if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'l' || e.key === 'L')) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof this._toggleEditLayout === 'function') this._toggleEditLayout();
+                return;
+            }
             if (e.key === 'Alt') {
                 e.preventDefault();
                 toggleAltHints();
@@ -920,7 +994,7 @@ export class MarkdownView extends BaseView {
      * The preview element is the app's shared preview node, moved in here so all
      * the existing preview wiring keeps working.
      */
-    _buildEditModal({ container, actions, previewPane, blockIndex, total, onBackdropClose }) {
+    _buildEditModal({ container, actions, previewPane, blockIndex, total, onBackdropClose, title }) {
         _injectBlockEditStyles();
         document.getElementById('md-block-edit-overlay')?.remove();
 
@@ -933,9 +1007,10 @@ export class MarkdownView extends BaseView {
         const head = document.createElement('div');
         head.className = 'mbe-head';
         const pos = total > 0 ? `${Math.min(blockIndex + 1, total)} / ${total}` : 'new';
-        head.innerHTML = `<span class="mbe-title">Edit Block</span>`
-            + `<span class="mbe-pos">${pos}</span>`
+        head.innerHTML = `<span class="mbe-title">${this._escapeAttr(title || 'Edit Block')}</span>`
+            + `<span class="mbe-pos">${this._escapeAttr(pos)}</span>`
             + `<span class="mbe-spacer"></span>`
+            + `<button type="button" class="mbe-layout-btn" title="Switch source/preview layout (Ctrl+Alt+L)"></button>`
             + `<span class="mbe-hint">Ctrl+Enter to save · Esc to cancel</span>`;
 
         const body = document.createElement('div');
@@ -965,6 +1040,31 @@ export class MarkdownView extends BaseView {
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
+        // ── Source/preview axis ──────────────────────────────────────
+        // Side by side is right for prose and wrong for anything wide: a table
+        // or a long code fence gets half the modal's width in each pane, which
+        // is where the content most needs room. Stacking gives both panes the
+        // full width. The choice is remembered, because whoever wants it wants
+        // it for the document they are working on, not for one block.
+        const layoutBtn = head.querySelector('.mbe-layout-btn');
+        const applyLayout = (vertical) => {
+            body.classList.toggle('mbe-vertical', vertical);
+            // A flex-basis in pixels set by dragging the OTHER axis is
+            // meaningless here — clear it and let the percentages take over.
+            left.style.flex = '';
+            if (layoutBtn) {
+                layoutBtn.innerHTML = svgIcon(vertical ? 'layout-rows' : 'layout-columns', { size: 12 })
+                    + `<span>${vertical ? 'Stacked' : 'Side by side'}</span>`;
+            }
+            try { localStorage.setItem(MBE_LAYOUT_KEY, vertical ? 'vertical' : 'horizontal'); } catch (_) {}
+        };
+        let isVertical = false;
+        try { isVertical = localStorage.getItem(MBE_LAYOUT_KEY) === 'vertical'; } catch (_) {}
+        applyLayout(isVertical);
+        const toggleLayout = () => { isVertical = !isVertical; applyLayout(isVertical); };
+        if (layoutBtn) layoutBtn.onclick = toggleLayout;
+        this._toggleEditLayout = toggleLayout;
+
         // Splitter: resize the source pane, preview takes the remainder.
         // Pointer capture keeps the drag (and its release) targeted at the bar
         // even when the cursor crosses the preview pane, so it can't get stuck
@@ -972,15 +1072,25 @@ export class MarkdownView extends BaseView {
         split.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault();
-            let last = e.clientX;
+            const vertical = body.classList.contains('mbe-vertical');
+            let last = vertical ? e.clientY : e.clientX;
             const prevSel = document.body.style.userSelect;
             document.body.style.userSelect = 'none';
             split.classList.add('dragging');
             split.setPointerCapture(e.pointerId);
             const move = (ev) => {
-                const w = left.getBoundingClientRect().width + (ev.clientX - last);
+                const rect = left.getBoundingClientRect();
+                const bodyRect = body.getBoundingClientRect();
+                if (vertical) {
+                    const h = rect.height + (ev.clientY - last);
+                    last = ev.clientY;
+                    const max = bodyRect.height - 120;
+                    left.style.flex = `0 0 ${Math.min(Math.max(140, h), Math.max(140, max))}px`;
+                    return;
+                }
+                const w = rect.width + (ev.clientX - last);
                 last = ev.clientX;
-                const max = body.getBoundingClientRect().width - 220;
+                const max = bodyRect.width - 220;
                 left.style.flex = `0 0 ${Math.min(Math.max(260, w), Math.max(260, max))}px`;
             };
             const up = () => {
@@ -1024,15 +1134,29 @@ export class MarkdownView extends BaseView {
             : 'Switch to Table Editor <span class="shortcut-hint">(Ctrl+E)</span>';
     }
 
-    saveBlock(index, newText) {
+    /**
+     * Write the editor's text back into the document.
+     *
+     * @param {number} index       first block the editor was opened on
+     * @param {string} newText     what the user ended up with
+     * @param {number} [replace=1] how many blocks the editor stood in for —
+     *   more than one after a multi-block edit. The text is re-split on blank
+     *   lines, so editing three blocks into five (or one) works: the range is
+     *   replaced by whatever came out, not mapped one-for-one.
+     */
+    saveBlock(index, newText, replace = 1) {
         if (typeof newText !== 'string') {
             newText = String(newText || '');
         }
         if (State.activeTabIndex < 0) return;
         const file = State.openFiles[State.activeTabIndex];
-        
-        // Update local blocksData first
-        if (index >= this.blocksData.length) {
+
+        if (replace > 1) {
+            const pieces = this._splitIntoBlocks(newText).filter((b) => b.trim());
+            this.blocksData.splice(index, replace, ...pieces);
+            this._selAnchor = null;
+        } else if (index >= this.blocksData.length) {
+            // Update local blocksData first
             if (newText.trim()) this.blocksData.push(newText);
         } else {
             this.blocksData[index] = newText;
@@ -1069,8 +1193,29 @@ export class MarkdownView extends BaseView {
      *   whatever the user had just clicked: arrows moved blocks and F2 opened a
      *   block editor while the explorer looked focused.
      */
+    /**
+     * The block range currently selected, as `{ from, to }` inclusive.
+     *
+     * Selection is an ANCHOR plus the cursor, not a set: the request was for
+     * contiguous multi-select, and a range is the honest representation of
+     * that — it cannot get into a state the UI has no way to draw.
+     * `_selAnchor` null means the cursor alone is selected.
+     */
+    selectedRange() {
+        const head = State.vimState.selectedIndex;
+        if (head === undefined || head === null || head < 0) return null;
+        const total = (this.blocksData ? this.blocksData.length : 0);
+        // The trailing "+ Add Block" phantom is a control, not content, so a
+        // range never includes it.
+        if (head >= total) return { from: head, to: head };
+        const anchor = (this._selAnchor === null || this._selAnchor === undefined)
+            ? head
+            : Math.min(this._selAnchor, Math.max(total - 1, 0));
+        return { from: Math.min(anchor, head), to: Math.max(anchor, head) };
+    }
+
     selectBlock(index, opts = {}) {
-        const { reveal = 'nearest', focus = true } = opts;
+        const { reveal = 'nearest', focus = true, extend = false } = opts;
         if (State.activeTabIndex < 0) return;
         // Bounds must come from the ACTUAL blocks. Re-splitting the raw text on
         // blank lines ignores fenced code, so a document with ``` blocks
@@ -1080,6 +1225,16 @@ export class MarkdownView extends BaseView {
         const count = (this.blocksData ? this.blocksData.length : 0) + 1;
         if (index < 0) index = 0;
         if (index >= count) index = count - 1;
+
+        // A plain move collapses the range; extending keeps the anchor where
+        // the selection started. Set BEFORE selectedIndex so the anchor is the
+        // block the user was on, not the one they are moving to.
+        if (!extend) {
+            this._selAnchor = index;
+        } else if (this._selAnchor === null || this._selAnchor === undefined) {
+            this._selAnchor = (State.vimState.selectedIndex >= 0)
+                ? State.vimState.selectedIndex : index;
+        }
         State.vimState.selectedIndex = index;
 
         // If in book mode, determine which page contains this block index and jump to it
@@ -1098,9 +1253,15 @@ export class MarkdownView extends BaseView {
             }
         }
 
+        const range = this.selectedRange();
         const blocks = this.container.querySelectorAll('.md-block');
         blocks.forEach((b) => {
             const bIdx = parseInt(b.dataset.index);
+            // Every block in the range is marked; only the cursor gets focus
+            // and the scroll. Without the distinction a five-block selection
+            // would fight over which one owns the caret.
+            const inRange = !!range && bIdx >= range.from && bIdx <= range.to;
+            b.classList.toggle('range-selected', inRange && bIdx !== index);
             if (bIdx === index) {
                 b.classList.add('selected');
                 if (State.markdownViewMode === 'book') {
@@ -1134,6 +1295,78 @@ export class MarkdownView extends BaseView {
             } else {
                 b.classList.remove('selected');
             }
+        });
+    }
+
+    /**
+     * Delete the selected block(s).
+     *
+     * Deleting a block used to mean: F2, select all, delete, Ctrl+Enter — four
+     * steps to remove something you had already pointed at.
+     *
+     * It asks first. There is no block-level undo (the document is rebuilt
+     * from `blocksData`, so the editor's own history does not reach here), and
+     * Delete is one keystroke away from the arrow keys used to get to the
+     * block — so the confirm is the only thing standing between a mistyped
+     * navigation and lost text. It names the count and shows the first line,
+     * so the answer is not blind.
+     */
+    async deleteSelectedBlocks() {
+        const range = this.selectedRange();
+        if (!range || !Array.isArray(this.blocksData) || !this.blocksData.length) return false;
+
+        const from = Math.max(0, range.from);
+        const to = Math.min(range.to, this.blocksData.length - 1);
+        if (from > to) return false;                 // the phantom row only
+
+        const count = to - from + 1;
+        const doomed = this.blocksData.slice(from, to + 1);
+        const hasContent = doomed.some((b) => String(b || '').trim());
+
+        if (hasContent) {
+            const firstLine = String(doomed[0] || '').split('\n')[0].slice(0, 60);
+            const message = count === 1
+                ? `Delete this block?\n\n  ${firstLine}`
+                : `Delete ${count} blocks?\n\n  ${firstLine}${count > 1 ? '\n  …' : ''}`;
+            const ok = await showConfirm(message, { title: 'Delete Block', kind: 'warning' });
+            if (!ok) return false;
+        }
+
+        this.blocksData.splice(from, count);
+
+        const file = State.openFiles[State.activeTabIndex];
+        if (file) {
+            const eol = file.eol || '\n';
+            file.content = this.blocksData.join(eol + eol);
+            file.isDirty = true;
+        }
+
+        // Land on the block that took the deleted one's place, or the last one
+        // if the deletion ran off the end. Leaving the cursor past the end
+        // would put it on the phantom, which reads as "nothing is selected".
+        this._selAnchor = null;
+        const next = Math.min(from, Math.max(0, this.blocksData.length - 1));
+        State.vimState.selectedIndex = next;
+
+        if (this.renderTabs) this.renderTabs();
+        if (this.renderEditor) this.renderEditor();
+        if (this.updateOutline) this.updateOutline();
+        setTimeout(() => this.selectBlock(next, { reveal: 'center' }), 50);
+        return true;
+    }
+
+    _editBlockRange(range) {
+        const file = State.openFiles[State.activeTabIndex];
+        const eol = (file && file.eol) || '\n';
+        const joined = this.blocksData.slice(range.from, range.to + 1).join(eol + eol);
+
+        const blocks = this.container.querySelectorAll('.md-block');
+        const host = blocks[range.from];
+        if (!host) return;
+
+        this._pendingRange = range;
+        this.enterEditMode(host, joined, range.from, {
+            rangeCount: range.to - range.from + 1,
         });
     }
 
@@ -1176,10 +1409,21 @@ export class MarkdownView extends BaseView {
             this.navigateBlock(dir);
             return true;
         }
+        if (cmd === 'md-block:extend') {
+            if (e && e.preventDefault) e.preventDefault();
+            const dir = (e && e.key === 'ArrowUp') ? -1 : 1;
+            this.navigateBlock(dir, { extend: true });
+            return true;
+        }
         if (cmd === 'md-block:move') {
             if (e && e.preventDefault) e.preventDefault();
             const dir = (e && e.key === 'ArrowUp') ? -1 : 1;
             this.moveBlock(dir);
+            return true;
+        }
+        if (cmd === 'md-block:delete') {
+            if (e && e.preventDefault) e.preventDefault();
+            this.deleteSelectedBlocks();
             return true;
         }
         return false;
@@ -1249,7 +1493,7 @@ export class MarkdownView extends BaseView {
             || (this.pageFlipInstance.getOrientation() === 'landscape' && selPage === left + 1);
     }
 
-    navigateBlock(direction) {
+    navigateBlock(direction, opts = {}) {
         // Safety net for the same staleness _syncSelectionToFile guards against
         // (a re-split after resize/edit can also strand the cursor on a page
         // that is no longer showing): never move relative to a block the reader
@@ -1261,7 +1505,7 @@ export class MarkdownView extends BaseView {
         }
         let current = State.vimState.selectedIndex;
         if (current === undefined || current === null) current = -1;
-        this.selectBlock(current + direction);
+        this.selectBlock(current + direction, { extend: !!opts.extend });
     }
 
     /**
@@ -1281,8 +1525,16 @@ export class MarkdownView extends BaseView {
             window.removeEventListener('keydown', this._navKeyHandler, true);
         }
         this._navKeyHandler = (e) => {
-            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-            if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const isArrow = e.key === 'ArrowUp' || e.key === 'ArrowDown';
+            // Delete/Backspace remove the selection. They are handled here as
+            // well as in the MARKDOWN_BLOCK scope because the scope only
+            // applies while focus is literally on a block, and the selection
+            // survives a click that lands in the gap between two of them.
+            const isDelete = e.key === 'Delete' || e.key === 'Backspace';
+            if (!isArrow && !isDelete) return;
+            // Ctrl/Cmd still belong to the app (copy, save, ...). Shift does
+            // not: Shift+Arrow extends the block selection.
+            if (e.ctrlKey || e.metaKey) return;
             // The explorer owns arrow keys while it has focus: ShortcutManager
             // dispatches explorer:nav → VirtualExplorer.handleKeyDown, which
             // stamps the event. The stamp is REQUIRED — that dispatch
@@ -1323,7 +1575,7 @@ export class MarkdownView extends BaseView {
             // already resolves ↑/↓ to md-block:nav / md-block:move. Handling
             // them here as well made each keypress advance TWO blocks (double
             // navigateBlock), so defer to ShortcutManager in that case.
-            if (t && typeof t.closest === 'function' && t.closest('.md-block')) return;
+            if (isArrow && t && typeof t.closest === 'function' && t.closest('.md-block')) return;
 
             // Engage only once the user is actually working with blocks: a block
             // is selected, or the key came from inside the markdown area.
@@ -1331,13 +1583,19 @@ export class MarkdownView extends BaseView {
             const inside = t && typeof t.closest === 'function' && this.container.contains(t);
             if (State.vimState.selectedIndex < 0 && !inside) return;
 
-            const dir = e.key === 'ArrowUp' ? -1 : 1;
             e.preventDefault();
             e.stopPropagation();
+
+            if (isDelete) {
+                this.deleteSelectedBlocks();
+                return;
+            }
+
+            const dir = e.key === 'ArrowUp' ? -1 : 1;
             if (e.altKey) {
                 this.moveBlock(dir);
             } else {
-                this.navigateBlock(dir);
+                this.navigateBlock(dir, { extend: e.shiftKey });
             }
         };
         window.addEventListener('keydown', this._navKeyHandler, true);
@@ -1370,7 +1628,21 @@ export class MarkdownView extends BaseView {
         setTimeout(() => this.selectBlock(to), 50);
     }
 
+    /**
+     * Open the editor on the selection.
+     *
+     * With several blocks selected the editor opens on their joined source and
+     * the result is split back apart on save, so a heading and the paragraph
+     * under it can be reworked together instead of one modal at a time. The
+     * join and the split both use the blank-line separator `_splitIntoBlocks`
+     * defines, so a round trip with no edits changes nothing.
+     */
     editSelectedBlock() {
+        const range = this.selectedRange();
+        if (range && range.to > range.from) {
+            this._editBlockRange(range);
+            return;
+        }
         // F2 with nothing selected (e.g. focus landed on the pane but no block
         // was clicked) used to no-op because selectedIndex was -1. Fall back to
         // the first block so F2 always opens the edit modal.

@@ -101,6 +101,11 @@ const STROKE = {
     play: '<path d="M6 4l14 8-14 8z"/>',
     // The palette's own mark: a prompt caret and a line, i.e. "type a command".
     command: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7.5 9.5L10 12l-2.5 2.5"/><line x1="12" y1="15" x2="16.5" y2="15"/>',
+    // Pane layout. Each shows the arrangement you would GET, not the one you
+    // are in — a button labelled with the current state reads as a status line.
+    'layout-columns': '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/>',
+    'layout-rows': '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/>',
+    'copy-table': '<rect x="8" y="3" width="13" height="13" rx="2"/><line x1="8" y1="8" x2="21" y2="8"/><line x1="14" y1="8" x2="14" y2="16"/><path d="M16 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"/>',
 };
 
 /** Icons that read better as a filled shape than an outline. */

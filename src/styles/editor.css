@@ -543,6 +543,22 @@ body.theme-dark .visual-table-editor .range-selected {
     border-radius: 3px;
 }
 
+/* The rest of a multi-block selection. Quieter than the cursor block on
+   purpose: one of them holds the caret and takes the next keystroke, and
+   drawing all of them identically would hide which. A tinted ground rather
+   than an outline, so a run of selected blocks reads as one region instead of
+   a stack of separate boxes. */
+.md-block.range-selected {
+    border-left: 4px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
+    padding-left: 8px;
+    background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    border-radius: 3px;
+}
+
+.md-block.range-selected:hover {
+    outline: none;
+}
+
 .editor-toolbar button {
     background: var(--bg-color);
     border: 1px solid var(--border-color);
