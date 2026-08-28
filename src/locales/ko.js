@@ -172,9 +172,7 @@ export default {
     'Copy': '복사',
     'Copy  (Ctrl+Shift+C)': '복사 (Ctrl+Shift+C)',
     'Copy Path': '경로 복사',
-    'Copy the table (paste into Excel with formatting)': '표 복사 (서식을 유지한 채 Excel에 붙여넣기)',
     'Could not copy — select the text above instead': '복사할 수 없습니다 — 위 텍스트를 직접 선택하세요',
-    'Could not reach the clipboard.': '클립보드에 접근할 수 없습니다.',
     'Could not save:': '저장할 수 없습니다:',
     'Create': '만들기',
     'Ctrl+Enter to insert · Esc to close': 'Ctrl+Enter 삽입 · Esc 닫기',
@@ -302,7 +300,6 @@ export default {
     'Not found': '찾을 수 없음',
     'Note': '노트',
     'Note title…': '노트 제목…',
-    'Nothing to copy — this block is not a table.': '복사할 내용이 없습니다 — 이 블록은 표가 아닙니다.',
     'Nothing was closed.': '아무것도 닫지 않았습니다.',
     'Num': '번호',
     'One to many': '일대다',
@@ -413,7 +410,6 @@ export default {
     'TERMINAL': '터미널',
     'TODO / FIXME / HACK': 'TODO / FIXME / HACK',
     'Table': '표',
-    'Table copied — paste into Excel to keep the formatting.': '표를 복사했습니다 — Excel에 붙여넣으면 서식이 유지됩니다.',
     'Tags': '태그',
     'Task': '작업',
     'Task (depends on)': '작업 (의존)',
@@ -462,5 +458,17 @@ export default {
     // as its static chrome. Anything still missing renders in English.
     'All': '모두',
     'Replace (Alt+Enter)': '바꾸기 (Alt+Enter)',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Delete this block?': '이 블록을 삭제할까요?',
+    'Delete {n} blocks?': '{n}개 블록을 삭제할까요?',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Copy the whole table': '표 전체 복사',
+    'Copy the whole table (paste into Excel with formatting)': '표 전체 복사 (서식을 유지한 채 Excel에 붙여넣기)',
 
 };

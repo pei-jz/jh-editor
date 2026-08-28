@@ -172,9 +172,7 @@ export default {
     'Copy': 'コピー',
     'Copy  (Ctrl+Shift+C)': 'コピー (Ctrl+Shift+C)',
     'Copy Path': 'パスをコピー',
-    'Copy the table (paste into Excel with formatting)': 'テーブルをコピー (書式付きで Excel に貼り付け)',
     'Could not copy — select the text above instead': 'コピーできませんでした。上のテキストを選択してください',
-    'Could not reach the clipboard.': 'クリップボードにアクセスできませんでした。',
     'Could not save:': '保存できませんでした:',
     'Create': '作成',
     'Ctrl+Enter to insert · Esc to close': 'Ctrl+Enter で挿入 · Esc で閉じる',
@@ -302,7 +300,6 @@ export default {
     'Not found': '見つかりません',
     'Note': 'ノート',
     'Note title…': 'ノートのタイトル…',
-    'Nothing to copy — this block is not a table.': 'コピーする対象がありません。このブロックはテーブルではありません。',
     'Nothing was closed.': '何も閉じていません。',
     'Num': '番号',
     'One to many': '1 対 多',
@@ -413,7 +410,6 @@ export default {
     'TERMINAL': 'ターミナル',
     'TODO / FIXME / HACK': 'TODO / FIXME / HACK',
     'Table': 'テーブル',
-    'Table copied — paste into Excel to keep the formatting.': 'テーブルをコピーしました。Excel に貼り付けると書式も反映されます。',
     'Tags': 'タグ',
     'Task': 'タスク',
     'Task (depends on)': 'タスク (依存)',
@@ -462,5 +458,17 @@ export default {
     // as its static chrome. Anything still missing renders in English.
     'All': 'すべて',
     'Replace (Alt+Enter)': '置換 (Alt+Enter)',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Delete this block?': 'このブロックを削除しますか？',
+    'Delete {n} blocks?': '{n} 件のブロックを削除しますか？',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Copy the whole table': 'テーブル全体をコピー',
+    'Copy the whole table (paste into Excel with formatting)': 'テーブル全体をコピー (書式付きで Excel に貼り付け)',
 
 };

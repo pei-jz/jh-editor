@@ -1,3 +1,6 @@
+import { icon as svgIcon } from '../ui/Icons.js';
+import { t } from '../utils/I18n.js';
+
 /**
  * The editing control inside a cell.
  *
@@ -386,6 +389,15 @@ export const TableEditor = {
         table.className = 'visual-table-editor';
         table.tabIndex = -1; 
 
+        // Dragging across cells extends the selection. Shift+Arrow already
+        // did this from the keyboard; the mouse had no equivalent, so selecting
+        // a block of cells meant clicking one corner and shift-clicking the
+        // other — which is not what anyone tries first.
+        //
+        // Tracked on the instance rather than in a closure so a re-render
+        // (insert row, sort) cannot leave a drag half-finished.
+        this._drag = this._drag || { active: false };
+
         // Initialize state if not present
         if (!this._state) {
             this._state = {
@@ -490,7 +502,24 @@ export const TableEditor = {
 
             cell.onmousedown = (e) => {
                 e.stopPropagation();
+                if (e.button !== 0) return;          // right-click opens the menu
+                if (this._state.isEditing && this._state.activeRow === r
+                    && this._state.activeCol === c) {
+                    return;                          // let the caret land in the editor
+                }
                 updateSelection(r, c, false, e.shiftKey);
+                this._drag.active = true;
+                // The browser would otherwise start a text selection across the
+                // cells as the pointer moves, which fights the cell highlight.
+                table.classList.add('is-dragging');
+            };
+
+            // `mouseenter` on each cell, not `mousemove` on the table: it fires
+            // once per cell crossed rather than on every pixel, so a drag across
+            // a wide table is a handful of updates instead of hundreds.
+            cell.onmouseenter = () => {
+                if (!this._drag.active) return;
+                updateSelection(r, c, false, true);
             };
             cell.ondblclick = (e) => {
                 e.stopPropagation();
@@ -743,16 +772,57 @@ export const TableEditor = {
         table.appendChild(tbody);
         container.appendChild(table);
 
+        // The drag ends wherever the button comes up — including outside the
+        // table, or outside the window. Bound on document for that reason, and
+        // torn down on the next render so instances do not accumulate.
+        if (this._endDrag) {
+            document.removeEventListener('mouseup', this._endDrag, true);
+        }
+        this._endDrag = () => {
+            if (!this._drag.active) return;
+            this._drag.active = false;
+            table.classList.remove('is-dragging');
+        };
+        document.addEventListener('mouseup', this._endDrag, true);
+
         // Initial Selection or restore previous
         const startR = this._state ? this._state.activeRow : 0;
         const startC = this._state ? this._state.activeCol : 0;
         setTimeout(() => updateSelection(startR, startC, false, this._state && this._state.activeRow !== this._state.selectionEndRow), 0);
 
+        // One click copies the WHOLE table, formatted. Distinct from the cell
+        // range copy (Ctrl+C), which copies what is selected: wanting the table
+        // out of here — into a spreadsheet, usually — should not start with
+        // selecting every cell.
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'table-copy-btn';
+        copyBtn.title = t('Copy the whole table (paste into Excel with formatting)');
+        copyBtn.setAttribute('aria-label', t('Copy the whole table'));
+        copyBtn.innerHTML = svgIcon('copy-table', { size: 13 });
+        copyBtn.onmousedown = (e) => e.preventDefault();   // keep the cell focus
+        copyBtn.onclick = async () => {
+            const ok = await this.copyToClipboard(data);
+            // Feedback on the button itself: a toast for something this small
+            // and this local reads as an interruption.
+            copyBtn.classList.add(ok ? 'is-done' : 'is-failed');
+            copyBtn.innerHTML = svgIcon(ok ? 'check' : 'x', { size: 13 });
+            setTimeout(() => {
+                copyBtn.classList.remove('is-done', 'is-failed');
+                copyBtn.innerHTML = svgIcon('copy-table', { size: 13 });
+            }, 1400);
+        };
+        // The host is the non-scrolling wrapper; falling back to the
+        // container keeps this working for any caller that has no host.
+        const copyHost = (container.closest && container.closest('.table-editor-host'))
+            || container.parentElement || container;
+        copyHost.appendChild(copyBtn);
+
         const hints = document.createElement('div');
         hints.className = 'table-editor-hints';
         hints.innerHTML = `
             <span><strong>Type characters:</strong> Edit</span>
-            <span><strong>Shift+Arrows:</strong> Select Range</span>
+            <span><strong>Shift+Arrows / Drag:</strong> Select Range</span>
             <span><strong>Alt+; / -</strong> Add/Del Line</span>
             <span><strong>Ctrl+C / V:</strong> Copy/Paste</span>
         `;

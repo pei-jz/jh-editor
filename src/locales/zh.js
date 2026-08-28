@@ -172,9 +172,7 @@ export default {
     'Copy': '复制',
     'Copy  (Ctrl+Shift+C)': '复制 (Ctrl+Shift+C)',
     'Copy Path': '复制路径',
-    'Copy the table (paste into Excel with formatting)': '复制表格（可带格式粘贴到 Excel）',
     'Could not copy — select the text above instead': '无法复制 — 请手动选择上面的文本',
-    'Could not reach the clipboard.': '无法访问剪贴板。',
     'Could not save:': '无法保存：',
     'Create': '创建',
     'Ctrl+Enter to insert · Esc to close': 'Ctrl+Enter 插入 · Esc 关闭',
@@ -302,7 +300,6 @@ export default {
     'Not found': '未找到',
     'Note': '笔记',
     'Note title…': '笔记标题…',
-    'Nothing to copy — this block is not a table.': '没有可复制的内容 — 此块不是表格。',
     'Nothing was closed.': '未关闭任何内容。',
     'Num': '编号',
     'One to many': '一对多',
@@ -413,7 +410,6 @@ export default {
     'TERMINAL': '终端',
     'TODO / FIXME / HACK': 'TODO / FIXME / HACK',
     'Table': '表格',
-    'Table copied — paste into Excel to keep the formatting.': '已复制表格 — 粘贴到 Excel 可保留格式。',
     'Tags': '标签',
     'Task': '任务',
     'Task (depends on)': '任务（依赖）',
@@ -462,5 +458,17 @@ export default {
     // as its static chrome. Anything still missing renders in English.
     'All': '全部',
     'Replace (Alt+Enter)': '替换 (Alt+Enter)',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Delete this block?': '要删除此块吗？',
+    'Delete {n} blocks?': '要删除 {n} 个块吗？',
+
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Copy the whole table': '复制整个表格',
+    'Copy the whole table (paste into Excel with formatting)': '复制整个表格（可带格式粘贴到 Excel）',
 
 };

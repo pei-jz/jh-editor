@@ -341,3 +341,71 @@ body.theme-midnight .csv-grid th {
     background-color: var(--bg-color);
     color: var(--text-color);
 }
+
+/* ── Whole-table copy ──────────────────────────────────────────────────
+   Sits in the table's own corner rather than the modal toolbar: it acts on
+   THIS table, and a control that acts on a thing belongs next to it. Quiet
+   until the table is hovered, so it does not compete with the content. */
+.visual-table-editor + .table-copy-btn,
+.table-copy-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    opacity: 0.45;
+    cursor: pointer;
+    transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+/* The container is the positioning context for the button above. */
+.editor-block-container,
+.table-editor-host {
+    position: relative;
+}
+
+.table-copy-btn:hover {
+    opacity: 1;
+    border-color: var(--primary-color);
+}
+
+.table-copy-btn:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+}
+
+/* Confirmation on the button itself. A toast for something this small and
+   this local reads as an interruption. */
+.table-copy-btn.is-done {
+    opacity: 1;
+    color: var(--git-staged-color, #3fb950);
+    border-color: currentColor;
+}
+
+.table-copy-btn.is-failed {
+    opacity: 1;
+    color: var(--code-color, #f85149);
+    border-color: currentColor;
+}
+
+/* While dragging a cell range, suppress the browser's own text selection —
+   it would paint a second, conflicting highlight across the cells. */
+.visual-table-editor.is-dragging {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.visual-table-editor.is-dragging td,
+.visual-table-editor.is-dragging th {
+    cursor: cell;
+}
