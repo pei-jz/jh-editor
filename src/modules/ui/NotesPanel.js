@@ -10,6 +10,7 @@
  */
 
 import { iconEl } from './Icons.js';
+import { t } from '../utils/I18n.js';
 const STORAGE_KEY = 'jh_notes_v1';
 const MAX_NOTE_BYTES = 512 * 1024; // one very large note must not blow the quota
 let _saveTimer = null;
@@ -141,7 +142,7 @@ function showPanel() {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'close-btn';
     closeBtn.replaceChildren(iconEl('close', { size: 13 }));
-    closeBtn.title = 'Close (Esc)';
+    closeBtn.title = t('Close (Esc)');
     closeBtn.onclick = () => NotesPanel.close();
     header.append(title, closeBtn);
     panel.appendChild(header);
@@ -156,7 +157,7 @@ function showPanel() {
     const searchWrap = document.createElement('div');
     searchWrap.className = 'notes-search';
     const searchInput = document.createElement('input');
-    searchInput.placeholder = 'Filter notes…';
+    searchInput.placeholder = t('Filter notes…');
     searchInput.autocomplete = 'off';
     searchWrap.appendChild(searchInput);
     sidebar.appendChild(searchWrap);
@@ -188,19 +189,19 @@ function showPanel() {
     tools.className = 'notes-editor-tools';
     const titleInput = document.createElement('input');
     titleInput.className = 'notes-title-input';
-    titleInput.placeholder = 'Note title…';
+    titleInput.placeholder = t('Note title…');
     tools.appendChild(titleInput);
     const pinBtn = document.createElement('button');
     pinBtn.className = 'notes-tool-btn';
     pinBtn.replaceChildren(iconEl('pin', { size: 13 }));
-    pinBtn.title = 'Pin note';
+    pinBtn.title = t('Pin note');
     const previewBtn = document.createElement('button');
     previewBtn.className = 'notes-tool-btn';
-    previewBtn.textContent = 'Preview';
+    previewBtn.textContent = t('Preview');
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'notes-tool-btn';
     deleteBtn.replaceChildren(iconEl('trash', { size: 13 }));
-    deleteBtn.title = 'Delete note';
+    deleteBtn.title = t('Delete note');
     tools.append(pinBtn, previewBtn, deleteBtn);
     editor.appendChild(tools);
 
@@ -215,7 +216,7 @@ function showPanel() {
     editor.appendChild(preview);
     const empty = document.createElement('div');
     empty.className = 'notes-empty';
-    empty.textContent = 'Select or create a note';
+    empty.textContent = t('Select or create a note');
     editor.appendChild(empty);
 
     let currentNote = null;

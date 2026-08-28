@@ -234,7 +234,8 @@ describe('structural', () => {
     it('offers to save the tab, not only to discard it', () => {
         const i = editor.indexOf('if (file.isDirty && !isVirtualTab)');
         const block = editor.slice(i, editor.indexOf('openFiles.splice(index, 1);', i));
-        expect(block).toContain("{ label: 'Save and close', value: 'save', primary: true }");
+        // Labels go through t() now, so match the key rather than the literal.
+        expect(block).toContain("label: t('Save and close'), value: 'save', primary: true");
         expect(block).toContain("value: 'discard'");
         expect(block).toContain("value: 'cancel'");
         // saveCurrentFile works on the ACTIVE file, so closing a background tab

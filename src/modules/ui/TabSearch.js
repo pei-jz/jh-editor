@@ -1,3 +1,4 @@
+import { t } from '../utils/I18n.js';
 
 export const TabSearch = {
     show(files, onSelect) {
@@ -15,7 +16,7 @@ export const TabSearch = {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'tab-search-input';
-        input.placeholder = 'Search tabs...';
+        input.placeholder = t('Search tabs...');
 
         const list = document.createElement('ul');
         list.className = 'tab-search-list';

@@ -389,7 +389,7 @@ export async function closeAllTabs(action = 'prompt') {
             }
         }
     } else if (action === 'prompt' && hasDirty) {
-        const proceed = await showConfirm('Some files have unsaved changes. Close all tabs and discard them?', {
+        const proceed = await showConfirm(t('Some files have unsaved changes. Close all tabs and discard them?'), {
             title: 'Unsaved Changes',
             kind: 'warning',
             okLabel: 'Discard & Close',
@@ -731,7 +731,7 @@ export function addViewUsageHint(container, file, options = {}) {
     // sticky one, so closing can never leave the hints unreachable.
     const closeBtn = document.createElement('button');
     closeBtn.className = 'view-usage-close';
-    closeBtn.title = 'Close hints';
+    closeBtn.title = t('Close hints');
     closeBtn.replaceChildren(iconEl('close', { size: 12 }));
 
     const body = document.createElement('div');
@@ -1273,9 +1273,9 @@ export async function closeTab(index, pane = activePane()) {
             kind: 'warning',
             message: `${displayName} has unsaved changes.`,
             buttons: [
-                { label: 'Cancel', value: 'cancel', cancel: true },
-                { label: 'Close without saving', value: 'discard' },
-                { label: 'Save and close', value: 'save', primary: true },
+                { label: t('Cancel'), value: 'cancel', cancel: true },
+                { label: t('Close without saving'), value: 'discard' },
+                { label: t('Save and close'), value: 'save', primary: true },
             ],
         });
         if (choice === 'cancel' || !choice) return;
@@ -1401,16 +1401,16 @@ export function renderTabs(targetPane = null) {
                 e.preventDefault();
                 e.stopPropagation();
                 ContextMenu.show(e, [
-                    { label: 'Copy Path', action: () => { if (file.path) writeText(file.path); } },
-                    { label: 'Compare with File...', action: () => compareWithFile(file) },
-                    { label: 'Save As...', action: () => saveCurrentFileAs() },
+                    { label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
+                    { label: t('Compare with File...'), action: () => compareWithFile(file) },
+                    { label: t('Save As...'), action: () => saveCurrentFileAs() },
                     { type: 'separator' },
-                    { label: 'New Window', action: () => window.app?.openNewWindow?.() },
-                    { label: 'Move to Other Pane', action: () => moveTabToOtherPane(index, pane) },
+                    { label: t('New Window'), action: () => window.app?.openNewWindow?.() },
+                    { label: t('Move to Other Pane'), action: () => moveTabToOtherPane(index, pane) },
                     { type: 'separator' },
-                    { label: 'Close All (Discard)', action: () => closeAllTabs(false) },
-                    { label: 'Close All (Save)', action: () => closeAllTabs(true) },
-                    { label: 'Close Others', action: () => closeOtherTabs(index, pane) }
+                    { label: t('Close All (Discard)'), action: () => closeAllTabs(false) },
+                    { label: t('Close All (Save)'), action: () => closeAllTabs(true) },
+                    { label: t('Close Others'), action: () => closeOtherTabs(index, pane) }
                 ]);
             };
             const closeBtn = document.createElement('span');
@@ -1609,12 +1609,12 @@ function initTabNavigation() {
     navLeftBtn = document.createElement('button');
     navLeftBtn.className = 'tab-nav-btn hidden';
     navLeftBtn.innerHTML = '‹';
-    navLeftBtn.title = 'Scroll Left';
+    navLeftBtn.title = t('Scroll Left');
 
     navRightBtn = document.createElement('button');
     navRightBtn.className = 'tab-nav-btn hidden';
     navRightBtn.innerHTML = '›';
-    navRightBtn.title = 'Scroll Right';
+    navRightBtn.title = t('Scroll Right');
 
     // Insert at specific positions
     tabBar.insertBefore(navLeftBtn, EL.tabsContainer);
@@ -2105,10 +2105,10 @@ function setupContextMenu(file) {
     EL.editorContent.oncontextmenu = (e) => {
         if (!file) return;
         const menuItems = [
-            { label: 'Copy', action: () => document.execCommand('copy') },
-            { label: 'Cut', action: () => document.execCommand('cut') },
+            { label: t('Copy'), action: () => document.execCommand('copy') },
+            { label: t('Cut'), action: () => document.execCommand('cut') },
             {
-                label: 'Paste', action: async () => {
+                label: t('Paste'), action: async () => {
                     try {
                         const text = await readText();
                         if (text) document.execCommand('insertText', false, text);
@@ -2118,7 +2118,7 @@ function setupContextMenu(file) {
                 }
             },
             { type: 'separator' },
-            { label: 'Format Document', action: () => formatCurrentFile() }
+            { label: t('Format Document'), action: () => formatCurrentFile() }
         ];
 
         if (file.path) {
@@ -2126,7 +2126,7 @@ function setupContextMenu(file) {
             if (currentView && typeof currentView._triggerDefinition === 'function') {
                 menuItems.push({ type: 'separator' });
                 menuItems.push({
-                    label: 'Go to Definition (F12)',
+                    label: t('Go to Definition (F12)'),
                     action: () => {
                         const offset = typeof currentView.getCursorOffset === 'function'
                             ? currentView.getCursorOffset()
@@ -2135,7 +2135,7 @@ function setupContextMenu(file) {
                     }
                 });
                 menuItems.push({
-                    label: 'Find References (Shift+F12)',
+                    label: t('Find References (Shift+F12)'),
                     action: () => {
                         const offset = typeof currentView.getCursorOffset === 'function'
                             ? currentView.getCursorOffset()
@@ -2147,11 +2147,11 @@ function setupContextMenu(file) {
 
             menuItems.push({ type: 'separator' });
             menuItems.push({
-                label: 'Reopen with Encoding',
+                label: t('Reopen with Encoding'),
                 submenu: [
-                    { label: 'UTF-8', action: () => openFile(file.path, 'utf-8') },
-                    { label: 'Shift-JIS', action: () => openFile(file.path, 'shift-jis') },
-                    { label: 'EUC-JP', action: () => openFile(file.path, 'euc-jp') }
+                    { label: t('UTF-8'), action: () => openFile(file.path, 'utf-8') },
+                    { label: t('Shift-JIS'), action: () => openFile(file.path, 'shift-jis') },
+                    { label: t('EUC-JP'), action: () => openFile(file.path, 'euc-jp') }
                 ]
             });
         }

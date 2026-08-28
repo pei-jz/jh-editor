@@ -1,4 +1,5 @@
 import AIAgent from '../ai/AIAgent.js';
+import { t } from '../utils/I18n.js';
 import { icon as svgIcon, iconEl } from './Icons.js';
 import { State } from '../core/Store.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
@@ -81,7 +82,7 @@ export class InlineAI {
                         try {
                             if (!(await ensureJhaiConnected())) {
                                 this.resultArea.style.display = 'block';
-                                this.resultContent.textContent = 'Cannot reach J.H AI Agent. Please start the Agent.';
+                                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Please start the Agent.');
                                 return;
                             }
                             runInlinePreset(pr.id, {}).catch((e) => console.warn('preset failed:', e));
@@ -121,8 +122,8 @@ export class InlineAI {
         copyBtn.onclick = async () => {
             try {
                 await navigator.clipboard.writeText(extractCode());
-                copyBtn.textContent = 'Copied!';
-                setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+                copyBtn.textContent = t('Copied!');
+                setTimeout(() => copyBtn.textContent = t('Copy'), 2000);
             } catch (e) { }
         };
 
@@ -180,7 +181,7 @@ export class InlineAI {
         } catch (_) { /* fall through to the legacy path */ }
 
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -286,7 +287,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 resultActions.style.display = 'flex';
                 stopBtn.style.display = 'none';
                 genBtn.style.display = 'inline-block';
-                genBtn.textContent = 'Retry';
+                genBtn.textContent = t('Retry');
                 if (this.onPreview) this.onPreview(fullResponse);
             } else {
                 genBtn.style.display = 'inline-block';
@@ -321,7 +322,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                         };
                     }
                 } else {
-                    this.resultContent.textContent = 'Error: ' + e.message;
+                    this.resultContent.textContent = t('Error: ') + e.message;
                 }
                 genBtn.style.display = 'inline-block';
                 stopBtn.style.display = 'none';
@@ -380,7 +381,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         if (!prompt) return;
 
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -401,11 +402,11 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             const resultActions = this.element.querySelector('.result-actions');
             resultActions.style.display = 'flex';
             genBtn.style.display = 'inline-block';
-            genBtn.textContent = 'Retry';
+            genBtn.textContent = t('Retry');
             if (this.onPreview) this.onPreview(md);
         } catch (e) {
             const msg = (e && e.message) || String(e);
-            this.resultContent.textContent = 'Error: ' + msg;
+            this.resultContent.textContent = t('Error: ') + msg;
             genBtn.style.display = 'inline-block';
         }
     }
@@ -413,7 +414,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
     /** Run a JHAI MCP intent and render its result envelope inline. */
     async handleIntent(intentId, context) {
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -435,15 +436,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             const resultActions = this.element.querySelector('.result-actions');
             resultActions.style.display = 'flex';
             genBtn.style.display = 'inline-block';
-            genBtn.textContent = 'Retry';
+            genBtn.textContent = t('Retry');
             if (this.onPreview) this.onPreview(md);
         } catch (e) {
             const msg = (e && e.message) || String(e);
             const low = msg.toLowerCase();
             if (low.includes('not available') || low.includes('not reachable') || low.includes('failed to fetch')) {
-                this.resultContent.textContent = 'Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.';
+                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.');
             } else {
-                this.resultContent.textContent = 'Error: ' + msg;
+                this.resultContent.textContent = t('Error: ') + msg;
             }
             genBtn.style.display = 'inline-block';
         }
@@ -524,7 +525,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             this.element.querySelector('.inline-ai-result').style.display = 'none';
             this.element.querySelector('.inline-ai-review-bar').style.display = 'none';
             this.element.querySelector('.result-actions').style.display = 'none';
-            this.element.querySelector('.inline-ai-gen-btn').textContent = 'Send';
+            this.element.querySelector('.inline-ai-gen-btn').textContent = t('Send');
 
             this.element.remove();
             this.element = null;

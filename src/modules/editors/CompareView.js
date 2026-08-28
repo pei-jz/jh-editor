@@ -1,4 +1,6 @@
 import { DiffEditor } from './DiffEditor.js';
+import { iconEl } from '../ui/Icons.js';
+import { t } from '../utils/I18n.js';
 
 /**
  * CompareView — an empty, file-independent diff workspace.
@@ -44,12 +46,14 @@ export class CompareView {
 
         const compareBtn = document.createElement('button');
         compareBtn.className = 'compare-btn compare-btn-primary';
-        compareBtn.textContent = 'Compare (Ctrl+Enter)';
+        compareBtn.textContent = t('Compare (Ctrl+Enter)');
         compareBtn.onclick = () => this.runCompare();
 
         const swapBtn = document.createElement('button');
         swapBtn.className = 'compare-btn';
-        swapBtn.textContent = '⇄ Swap Sides';
+        swapBtn.className = (swapBtn.className || '') + ' jh-icon-row';
+        swapBtn.replaceChildren(iconEl('swap', { size: 12 }),
+            document.createTextNode(t('Swap Sides')));
         swapBtn.onclick = () => {
             const l = this.leftInput.value;
             this.leftInput.value = this.rightInput.value;
@@ -59,7 +63,7 @@ export class CompareView {
 
         const clearBtn = document.createElement('button');
         clearBtn.className = 'compare-btn';
-        clearBtn.textContent = 'Clear';
+        clearBtn.textContent = t('Clear');
         clearBtn.onclick = () => {
             this.leftInput.value = '';
             this.rightInput.value = '';
@@ -86,7 +90,7 @@ export class CompareView {
             ta.className = 'compare-input';
             ta.spellcheck = false;
             ta.value = value || '';
-            ta.placeholder = 'Paste or type text here…';
+            ta.placeholder = t('Paste or type text here…');
             ta.addEventListener('input', () => { if (this.file) this.file[key] = ta.value; });
             ta.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {

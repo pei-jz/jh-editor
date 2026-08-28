@@ -116,13 +116,14 @@ function reportBootFailure(err) {
             + 'font-family:system-ui,sans-serif; font-size:14px; line-height:1.6;';
 
         const title = document.createElement('h2');
-        title.textContent = 'J.H Editor failed to start';
+        title.textContent = t('J.H Editor failed to start');
         title.style.cssText = 'margin:0; font-size:18px;';
 
         const hint = document.createElement('p');
-        hint.textContent = 'The editor could not finish loading. The error is below — '
-            + 'please include it when reporting this. Restarting may clear it; if it '
-            + 'persists, the saved session may be corrupt.';
+        // One key for the whole sentence. Splitting a sentence across keys
+        // makes it untranslatable — word order is not the same in every
+        // language, so a translator needs the whole thought.
+        hint.textContent = t('The editor could not finish loading. The error is below — please include it when reporting this. Restarting may clear it; if it persists, the saved session may be corrupt.');
         hint.style.cssText = 'margin:0; max-width:70ch; opacity:.85;';
 
         const pre = document.createElement('pre');

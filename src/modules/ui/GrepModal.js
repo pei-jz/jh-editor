@@ -106,7 +106,7 @@ export const GrepModal = {
         folderRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
         const folderLabel = document.createElement('span');
         folderLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        folderLabel.textContent = 'In:';
+        folderLabel.textContent = t('In:');
         const folderPath = document.createElement('span');
         folderPath.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--primary-color);';
         folderPath.textContent = folder || '';
@@ -121,8 +121,8 @@ export const GrepModal = {
             } catch (_) {}
         };
         const resetBtn = document.createElement('button');
-        resetBtn.textContent = 'WS Root';
-        resetBtn.title = 'Back to the workspace root';
+        resetBtn.textContent = t('WS Root');
+        resetBtn.title = t('Back to the workspace root');
         resetBtn.className = 'grep-btn';
         resetBtn.onclick = () => { folder = State.currentDir; folderPath.textContent = folder; folderPath.title = folder; };
         folderRow.append(folderLabel, folderPath, folderBtn, resetBtn);
@@ -132,7 +132,7 @@ export const GrepModal = {
         globRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
         const globLabel = document.createElement('span');
         globLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        globLabel.textContent = 'Files:';
+        globLabel.textContent = t('Files:');
         const glob = document.createElement('input');
         glob.type = 'text';
         glob.placeholder = '*.java, *.xml   (empty = all / prefix ! to exclude)';
@@ -197,7 +197,7 @@ export const GrepModal = {
             const opts = { regex: cRegex._cb.checked, caseSensitive: cCase._cb.checked, wholeWord: cWord._cb.checked };
             // Validate a regex pattern up-front so we don't open an empty tab.
             if (opts.regex) {
-                try { new RegExp(q); } catch (e) { status.textContent = 'Invalid regular expression: ' + e.message; return; }
+                try { new RegExp(q); } catch (e) { status.textContent = t('Invalid regular expression: ') + e.message; return; }
             }
             const searchId = Date.now() + Math.random();
 
@@ -227,7 +227,7 @@ export const GrepModal = {
                 });
                 close();
             } catch (e) {
-                status.textContent = 'Error: ' + (e && e.message ? e.message : e);
+                status.textContent = t('Error: ') + (e && e.message ? e.message : e);
                 running = false;
                 searchBtn.disabled = false;
             }

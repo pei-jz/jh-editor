@@ -20,6 +20,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { t } from '../utils/I18n.js';
 
 const MAX_SAFE_SCROLL_HEIGHT = 30_000_000; // browsers cap element height (~33.5M in Chrome)
 const BUFFER_ROWS = 3;
@@ -236,9 +237,9 @@ export class LargeFileView {
         const lineInput = document.createElement('input');
         lineInput.type = 'number';
         lineInput.min = '1';
-        lineInput.placeholder = 'Line';
+        lineInput.placeholder = t('Line');
         lineInput.className = 'lfv-line-input';
-        lineInput.title = 'Go to line (Enter)';
+        lineInput.title = t('Go to line (Enter)');
         lineInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -249,9 +250,9 @@ export class LargeFileView {
         // find
         const findInput = document.createElement('input');
         findInput.type = 'text';
-        findInput.placeholder = 'Search…';
+        findInput.placeholder = t('Search…');
         findInput.className = 'lfv-find-input';
-        findInput.title = 'Search (Enter = next, Shift+Enter = previous)';
+        findInput.title = t('Search (Enter = next, Shift+Enter = previous)');
         this.findInput = findInput;
         findInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -266,8 +267,8 @@ export class LargeFileView {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'lfv-edit-btn';
-        editBtn.textContent = 'Open in edit mode (heavy)';
-        editBtn.title = 'Opens this file in the normal editor. Large files may be slow.';
+        editBtn.textContent = t('Open in edit mode (heavy)');
+        editBtn.title = t('Opens this file in the normal editor. Large files may be slow.');
         editBtn.addEventListener('click', () => this._forceEditMode());
 
         banner.append(info, lineInput, findInput, findStatus, editBtn);
@@ -316,6 +317,8 @@ export class LargeFileView {
         const probe = document.createElement('div');
         probe.className = 'lfv-line';
         probe.style.visibility = 'hidden';
+        // A font-metric probe, not text anyone reads: 'M' and 'g' between them
+        // span the ascender and the descender, which is what is being measured.
         probe.textContent = 'Mg';
         this.rows.appendChild(probe);
         const h = probe.getBoundingClientRect().height;
@@ -477,7 +480,7 @@ export class LargeFileView {
 
         if (foundIndex < 0) {
             this._activeMatch = null;
-            if (this.findStatus) this.findStatus.textContent = 'Not found';
+            if (this.findStatus) this.findStatus.textContent = t('Not found');
             this._renderViewport();
             return;
         }
@@ -511,7 +514,7 @@ export class LargeFileView {
             });
             if (!hit) {
                 this._activeMatch = null;
-                if (this.findStatus) this.findStatus.textContent = 'Not found';
+                if (this.findStatus) this.findStatus.textContent = t('Not found');
                 this._renderViewport();
                 return;
             }

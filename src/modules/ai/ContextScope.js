@@ -1,3 +1,4 @@
+import { t } from '../utils/I18n.js';
 /**
  * ContextScope.js — how much of the editor the AI is allowed to see.
  *
@@ -20,25 +21,25 @@ export const SCOPES = [
     {
         id: 'selection',
         rank: 1,
-        label: 'Selection only',
+        label: t('Selection only'),
         hint: 'Only text you have selected is sent. Safest, but with no surrounding code the answer is sometimes wrong.',
     },
     {
         id: 'active',
         rank: 2,
-        label: 'Active tab (recommended)',
+        label: t('Active tab (recommended)'),
         hint: 'The file you are looking at, and nothing else. Enough context to answer properly.',
     },
     {
         id: 'open',
         rank: 3,
-        label: 'All open tabs',
+        label: t('All open tabs'),
         hint: 'Every buffer you have open, not just the front one.',
     },
     {
         id: 'workspace',
         rank: 4,
-        label: 'Whole workspace',
+        label: t('Whole workspace'),
         hint: 'The model may read any file in the project, including ones you never opened.',
     },
 ];

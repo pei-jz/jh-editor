@@ -1,4 +1,5 @@
 import { MERMAID_RECIPES, getRecipe, searchRecipes, detectDiagramType, toMarkdownBlock } from '../utils/MermaidRecipes.js';
+import { t } from '../utils/I18n.js';
 import * as Markdown from '../utils/Markdown.js';
 import { showConfirm } from './Dialog.js';
 
@@ -174,7 +175,7 @@ export const MermaidHelper = {
         const search = document.createElement('input');
         search.className = 'mh-search';
         search.type = 'text';
-        search.placeholder = 'Search diagram types…';
+        search.placeholder = t('Search diagram types…');
         const typeList = document.createElement('div');
         typeList.className = 'mh-type-list';
         types.append(search, typeList);
@@ -196,8 +197,8 @@ export const MermaidHelper = {
         const cheatHead = document.createElement('div');
         cheatHead.className = 'mh-cheat-head';
         // Pane numbers so Alt+N is discoverable without reading the header hint.
-        search.placeholder = 'Search diagram types…  (Alt+1)';
-        editor.title = 'Mermaid source (Alt+2)';
+        search.placeholder = t('Search diagram types…  (Alt+1)');
+        editor.title = t('Mermaid source (Alt+2)');
         const cheatList = document.createElement('div');
         cheatList.className = 'mh-cheat-list';
         cheat.append(cheatHead, cheatList);
@@ -207,26 +208,26 @@ export const MermaidHelper = {
         foot.className = 'mh-foot';
         const hint = document.createElement('span');
         hint.className = 'mh-hint';
-        hint.textContent = 'Ctrl+Enter to insert · Esc to close';
+        hint.textContent = t('Ctrl+Enter to insert · Esc to close');
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'mh-btn';
-        cancelBtn.textContent = 'Cancel';
+        cancelBtn.textContent = t('Cancel');
         const insertBtn = document.createElement('button');
         insertBtn.className = 'mh-btn mh-btn-primary';
-        insertBtn.textContent = 'Insert';
+        insertBtn.textContent = t('Insert');
         foot.append(hint, cancelBtn, insertBtn);
 
         // Splitters: vertical between the three columns, horizontal between the
         // source editor and its preview.
         const splitL = document.createElement('div');
         splitL.className = 'mh-split';
-        splitL.title = 'Drag to resize';
+        splitL.title = t('Drag to resize');
         const splitR = document.createElement('div');
         splitR.className = 'mh-split';
-        splitR.title = 'Drag to resize';
+        splitR.title = t('Drag to resize');
         const splitH = document.createElement('div');
         splitH.className = 'mh-split-h';
-        splitH.title = 'Drag to resize';
+        splitH.title = t('Drag to resize');
         center.insertBefore(splitH, preview);
 
         const body = document.createElement('div');
@@ -260,7 +261,7 @@ export const MermaidHelper = {
                 btn.onclick = async () => {
                     // Replacing existing work should be deliberate.
                     if (editor.value.trim()
-                        && !(await showConfirm('Replace the current content with this template?', {
+                        && !(await showConfirm(t('Replace the current content with this template?'), {
                             title: 'Mermaid', kind: 'warning', okLabel: 'Replace',
                         }))) return;
                     editor.value = r.template;
@@ -278,7 +279,7 @@ export const MermaidHelper = {
             const recipe = getRecipe(selectedId);
             cheatList.innerHTML = '';
             if (!recipe) {
-                cheatHead.textContent = 'Syntax reference';
+                cheatHead.textContent = t('Syntax reference');
                 cheatList.innerHTML = '<div style="padding:10px;font-size:11px;opacity:0.6;">Pick a diagram type on the left to see the syntax it supports.</div>';
                 return;
             }
@@ -286,7 +287,10 @@ export const MermaidHelper = {
             for (const s of recipe.snippets) {
                 const btn = document.createElement('button');
                 btn.className = 'mh-snip';
-                btn.innerHTML = `<span class="mh-snip-label">${s.label}</span>`
+                // Translated at RENDER, not in the table: MermaidRecipes stays
+                // plain data, and a language change re-renders rather than
+                // needing the table rebuilt.
+                btn.innerHTML = `<span class="mh-snip-label">${t(s.label)}</span>`
                     + `<code class="mh-snip-code">${_escape(s.code)}</code>`
                     + (s.note ? `<span class="mh-snip-note">${_escape(s.note)}</span>` : '');
                 btn.onclick = () => { _insertAtCursor(editor, s.code); schedulePreview(); };
@@ -319,7 +323,7 @@ export const MermaidHelper = {
                 preview.innerHTML = '';
                 const err = document.createElement('div');
                 err.className = 'mh-error';
-                err.textContent = 'Syntax error: ' + (e && e.message ? e.message : String(e));
+                err.textContent = t('Syntax error: ') + (e && e.message ? e.message : String(e));
                 preview.appendChild(err);
             }
         };

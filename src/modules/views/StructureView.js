@@ -1,4 +1,5 @@
 import { BaseView } from './BaseView.js';
+import { t } from '../utils/I18n.js';
 import { EL } from '../core/Constants.js';
 import { StructureEditor } from '../editors/StructureEditor.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -74,7 +75,7 @@ export class StructureView extends BaseView {
 
         const leftHeader = document.createElement('div');
         leftHeader.className = 'pane-header';
-        leftHeader.textContent = 'Document Tree';
+        leftHeader.textContent = t('Document Tree');
         leftPaneDOM.appendChild(leftHeader);
 
         const treeContainer = document.createElement('div');
@@ -95,7 +96,7 @@ export class StructureView extends BaseView {
 
         const rightHeader = document.createElement('div');
         rightHeader.className = 'pane-header';
-        rightHeader.textContent = 'Selected Element Source';
+        rightHeader.textContent = t('Selected Element Source');
         rightPane.appendChild(rightHeader);
 
         const rightPaneContent = document.createElement('div');

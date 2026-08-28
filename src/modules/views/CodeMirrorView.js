@@ -1,4 +1,7 @@
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
+// Named `tr`, not `t`: this module already binds `t` to Lezer's highlight
+// tags (see the import below), which every style rule in the file uses.
+import { t as tr } from '../utils/I18n.js';
 import { icon as svgIcon } from '../ui/Icons.js';
 import { EditorView, Decoration, MatchDecorator, ViewPlugin, WidgetType, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, hoverTooltip } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, insertTab, indentLess, undo, redo, historyField } from '@codemirror/commands';
@@ -429,7 +432,7 @@ export function dedupeSelectedLines(view) {
     }
     const removed = lines.length - out.length;
     if (removed === 0) {
-        Toast.show('No duplicate lines found.', 'info', 1600);
+        Toast.show(tr('No duplicate lines found.'), 'info', 1600);
         return false;
     }
     // "kinds" = distinct values that occurred more than once — the number of
@@ -509,7 +512,7 @@ export class CodeMirrorView {
             const pvBtn = document.createElement('button');
             pvBtn.className = 'cm-toolbar-btn cm-html-preview-btn' + (this._htmlPreviewOn ? ' active' : '');
             pvBtn.innerHTML = `${ICON_PREVIEW}<span>Preview</span>`;
-            pvBtn.title = 'Toggle the HTML preview pane';
+            pvBtn.title = tr('Toggle the HTML preview pane');
             pvBtn.onclick = (e) => { e.stopPropagation(); this.toggleHtmlPreview(); };
             toolbar.appendChild(pvBtn);
             this._htmlPreviewBtn = pvBtn;
@@ -585,7 +588,7 @@ export class CodeMirrorView {
             };
             scriptsLabel.append(scriptsCb, document.createTextNode('Enable scripts'));
             const pvTitle = document.createElement('span');
-            pvTitle.textContent = 'Preview';
+            pvTitle.textContent = tr('Preview');
             pvTitle.style.cssText = 'font-weight:600;';
             // Left-aligned on purpose: `.cm-view-toolbar` floats over the top
             // RIGHT of this pane (position:absolute, z-index 1000), so anything
@@ -821,7 +824,7 @@ export class CodeMirrorView {
         if (this._vimBadge) { try { this._vimBadge.remove(); } catch (_) {} }
         const badge = document.createElement('button');
         badge.className = 'cm-toolbar-btn cm-vim-badge';
-        badge.title = 'Toggle Vim (vi) mode — Ctrl+Alt+V';
+        badge.title = tr('Toggle Vim (vi) mode — Ctrl+Alt+V');
         badge.innerHTML = `${ICON_KEYBOARD}<span class="cm-tb-label"></span>`;
         badge.onclick = (e) => { e.stopPropagation(); this.setVimEnabled(!this.vimEnabled); };
         // Place it to the LEFT of the Book Mode button in the shared toolbar.
@@ -839,7 +842,7 @@ export class CodeMirrorView {
             if (label) label.textContent = `Vim: ${String(mode || 'normal').toUpperCase()}`;
             this._vimBadge.classList.add('active');
         } else {
-            if (label) label.textContent = 'Vim: Off';
+            if (label) label.textContent = tr('Vim: Off');
             this._vimBadge.classList.remove('active');
         }
     }
@@ -1453,7 +1456,7 @@ export class CodeMirrorView {
             // receive pointer events (it used to be pointer-events:none).
             // Widened a little so it's an easier target.
             marksContainer.style.cssText = 'position:absolute; top:0; right:14px; width:10px; height:100%; z-index:100; cursor:pointer;';
-            marksContainer.title = 'Click to jump to the nearest match';
+            marksContainer.title = tr('Click to jump to the nearest match');
             marksContainer.addEventListener('click', (e) => this._jumpToScrollbarMark(e, marksContainer));
             wrapper.appendChild(marksContainer);
         }

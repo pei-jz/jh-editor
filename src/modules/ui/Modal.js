@@ -1,4 +1,5 @@
 import { EL } from '../core/Constants.js';
+import { t } from '../utils/I18n.js';
 import { showConfirm } from './Dialog.js';
 
 /* --- Input Modal --- */
@@ -65,7 +66,7 @@ export async function showNewFileModal() {
     return new Promise((resolve) => {
         const { overlay, title: titleEl, message: msgEl, input, okBtn, cancelBtn } = EL.inputModal;
 
-        titleEl.textContent = 'New File';
+        titleEl.textContent = t('New File');
         msgEl.textContent = ''; // Hide simple message, we'll use a form
         input.style.display = 'none';
 
@@ -83,9 +84,11 @@ export async function showNewFileModal() {
         // Name Field
         const nameGroup = document.createElement('div');
         nameGroup.className = 'form-group';
-        nameGroup.innerHTML = '<label>Name:</label>';
+        nameGroup.innerHTML = `<label>${t('Name:')}</label>`;
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
+        // An EXAMPLE filename, not a label — translating it would suggest
+        // the file should be named in the UI language.
         nameInput.placeholder = 'file_name';
         nameInput.style.width = '100%';
         nameInput.style.padding = '8px';
@@ -183,8 +186,8 @@ export async function showEncodingSelectionModal() {
         // Let's reuse inputModal but repurpose it quickly.
         const { overlay, title: titleEl, message: msgEl, input, okBtn, cancelBtn } = EL.inputModal;
 
-        titleEl.textContent = 'Reopen with Encoding';
-        msgEl.textContent = 'Select Encoding:';
+        titleEl.textContent = t('Reopen with Encoding');
+        msgEl.textContent = t('Select Encoding:');
         input.style.display = 'none'; // Hide text input
 
         let select = document.getElementById('reopen-enc-select');

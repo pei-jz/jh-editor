@@ -228,12 +228,12 @@ class GitPanel {
                     <div id="git-branch-select" class="git-branch-dropdown-host"></div>
                 </div>
                 <div class="git-v2-toolbar">
-                    <button id="git-compare-btn" title="Compare Branches" data-i18n-title="Compare Branches" aria-label="Compare Branches">${svgIcon('compare', { size: 13 })}</button>
+                    <button id="git-compare-btn" title="${t('Compare Branches')}" aria-label="Compare Branches">${svgIcon('compare', { size: 13 })}</button>
                     <button id="git-fetch-btn" title="Fetch All">⟳</button>
                     <button id="git-pull-btn" title="Pull">⤓</button>
                     <button id="git-push-btn" title="Push">⤒</button>
                     <button id="git-pr-btn" title="New Pull Request">PR</button>
-                    <button id="git-refresh-btn" title="Refresh Status" data-i18n-title="Refresh Status" aria-label="Refresh Status">${svgIcon('refresh', { size: 13 })}</button>
+                    <button id="git-refresh-btn" title="${t('Refresh Status')}" aria-label="Refresh Status">${svgIcon('refresh', { size: 13 })}</button>
                 </div>
             </div>
             
@@ -257,7 +257,7 @@ class GitPanel {
                         <span class="git-count" id="git-count-staged">0</span>
                         <div class="git-section-actions">
                             <button id="git-unstage-all-btn" title="Unstage All"><svg viewBox="0 0 12 12" width="10" height="10"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="2"/></svg></button>
-                            <button id="git-commit-modal-btn" title="Commit" data-i18n-title="Commit" aria-label="Commit" class="git-commit-btn-icon">${svgIcon('check', { size: 13 })}</button>
+                            <button id="git-commit-modal-btn" title="${t('Commit')}" aria-label="Commit" class="git-commit-btn-icon">${svgIcon('check', { size: 13 })}</button>
                         </div>
                     </div>
                     <div class="git-section-list" id="git-list-staged"></div>
@@ -289,7 +289,7 @@ class GitPanel {
                     <h3>Commit Changes</h3>
                     <textarea id="git-commit-input" placeholder="Commit message (Required)"></textarea>
                     <div class="git-modal-btns">
-                        <button id="git-commit-ai-btn" title="Generate a commit message from the staged diff" data-i18n-title="Generate a commit message from the staged diff">${svgIcon('sparkles', { size: 12 })}<span>AI</span></button>
+                        <button id="git-commit-ai-btn" title="${t('Generate a commit message from the staged diff')}">${svgIcon('sparkles', { size: 12 })}<span>AI</span></button>
                         <button id="git-commit-cancel">Cancel</button>
                         <button id="git-commit-confirm" class="primary-btn">Commit</button>
                     </div>
@@ -1078,7 +1078,7 @@ class GitPanel {
 
     _showHistoryContextMenu(e, entry) {
         const items = [
-            { label: 'Select for Compare', action: () => this._setCompareBase(entry) },
+            { label: t('Select for Compare'), action: () => this._setCompareBase(entry) },
         ];
         if (this._compareBase && this._compareBase.hash !== entry.hash) {
             items.push({
@@ -1087,11 +1087,11 @@ class GitPanel {
             });
         }
         items.push({
-            label: 'Compare with Working Tree',
+            label: t('Compare with Working Tree'),
             action: () => this._compareWithWorkingTree(entry),
         });
         if (this._compareBase) {
-            items.push({ label: 'Clear Base', action: () => this._clearCompareBase() });
+            items.push({ label: t('Clear Base'), action: () => this._clearCompareBase() });
         }
         ContextMenu.show(e, items);
     }
@@ -1217,12 +1217,12 @@ class GitPanel {
         const titleEl = document.createElement('input');
         titleEl.type = 'text';
         titleEl.value = subject;
-        titleEl.placeholder = 'Pull request title';
+        titleEl.placeholder = t('Pull request title');
         titleEl.style.cssText = INPUT_CSS;
 
         const bodyEl = document.createElement('textarea');
         bodyEl.rows = 6;
-        bodyEl.placeholder = 'Description (optional)';
+        bodyEl.placeholder = t('Description (optional)');
         bodyEl.style.cssText = INPUT_CSS + 'resize:vertical;line-height:1.5;';
         // Enter must insert a newline here, not fire the dialog's primary button.
         bodyEl.dataset.dialogKeys = 'own';
@@ -1244,8 +1244,8 @@ class GitPanel {
             width: 'min(620px, 92vw)',
             content: form,
             buttons: [
-                { label: 'Cancel', value: false, cancel: true },
-                { label: 'Create', value: true, primary: true },
+                { label: t('Cancel'), value: false, cancel: true },
+                { label: t('Create'), value: true, primary: true },
             ],
         });
         if (!go) return;
@@ -1270,8 +1270,8 @@ class GitPanel {
                     title: 'Pull Request', kind: 'info',
                     message: `Created:\n${url}`,
                     buttons: [
-                        { label: 'Close', value: false, cancel: true },
-                        { label: 'Open in Browser', value: true, primary: true },
+                        { label: t('Close'), value: false, cancel: true },
+                        { label: t('Open in Browser'), value: true, primary: true },
                     ],
                 });
                 if (wantsOpen) this._openExternal(url);
@@ -1362,9 +1362,9 @@ class GitPanel {
 
         const groupsFor = (extra) => [
             ...(extra ? [{ label: '', items: extra }] : []),
-            { label: 'Local', items: local },
-            { label: 'Remote', items: remote },
-            { label: 'Tags', items: tags },
+            { label: t('Local'), items: local },
+            { label: t('Remote'), items: remote },
+            { label: t('Tags'), items: tags },
         ].filter((g) => g.items.length);
 
         const label = (text) => {
@@ -1409,8 +1409,8 @@ class GitPanel {
             width: 'min(620px, 92vw)',
             content: form,
             buttons: [
-                { label: 'Cancel', value: false, cancel: true },
-                { label: 'Compare', value: true, primary: true },
+                { label: t('Cancel'), value: false, cancel: true },
+                { label: t('Compare'), value: true, primary: true },
             ],
         });
         if (!go) return;
@@ -1486,7 +1486,7 @@ class GitPanel {
             });
             this._showCompareFileList(
                 { rev: entry.hash, short: entry.short_hash, label: entry.short_hash },
-                { rev: '', short: 'WT', label: 'Working Tree' },
+                { rev: '', short: 'WT', label: t('Working Tree') },
                 files,
                 `${entry.short_hash} … Working Tree`,
             );
@@ -1863,10 +1863,10 @@ class GitPanel {
             });
             const cleaned = (message || '').trim().replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/, '').trim();
             input.value = cleaned || '';
-            input.placeholder = 'Commit message (Required)';
+            input.placeholder = t('Commit message (Required)');
             if (cleaned) input.focus();
         } catch (e) {
-            input.placeholder = 'Commit message (Required)';
+            input.placeholder = t('Commit message (Required)');
             const msg = (e && e.message) || String(e);
             if (/not reachable|failed to fetch|connection refused/i.test(msg)) {
                 showAlert('Cannot reach J.H AI Agent. Start the agent and try again.', { title: 'Commit Message', kind: 'error' });

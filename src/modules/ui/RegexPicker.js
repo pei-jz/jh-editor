@@ -9,6 +9,7 @@
  */
 
 import { RegexPresets } from './RegexPresets.js';
+import { t } from '../utils/I18n.js';
 
 const COLLAPSE_KEY = 'settings_regexPickerCollapsed';
 
@@ -42,7 +43,10 @@ function writeCollapsed(set) {
 export function matches(preset, query) {
     const q = String(query || '').trim().toLowerCase();
     if (!q) return true;
+    // Filtering matches the TRANSLATED label as well as the English source,
+    // so typing what you can see finds it in any language.
     return preset.label.toLowerCase().includes(q)
+        || t(preset.label).toLowerCase().includes(q)
         || preset.pattern.toLowerCase().includes(q)
         || preset.category.toLowerCase().includes(q);
 }
@@ -111,7 +115,7 @@ export function showRegexPicker(anchor, onPick) {
     const filter = document.createElement('input');
     filter.type = 'text';
     filter.className = 'regex-picker-filter';
-    filter.placeholder = 'Filter samples…';
+    filter.placeholder = t('Filter samples…');
     // The search modal listens for keys on the document; this input owns its own.
     filter.dataset.dialogKeys = 'own';
     const count = document.createElement('span');
@@ -175,7 +179,7 @@ export function showRegexPicker(anchor, onPick) {
         if (!groups.length) {
             const empty = document.createElement('div');
             empty.className = 'regex-picker-empty';
-            empty.textContent = 'No sample matches that.';
+            empty.textContent = t('No sample matches that.');
             list.appendChild(empty);
             return;
         }
@@ -225,7 +229,7 @@ export function showRegexPicker(anchor, onPick) {
 
                 const label = document.createElement('span');
                 label.className = 'regex-item-label';
-                label.textContent = preset.label;
+                label.textContent = t(preset.label);
                 const pat = document.createElement('code');
                 pat.className = 'regex-item-pattern';
                 pat.textContent = preset.pattern;

@@ -15,7 +15,7 @@ import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
-import { getLanguage, setLanguage } from '../utils/I18n.js';
+import { getLanguage, setLanguage, t } from '../utils/I18n.js';
 
 /**
  * Fill in the About block at the bottom of the General tab.
@@ -69,13 +69,13 @@ async function initAboutSection() {
             try {
                 const clip = await import('@tauri-apps/plugin-clipboard-manager');
                 await clip.writeText(lines);
-                Toast.show('Version info copied');
+                Toast.show(t('Version info copied'));
             } catch (_) {
                 try {
                     await navigator.clipboard.writeText(lines);
-                    Toast.show('Version info copied');
+                    Toast.show(t('Version info copied'));
                 } catch (e) {
-                    Toast.show('Could not copy — select the text above instead', 'error');
+                    Toast.show(t('Could not copy — select the text above instead'), 'error');
                 }
             }
         };
@@ -535,9 +535,9 @@ export function initSettingsModal() {
             const activeTab = document.querySelector('.settings-tab.active')?.dataset.tab;
             if (activeTab === 'agent') saveAgentSettings();
             else if (activeTab === 'keybindings') {
-                Toast.info('Keybindings are saved automatically as you record them.');
+                Toast.info(t('Keybindings are saved automatically as you record them.'));
             } else {
-                Toast.success('Settings Applied');
+                Toast.success(t('Settings Applied'));
             }
         };
     }
@@ -751,7 +751,7 @@ export function initSettingsModal() {
                 `;
                 if (MarkdownTemplates.isDeletable(t.id)) {
                     const del = document.createElement('button');
-                    del.textContent = 'Delete';
+                    del.textContent = t('Delete');
                     del.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:#d9534f; border:1px solid #d9534f; border-radius:4px;';
                     del.onclick = () => {
                         MarkdownTemplates.remove(t.id);
@@ -781,7 +781,7 @@ export function initSettingsModal() {
                     <span style="flex:1;"></span>
                 `;
                 const restore = document.createElement('button');
-                restore.textContent = 'Restore';
+                restore.textContent = t('Restore');
                 restore.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:var(--primary-color); border:1px solid var(--primary-color); border-radius:4px;';
                 restore.onclick = () => {
                     MarkdownTemplates.restoreBuiltin(t.id);
@@ -838,7 +838,7 @@ export function initSettingsModal() {
         const resetBtn = document.getElementById('reset-shortcuts-btn');
         if (resetBtn) {
             resetBtn.onclick = async () => {
-                if (await showConfirm('Reset all shortcuts to default?', { title: 'Shortcuts' })) {
+                if (await showConfirm(t('Reset all shortcuts to default?'), { title: 'Shortcuts' })) {
                     shortcuts.resetToDefaults();
                     renderKeybindings();
                 }
@@ -980,7 +980,7 @@ export function initSettingsModal() {
                     // Re-filing a snippet without deleting and retyping it.
                     const move = document.createElement('select');
                     move.className = 'snippet-move';
-                    move.title = 'Move to another category';
+                    move.title = t('Move to another category');
                     for (const c of [...new Set([...Snippets.categories(), category])]) {
                         const o = document.createElement('option');
                         o.value = c;
@@ -997,7 +997,7 @@ export function initSettingsModal() {
                     const del = document.createElement('button');
                     del.className = 'snippet-del';
                     del.textContent = '×';
-                    del.title = 'Delete snippet';
+                    del.title = t('Delete snippet');
                     del.onclick = () => {
                         Snippets.remove(s.id);
                         renderList();
@@ -1181,7 +1181,7 @@ export function initSettingsModal() {
 
                     const move = document.createElement('select');
                     move.className = 'snippet-move';
-                    move.title = 'Move to another category';
+                    move.title = t('Move to another category');
                     for (const c of [...new Set([...RegexPresets.categories(), category])]) {
                         const o = document.createElement('option');
                         o.value = c;
@@ -1236,7 +1236,7 @@ export function initSettingsModal() {
                     const btn = document.createElement('button');
                     btn.className = 'primary-btn push';
                     btn.style.cssText = 'padding:3px 12px; font-size:11px;';
-                    btn.textContent = 'Restore';
+                    btn.textContent = t('Restore');
                     btn.onclick = () => {
                         RegexPresets.restore(preset.id);
                         renderList();
