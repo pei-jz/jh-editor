@@ -45,13 +45,15 @@ export default defineConfig({
                     if (id.includes('node_modules')) {
                         if (id.includes('@tauri-apps')) return 'tauri';
                         // Heavy, view-specific dependencies are dynamically
-                        // imported at their point of use. Forcing them into the
-                        // 'vendor' chunk would defeat that lazy split (shiki is
-                        // 10MB+ of WASM + grammars and only serves Markdown/
-                        // diff/structure code blocks, never the editor itself).
-                        // Returning undefined lets Vite chunk them by their own
+                        // imported at their point of use; forcing them into the
+                        // 'vendor' chunk would defeat that lazy split. Returning
+                        // undefined lets Vite chunk them by their own
                         // dynamic-import boundary instead.
-                        if (id.includes('shikijs') || id.includes('/shiki/') || id.includes('oniguruma') || id.includes('vscode-textmate')) return undefined;
+                        //
+                        // shiki was the reason this existed: 6.8 MB of TextMate
+                        // grammars for languages nothing asked for. It is gone —
+                        // highlighting uses the editor's own Lezer parsers now
+                        // (utils/CMHighlighter.js).
                         if (id.includes('/katex/')) return undefined;
                         return 'vendor'; // Split other vendors
                     }

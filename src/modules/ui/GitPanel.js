@@ -22,6 +22,20 @@ import { promptLanguageName } from '../utils/I18n.js';
  * a ref name can never legally contain a quote or a backslash, so anything of
  * the sort is quoting, not part of the name.
  */
+/**
+ * Escape a value for use inside an attribute selector.
+ *
+ * File and folder names are user data and can contain quotes or brackets that
+ * no attribute selector survives. `CSS.escape` covers this in a browser and is
+ * absent in some environments, so fall back to escaping the characters that
+ * actually matter here.
+ */
+function cssEscape(value) {
+    const v = String(value == null ? '' : value);
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(v);
+    return v.replace(/["'\\[\]]/g, (m) => `\\${m}`);
+}
+
 export function cleanRef(name) {
     return String(name).trim().replace(/^["'\\]+|["'\\]+$/g, '').trim();
 }
@@ -586,8 +600,141 @@ class GitPanel {
         }
     }
 
+    /**
+     * Refresh the panel and put the keyboard back where it was.
+     *
+     * By PATH, not by element: refresh() rebuilds every row, so the node that
+     * was focused no longer exists. A folder that collapsed away takes its
+     * children with it, so a child falls back to the nearest ancestor still on
+     * screen rather than dumping the keyboard at the top of the panel.
+     */
+    _refreshKeepingFocus(path) {
+        this.refresh();
+        const settle = () => {
+            let target = path;
+            while (target) {
+                const row = this.element.querySelector(
+                    `.git-tree-item[data-git-path="${cssEscape(target)}"]`,
+                );
+                if (row) {
+                    row.focus({ preventScroll: true });
+                    if (typeof row.scrollIntoView === 'function') {
+                        row.scrollIntoView({ block: 'nearest' });
+                    }
+                    return;
+                }
+                const cut = target.lastIndexOf('/');
+                target = cut > 0 ? target.slice(0, cut) : '';
+            }
+        };
+        // refresh() is async; give it the frame it needs to rebuild.
+        setTimeout(settle, 0);
+        setTimeout(settle, 120);
+    }
+
+    /**
+     * Arrow keys over the change/staged trees.
+     *
+     * There was no keyboard handling here at all — no focusable rows, no
+     * keydown, no scope — so Up and Down did what they do on any scrollable
+     * div: scrolled it, while the folders sat there un-openable.
+     *
+     * Bound once, on the panel, and delegated: every expand or collapse calls
+     * refresh(), which rebuilds every row, so a listener attached to a row
+     * would not survive its own keystroke.
+     */
+    _bindTreeKeys() {
+        if (this._treeKeysBound) return;
+        this._treeKeysBound = true;
+
+        const rows = () => [...this.element.querySelectorAll('.git-tree-item')];
+
+        const focusRow = (row) => {
+            if (!row) return;
+            row.focus({ preventScroll: true });
+            if (typeof row.scrollIntoView === 'function') {
+                row.scrollIntoView({ block: 'nearest' });
+            }
+        };
+
+        const step = (from, delta) => {
+            const all = rows();
+            if (!all.length) return;
+            const i = all.indexOf(from);
+            const next = i === -1
+                ? (delta > 0 ? 0 : all.length - 1)
+                : Math.min(all.length - 1, Math.max(0, i + delta));
+            focusRow(all[next]);
+        };
+
+        const refreshKeepingFocus = (path) => this._refreshKeepingFocus(path);
+
+        this.element.addEventListener('keydown', (e) => {
+            const row = e.target.closest && e.target.closest('.git-tree-item');
+            if (!row) return;
+            const path = row.dataset.gitPath || '';
+            const isFolder = row.dataset.gitKind === 'folder';
+            const isOpen = row.dataset.gitOpen === 'true';
+
+            switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                step(row, 1);
+                return;
+            case 'ArrowUp':
+                e.preventDefault();
+                step(row, -1);
+                return;
+            case 'Home':
+                e.preventDefault();
+                focusRow(rows()[0]);
+                return;
+            case 'End':
+                e.preventDefault();
+                focusRow(rows().pop());
+                return;
+            case 'ArrowRight':
+                e.preventDefault();
+                // Open a closed folder; step into one that is already open.
+                if (isFolder && !isOpen && row.dataset.gitLeaf !== 'true') {
+                    this.expandedNodes.add(path);
+                    refreshKeepingFocus(path);
+                } else {
+                    step(row, 1);
+                }
+                return;
+            case 'ArrowLeft': {
+                e.preventDefault();
+                if (isFolder && isOpen) {
+                    this.expandedNodes.delete(path);
+                    refreshKeepingFocus(path);
+                    return;
+                }
+                // From a file, or a closed folder, go up to the parent folder.
+                const cut = path.lastIndexOf('/');
+                const parent = cut > 0 ? path.slice(0, cut) : '';
+                const parentRow = parent && this.element.querySelector(
+                    `.git-tree-item.git-folder[data-git-path="${cssEscape(parent)}"]`,
+                );
+                if (parentRow) focusRow(parentRow);
+                else step(row, -1);
+                return;
+            }
+            case 'Enter':
+            case ' ':
+                // Whatever a click does: toggle the folder, or open the diff.
+                e.preventDefault();
+                row.click();
+                if (isFolder) refreshKeepingFocus(path);
+                return;
+            default:
+            }
+        });
+    }
+
     _renderFileList(container, files, actionType) {
         container.innerHTML = '';
+        this._bindTreeKeys();
         if (files.length === 0) {
             container.innerHTML = '<div class="git-empty-msg">No changes</div>';
             return;
@@ -649,6 +796,14 @@ class GitPanel {
                 const div = document.createElement('div');
                 div.className = 'git-tree-item git-folder' + (hasNoChildren ? ' git-folder-empty' : '');
                 div.style.paddingLeft = `${level * 16 + 10}px`;
+                // Focusable and identifiable, so the arrow keys have something
+                // to move between and something to restore focus to after the
+                // refresh that every expand/collapse triggers.
+                div.tabIndex = -1;
+                div.dataset.gitPath = fullPath;
+                div.dataset.gitKind = 'folder';
+                div.dataset.gitOpen = String(isExpanded && !hasNoChildren);
+                div.dataset.gitLeaf = String(hasNoChildren);
 
                 // Folder-level stage/unstage button
                 let folderActionHtml = '';
@@ -670,7 +825,9 @@ class GitPanel {
                     if (e.target.closest('.git-folder-action')) return;
                     if (this.expandedNodes.has(fullPath)) this.expandedNodes.delete(fullPath);
                     else this.expandedNodes.add(fullPath);
-                    this.refresh();
+                    // Keeps the keyboard on the folder just clicked, so mouse
+                    // and arrows can be mixed without the focus resetting.
+                    this._refreshKeepingFocus(fullPath);
                 };
 
                 // Bind folder action button
@@ -695,6 +852,9 @@ class GitPanel {
                     const div = document.createElement('div');
                     div.className = 'git-tree-item git-file';
                     div.style.paddingLeft = `${level * 16 + 53}px`;
+                    div.tabIndex = -1;
+                    div.dataset.gitPath = file.path;
+                    div.dataset.gitKind = 'file';
                     const filename = file.path.split(/[/\\]/).pop() || file.path;
                     
                     let actionHtml = '';
