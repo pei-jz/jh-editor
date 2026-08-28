@@ -43,3 +43,5 @@ coverage/
 test-results/
 test_data/
 playwright-report/
+# Unzipped xlsx scratch from a design exercise (not source)
+docs/design/_unzip_tmp/

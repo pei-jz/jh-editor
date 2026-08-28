@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JHEditor 水墨画（白黒・墨絵）テーマ提案</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --sidebar: #252526;
+    --header: #252526;
+    --border: rgba(255,255,255,0.09);
+    --text: #d4d4d4;
+    --text-secondary: #858585;
+    --accent: #3794ff;
+    --hover: #2a2d2e;
+    --radius: 6px;
+    --font-mono: 'Cascadia Code','JetBrains Mono','Fira Code','HackGen Console',Consolas,monospace;
+    --font-ui: system-ui,-apple-system,'Segoe UI','Helvetica Neue',sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; }
+  body {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 52px 1fr;
+    grid-template-areas: "header header" "sidebar main";
+  }
+  .app-header {
+    grid-area: header; display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; background: var(--header); border-bottom: 1px solid var(--border);
+  }
+  .app-header .logo { font-weight: 600; font-size: 15px; letter-spacing: .3px; }
+  .app-header .logo .accent { color: var(--accent); }
+  .app-header .subtitle { color: var(--text-secondary); font-size: 12px; }
+
+  .app-sidebar {
+    grid-area: sidebar; background: var(--sidebar); border-right: 1px solid var(--border);
+    padding: 14px 10px; overflow-y: auto;
+  }
+  .section-label {
+    color: var(--text-secondary); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .8px; margin: 0 6px 8px;
+  }
+  .theme-nav-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px; margin-bottom: 4px; background: transparent; color: var(--text);
+    border: none; border-radius: var(--radius); cursor: pointer; text-align: left;
+    font-family: var(--font-ui); font-size: 13px; transition: background .12s;
+  }
+  .theme-nav-item:hover { background: var(--hover); }
+  .theme-nav-item.active { background: rgba(55,148,255,.14); color: #fff; }
+  .swatch-dots { display: flex; gap: 4px; }
+  .swatch-dots i {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.18); display: inline-block;
+  }
+
+  .app-main { grid-area: main; padding: 20px 24px; overflow-y: auto; }
+  .intro h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .intro p { color: var(--text-secondary); max-width: 800px; line-height: 1.7; }
+  .intro .pill { display:inline-block; margin:8px 6px 0 0; padding:3px 10px; font-size:12px; border-radius:999px; background:var(--hover); border:1px solid var(--border); }
+
+  .theme-card {
+    margin-top: 24px; background: var(--sidebar); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .theme-card-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px;
+  }
+  .theme-card-head h2 { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .theme-card-head .tag {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 500; letter-spacing: .3px;
+  }
+  .theme-card-head .desc { color: var(--text-secondary); font-size: 13px; }
+
+  .material-preview {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border);
+  }
+  .material-swatch {
+    min-height: 240px; position: relative; display: flex; align-items: flex-end; padding: 10px;
+  }
+  .material-swatch .swatch-label {
+    font-size: 11px; letter-spacing: .4px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(0,0,0,.45); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6);
+  }
+
+  .preview-wrap {
+    padding: 18px; display: grid; grid-template-columns: 1fr 320px; gap: 18px;
+  }
+  @media (max-width: 960px) {
+    body { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; grid-template-areas: "header" "sidebar" "main"; }
+    .preview-wrap { grid-template-columns: 1fr; }
+    .material-preview { grid-template-columns: 1fr; }
+  }
+
+  .mock-editor {
+    display: grid; grid-template-columns: 190px 1fr;
+    border: 1px solid var(--mock-border, #555); border-radius: 8px; overflow: hidden;
+    background: var(--mock-bg); font-family: var(--font-mono); font-size: 12.5px;
+    line-height: 1.7; min-height: 480px;
+  }
+  .mock-explorer {
+    background: var(--mock-sidebar, var(--mock-header));
+    border-right: 1px solid var(--mock-border);
+    padding: 10px 12px; font-size: 12px; color: var(--mock-text-secondary);
+    min-width: 0; overflow: auto;
+  }
+  .mock-explorer .ex-title { font-size: 10px; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 10px; opacity: .7; }
+  .mock-explorer .ex-row { padding: 3px 4px; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .mock-explorer .ex-row.folder { color: var(--mock-text); }
+  .mock-explorer .ex-row.file { color: var(--mock-text-secondary); }
+  .mock-explorer .ex-row.file.active { color: var(--mock-accent); background: rgba(0,0,0,.05); border-radius: 4px; }
+  .mock-explorer .ex-ico { width: 12px; text-align: center; display: inline-block; opacity: .8; }
+  .mock-editor-pane {
+    display: grid; grid-template-rows: auto auto 1fr auto;
+    min-width: 0; min-height: 480px;
+  }
+  .mock-tabs { display: flex; background: var(--mock-header); border-bottom: 1px solid var(--mock-border); }
+  .mock-tab { padding: 8px 16px; font-size: 12px; color: var(--mock-tab-inactive); border-right: 1px solid var(--mock-border); cursor: default; }
+  .mock-tab.active { background: var(--mock-active-tab); color: var(--mock-text); border-top: 2px solid var(--mock-accent); font-weight: 500; }
+  .mock-breadcrumb {
+    display: flex; gap: 8px; padding: 6px 14px; font-size: 11px;
+    color: var(--mock-text-secondary); background: var(--mock-bg); border-bottom: 1px solid var(--mock-border);
+  }
+  .mock-code { padding: 12px 16px; overflow: auto; position: relative; }
+  .mock-code pre { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7; white-space: pre; }
+  .mock-statusbar {
+    display: flex; justify-content: space-between; padding: 5px 12px; font-size: 11px;
+    color: var(--mock-text-secondary); background: var(--mock-header); border-top: 1px solid var(--mock-border);
+  }
+  .tk-keyword { color: var(--mock-hl-keyword); }
+  .tk-control { color: var(--mock-hl-control); }
+  .tk-builtin { color: var(--mock-hl-builtin); }
+  .tk-string  { color: var(--mock-hl-string); }
+  .tk-comment { color: var(--mock-hl-comment); font-style: italic; }
+  .tk-function{ color: var(--mock-hl-function); }
+  .tk-variable{ color: var(--mock-hl-variable); }
+  .tk-number  { color: var(--mock-hl-number); }
+  .tk-operator{ color: var(--mock-hl-operator); }
+  .tk-literal { color: var(--mock-hl-literal); }
+  .mock-gutter {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 34px;
+    background: var(--mock-bg); border-right: 1px solid var(--mock-border);
+    color: var(--mock-gutter); text-align: right; padding: 12px 6px 12px 0;
+    font-size: 12px; line-height: 1.7; user-select: none;
+  }
+  .mock-code .code-body { margin-left: 34px; }
+
+  .palette-panel { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--bg); }
+  .palette-panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-secondary); margin-bottom: 12px; }
+  .palette-group { margin-bottom: 14px; }
+  .group-title { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+  .palette-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: flex; align-items: center; gap: 6px; background: var(--hover);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+    font-size: 11px; font-family: var(--font-mono);
+  }
+  .chip i { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15); flex-shrink: 0; }
+  .note { font-size: 12px; color: var(--text-secondary); line-height: 1.7; border-top: 1px solid var(--border); padding-top: 10px; }
+  .note strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+  <header class="app-header">
+    <span class="logo">JH<span class="accent">Editor</span></span>
+    <span class="subtitle">／ 水墨画（白黒・墨絵）テーマ提案 — 留白（ライト）＋ 墨夜（ナイト）</span>
+  </header>
+
+  <aside class="app-sidebar">
+    <div class="section-label">水墨画テーマ候補</div>
+    <div id="theme-nav"></div>
+    <div class="section-label" style="margin-top:18px;">この提案の方針</div>
+    <div class="note" style="padding:6px 8px;border-top:none;">
+      ご要望の<span style="color:#e6e4d6">「白黒」</span>を徹底し、既存の黄系（Paper / 竹簡 / Sumi-e）とは方向を分けました。
+      色は<span style="color:#e6e4d6">墨の濃淡（墨分五色）だけ</span>のモノクロ構文。
+      背景の「山水画（遠山・滝・小舟・松）」は下端に淡墨で寄せ、<span style="color:#e6e4d6">文字が主役</span>を崩しません。上部はフェードで本文領域をクリアに保ちます。
+      朱印は唯一の色（省略すれば完全モノクロ）。
+    </div>
+  </aside>
+
+  <main class="app-main">
+    <div class="intro">
+      <h1>水墨画（墨絵）エディタテーマ提案</h1>
+      <p>
+        中国の水墨画を「白黒モノクロ・目に優しい・文字が邪魔にならない」の3条件で設計しました。
+        純白ではなく<span style="color:#e6e4d6">生宣紙の温かい白</span>と、純黒ではなく<span style="color:#e6e4d6">墨の柔らかい黒</span>で眩しさを抑え、
+        構文ハイライトは色相を一切使わず「墨分五色」の濃淡だけで階層を出します。背景は下端に淡墨の山水画（遠山・滝・小舟・松）を描き、上部はフェードで文字の可読性を確保しています。
+      </p>
+      <span class="pill">白黒モノクロ</span><span class="pill">墨分五色</span><span class="pill">留白（余白）</span><span class="pill">生宣紙</span><span class="pill">山水画</span><span class="pill">朱印</span>
+    </div>
+    <div id="theme-cards"></div>
+  </main>
+
+<script>
+  // ---- 質感データ（data-URI の SVG ／ノイズ） ----
+
+  // 生宣紙の繊維（ごく薄いフラクタルノイズ）
+  const GRAIN_LIGHT = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Cfilter id=\'f\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8 0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.045\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'200\' height=\'200\' filter=\'url(%23f)\'/%3E%3C/svg%3E")';
+  // 墨夜の繊維（濃墨の上に薄いノイズ）
+  const GRAIN_DARK = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Cfilter id=\'f\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8 0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.05\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'200\' height=\'200\' filter=\'url(%23f)\'/%3E%3C/svg%3E")';
+
+  // 山水（さんすい）— ライト用：淡墨の遠山・中景・滝・小舟・松・水面を描いた水墨画。
+  // 上部はCSSのフェードで本文領域をクリアに保つ。
+  const LANDSCAPE_LIGHT = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'1400\' height=\'560\' viewBox=\'0 0 1400 560\'%3E' +
+    '%3Ccircle cx=\'1128\' cy=\'108\' r=\'58\' fill=\'%232b2a27\' opacity=\'0.14\'/%3E' +
+    '%3Ccircle cx=\'1128\' cy=\'108\' r=\'48\' fill=\'%23f8f7f3\' opacity=\'0.65\'/%3E' +
+    '%3Cg fill=\'%232b2a27\'%3E' +
+      '%3Cpath opacity=\'0.30\' d=\'M0 320 C90 200 160 186 240 240 C300 284 330 274 390 244 C450 216 490 230 540 260 C600 296 630 292 690 262 C750 232 800 244 860 274 C920 304 960 300 1020 270 C1080 242 1130 246 1190 276 C1250 304 1290 300 1350 270 C1380 256 1390 260 1400 270 L1400 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.48\' d=\'M0 410 C120 282 200 296 310 356 C400 404 460 386 530 356 C590 330 650 336 720 364 C800 392 860 380 920 348 C980 320 1040 328 1110 360 C1180 388 1240 378 1300 348 C1340 330 1375 336 1400 348 L1400 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.62\' d=\'M0 470 C90 404 160 386 220 416 C270 442 320 456 380 466 C440 476 500 480 560 458 C600 444 630 440 660 452 L660 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.62\' d=\'M930 560 C972 472 1030 452 1095 462 C1150 470 1215 454 1280 464 C1330 471 1365 480 1400 470 L1400 560 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%23f8f7f3\'%3E' +
+      '%3Cpath opacity=\'0.34\' d=\'M0 286 C200 266 400 268 600 286 C800 304 1000 306 1200 288 C1280 280 1350 280 1400 288 L1400 308 C1200 320 900 320 700 308 C500 296 300 296 100 308 C60 310 20 310 0 308 Z\'/%3E' +
+      '%3Cpath opacity=\'0.30\' d=\'M0 408 C220 388 440 390 660 408 C880 426 1100 426 1320 408 C1360 402 1390 402 1400 408 L1400 426 C1180 438 900 438 700 426 C500 414 280 414 80 426 C40 428 15 428 0 426 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cpath fill=\'%23f8f7f3\' opacity=\'0.66\' d=\'M862 260 C860 300 858 340 860 380 C862 414 862 436 862 462 L878 462 C878 436 878 414 880 380 C882 340 880 300 878 260 Z\'/%3E' +
+    '%3Cg stroke=\'%232b2a27\' stroke-opacity=\'0.38\' fill=\'none\' stroke-width=\'2\'%3E' +
+      '%3Cpath d=\'M862 260 C860 300 858 340 860 380\'/%3E' +
+      '%3Cpath d=\'M878 260 C876 300 874 340 876 380\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cpath fill=\'%232b2a27\' opacity=\'0.20\' d=\'M0 470 L1400 470 L1400 560 L0 560 Z\'/%3E' +
+    '%3Cg stroke=\'%232b2a27\' stroke-opacity=\'0.44\' fill=\'none\' stroke-width=\'2\'%3E' +
+      '%3Cpath d=\'M80 500 L240 500\'/%3E' +
+      '%3Cpath d=\'M340 516 L520 516\'/%3E' +
+      '%3Cpath d=\'M600 494 L740 494\'/%3E' +
+      '%3Cpath d=\'M960 506 L1120 506\'/%3E' +
+      '%3Cpath d=\'M1180 522 L1300 522\'/%3E' +
+      '%3Cpath d=\'M180 532 L320 532\'/%3E' +
+      '%3Cpath d=\'M700 534 L820 534\'/%3E' +
+      '%3Cpath d=\'M1040 542 L1160 542\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%232b2a27\'%3E' +
+      '%3Cpath opacity=\'0.60\' d=\'M556 496 C566 488 606 488 616 496 L608 508 C596 502 576 502 564 508 Z\'/%3E' +
+      '%3Cpath opacity=\'0.52\' d=\'M588 488 L588 470 L592 488 Z\'/%3E' +
+      '%3Cpath opacity=\'0.48\' d=\'M592 476 C606 472 616 476 616 478 L592 484 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%232b2a27\'%3E' +
+      '%3Cpath opacity=\'0.56\' d=\'M180 470 C190 452 210 446 230 452 C245 456 255 468 258 480 L170 480 C168 476 172 472 180 470 Z\'/%3E' +
+      '%3Cpath opacity=\'0.52\' d=\'M205 450 C200 420 210 400 230 392 C232 408 228 424 234 440 C236 448 240 452 244 456 C228 458 216 456 205 450 Z\'/%3E' +
+      '%3Cpath opacity=\'0.52\' d=\'M235 452 C250 432 258 420 252 406 C258 424 270 436 276 450 C278 456 278 460 276 464 C262 462 250 458 235 452 Z\'/%3E' +
+    '%3C/g%3E' +
+  '%3C/svg%3E")';
+
+  // 山水（さんすい）— ナイト用：墨よりわずかに明るいシルエット。月光の下の淡い水墨画。
+  const LANDSCAPE_DARK = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'1400\' height=\'560\' viewBox=\'0 0 1400 560\'%3E' +
+    '%3Ccircle cx=\'1128\' cy=\'108\' r=\'58\' fill=\'%23d8d6cf\' opacity=\'0.14\'/%3E' +
+    '%3Ccircle cx=\'1128\' cy=\'108\' r=\'48\' fill=\'%234a4a44\' opacity=\'0.50\'/%3E' +
+    '%3Cg fill=\'%233f3f38\'%3E' +
+      '%3Cpath opacity=\'0.62\' d=\'M0 320 C90 200 160 186 240 240 C300 284 330 274 390 244 C450 216 490 230 540 260 C600 296 630 292 690 262 C750 232 800 244 860 274 C920 304 960 300 1020 270 C1080 242 1130 246 1190 276 C1250 304 1290 300 1350 270 C1380 256 1390 260 1400 270 L1400 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.78\' d=\'M0 410 C120 282 200 296 310 356 C400 404 460 386 530 356 C590 330 650 336 720 364 C800 392 860 380 920 348 C980 320 1040 328 1110 360 C1180 388 1240 378 1300 348 C1340 330 1375 336 1400 348 L1400 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.92\' d=\'M0 470 C90 404 160 386 220 416 C270 442 320 456 380 466 C440 476 500 480 560 458 C600 444 630 440 660 452 L660 560 L0 560 Z\'/%3E' +
+      '%3Cpath opacity=\'0.92\' d=\'M930 560 C972 472 1030 452 1095 462 C1150 470 1215 454 1280 464 C1330 471 1365 480 1400 470 L1400 560 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%231e1e1b\'%3E' +
+      '%3Cpath opacity=\'0.44\' d=\'M0 286 C200 266 400 268 600 286 C800 304 1000 306 1200 288 C1280 280 1350 280 1400 288 L1400 308 C1200 320 900 320 700 308 C500 296 300 296 100 308 C60 310 20 310 0 308 Z\'/%3E' +
+      '%3Cpath opacity=\'0.38\' d=\'M0 408 C220 388 440 390 660 408 C880 426 1100 426 1320 408 C1360 402 1390 402 1400 408 L1400 426 C1180 438 900 438 700 426 C500 414 280 414 80 426 C40 428 15 428 0 426 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cpath fill=\'%23c6c3bb\' opacity=\'0.42\' d=\'M862 260 C860 300 858 340 860 380 C862 414 862 436 862 462 L878 462 C878 436 878 414 880 380 C882 340 880 300 878 260 Z\'/%3E' +
+    '%3Cg stroke=\'%2355524a\' stroke-opacity=\'0.52\' fill=\'none\' stroke-width=\'2\'%3E' +
+      '%3Cpath d=\'M862 260 C860 300 858 340 860 380\'/%3E' +
+      '%3Cpath d=\'M878 260 C876 300 874 340 876 380\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cpath fill=\'%233a3a34\' opacity=\'0.32\' d=\'M0 470 L1400 470 L1400 560 L0 560 Z\'/%3E' +
+    '%3Cg stroke=\'%2355524a\' stroke-opacity=\'0.58\' fill=\'none\' stroke-width=\'2\'%3E' +
+      '%3Cpath d=\'M80 500 L240 500\'/%3E' +
+      '%3Cpath d=\'M340 516 L520 516\'/%3E' +
+      '%3Cpath d=\'M600 494 L740 494\'/%3E' +
+      '%3Cpath d=\'M960 506 L1120 506\'/%3E' +
+      '%3Cpath d=\'M1180 522 L1300 522\'/%3E' +
+      '%3Cpath d=\'M180 532 L320 532\'/%3E' +
+      '%3Cpath d=\'M700 534 L820 534\'/%3E' +
+      '%3Cpath d=\'M1040 542 L1160 542\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%233f3f38\'%3E' +
+      '%3Cpath opacity=\'0.78\' d=\'M556 496 C566 488 606 488 616 496 L608 508 C596 502 576 502 564 508 Z\'/%3E' +
+      '%3Cpath opacity=\'0.72\' d=\'M588 488 L588 470 L592 488 Z\'/%3E' +
+      '%3Cpath opacity=\'0.68\' d=\'M592 476 C606 472 616 476 616 478 L592 484 Z\'/%3E' +
+    '%3C/g%3E' +
+    '%3Cg fill=\'%233f3f38\'%3E' +
+      '%3Cpath opacity=\'0.78\' d=\'M180 470 C190 452 210 446 230 452 C245 456 255 468 258 480 L170 480 C168 476 172 472 180 470 Z\'/%3E' +
+      '%3Cpath opacity=\'0.72\' d=\'M205 450 C200 420 210 400 230 392 C232 408 228 424 234 440 C236 448 240 452 244 456 C228 458 216 456 205 450 Z\'/%3E' +
+      '%3Cpath opacity=\'0.72\' d=\'M235 452 C250 432 258 420 252 406 C258 424 270 436 276 450 C278 456 278 460 276 464 C262 462 250 458 235 452 Z\'/%3E' +
+    '%3C/g%3E' +
+  '%3C/svg%3E")';
+
+  // 朱印（落款）— 唯一の色。省略すれば完全モノクロになる。
+  const SEAL = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\'%3E%3Crect x=\'12\' y=\'12\' width=\'40\' height=\'40\' rx=\'5\' fill=\'%23b03a2e\'/%3E%3Ctext x=\'32\' y=\'43\' font-size=\'30\' font-family=\'serif\' fill=\'%23f5f2e9\' text-anchor=\'middle\'%3E%E5%A2%A8%3C/text%3E%3C/svg%3E")';
+
+  const THEMES = [
+    {
+      id: 'liubai',
+      name: 'Liubai',
+      jp: '留白（生宣紙・ライト）',
+      material: '生宣紙 × 墨分五色 × 山水画 × 朱印',
+      tag: '目に優しい ★5',
+      tagColor: '#b03a2e',
+      desc: '生宣紙の温かい白に、柔らかな墨の文字。色相を使わず「墨分五色」の濃淡だけで読める、白黒の本命。',
+      note: '純白(#fff)を避けた温かい白と、純黒(#000)を避けた墨色でコントラストを和らげる。構文ハイライトは全てグレー階調（焦墨→清墨）で、色が目に飛び込まない。山水画（遠山・滝・小舟・松）はシート下端の淡墨シルエットで、上部はフェードして本文をクリアに保つ。朱印は右下の小さな落款のみ。',
+      font: '"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP","Noto Serif",Georgia,"Times New Roman",serif',
+      letterSpacing: '0.2px',
+      glow: '',
+      vars: {
+        bg: '#f8f7f3', sidebar: '#eae8e0', header: '#eeece4', border: '#d3cfc2',
+        text: '#2b2a27', accent: '#b03a2e', activeTab: '#f8f7f3', activeBorder: '#b03a2e',
+        hover: '#efede5', textSecondary: '#5f5d56', gutter: '#7c7971', tabInactive: '#6b6962',
+        hlKeyword: '#2b2a27', hlControl: '#403f3a', hlBuiltin: '#57564f', hlLiteral: '#2b2a27',
+        hlString: '#55544d', hlComment: '#737068', hlFunction: '#403f3a', hlVariable: '#33322f',
+        hlNumber: '#5f5e57', hlOperator: '#2b2a27'
+      },
+      grain: GRAIN_LIGHT,
+      showcase: SEAL + ' no-repeat right 26px bottom 34px / 40px 40px, ' +
+        'linear-gradient(180deg, rgba(248,247,243,0.28) 0%, rgba(248,247,243,0) 30%), ' +
+        LANDSCAPE_LIGHT + ' no-repeat center bottom / 100% auto, ' +
+        'radial-gradient(120% 80% at 18% 0%, rgba(255,255,255,0.5), transparent 55%)',
+      surface: SEAL + ' no-repeat right 26px bottom 34px / 40px 40px, ' +
+        'linear-gradient(180deg, rgba(248,247,243,0.96) 0%, rgba(248,247,243,0.82) 20%, rgba(248,247,243,0) 36%), ' +
+        LANDSCAPE_LIGHT + ' no-repeat center bottom / 100% auto, ' +
+        'radial-gradient(120% 80% at 18% 0%, rgba(255,255,255,0.5), transparent 55%)',
+      desk: 'radial-gradient(140% 120% at 50% 0%, rgba(255,255,255,0.5), transparent 60%), radial-gradient(160% 140% at 50% 120%, rgba(90,88,80,0.10), transparent 55%)',
+      dark: false,
+      explorer: {
+        bg: '#f8f7f3',
+        border: '#d3cfc2',
+        text: '#2b2a27',
+        textSecondary: '#6f6d66',
+        accent: '#b03a2e',
+        activeBg: 'rgba(0,0,0,0.04)'
+      },
+      palette: [
+        ['本紙(生宣紙)', '#f8f7f3'], ['サイド(机)', '#eae8e0'], ['墨(本文)', '#2b2a27'], ['朱印(唯一の色)', '#b03a2e'],
+        ['キーワード(焦墨)', '#2b2a27'], ['文字列(濃墨)', '#55544d'], ['関数(中墨)', '#403f3a'], ['コメント(清墨)', '#737068']
+      ]
+    },
+    {
+      id: 'moye',
+      name: 'Moye',
+      jp: '墨夜（濃墨・ナイト）',
+      material: '濃墨の夜 × 白墨の文字 × 月の光 × 朱印',
+      tag: '没入・夜',
+      tagColor: '#d8d6cf',
+      desc: '濃い墨の闇に、白墨（月光）の文字。暗いが眩しくない、夜に書く水墨画。',
+      note: '漆黒(#000)を避けた深い墨色の背景に、純白を避けた白墨の文字でグレアを抑制。構文は白墨の階調のみ。上部にごく薄い月光、下端に淡い山水画（遠山・滝・小舟・松）、右下に小さな朱印。上部はフェードして本文をクリアに保つ。暗所でも文字が浮かず、長時間作業に耐える。',
+      font: '"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP","Noto Serif",Georgia,"Times New Roman",serif',
+      letterSpacing: '0',
+      glow: '',
+      vars: {
+        bg: '#1e1e1b', sidebar: '#24241f', header: '#262621', border: '#3a3a34',
+        text: '#d8d6cf', accent: '#a03a2e', activeTab: '#1e1e1b', activeBorder: '#d8d6cf',
+        hover: '#2c2c27', textSecondary: '#8f8d85', gutter: '#7a7870', tabInactive: '#7a7870',
+        hlKeyword: '#e8e6df', hlControl: '#c6c3bb', hlBuiltin: '#b6b3ab', hlLiteral: '#e8e6df',
+        hlString: '#aaa79e', hlComment: '#6e6c66', hlFunction: '#c6c3bb', hlVariable: '#d8d6cf',
+        hlNumber: '#b6b3ab', hlOperator: '#d8d6cf'
+      },
+      grain: GRAIN_DARK,
+      showcase: SEAL + ' no-repeat right 26px bottom 34px / 40px 40px, ' +
+        'linear-gradient(180deg, rgba(30,30,27,0.28) 0%, rgba(30,30,27,0) 30%), ' +
+        LANDSCAPE_DARK + ' no-repeat center bottom / 100% auto, ' +
+        'radial-gradient(130% 90% at 30% 0%, rgba(232,230,223,0.05), transparent 55%)',
+      surface: SEAL + ' no-repeat right 26px bottom 34px / 40px 40px, ' +
+        'linear-gradient(180deg, rgba(30,30,27,0.96) 0%, rgba(30,30,27,0.82) 20%, rgba(30,30,27,0) 36%), ' +
+        LANDSCAPE_DARK + ' no-repeat center bottom / 100% auto, ' +
+        'radial-gradient(130% 90% at 30% 0%, rgba(232,230,223,0.05), transparent 55%)',
+      desk: 'radial-gradient(140% 120% at 50% 0%, rgba(232,230,223,0.04), transparent 60%)',
+      dark: true,
+      explorer: {
+        bg: '#1e1e1b',
+        border: '#3a3a34',
+        text: '#d8d6cf',
+        textSecondary: '#8f8d85',
+        accent: '#a03a2e',
+        activeBg: 'rgba(255,255,255,0.05)'
+      },
+      palette: [
+        ['本紙(濃墨)', '#1e1e1b'], ['サイド(夜)', '#24241f'], ['墨(白墨)', '#d8d6cf'], ['朱印(唯一の色)', '#a03a2e'],
+        ['キーワード(最明)', '#e8e6df'], ['文字列(淡灰)', '#aaa79e'], ['関数(中灰)', '#c6c3bb'], ['コメント(最淡)', '#6e6c66']
+      ]
+    }
+  ];
+
+  const SAMPLE_CODE = [
+    [['tk-comment','// 水墨画テーマのプレビュー — 墨分五色'], null],
+    [['tk-keyword','import'], ['tk-operator',' '], ['tk-variable','useState'], ['tk-operator',' '], ['tk-keyword','from'], ['tk-operator',' '], ['tk-string',"'react'"], null],
+    [null, null],
+    [['tk-keyword','const'], ['tk-operator',' '], ['tk-variable','ink'], ['tk-operator',' = '], ['tk-function','grind'], ['tk-operator','('], ['tk-variable','water'], ['tk-operator',') => {'], null],
+    [['tk-operator','  '], ['tk-keyword','const'], ['tk-operator',' '], ['tk-variable','tone'], ['tk-operator',' = '], ['tk-variable','water'], ['tk-operator',' / '], ['tk-number','5'], ['tk-operator',';'], null],
+    [['tk-operator','  '], ['tk-keyword','return'], ['tk-operator',' { '], ['tk-variable','empty'], ['tk-operator',': '], ['tk-literal','0xf8f7f3'], ['tk-operator',', '], ['tk-variable','seal'], ['tk-operator',': '], ['tk-string',"'#b03a2e'"], ['tk-operator',' }'], ['tk-operator',';'], null],
+    [['tk-operator','};'], null]
+  ];
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Escape a value that is about to be dropped into a style="..." attribute.
+  //
+  // The SVG data URIs below are written as url("data:…") — with DOUBLE quotes,
+  // because the SVG payload itself uses single quotes for its own attributes.
+  // Interpolating that raw into style="…" ends the attribute at the first inner
+  // quote: the browser kept style="background:url(" and turned the rest of the
+  // data URI into thirty-odd bogus attributes, so no ink-wash background ever
+  // reached the page. &quot; survives the HTML parse and decodes back to " for
+  // the CSS parser.
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  }
+
+  function renderSampleCode() {
+    return SAMPLE_CODE.map(function (line) {
+      if (!line) return '<span></span>';
+      var html = line.map(function (item) {
+        if (!item) return '';
+        var cls = item[0], txt = item[1];
+        return (txt !== null && txt !== undefined) ? '<span class="' + cls + '">' + escapeHtml(txt) + '</span>' : '';
+      }).join('');
+      return html || '<span></span>';
+    }).join('\n');
+  }
+
+  // surface / desk の背景を組み立てる
+  function buildBackground(t) {
+    var layers = [];
+    if (t.grain) layers.push(t.grain);
+    if (t.surface) layers.push(t.surface);
+    layers.push(t.vars.bg);
+    var deskLayers = [];
+    if (t.grain) deskLayers.push(t.grain);
+    if (t.desk) deskLayers.push(t.desk);
+    deskLayers.push(t.vars.sidebar);
+    var showcaseLayers = [];
+    if (t.grain) showcaseLayers.push(t.grain);
+    if (t.showcase) showcaseLayers.push(t.showcase);
+    showcaseLayers.push(t.vars.bg);
+    return {
+      surface: 'background:' + layers.join(',') + ';',
+      desk: 'background:' + deskLayers.join(',') + ';',
+      showcase: 'background:' + showcaseLayers.join(',') + ';'
+    };
+  }
+
+  function renderCard(t) {
+    var v = t.vars;
+    var mockVars = {
+      '--mock-bg': v.bg,
+      '--mock-header': v.header,
+      '--mock-sidebar': v.sidebar,
+      '--mock-border': v.border,
+      '--mock-text': v.text,
+      '--mock-accent': v.accent,
+      '--mock-active-tab': v.activeTab,
+      '--mock-active-border': v.activeBorder,
+      '--mock-text-secondary': v.textSecondary,
+      '--mock-gutter': v.gutter,
+      '--mock-tab-inactive': v.tabInactive,
+      '--mock-hl-keyword': v.hlKeyword,
+      '--mock-hl-control': v.hlControl,
+      '--mock-hl-builtin': v.hlBuiltin,
+      '--mock-hl-literal': v.hlLiteral,
+      '--mock-hl-string': v.hlString,
+      '--mock-hl-comment': v.hlComment,
+      '--mock-hl-function': v.hlFunction,
+      '--mock-hl-variable': v.hlVariable,
+      '--mock-hl-number': v.hlNumber,
+      '--mock-hl-operator': v.hlOperator
+    };
+    var styleText = Object.keys(mockVars).map(function (k) { return k + ': ' + mockVars[k] + ';'; }).join(' ');
+
+    var bg = buildBackground(t);
+    var ex = t.explorer || null;
+    var exGrain = t.grain ? t.grain + ', ' : '';
+    var exContentStyle = ex
+      ? 'background:' + exGrain + ex.bg + ';border-right:2px solid ' + ex.border + ';color:' + ex.text + ';'
+      : '';
+
+    var textExtra = t.glow ? 'text-shadow:' + t.glow + ';' : '';
+    var fontExtra = 'font-family:' + t.font + ';letter-spacing:' + t.letterSpacing + ';';
+
+    var chips = t.palette.map(function (p) {
+      return '<span class="chip"><i style="background:' + p[1] + '"></i>' + p[0] + ' ' + p[1] + '</span>';
+    });
+
+    return '' +
+    '<section class="theme-card" id="card-' + t.id + '">' +
+      '<div class="theme-card-head">' +
+        '<h2>' +
+          '<span class="swatch-dots">' +
+            '<i style="background:' + v.bg + '"></i>' +
+            '<i style="background:' + v.accent + '"></i>' +
+            '<i style="background:' + v.hlKeyword + '"></i>' +
+          '</span>' +
+          t.name + ' <span style="color:' + t.tagColor + ';border:1px solid ' + t.tagColor + '55" class="tag">' + t.tag + '</span>' +
+        '</h2>' +
+        '<div class="desc">' + t.jp + '（' + t.material + '）— ' + t.desc + '</div>' +
+      '</div>' +
+
+      '<div class="material-preview">' +
+        '<div class="material-swatch" style="' + escapeAttr(bg.desk) + '"><span class="swatch-label">デスク面（サイドバー・全体）</span></div>' +
+        '<div class="material-swatch" style="' + escapeAttr(bg.showcase) + '"><span class="swatch-label">シート面（エディタ）— 山水画＋朱印</span></div>' +
+      '</div>' +
+
+      '<div class="preview-wrap">' +
+        '<div class="mock-editor" style="' + escapeAttr(styleText) + '">' +
+          '<div class="mock-explorer" style="' + escapeAttr(exContentStyle) + '">' +
+            '<div class="ex-title">Explorer</div>' +
+            '<div class="ex-row folder" style="color:' + (ex ? ex.text : '') + '"><span class="ex-ico">▾</span>src</div>' +
+            '<div class="ex-row file" style="padding-left:16px;color:' + (ex ? ex.textSecondary : '') + '"><span class="ex-ico">▸</span>modules</div>' +
+            '<div class="ex-row file active" style="padding-left:30px;color:' + (ex ? ex.accent : '') + ';background:' + (ex ? ex.activeBg : '') + '"><span class="ex-ico">▸</span>ink.js</div>' +
+            '<div class="ex-row file" style="padding-left:30px;color:' + (ex ? ex.textSecondary : '') + '"><span class="ex-ico">▸</span>styles.css</div>' +
+            '<div class="ex-row file" style="padding-left:16px;color:' + (ex ? ex.textSecondary : '') + '"><span class="ex-ico">▸</span>views</div>' +
+            '<div class="ex-row file" style="padding-left:16px;color:' + (ex ? ex.textSecondary : '') + '"><span class="ex-ico">▸</span>README.md</div>' +
+            '<div class="ex-row file" style="padding-left:16px;color:' + (ex ? ex.textSecondary : '') + '"><span class="ex-ico">▸</span>package.json</div>' +
+          '</div>' +
+          '<div class="mock-editor-pane">' +
+            '<div class="mock-tabs">' +
+              '<div class="mock-tab active">ink.js</div>' +
+              '<div class="mock-tab">README.md</div>' +
+              '<div class="mock-tab">styles.css</div>' +
+            '</div>' +
+            '<div class="mock-breadcrumb"><span>src</span><span>›</span><span>styles</span><span>›</span><span>ink.js</span></div>' +
+            '<div class="mock-code" style="' + escapeAttr(bg.surface) + '">' +
+              '<div class="mock-gutter">1<br>2<br>3<br>4<br>5<br>6<br>7</div>' +
+              '<div class="code-body" style="' + escapeAttr(textExtra + fontExtra) + '"><pre>' + renderSampleCode() + '</pre></div>' +
+            '</div>' +
+            '<div class="mock-statusbar"><span>● master*</span><span>UTF-8</span><span>Ln 6, Col 22</span><span>TypeScript JSX</span></div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="palette-panel">' +
+          '<h3>カラーパレット（白黒）</h3>' +
+          '<div class="palette-group"><div class="group-title">UI / サーフェス</div><div class="palette-row">' + chips.slice(0,4).join('') + '</div></div>' +
+          '<div class="palette-group"><div class="group-title">構文ハイライト（墨分五色）</div><div class="palette-row">' + chips.slice(4).join('') + '</div></div>' +
+          '<div class="note"><strong>質感の作り方：</strong>' + t.note + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>';
+  }
+
+  function renderAll() {
+    document.getElementById('theme-cards').innerHTML = THEMES.map(function (t) { return renderCard(t); }).join('');
+    var nav = document.getElementById('theme-nav');
+    nav.innerHTML = THEMES.map(function (t) {
+      return '<button class="theme-nav-item" data-id="' + t.id + '">' +
+        '<span class="swatch-dots">' +
+          '<i style="background:' + t.vars.bg + '"></i>' +
+          '<i style="background:' + t.vars.accent + '"></i>' +
+          '<i style="background:' + t.vars.hlKeyword + '"></i>' +
+        '</span>' +
+        '<span>' + t.name + '</span>' +
+      '</button>';
+    }).join('');
+    nav.querySelectorAll('.theme-nav-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.dataset.id;
+        nav.querySelectorAll('.theme-nav-item').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        var card = document.getElementById('card-' + id);
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }
+
+  renderAll();
+</script>
+</body>
+</html>

@@ -19,7 +19,10 @@ const DICTIONARIES = {
     ja: {
         // Welcome
         'Select a workspace to start': 'ワークスペースを選択して開始',
+        'Open a folder to work in, or just start writing': 'フォルダーを開く、またはそのまま書き始める',
         'Open Folder': 'フォルダーを開く',
+        'Open File': 'ファイルを開く',
+        'New File': '新規ファイル',
         'Recent Workspaces': '最近使ったワークスペース',
         'No recent workspaces': '最近使ったワークスペースはありません',
         // Title bar
@@ -50,6 +53,12 @@ const DICTIONARIES = {
         // Status bar
         'Commands': 'コマンド',
         'All commands and shortcuts (Ctrl+? or F1)': 'すべてのコマンドとショートカット (Ctrl+? / F1)',
+        // About
+        'Platform': 'プラットフォーム',
+        'Tauri': 'Tauri',
+        'License': 'ライセンス',
+        'Copy version info': 'バージョン情報をコピー',
+        'Include this information when reporting a problem.': '不具合を報告する際は、この情報を添えてください。',
         // Settings
         'General': '一般',
         'Agent': 'エージェント',
@@ -112,7 +121,10 @@ const DICTIONARIES = {
     zh: {
         // Welcome
         'Select a workspace to start': '选择工作区以开始',
+        'Open a folder to work in, or just start writing': '打开文件夹，或直接开始写作',
         'Open Folder': '打开文件夹',
+        'Open File': '打开文件',
+        'New File': '新建文件',
         'Recent Workspaces': '最近使用的工作区',
         'No recent workspaces': '暂无最近使用的工作区',
         // Title bar
@@ -143,6 +155,12 @@ const DICTIONARIES = {
         // Status bar
         'Commands': '命令',
         'All commands and shortcuts (Ctrl+? or F1)': '所有命令和快捷键 (Ctrl+? 或 F1)',
+        // About
+        'Platform': '平台',
+        'Tauri': 'Tauri',
+        'License': '许可证',
+        'Copy version info': '复制版本信息',
+        'Include this information when reporting a problem.': '报告问题时请附上这些信息。',
         // Settings
         'General': '常规',
         'Agent': '代理',
@@ -205,7 +223,10 @@ const DICTIONARIES = {
     ko: {
         // Welcome
         'Select a workspace to start': '시작할 작업 영역을 선택하세요',
+        'Open a folder to work in, or just start writing': '폴더를 열거나 바로 작성을 시작하세요',
         'Open Folder': '폴더 열기',
+        'Open File': '파일 열기',
+        'New File': '새 파일',
         'Recent Workspaces': '최근 작업 영역',
         'No recent workspaces': '최근 작업 영역 없음',
         // Title bar
@@ -236,6 +257,12 @@ const DICTIONARIES = {
         // Status bar
         'Commands': '명령',
         'All commands and shortcuts (Ctrl+? or F1)': '모든 명령 및 단축키 (Ctrl+? 또는 F1)',
+        // About
+        'Platform': '플랫폼',
+        'Tauri': 'Tauri',
+        'License': '라이선스',
+        'Copy version info': '버전 정보 복사',
+        'Include this information when reporting a problem.': '문제를 보고할 때 이 정보를 함께 알려주세요.',
         // Settings
         'General': '일반',
         'Agent': '에이전트',

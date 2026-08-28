@@ -2,6 +2,8 @@ import { BaseView } from './BaseView.js';
 import { State } from '../core/Store.js';
 import { EL } from '../core/Constants.js';
 import * as Markdown from '../utils/Markdown.js';
+import { escapeForMermaid } from '../utils/Markdown.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { TableEditor } from '../editors/TableEditor.js';
 import { open } from '@tauri-apps/plugin-shell';
 import { showShortcutGuide, hideShortcutGuide, toggleShortcutGuide } from '../ui/ShortcutGuide.js';
@@ -2263,7 +2265,11 @@ export class MarkdownView extends BaseView {
 
             lang = (lang || '').match(/\S*/)[0];
             if (lang === 'mermaid' || /^\s*(graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|flowchart)\s/.test(code)) {
-                return `<div class="mermaid">${code}</div>`;
+                // Escaped, not interpolated raw — matching Markdown.js. The
+                // fence body is document text: injecting it as HTML both let a
+                // crafted diagram run script, and let the parser eat the `<br/>`
+                // that mermaid labels legitimately use before mermaid saw it.
+                return `<div class="mermaid">${escapeForMermaid(code)}</div>`;
             }
 
             const highlighted = (typeof SyntaxHighlighter !== 'undefined')
@@ -2298,24 +2304,34 @@ export class MarkdownView extends BaseView {
                 title = obj.title;
                 text = obj.text;
             }
-            const titleAttr = title ? ` title="${title}"` : '';
+            // Every interpolated value here is document text. A link title
+            // containing a quote used to close the attribute and let the rest
+            // of the string become attributes of its own.
+            const titleAttr = title ? ` title="${this._escapeAttr(title)}"` : '';
             const isExternalUrl = /^https?:\/\//.test(href || '');
             if (isExternalUrl) {
-                return `<a href="#" data-url-link="${href}"${titleAttr}>${text}</a>`;
+                return `<a href="#" data-url-link="${this._escapeAttr(href)}"${titleAttr}>${text}</a>`;
             }
-            return `<a href="#" data-file-link="${href || ''}"${titleAttr}>${text}</a>`;
+            return `<a href="#" data-file-link="${this._escapeAttr(href || '')}"${titleAttr}>${text}</a>`;
         };
 
         return renderer;
     }
 
+    /**
+     * Document text → HTML that is safe to hand to innerHTML.
+     *
+     * The single choke point every preview path goes through, which is why the
+     * sanitising lives here rather than at each of the six call sites: a new
+     * preview surface added later inherits it instead of having to remember.
+     */
     _parseMarkdown(text) {
         if (typeof marked === 'undefined') return text;
         const renderer = this._createMarkedRenderer();
         // [[wiki links]] are expanded to ordinary Markdown links first, so the
         // link renderer above (and its file-open click handling) applies to them.
         const src = MdAssets.expandWikiLinks(text);
-        return marked.parse(src, { renderer });
+        return sanitizeHtml(marked.parse(src, { renderer }));
     }
 
     /**

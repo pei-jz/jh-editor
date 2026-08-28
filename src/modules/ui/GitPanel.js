@@ -10,17 +10,16 @@ import { promptLanguageName } from '../utils/I18n.js';
 /**
  * Strip quoting that leaked out of the shell.
  *
- * `run_command` runs through `cmd /C` on Windows, and Rust escapes the command
- * line it hands to cmd — but cmd does not understand that escaping, so a `"` in
- * the command survives as a literal character in the child's argv. A branch
- * listed with `--format="%(refname:short)"` therefore came back as `"master"`,
- * quotes included, and checking it out asked git for a *file* by that name:
+ * Git now runs through `git_exec`, which passes arguments as argv rather than
+ * building a command line for `cmd /C`, so the failure this was written for —
+ * a branch coming back as `"master"`, quotes included, and `checkout` then
+ * looking for a *file* by that name — can no longer happen:
  *
  *     pathspec '"memory-audit-fixes"' did not match any file(s) known to git
  *
- * The format strings no longer carry quotes. This is the belt to that braces —
- * a ref name can never legally contain a quote or a backslash, so anything of
- * the sort is quoting, not part of the name.
+ * Kept as a cheap guard on output that is about to be handed back to git. A ref
+ * name can never legally contain a quote or a backslash, so anything of the
+ * sort is quoting, not part of the name.
  */
 /**
  * Escape a value for use inside an attribute selector.
@@ -481,7 +480,7 @@ class GitPanel {
     async _checkGitDir(path) {
         if (!path) return false;
         try {
-            const result = await invoke('run_command', { command: 'git rev-parse --git-dir', cwd: path });
+            const result = await invoke('git_exec', { args: ['rev-parse', '--git-dir'], cwd: path });
             return result && result.trim().length > 0;
         } catch (e) {
             return false;
@@ -552,9 +551,9 @@ class GitPanel {
         // longer answers "which branch am I on".
         this._activeBranch = activeBranch || '';
         try {
-            const output = await invoke('run_command', { 
-                command: 'git branch --format=%(refname:short)', 
-                cwd: State.gitRoot 
+            const output = await invoke('git_exec', {
+                args: ['branch', '--format=%(refname:short)'],
+                cwd: State.gitRoot,
             });
             const branches = output.split('\n').map(cleanRef).filter(b => b.length > 0);
             
@@ -565,8 +564,8 @@ class GitPanel {
                 const checkout = async (newBranch) => {
                     if (!newBranch || newBranch === activeBranch) return;
                     try {
-                        await invoke('run_command', {
-                            command: `git checkout ${newBranch}`,
+                        await invoke('git_exec', {
+                            args: ['checkout', newBranch],
                             cwd: State.gitRoot,
                         });
                         this.refresh();
@@ -1306,27 +1305,27 @@ class GitPanel {
      * (`%(refname:short)` renders those as `origin/main`), then tags.
      */
     async _listRefs() {
-        const run = async (cmd) => {
+        const run = async (args) => {
             try {
-                const out = await invoke('run_command', { command: cmd, cwd: State.gitRoot });
+                const out = await invoke('git_exec', { args, cwd: State.gitRoot });
                 return String(out || '').split('\n').map(cleanRef).filter(Boolean);
             } catch (e) {
                 return [];
             }
         };
-        const local = await run('git branch --format=%(refname:short)');
-        const remote = (await run('git branch -r --format=%(refname:short)'))
+        const local = await run(['branch', '--format=%(refname:short)']);
+        const remote = (await run(['branch', '-r', '--format=%(refname:short)']))
             // origin/HEAD is a symbolic pointer, not something to diff against.
             .filter((r) => !r.endsWith('/HEAD'));
-        const tags = await run('git tag --sort=-creatordate');
+        const tags = await run(['tag', '--sort=-creatordate']);
         return { local, remote, tags };
     }
 
     /** The commit a ref points at. `^{commit}` peels annotated tags. */
     async _revCommit(ref) {
         try {
-            const out = await invoke('run_command', {
-                command: `git rev-parse ${ref}^{commit}`, cwd: State.gitRoot,
+            const out = await invoke('git_exec', {
+                args: ['rev-parse', `${ref}^{commit}`], cwd: State.gitRoot,
             });
             return String(out || '').trim().split('\n')[0] || '';
         } catch (e) {
@@ -1428,8 +1427,8 @@ class GitPanel {
         let headCommit = '';
         if (useMergeBase) {
             try {
-                const mb = await invoke('run_command', {
-                    command: `git merge-base ${base} ${head}`, cwd: State.gitRoot,
+                const mb = await invoke('git_exec', {
+                    args: ['merge-base', base, head], cwd: State.gitRoot,
                 });
                 mergeBase = String(mb || '').trim().split('\n')[0];
                 headCommit = await this._revCommit(head);

@@ -78,7 +78,10 @@
   <link rel="stylesheet" href="/src/styles/folding.css">
   <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
   <script src="/lib/marked.min.js" defer></script>
-  <script src="/lib/mermaid.min.js" defer></script>
+  <!-- mermaid (~2.7 MB) is NOT loaded here. It is injected on demand by
+       Markdown.js::ensureMermaid() when a document actually contains a diagram,
+       so launching the app no longer parses it. The file is local, so there is
+       nothing to prefetch — the cost was always parsing, not fetching. -->
 </head>
 
 <body>
@@ -108,10 +111,15 @@
     <div id="welcome-screen" style="display: none;">
       <div class="welcome-container">
         <h1>J.H Editor</h1>
-        <p class="subtitle" data-i18n="Select a workspace to start">Select a workspace to start</p>
+        <p class="subtitle" data-i18n="Open a folder to work in, or just start writing">Open a folder to work in, or just start writing</p>
 
+        <!-- A workspace is how you get the explorer, grep and Git — but it is
+             not required to edit a file, and demanding one up front turned
+             "jot something down" into a folder-picking chore. -->
         <div class="welcome-actions">
           <button id="welcome-open-folder-btn" class="primary-btn" data-i18n="Open Folder">Open Folder</button>
+          <button id="welcome-open-file-btn" class="secondary-btn" data-i18n="Open File">Open File</button>
+          <button id="welcome-new-file-btn" class="secondary-btn" data-i18n="New File">New File</button>
         </div>
 
         <div class="recent-workspaces">
@@ -397,6 +405,26 @@
               Files larger than this open in the read-only viewer, which streams them from
               disk instead of loading the whole thing into memory. Lower it if big files feel
               sluggish; raise it if you need to edit them. Applies to files opened from now on.
+            </div>
+
+            <!-- About: a bug report is unactionable without a version number,
+                 and until now there was nowhere in the app to find one. -->
+            <div class="settings-about">
+              <div class="settings-about-head">
+                <span class="settings-about-name">J.H Editor</span>
+                <span class="settings-about-version" id="about-version">—</span>
+              </div>
+              <div class="settings-about-rows">
+                <div><span data-i18n="Platform">Platform</span><b id="about-platform">—</b></div>
+                <div><span data-i18n="Tauri">Tauri</span><b id="about-tauri">—</b></div>
+                <div><span data-i18n="License">License</span><b>MIT</b></div>
+              </div>
+              <div class="settings-about-actions">
+                <button id="about-copy-btn" class="settings-about-btn" data-i18n="Copy version info">Copy version info</button>
+              </div>
+              <div class="settings-description" style="margin: 4px 0 0;" data-i18n="Include this information when reporting a problem.">
+                Include this information when reporting a problem.
+              </div>
             </div>
           </div>
 

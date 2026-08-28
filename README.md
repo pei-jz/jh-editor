@@ -261,6 +261,24 @@ Per-file reference docs (methods and branches) live under `docs/`, in Japanese a
 > `HtmlPreview.js`, `DirDiffView.js`, `MermaidHelper.js`, `SearchResultsView.js` — are not
 > covered yet.
 
+For cutting a build — version bumping, signing, and wiring automatic updates —
+see **[docs/RELEASE.md](docs/RELEASE.md)**.
+
+---
+
+## 🔒 Rendering untrusted documents
+
+Opening a file is not consent to run what is inside it. Markdown permits raw
+HTML and `marked` passes it through, so everything rendered from document text
+goes through `utils/SanitizeHtml.js` before it reaches the DOM — script tags,
+event-handler attributes and `javascript:` URLs are removed, while tables, task
+lists, code highlighting, images and Mermaid blocks are kept. Mermaid runs at
+`securityLevel: 'strict'`, so a diagram's `click` directive cannot call into the
+page. HTML files preview inside a sandboxed iframe with scripts off by default.
+
+Git runs through `git_exec`, which takes an argument array — there is no general
+shell command reachable from the webview.
+
 ---
 
 ## 📄 License

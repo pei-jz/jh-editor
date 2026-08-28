@@ -677,6 +677,11 @@ th {
 
 .welcome-actions {
     margin-bottom: 3rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .primary-btn {
@@ -692,6 +697,31 @@ th {
 
 .primary-btn:hover {
     filter: brightness(1.1);
+}
+
+/* Opening a file or starting a blank one are alternatives to picking a
+   workspace, not lesser versions of it — quieter than the primary action, but
+   the same size so they read as real choices. */
+.secondary-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    background-color: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.secondary-btn:hover {
+    background-color: var(--hover-color);
+    border-color: var(--primary-color);
+}
+
+.primary-btn:focus-visible,
+.secondary-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .recent-workspaces {
