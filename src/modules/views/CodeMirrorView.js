@@ -48,6 +48,45 @@ import { createInlineCompletionExtension } from '../ui/InlineCompletion.js';
 import { snippetCompletionSource } from '../ui/Snippets.js';
 import { allows, isPrivatePath } from '../ai/ContextScope.js';
 
+/**
+ * Cursor, scroll and undo history — kept PER PANE, on the buffer.
+ *
+ * A split shares the buffer object, so two views can be open on one file at
+ * once. These were single slots on that object (`_cmStateJSON`,
+ * `_cmScrollTop`), which meant the two panes overwrote each other's caret and
+ * scroll position: leaving one pane restored the other pane's viewport.
+ *
+ * The document itself is deliberately NOT part of this — it belongs to the
+ * buffer and is mirrored between the views (see mirrorToSibling).
+ */
+function viewStates(file) {
+    if (!file._cmViewState) file._cmViewState = {};
+    return file._cmViewState;
+}
+
+function readViewState(file, pane) {
+    if (!file) return null;
+    const slot = file._cmViewState && file._cmViewState[pane || 'left'];
+    // `_cmStateJSON` is the single-slot shape this replaced; a session saved by
+    // an older build still restores rather than opening at the top.
+    return (slot && slot.json) || file._cmStateJSON || null;
+}
+
+function readViewScroll(file, pane) {
+    if (!file) return 0;
+    const slot = file._cmViewState && file._cmViewState[pane || 'left'];
+    return (slot && slot.scrollTop) || file._cmScrollTop || 0;
+}
+
+function writeViewState(file, pane, value) {
+    if (!file) return;
+    viewStates(file)[pane || 'left'] = value;
+    // Drop the legacy slot once a real one exists, so a stale copy cannot come
+    // back and overrule the per-pane state later.
+    if (file._cmStateJSON) file._cmStateJSON = null;
+    if (file._cmScrollTop) file._cmScrollTop = 0;
+}
+
 // Custom Theme to match JHEditor
 const jhTheme = EditorView.theme({
     "&": {
@@ -675,6 +714,15 @@ export class CodeMirrorView {
                     if (this.file) {
                         this.file.content = newContent;
                         this.file.isDirty = true;
+                        // The other pane may be showing this same buffer. Send
+                        // it the CHANGES rather than the whole text: the two
+                        // documents start identical and every edit is mirrored,
+                        // so they stay identical — and the sibling keeps its own
+                        // cursor, scroll and undo history, which replacing its
+                        // document would throw away.
+                        if (this.options.onDocChanged && !this._applyingRemote) {
+                            this.options.onDocChanged(this.file, update.changes, this);
+                        }
                         if (this.options.renderTabs) this.options.renderTabs();
                         // Keep the LSP server's copy in sync (debounced inside).
                         try { if (this.file.path) lspClient.didChange(this.file.path, newContent); } catch (e) { /* ignore */ }
@@ -717,7 +765,7 @@ export class CodeMirrorView {
         // history. Falls back to a fresh state if the content changed externally
         // or deserialization fails.
         let state = null;
-        const savedJSON = this.file && this.file._cmStateJSON;
+        const savedJSON = readViewState(this.file, this.options.pane);
         if (savedJSON && savedJSON.doc === content) {
             try {
                 state = EditorState.fromJSON(savedJSON, { extensions }, { history: historyField });
@@ -741,7 +789,7 @@ export class CodeMirrorView {
 
         // Restore the previous scroll position (saved in destroy()) after the
         // editor has laid out, so returning to a tab keeps the same viewport.
-        const savedScrollTop = this.file && this.file._cmScrollTop;
+        const savedScrollTop = readViewScroll(this.file, this.options.pane);
         if (savedScrollTop) {
             requestAnimationFrame(() => {
                 if (this.editorView) this.editorView.scrollDOM.scrollTop = savedScrollTop;
@@ -885,6 +933,41 @@ export class CodeMirrorView {
             })
         };
     };
+
+    /**
+     * Apply an edit made in the OTHER pane's view of this same buffer.
+     *
+     * A split shares the buffer object, so both panes must show the same text.
+     * The changes are applied rather than the document replaced, which leaves
+     * this view's cursor, scroll and undo history alone — replacing the doc
+     * would reset all three on every keystroke typed next door.
+     *
+     * `_applyingRemote` stops the echo: the dispatch below fires this view's own
+     * updateListener, which would otherwise mirror the change straight back.
+     */
+    applyRemoteChanges(changes) {
+        if (!this.editorView || this._applyingRemote) return;
+        this._applyingRemote = true;
+        try {
+            this.editorView.dispatch({
+                changes,
+                // The other pane's typing must not scroll this one.
+                scrollIntoView: false,
+            });
+        } catch (e) {
+            // Out of sync (a re-render on one side only). Fall back to the
+            // buffer's text, which is the authority.
+            try {
+                const doc = this.editorView.state.doc;
+                this.editorView.dispatch({
+                    changes: { from: 0, to: doc.length, insert: this.file ? this.file.content : '' },
+                    scrollIntoView: false,
+                });
+            } catch (_) { /* give up rather than throw into the listener */ }
+        } finally {
+            this._applyingRemote = false;
+        }
+    }
 
     _mapLspCompletionKind(kind) {
         const kinds = [
@@ -1605,12 +1688,14 @@ export class CodeMirrorView {
             // newer file if destroy() runs mid-render).
             if (this._stateOwnerFile) {
                 try {
-                    this._stateOwnerFile._cmStateJSON = this.editorView.state.toJSON({ history: historyField });
-                    // Also remember the scroll position so switching tabs and
-                    // coming back keeps the same viewport (restoring the cursor
-                    // alone would only scroll the caret into view, not the spot
-                    // the user was reading).
-                    this._stateOwnerFile._cmScrollTop = this.editorView.scrollDOM.scrollTop;
+                    writeViewState(this._stateOwnerFile, this.options.pane, {
+                        json: this.editorView.state.toJSON({ history: historyField }),
+                        // Also remember the scroll position so switching tabs
+                        // and coming back keeps the same viewport (restoring
+                        // the cursor alone would only scroll the caret into
+                        // view, not the spot the user was reading).
+                        scrollTop: this.editorView.scrollDOM.scrollTop,
+                    });
                 } catch (e) { /* ignore serialization issues */ }
             }
             this.editorView.destroy();
