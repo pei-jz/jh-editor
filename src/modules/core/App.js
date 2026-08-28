@@ -1,6 +1,6 @@
 import { State } from './Store.js';
 import { EL } from './Constants.js';
-import { configureMarkdown, initMermaid } from '../utils/Markdown.js';
+import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
 import { openFile, createNewFileAction, saveCurrentFile, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
@@ -64,7 +64,101 @@ function initScrollbarAutoHide() {
     }, true); // capture: scroll doesn't bubble
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+/**
+ * Startup safety net.
+ *
+ * The window is created with `visible: false` (tauri.conf.json) so the user
+ * never sees an unpainted white rectangle while the frontend boots. The cost of
+ * that trade is that the FRONTEND owns making the window appear — and when boot
+ * threw on the way there, the process stayed alive with no window at all. From
+ * the outside that is an application that does nothing when you launch it, with
+ * no error, no log the user can reach, and nothing to report. A corrupt session
+ * file was enough to cause it.
+ *
+ * So: every exit from boot ends at `showMainWindow()` — success, throw, or a
+ * hang that never returns — and a failure puts the error on screen instead of
+ * leaving a blank window behind.
+ */
+let _windowShown = false;
+let _bootFinished = false;
+
+/** Reveal the main window. Idempotent — the watchdog and the normal path race. */
+function showMainWindow() {
+    if (_windowShown) return;
+    _windowShown = true;
+    try {
+        getCurrentWindow().show();
+    } catch (e) {
+        console.error('Failed to show window', e);
+    }
+}
+
+/**
+ * Boot failed. Show the window anyway and put the error somewhere the user can
+ * read and copy it, rather than leaving them with a window that never appears.
+ *
+ * Built with createElement/textContent, not innerHTML: this runs when the app
+ * is already in an unknown state, and an error message is the last place that
+ * should be able to inject markup.
+ */
+function reportBootFailure(err) {
+    console.error('Startup failed', err);
+    try {
+        const detail = (err && (err.stack || err.message)) || String(err);
+
+        const box = document.createElement('div');
+        box.setAttribute('role', 'alert');
+        box.style.cssText = 'position:fixed; inset:0; z-index:99999; overflow:auto;'
+            + 'display:flex; flex-direction:column; gap:12px; padding:32px;'
+            + 'background:var(--bg-color,#1e1e1e); color:var(--text-color,#ddd);'
+            + 'font-family:system-ui,sans-serif; font-size:14px; line-height:1.6;';
+
+        const title = document.createElement('h2');
+        title.textContent = 'J.H Editor failed to start';
+        title.style.cssText = 'margin:0; font-size:18px;';
+
+        const hint = document.createElement('p');
+        hint.textContent = 'The editor could not finish loading. The error is below — '
+            + 'please include it when reporting this. Restarting may clear it; if it '
+            + 'persists, the saved session may be corrupt.';
+        hint.style.cssText = 'margin:0; max-width:70ch; opacity:.85;';
+
+        const pre = document.createElement('pre');
+        pre.textContent = detail;
+        pre.style.cssText = 'margin:0; padding:12px; border-radius:4px; overflow:auto;'
+            + 'background:rgba(127,127,127,.15); white-space:pre-wrap; user-select:text;';
+
+        box.append(title, hint, pre);
+        document.body.appendChild(box);
+    } catch (_) {
+        /* The error reporter must never be the thing that throws. */
+    }
+    showMainWindow();
+}
+
+// Nothing was watching for uncaught errors at all, so a failure during boot was
+// invisible from inside the app.
+//
+// These deliberately do NOT paint the failure screen. Plenty of things reject
+// during boot without boot having failed — the AI agent being offline, an LSP
+// server that is not installed — and covering the editor with "failed to start"
+// because a background connect gave up would be worse than the bug this whole
+// block exists to fix. The screen is reserved for `bootstrap()` itself
+// throwing, which is the only signal that actually means boot did not finish.
+// What these guarantee is the part that matters: whatever goes wrong, the user
+// gets a window rather than a process with no UI.
+window.addEventListener('error', (e) => {
+    if (_bootFinished) return;
+    console.error('Uncaught error during startup', e.error || e.message);
+    showMainWindow();
+});
+window.addEventListener('unhandledrejection', (e) => {
+    if (_bootFinished) return;
+    console.error('Unhandled rejection during startup', e.reason);
+    showMainWindow();
+});
+
+async function bootstrap() {
     let gitPanel = null;
 
     initScrollbarAutoHide();
@@ -153,9 +247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Make git panel globally accessible for auto-refresh
             window.app.gitPanel = gitPanel;
 
-            // Heavy visual/parse stuff
+            // Heavy visual/parse stuff. Mermaid is NOT initialised here: it is
+            // 2.7 MB that most sessions never draw a diagram with, and
+            // renderMermaid() loads and initialises it on the first one.
             configureMarkdown();
-            initMermaid();
 
             // JHAI "AI Hub" MCP adapter — expose JHEditor's buffer/selection as
             // tools JHAI's LLM can call, and run intents (e.g. summarize_logs).
@@ -176,15 +271,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 2.2 Welcome Screen (Visible Part)
-    initWelcomeScreen(async (path) => {
-        await switchProject(path);
-        hideWelcomeScreen();
-        // Show Main Layout
-        const mainLayout = document.getElementById('main-layout');
-        if (mainLayout) {
-            mainLayout.style.display = 'flex';
-        }
-    });
+    initWelcomeScreen(
+        async (path) => {
+            await switchProject(path);
+            showMainLayout();
+        },
+        {
+            // Both of these leave State.currentDir unset: the editor works
+            // workspace-less, and the explorer picks one up later if the user
+            // opens one.
+            onOpenFile: async (path) => {
+                showMainLayout();
+                await openFile(path);
+            },
+            onNewFile: () => {
+                showMainLayout();
+                createNewFileAction();
+            },
+        },
+    );
 
     async function switchProject(path) {
         // Persist the OUTGOING project's session before anything closes, then
@@ -802,11 +907,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, true);
 
     // 6. Show Window (Hidden by default in tauri.conf.json to avoid white flash)
-    try {
-        getCurrentWindow().show();
-    } catch (e) {
-        console.error('Failed to show window', e);
-    }
+    showMainWindow();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // The watchdog covers the case a try/catch cannot: boot does not throw, it
+    // simply never returns — an await on something that will not settle. Four
+    // seconds is far longer than a normal boot and far shorter than the user
+    // deciding the app is broken.
+    const watchdog = setTimeout(showMainWindow, 4000);
+
+    bootstrap()
+        .catch(reportBootFailure)
+        .finally(() => {
+            clearTimeout(watchdog);
+            _bootFinished = true;
+            // Belt to the watchdog's braces: whatever happened above, the
+            // window is visible by the time this resolves.
+            showMainWindow();
+        });
 });
 
 async function checkLaunchArgs() {

@@ -16,6 +16,71 @@ import {
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage } from '../utils/I18n.js';
 
+/**
+ * Fill in the About block at the bottom of the General tab.
+ *
+ * There was previously nowhere in the running app to find out which build you
+ * were using, which made every bug report start with a round trip asking. The
+ * Copy button exists for the same reason: the point is that the version reaches
+ * the report, not that the user reads it off the screen and retypes it.
+ *
+ * Values are read at runtime from the Tauri APIs rather than baked in, so they
+ * cannot drift from the binary the user is actually running. Everything here is
+ * best-effort: outside a Tauri shell (unit tests, a plain browser) the fields
+ * stay at their placeholder instead of throwing.
+ */
+async function initAboutSection() {
+    const versionEl = document.getElementById('about-version');
+    const platformEl = document.getElementById('about-platform');
+    const tauriEl = document.getElementById('about-tauri');
+    const copyBtn = document.getElementById('about-copy-btn');
+    if (!versionEl) return;
+
+    let version = '';
+    let tauriVersion = '';
+    let platform = '';
+
+    try {
+        const app = await import('@tauri-apps/api/app');
+        version = await app.getVersion();
+        tauriVersion = await app.getTauriVersion();
+    } catch (_) { /* not running inside Tauri */ }
+
+    try {
+        const os = await import('@tauri-apps/plugin-os');
+        const [name, arch] = await Promise.all([os.platform(), os.arch()]);
+        platform = `${name} ${arch}`;
+    } catch (_) {
+        platform = (typeof navigator !== 'undefined' && navigator.platform) || '';
+    }
+
+    if (version) versionEl.textContent = `v${version}`;
+    if (platformEl && platform) platformEl.textContent = platform;
+    if (tauriEl && tauriVersion) tauriEl.textContent = tauriVersion;
+
+    if (copyBtn) {
+        copyBtn.onclick = async () => {
+            const lines = [
+                `J.H Editor v${version || 'unknown'}`,
+                `Platform: ${platform || 'unknown'}`,
+                `Tauri: ${tauriVersion || 'unknown'}`,
+            ].join('\n');
+            try {
+                const clip = await import('@tauri-apps/plugin-clipboard-manager');
+                await clip.writeText(lines);
+                Toast.show('Version info copied');
+            } catch (_) {
+                try {
+                    await navigator.clipboard.writeText(lines);
+                    Toast.show('Version info copied');
+                } catch (e) {
+                    Toast.show('Could not copy — select the text above instead', 'error');
+                }
+            }
+        };
+    }
+}
+
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
     const openBtn = EL.settingsBtn;
@@ -188,6 +253,8 @@ export function initSettingsModal() {
             setLanguage(e.target.value);
         };
     }
+
+    initAboutSection();
 
     // Font Size Logic
     if (fontSizeInput) {

@@ -1,6 +1,7 @@
 import AIAgent from '../ai/AIAgent.js';
 import { State } from '../core/Store.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { listJhaiIntents, runJhaiIntent, hasEditorSelection, runJhaiFreeform, ensureJhaiConnected, runInlinePreset, listInlinePresets } from '../ai/JhAiMcp.js';
 
 export class InlineAI {
@@ -219,15 +220,16 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                             const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                                 ? SyntaxHighlighter.highlight(code, lang || 'text')
                                 : code;
-                            return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                            return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
                         };
-                        this.resultContent.innerHTML = marked.parse(fullResponse, { renderer });
+                        this.resultContent.innerHTML = sanitizeHtml(marked.parse(fullResponse, { renderer }));
                         this.resultContent.style.userSelect = 'text';
                         this.resultContent.style.cursor = 'text';
                         
                         this.resultContent.querySelectorAll('pre').forEach(pre => {
                             pre.style.position = 'relative';
                             pre.style.userSelect = 'text';
+                            pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
                         });
                     } else {
                         this.resultContent.textContent = fullResponse;
@@ -263,14 +265,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                     const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                         ? SyntaxHighlighter.highlight(code, lang || 'text')
                         : code;
-                    return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                    return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
                 };
-                this.resultContent.innerHTML = marked.parse(fullResponse, { renderer });
+                this.resultContent.innerHTML = sanitizeHtml(marked.parse(fullResponse, { renderer }));
                 this.resultContent.style.userSelect = 'text';
                 this.resultContent.style.cursor = 'text';
                 this.resultContent.querySelectorAll('pre').forEach(pre => {
                     pre.style.position = 'relative';
                     pre.style.userSelect = 'text';
+                    pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
                 });
             } else if (fullResponse) {
                 this.resultContent.textContent = fullResponse;
@@ -468,14 +471,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                     ? SyntaxHighlighter.highlight(code, lang || 'text')
                     : code;
-                return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
             };
-            this.resultContent.innerHTML = marked.parse(text, { renderer });
+            this.resultContent.innerHTML = sanitizeHtml(marked.parse(text, { renderer }));
             this.resultContent.style.userSelect = 'text';
             this.resultContent.style.cursor = 'text';
             this.resultContent.querySelectorAll('pre').forEach((pre) => {
                 pre.style.position = 'relative';
                 pre.style.userSelect = 'text';
+                pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
             });
         } else {
             this.resultContent.textContent = text || '';

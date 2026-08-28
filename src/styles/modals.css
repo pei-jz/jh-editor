@@ -228,6 +228,83 @@
     color: var(--text-color);
 }
 
+/* About — the version block at the foot of the General tab. Set apart from the
+   settings above it because nothing in it is a setting. */
+.settings-about {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-about-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.settings-about-name {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.settings-about-version {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-about-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+}
+
+.settings-about-rows > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    max-width: 420px;
+}
+
+.settings-about-rows span {
+    opacity: 0.7;
+}
+
+.settings-about-rows b {
+    font-family: var(--font-mono, monospace);
+    font-weight: 500;
+    text-align: right;
+    word-break: break-all;
+}
+
+.settings-about-actions {
+    display: flex;
+}
+
+.settings-about-btn {
+    padding: 5px 12px;
+    background: var(--hover-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.settings-about-btn:hover {
+    filter: brightness(1.15);
+}
+
+.settings-about-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
 .settings-actions {
     display: flex;
     justify-content: flex-end;

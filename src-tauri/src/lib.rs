@@ -52,7 +52,7 @@ pub fn run() {
             commands::app::reveal_in_file_manager,
             commands::window::create_app_window,
             commands::window::take_launch_path,
-            commands::app::run_command,
+            commands::git::git_exec,
             commands::app::expand_env_path,
             commands::parser::parse_structured_data,
             commands::parser::get_node_children,

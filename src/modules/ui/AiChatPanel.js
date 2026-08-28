@@ -13,13 +13,16 @@
 import AIAgent from '../ai/AIAgent.js';
 import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
 import { t, promptLanguageName } from '../utils/I18n.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 
 const HISTORY_KEY = 'jh_ai_chat_history_v1';
 const MAX_HISTORY = 40;
 
 function renderMarkdown(md) {
     try {
-        if (typeof marked !== 'undefined' && marked.parse) return marked.parse(md || '');
+        // Model output is not trusted input: it lands in the main document, so
+        // it goes through the same sanitiser as a Markdown file would.
+        if (typeof marked !== 'undefined' && marked.parse) return sanitizeHtml(marked.parse(md || ''));
     } catch (_) { /* fall through */ }
     return `<pre style="white-space:pre-wrap;margin:0;">${String(md || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
 }
