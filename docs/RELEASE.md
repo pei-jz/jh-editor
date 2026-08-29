@@ -29,7 +29,7 @@ clipboard. Ask for that string in every bug report.
 ## Pre-release checklist
 
 ```sh
-npm test                 # unit suite (938 tests)
+npm test                 # unit suite
 npm run test:coverage    # coverage gate on the logic layer
 npx playwright test      # browser-level UI wiring
 npm run tauri build      # the actual artefact
@@ -45,27 +45,43 @@ Then, by hand:
 
 ---
 
-## Code signing
+## Code signing — deliberately not done
 
-Unsigned builds are not broken, they are *distrusted*: Windows SmartScreen shows
-"Windows protected your PC" and macOS Gatekeeper refuses to open the app from
-Finder. Users read that as malware.
+Releases are **not code-signed**, and that is a decision rather than an
+omission. Windows shows "Windows protected your PC" on first run; the README
+says so up front, because a warning nobody warned you about reads as malware
+and a warning you were told to expect reads as a formality.
 
-Until a certificate is in place, say so plainly in the release notes and the
-README rather than letting people discover it:
+The reasoning, so it does not have to be rediscovered:
 
-> This build is not code-signed. Windows will show a SmartScreen warning —
-> choose **More info → Run anyway**.
+SmartScreen is a *reputation* system, not an allow-list, and reputation accrues
+to a certificate over downloads. A new OV certificate therefore starts at zero
+and shows the same warning as no certificate at all, for money, until the
+downloads pile up. Only an **EV** certificate suppresses the warning
+immediately — and since 2023 its private key must live in an HSM or a USB
+token, so it carries hardware and handling cost on top of the fee.
 
-Signing needs, per platform:
+That makes the real choice "free, with a warning" or "expensive, without one",
+with very little in between. For a free project at launch, the first is the
+better trade.
 
-- **Windows** — an OV or EV code-signing certificate from a CA, then
-  `bundle.windows.certificateThumbprint` in `tauri.conf.json`.
-- **macOS** — an Apple Developer ID certificate plus notarisation
-  (`APPLE_CERTIFICATE`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`).
+**This does not weaken updates.** The updater has its own signature scheme
+(below), independent of OS code signing: the app refuses any update not signed
+with the project's key. Distribution trust and update integrity are separate
+problems and only one of them is unsolved here.
 
-Both cost money and identity verification. Neither is something this repository
-can do for you.
+Revisit when one of these is true — all of them are consequences of having
+users, not of shipping:
+
+- Support load from "it will not install" exceeds the cost of a certificate
+- Someone wants to deploy it in an organisation, where unsigned binaries are
+  often blocked outright and no amount of explanation helps
+- Antivirus false positives start recurring rather than being one-offs
+
+If it is taken up later: **Windows** needs `bundle.windows.certificateThumbprint`
+plus a `timestampUrl` (without a timestamp, every binary already shipped becomes
+invalid the day the certificate expires). **macOS** needs an Apple Developer ID
+certificate and notarisation.
 
 ---
 
@@ -171,12 +187,22 @@ while someone is typing is worse than one that is a version behind.
 
 The backend shells out to `cmd`, `explorer` and `powershell` on Windows paths,
 with `sh` / `open` / `xdg-open` equivalents beside them. Those equivalents
-compile, but if they have not been exercised on real macOS and Linux machines,
-`bundle.targets` should say so:
+compile, but have not been exercised on real macOS or Linux machines — and
+`bundle.targets` is still `"all"`, so a build produces artefacts for all three.
+
+Narrow it to what is actually tested:
 
 ```json
 "bundle": { "targets": ["nsis", "msi"] }
 ```
 
 Shipping a Windows-only editor honestly beats shipping three targets where two
-are untested. EmEditor has done exactly that for twenty years.
+are untested. EmEditor has done exactly that for twenty years. Add a target back
+when someone has run the app on that OS, not when the code compiles for it.
+
+### A blocker for CI, before anyone tries
+
+`@jh/ai-client` resolves from `../jh-ai-agent/packages/jh-ai-client`. That
+directory does not exist on a CI runner, so `npm ci` fails there. Publishing the
+package, vendoring it, or making it optional is a prerequisite for any build
+workflow — local builds are unaffected.

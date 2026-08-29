@@ -139,6 +139,55 @@ graph TB
 
 ---
 
+## 📦 Installing
+
+Builds are published on the [Releases page](https://github.com/pei-jz/jh-editor/releases/latest).
+Windows 10/11 (x64).
+
+### About the install warning
+
+This build is **not code-signed**, so the first time you run the installer
+Windows will show:
+
+> **Windows protected your PC**
+
+Choose **More info → Run anyway**.
+
+A signing certificate is a recurring annual cost, and this is a free
+project, so there is not one yet. If you would rather not trust a binary,
+you can build from source — see below.
+
+Two things worth knowing:
+
+- **Verify what you downloaded.** Every release lists a SHA-256 for its
+  installer. Check it with
+  `Get-FileHash <file> -Algorithm SHA256`.
+- **Updates are signed regardless.** The updater carries its own signature
+  scheme, independent of OS code signing, and the app refuses any update
+  that is not signed with the project's key. Skipping code signing does not
+  make the update channel forgeable.
+
+<details>
+<summary>日本語</summary>
+
+このビルドは**コード署名されていません**。初回実行時に Windows が
+「WindowsによってPCが保護されました」と表示します。
+**［詳細情報］→［実行］** で進めてください。
+
+署名証明書は年額費用がかかるため、無料配布の本プロジェクトでは現時点で
+取得していません。バイナリを信用したくない場合は、ソースからビルドして
+お使いいただけます。
+
+- **ダウンロードしたものの検証** —— 各リリースにインストーラの SHA-256 を
+  記載しています。`Get-FileHash <ファイル> -Algorithm SHA256` で照合できます。
+- **更新は署名されています** —— 自動更新は OS のコード署名とは無関係の
+  独自の署名機構を持ち、プロジェクトの鍵で署名されていない更新は
+  インストールされません。コード署名をしないことと、更新経路の安全性は別です。
+
+</details>
+
+---
+
 ## 🚀 Getting started
 
 ### Prerequisites
@@ -261,9 +310,10 @@ Per-file reference docs (methods and branches) live under `docs/`, in Japanese a
 > `HtmlPreview.js`, `DirDiffView.js`, `MermaidHelper.js`, `SearchResultsView.js` — are not
 > covered yet.
 
-For cutting a build — version bumping, signing, and wiring automatic updates —
-see **[docs/RELEASE.md](docs/RELEASE.md)**. For adding a theme, or writing a
-component that follows one, see **[docs/THEMING.md](docs/THEMING.md)**.
+For cutting a build — version bumping, why releases are unsigned, and wiring
+automatic updates — see **[docs/RELEASE.md](docs/RELEASE.md)**. For adding a
+theme, or writing a component that follows one, see
+**[docs/THEMING.md](docs/THEMING.md)**.
 
 ---
 
