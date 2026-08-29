@@ -159,8 +159,22 @@ On Windows PowerShell:
 $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content ~/.tauri/jh-editor.key -Raw; npm run tauri build
 ```
 
-The build emits `latest.json` next to the installers. Upload both to the GitHub
-release.
+The build emits the installer and a `.sig` beside it — **but not
+`latest.json`**. Tauri 2 leaves the manifest to whoever publishes: the GitHub
+Action builds it, and a hand-run build has to as well.
+
+```sh
+npm run release:manifest
+```
+
+That reads the version, the signature and the endpoint from what is already
+configured, and writes `latest.json` next to the bundle. It also writes a copy
+of the installer with the spaces removed from its name, because GitHub rewrites
+spaces in release asset filenames and the manifest URL has to match what is
+actually served. Upload the space-free installer and `latest.json`.
+
+Getting either wrong fails quietly: the build succeeds, the release publishes,
+and the first sign of trouble is a user saying no update arrived.
 
 ### 5. Check for updates from the app
 
