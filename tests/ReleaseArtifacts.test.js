@@ -80,6 +80,20 @@ describe('the update manifest', () => {
     });
 });
 
+describe('publishing', () => {
+    const ps = read('scripts/publish-release.ps1');
+
+    // A draft is not in releases/latest, and its assets sit under a temporary
+    // untagged-<hash>/ path rather than download/<tag>/ — which is what
+    // latest.json points at. So a draft looks finished, carries the right
+    // files, and delivers no updates at all. Leaving one behind is the least
+    // visible way to fail, so the script only stops at draft when asked to.
+    it('does not leave the release as a draft', () => {
+        expect(ps).toContain('--draft=false');
+        expect(ps).toContain('--json isDraft');
+    });
+});
+
 describe('licence obligations', () => {
     const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
 

@@ -315,15 +315,43 @@ try {
 
 Write-Ok 'アップロード完了'
 
-# ------------------------------------------------------ 公開後の確認
+# ------------------------------------------------------------ 公開
 
-Write-Step '公開後の確認'
+# draft のままだと releases/latest に含まれず、資産の URL も
+# untagged-<hash>/ という仮のものになる。latest.json が指す download/<tag>/
+# とは別物なので、更新は永久に届かない。資産だけ新しくて draft のまま、と
+# いうのがいちばん気づきにくいので、ここは必ず通す。
+Push-Location $repo
+try {
+    $state = & $gh release view $Tag --json isDraft 2>$null | ConvertFrom-Json
+    $isDraft = $false
+    if ($state) { $isDraft = [bool]$state.isDraft }
+} finally {
+    Pop-Location
+}
 
 if ($Draft) {
-    Write-Warn 'draft なので更新は届かない。確認が済んだら publish すること'
+    Write-Step '公開後の確認'
+    Write-Warn 'draft のままにした。この状態では更新は届かない'
     Write-Host "    gh release edit $Tag --draft=false"
     exit 0
 }
+
+if ($isDraft) {
+    Write-Step '公開'
+    Push-Location $repo
+    try {
+        & $gh release edit $Tag --draft=false
+        if ($LASTEXITCODE -ne 0) { Fail 'draft を公開できなかった' }
+    } finally {
+        Pop-Location
+    }
+    Write-Ok 'draft を公開した'
+}
+
+# ------------------------------------------------------ 公開後の確認
+
+Write-Step '公開後の確認'
 
 # 更新チェックが実際に見に行く URL。ここが 404 なら何も届かない。
 $endpoint = (Get-Prop (Get-Prop (Get-Prop $conf 'plugins') 'updater') 'endpoints')[0]
