@@ -471,4 +471,16 @@ export default {
     'Copy the whole table': '표 전체 복사',
     'Copy the whole table (paste into Excel with formatting)': '표 전체 복사 (서식을 유지한 채 Excel에 붙여넣기)',
 
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Check for updates': '업데이트 확인',
+    'Checking…': '확인 중…',
+    'Could not check for updates: {msg}': '업데이트를 확인할 수 없습니다: {msg}',
+    'Downloading…': '다운로드 중…',
+    'The update is installed. Restart now to use it?': '업데이트를 설치했습니다. 지금 다시 시작하여 적용할까요?',
+    'Update Available': '업데이트 있음',
+    'Version {v} is available. Download and install it now?': '버전 {v}을 사용할 수 있습니다. 지금 다운로드하여 설치할까요?',
+    'You are on the latest version.': '최신 버전입니다.',
+
 };

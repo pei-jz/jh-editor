@@ -206,3 +206,68 @@ describe('mermaid', () => {
         expect(md).toContain('export function ensureMermaid');
     });
 });
+
+/* 更新経路。配布物にコード署名はしない判断なので、「この更新が本物か」を
+   担保するのは updater の署名だけになる。設定を一つ落とすと黙って無署名の
+   更新を受け入れる、という壊れ方はしない (プラグインが拒否する) が、
+   latest.json が生成されない・エンドポイントが違う、は黙って壊れる。 */
+describe('updater', () => {
+    const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
+    const cap = JSON.parse(read('src-tauri/capabilities/default.json'));
+
+    it('公開鍵が設定されている', () => {
+        const key = conf.plugins.updater.pubkey;
+        expect(key).toBeTruthy();
+        // base64 の中身が minisign の公開鍵であること。秘密鍵を貼ってしまう
+        // 事故は、ここで気づけないと git に入るまで気づけない。
+        const decoded = Buffer.from(key, 'base64').toString('utf8');
+        expect(decoded).toContain('minisign public key');
+        expect(decoded).not.toContain('secret key');
+    });
+
+    it('配信先が指定されている', () => {
+        expect(conf.plugins.updater.endpoints[0])
+            .toBe('https://github.com/pei-jz/jh-editor/releases/latest/download/latest.json');
+    });
+
+    it('latest.json と署名を生成する設定になっている', () => {
+        // これが false だと更新用の成果物が一切出ない。ビルドは成功するので
+        // 気づけるのは「更新が来ない」と報告されたとき。
+        expect(conf.bundle.createUpdaterArtifacts).toBe(true);
+    });
+
+    it('必要な権限がある', () => {
+        const perms = cap.permissions.filter((p) => typeof p === 'string');
+        expect(perms).toContain('updater:default');
+        expect(perms).toContain('process:allow-restart');
+    });
+
+    it('Rust 側にプラグインが登録されている', () => {
+        const lib = read('src-tauri/src/lib.rs');
+        expect(lib).toContain('tauri_plugin_updater::Builder::new().build()');
+        expect(lib).toContain('tauri_plugin_process::init()');
+    });
+
+    it('起動時に黙って更新せず、押したときだけ動く', () => {
+        const settings = read('src/modules/ui/SettingsModal.js');
+        // 入力中に勝手に再起動するエディタは、1 バージョン古いエディタより悪い。
+        expect(settings).toContain('btn.onclick = async () => {');
+        expect(settings).toContain("t('The update is installed. Restart now to use it?')");
+        // 適用も再起動も、それぞれ本人の確認を挟む。ファイル全体ではなく
+        // 更新の関数内に限って数える ― 設定画面には他にも確認ダイアログが
+        // あり (ショートカットの初期化)、それを数えても意味がない。
+        const fn = settings.slice(
+            settings.indexOf('async function initUpdateCheck()'),
+            settings.indexOf('export function initSettingsModal()'),
+        );
+        expect(fn.match(/await showConfirm\(/g) || []).toHaveLength(2);
+    });
+
+    it('Tauri の外ではボタンを隠す', () => {
+        const settings = read('src/modules/ui/SettingsModal.js');
+        // import の成否では判定できない ― Vite がバンドルするので素の
+        // ブラウザでも import は成功し、失敗するのは呼んだときの IPC。
+        expect(settings).toContain('window.__TAURI_INTERNALS__');
+        expect(settings).toContain("btn.style.display = '';");
+    });
+});

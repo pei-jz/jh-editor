@@ -471,4 +471,16 @@ export default {
     'Copy the whole table': 'テーブル全体をコピー',
     'Copy the whole table (paste into Excel with formatting)': 'テーブル全体をコピー (書式付きで Excel に貼り付け)',
 
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Check for updates': '更新を確認',
+    'Checking…': '確認中…',
+    'Could not check for updates: {msg}': '更新を確認できませんでした: {msg}',
+    'Downloading…': 'ダウンロード中…',
+    'The update is installed. Restart now to use it?': '更新をインストールしました。今すぐ再起動して適用しますか？',
+    'Update Available': '更新があります',
+    'Version {v} is available. Download and install it now?': 'バージョン {v} が利用できます。今すぐダウンロードしてインストールしますか？',
+    'You are on the latest version.': '最新バージョンです。',
+
 };

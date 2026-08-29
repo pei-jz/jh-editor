@@ -34,6 +34,11 @@ encoding_rs = "0.8.33"
 ignore = "0.4"
 crossbeam-channel = "0.5"
 tauri-plugin-http = "2"
+# 更新の取得と検証。OS のコード署名とは別物で、こちらはプロジェクトの
+# 鍵で署名された更新以外を受け付けない。
+tauri-plugin-updater = "2"
+# 更新の適用後に再起動するためだけに使う。
+tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
 quick-xml = "0.31"
 portable-pty = "0.9.0"

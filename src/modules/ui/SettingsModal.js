@@ -60,6 +60,8 @@ async function initAboutSection() {
     if (platformEl && platform) platformEl.textContent = platform;
     if (tauriEl && tauriVersion) tauriEl.textContent = tauriVersion;
 
+    initUpdateCheck();
+
     if (copyBtn) {
         copyBtn.onclick = async () => {
             const lines = [
@@ -81,6 +83,94 @@ async function initAboutSection() {
             }
         };
     }
+}
+
+/**
+ * 「更新を確認」ボタン。
+ *
+ * 起動時に黙って確認して再起動する作りにはしていない。入力中に勝手に
+ * 再起動するエディタは、1 バージョン古いエディタより悪い。押したときだけ
+ * 動き、見つかっても適用するかどうかは本人が決める。
+ *
+ * 更新の完全性はプラグイン側が担保する。配信された更新にプロジェクトの
+ * 秘密鍵による署名がなければインストールされないので、配布物にコード署名が
+ * ないこととは無関係に、偽の更新を掴まされることはない。
+ *
+ * Tauri の外（単体テスト、素のブラウザ）ではボタン自体を隠す。押しても
+ * 何も起きないボタンを置くより、無いほうがましだから。
+ *
+ * 判定は import の成否ではなく IPC の有無で行う。プラグインは Vite が
+ * バンドルするので import は素のブラウザでも「成功」し、失敗するのは
+ * 実際に呼んだときの IPC —— つまり import の try/catch では検出できない。
+ */
+function inTauri() {
+    return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
+}
+
+async function initUpdateCheck() {
+    const btn = document.getElementById('about-update-btn');
+    if (!btn) return;
+
+    if (!inTauri()) {
+        btn.style.display = 'none';
+        return;
+    }
+    // 明示的に戻す。隠すだけで戻さないと、この関数は一度でも Tauri の外で
+    // 走った後は二度とボタンを出せなくなる —— 起動が一度きりの本番では
+    // 起きないが、状態の片道通行はいずれ誰かを困らせる。
+    btn.style.display = '';
+
+    let check = null;
+    try {
+        ({ check } = await import('@tauri-apps/plugin-updater'));
+    } catch (e) {
+        console.warn('Updater plugin unavailable', e);
+        btn.style.display = 'none';
+        return;
+    }
+
+    let busy = false;
+    btn.onclick = async () => {
+        if (busy) return;
+        busy = true;
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = t('Checking…');
+        try {
+            const update = await check();
+            if (!update) {
+                Toast.show(t('You are on the latest version.'));
+                return;
+            }
+            const ok = await showConfirm(
+                t('Version {v} is available. Download and install it now?', { v: update.version }),
+                { title: t('Update Available') },
+            );
+            if (!ok) return;
+
+            btn.textContent = t('Downloading…');
+            await update.downloadAndInstall();
+
+            // 再起動しないと更新は反映されない。未保存の作業を巻き込まない
+            // よう、閉じる前に本人に確認する —— onCloseRequested は
+            // relaunch() では走らないため、ここで聞くしかない。
+            const restart = await showConfirm(
+                t('The update is installed. Restart now to use it?'),
+                { title: t('Update Available') },
+            );
+            if (restart) {
+                const { relaunch } = await import('@tauri-apps/plugin-process');
+                await relaunch();
+            }
+        } catch (e) {
+            console.error('Update check failed', e);
+            Toast.show(t('Could not check for updates: {msg}', { msg: (e && e.message) || String(e) }), 'error');
+        } finally {
+            busy = false;
+            btn.disabled = false;
+            btn.textContent = label;
+        }
+    };
 }
 
 export function initSettingsModal() {

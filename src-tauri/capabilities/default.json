@@ -30,6 +30,8 @@
     "core:window:allow-unmaximize",
     "core:window:allow-is-maximized",
     "fs:allow-stat",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "fs:scope",
       "allow": [
@@ -39,8 +41,12 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "http://*" },
-        { "url": "https://*" }
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "https://*"
+        }
       ],
       "deny": []
     }
