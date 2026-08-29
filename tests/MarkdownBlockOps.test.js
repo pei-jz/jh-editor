@@ -392,3 +392,68 @@ describe('the toolbar hints belong to Alt alone', () => {
         expect(view).toContain("if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey)");
     });
 });
+
+/* The reported bug, and why clearing the anchor on file-change did not fix it:
+   the anchor was not stale from another DOCUMENT, it was stale from the same
+   one. Book mode has its own click handler and it assigned
+   State.vimState.selectedIndex directly, so clicking a block moved the cursor
+   while the anchor stayed at 0 — put there by the earlier focus(). The first
+   F2 then edited blocks 0..43 as one range: "1 / 44", whole file in the box. */
+describe('the block cursor has exactly one setter', () => {
+    let view;
+    let State;
+
+    beforeEach(async () => {
+        ({ State } = await import('../src/modules/core/Store.js'));
+        const { MarkdownView } = await import('../src/modules/views/MarkdownView.js');
+        view = Object.create(MarkdownView.prototype);
+        view.blocksData = Array.from({ length: 44 }, (_, i) => `b${i}`);
+        State.vimState = State.vimState || {};
+    });
+
+    it('collapses the selection when the cursor moves', () => {
+        view._setCursor(0);
+        view._setCursor(43);
+        expect(view.selectedRange()).toEqual({ from: 43, to: 43 });
+    });
+
+    it('keeps the anchor when the move extends', () => {
+        view._setCursor(40);
+        view._setCursor(43, { extend: true });
+        expect(view.selectedRange()).toEqual({ from: 40, to: 43 });
+    });
+
+    it('adopts the current cursor as the anchor when extending from nothing', () => {
+        view._selAnchor = null;
+        State.vimState.selectedIndex = 5;
+        view._setCursor(8, { extend: true });
+        expect(view.selectedRange()).toEqual({ from: 5, to: 8 });
+    });
+
+    it('reproduces the bug when the cursor is written directly', () => {
+        // The shape of what book mode used to do. Kept as a test so the reason
+        // for the setter is legible.
+        view._setCursor(0);
+        State.vimState.selectedIndex = 43;      // bypasses the anchor
+        expect(view.selectedRange()).toEqual({ from: 0, to: 43 });
+    });
+
+    it('is the only thing that writes the cursor', () => {
+        const src = read('src/modules/views/MarkdownView.js');
+        // `=` not followed by `=`, or the comparisons in render() count too.
+        const writes = [...src.matchAll(/State\.vimState\.selectedIndex\s*=(?!=)/g)];
+        // One inside _setCursor, two in _syncSelectionToFile where the
+        // selection is deliberately reset or restored wholesale.
+        expect(writes).toHaveLength(3);
+        expect(src).toContain('_setCursor(index, { extend = false } = {})');
+        // Book mode and moveBlock go through it.
+        expect(src).toContain('this._setCursor(item.index, {');
+        expect(src).toContain('this._setCursor(to);');
+    });
+
+    it('lets book mode extend on Ctrl or Shift, like scroll mode', () => {
+        const src = read('src/modules/views/MarkdownView.js');
+        const i = src.indexOf('this._setCursor(item.index, {');
+        expect(src.slice(i, i + 160)).toContain('e.ctrlKey || e.metaKey || e.shiftKey');
+    });
+});
