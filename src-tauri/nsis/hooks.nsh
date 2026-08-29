@@ -21,6 +21,18 @@
   WriteRegStr SHCTX "Software\io.github.pei-jz.jheditor" "InstallLocation" "$INSTDIR"
 !macroend
 
+; Delete from both hives by name rather than through SHCTX.
+;
+; SHCTX follows the install mode, and on uninstall it did not come back as the
+; hive the value was written to: a per-machine install left
+; HKLM\Software\io.github.pei-jz.jheditor behind after its files were gone.
+; A key that outlives the install is not just untidy: is_installed() reads it,
+; so a portable copy dropped into the old directory would be told it is the
+; installed build and offered updates it cannot apply.
+;
+; Removing a key that was never there is not an error, so naming both is safe
+; whichever mode was used.
 !macro NSIS_HOOK_POSTUNINSTALL
-  DeleteRegKey SHCTX "Software\io.github.pei-jz.jheditor"
+  DeleteRegKey HKCU "Software\io.github.pei-jz.jheditor"
+  DeleteRegKey HKLM "Software\io.github.pei-jz.jheditor"
 !macroend

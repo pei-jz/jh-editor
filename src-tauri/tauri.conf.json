@@ -61,6 +61,7 @@
       "icons/icon.ico"
     ],
     "licenseFile": "../LICENSE",
+    "publisher": "J.H Editor Team",
     "copyright": "Copyright (c) 2026 J.H Editor Team",
     "resources": [
       "../LICENSE",
