@@ -149,6 +149,32 @@ if ($installer.Name -match '\s') {
 }
 Write-Ok "インストーラ $($installer.Name)"
 
+# 成果物がソースより古くないか。タグと HEAD が揃っていても、手元の
+# インストーラがそれより前のコードから作られていることはある。署名は通り、
+# 版も URL も合うので何も報告されず、配ってから「直したはずの不具合が直って
+# いない」と言われて気づく。
+$srcPaths = @('src', 'src-tauri/src', 'src-tauri/tauri.conf.json',
+              'src-tauri/Cargo.toml', 'index.html', 'package.json')
+Push-Location $repo
+try {
+    $lastSrc = & git log -1 --format=%cI -- @srcPaths
+} finally {
+    Pop-Location
+}
+if ($lastSrc) {
+    $srcTime = [datetimeoffset]::Parse($lastSrc).LocalDateTime
+    if ($installer.LastWriteTime -lt $srcTime) {
+        Write-Warn 'インストーラがソースより古い'
+        Write-Warn ('  最後のソース変更 {0:yyyy-MM-dd HH:mm}' -f $srcTime)
+        Write-Warn ('  インストーラ     {0:yyyy-MM-dd HH:mm}' -f $installer.LastWriteTime)
+        Write-Warn '  いまのコードで作り直していない可能性がある'
+        $ans = Read-Host '    このまま上げるか (y/N)'
+        if ($ans -ne 'y') { Fail '中止した。.\scripts\build-release.ps1 で作り直す' }
+    } else {
+        Write-Ok 'インストーラはソースより新しい'
+    }
+}
+
 # ------------------------------------------------ latest.json の突き合わせ
 
 Write-Step 'latest.json'
