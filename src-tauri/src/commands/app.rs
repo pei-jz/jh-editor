@@ -96,6 +96,66 @@ pub fn open_devtools(webview: tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether this build is the copy the installer put on disk.
+///
+/// The updater downloads an NSIS installer and runs it with `/UPDATE` and no
+/// `/D`, so the new version always lands in the registered install directory.
+/// Run a portable copy of the exe and accept an update and it "succeeds": the
+/// installer writes a fresh install somewhere else, the exe still running is
+/// untouched, and the next launch is the same old build. No error is raised,
+/// so nothing tells the user their update went to another folder.
+///
+/// The installer records where it put things (src-tauri/nsis/hooks.nsh). If
+/// that value is missing, or names a different directory than the one this exe
+/// is sitting in, this is not the installed copy and the update path must stay
+/// closed.
+///
+/// Anywhere but Windows this is meaningless — there is no portable build to
+/// tell apart — so it answers yes and nothing gets disabled.
+#[command]
+pub fn is_installed() -> bool {
+    #[cfg(not(windows))]
+    {
+        true
+    }
+
+    #[cfg(windows)]
+    {
+        use std::path::Path;
+
+        let Ok(exe) = std::env::current_exe() else {
+            return false;
+        };
+        let Some(dir) = exe.parent() else {
+            return false;
+        };
+
+        // Compare canonical paths: the recorded value and the running exe can
+        // disagree over a trailing separator, 8.3 short names or case, and all
+        // three would read as "not installed" on a plain string compare.
+        let Ok(dir) = dir.canonicalize() else {
+            return false;
+        };
+
+        const KEY: &str = r"Software\io.github.pei-jz.jheditor";
+
+        // Which hive depends on the install mode the user picked, so try both.
+        [
+            windows_registry::CURRENT_USER,
+            windows_registry::LOCAL_MACHINE,
+        ]
+        .iter()
+        .filter_map(|hive| hive.open(KEY).ok())
+        .filter_map(|key| key.get_string("InstallLocation").ok())
+        .any(|recorded| {
+            Path::new(&recorded)
+                .canonicalize()
+                .map(|p| p == dir)
+                .unwrap_or(false)
+        })
+    }
+}
+
 /// Reveal a path in the OS file manager (Explorer / Finder / the desktop's
 /// default). For a file the item itself is selected; for a directory the folder
 /// is opened.

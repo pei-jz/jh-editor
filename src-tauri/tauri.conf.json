@@ -59,6 +59,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "licenseFile": "../LICENSE",
+    "copyright": "Copyright (c) 2026 J.H Editor Team",
+    "resources": [
+      "../LICENSE",
+      "../THIRD-PARTY-NOTICES.md"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "nsis/hooks.nsh"
+      }
+    },
     "createUpdaterArtifacts": true
   },
   "plugins": {
