@@ -42,6 +42,21 @@ describe('the installer uploaded to a release', () => {
         // The URL is built from assetName, never from the raw build output.
         expect(script).toMatch(/url: `[^`]*\$\{assetName\}`/);
     });
+
+    // Previous versions stay in the same directory. Picking by suffix alone
+    // left the choice to readdir order — and the wrong pick is not loud. The
+    // manifest takes its version from the config, so it would announce the
+    // new version while carrying the old installer and the old signature.
+    // That verifies, installs, and changes nothing.
+    it('picks by version, not by whatever comes first', () => {
+        expect(script).toContain('f.includes(`_${version}_`)');
+
+        const ps = read('scripts/publish-release.ps1');
+        expect(ps, 'the publish script must filter installers by version')
+            .toContain('$_.Name -like "*_${version}_*"');
+        expect(ps, 'and the portable zip too')
+            .toContain('"*_${version}_*-portable.zip"');
+    });
 });
 
 describe('the update manifest', () => {

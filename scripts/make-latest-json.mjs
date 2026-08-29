@@ -49,15 +49,29 @@ if (!existsSync(nsisDir)) die('ビルド出力がない。先に `npm run tauri 
 
 const files = readdirSync(nsisDir);
 
-// 署名の付いているものが今回のビルド出力。前回の残骸が同居していても、
-// .sig を伴っているのは一つだけなのでこれで絞れる。
-const installer = files.find((f) => f.endsWith('-setup.exe') && files.includes(`${f}.sig`));
-if (!installer) {
-    const anyExe = files.some((f) => f.endsWith('-setup.exe'));
-    die(anyExe
-        ? '署名 (.sig) のないインストーラしかない。TAURI_SIGNING_PRIVATE_KEY を設定してビルドし直す'
+// 前の版のインストーラも同じディレクトリに残る。名前だけで拾うと、どれが
+// 選ばれるかは readdir の順次第になる。順番が変われば古い版を指した
+// manifest ができ、版だけ新しく中身と署名は古い、という状態になる。
+// 署名は正しいので検証は通り、インストールもできてしまう。更新したのに何も
+// 変わらず、気づく手がかりが無い。だから版で絞る。
+const forVersion = files.filter(
+    (f) => f.endsWith('-setup.exe') && f.includes(`_${version}_`));
+
+if (forVersion.length === 0) {
+    const others = files.filter((f) => f.endsWith('-setup.exe'));
+    die(others.length
+        ? `${version} のインストーラが無い。あるのは: ${others.join(', ')}。ビルドし直す`
         : 'インストーラ (*-setup.exe) が見つからない');
 }
+
+const signed = forVersion.filter((f) => files.includes(`${f}.sig`));
+if (signed.length === 0) {
+    die('署名 (.sig) のないインストーラしかない。TAURI_SIGNING_PRIVATE_KEY を設定してビルドし直す');
+}
+
+// 空白入りが残っていればそれが今回のビルド出力。複製していた頃の名残で
+// 空白なしの写しが同居していることがあるので、元のほうを選んで改名する。
+const installer = signed.find((f) => /\s/.test(f)) || signed[0];
 
 const signature = readFileSync(join(nsisDir, `${installer}.sig`), 'utf8').trim();
 if (!signature) die('署名が空');

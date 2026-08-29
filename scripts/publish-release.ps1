@@ -135,12 +135,22 @@ if (-not (Test-Path $manifestPath)) {
     Fail 'latest.json が無い。先に .\scripts\build-release.ps1 を実行する'
 }
 
-$installers = @(Get-ChildItem $nsis -Filter '*-setup.exe' -ErrorAction SilentlyContinue)
-if ($installers.Count -eq 0) { Fail 'インストーラが無い。先にビルドする' }
+# 前の版のインストーラも同じディレクトリに残る。それを「複数ある」と言って
+# 止めても、消す以外にやりようがない。いま出す版のものだけを見る。
+$all = @(Get-ChildItem $nsis -Filter '*-setup.exe' -ErrorAction SilentlyContinue)
+if ($all.Count -eq 0) { Fail 'インストーラが無い。先にビルドする' }
+
+$installers = @($all | Where-Object { $_.Name -like "*_${version}_*" })
+if ($installers.Count -eq 0) {
+    Write-Warn "$version のインストーラが無い。あるのは:"
+    $all | ForEach-Object { Write-Warn "  $($_.Name)" }
+    Fail 'この版でビルドし直す'
+}
 if ($installers.Count -gt 1) {
-    Write-Warn 'インストーラが複数ある:'
+    # 同じ版で複数あるのは、空白入りと空白なしが同居している場合。
+    Write-Warn "$version のインストーラが複数ある:"
     $installers | ForEach-Object { Write-Warn "  $($_.Name)" }
-    Fail 'make-latest-json.mjs を実行して 1 つに揃える'
+    Fail 'node scripts/make-latest-json.mjs を実行して 1 つに揃える'
 }
 $installer = $installers[0]
 
@@ -257,14 +267,14 @@ $assets = @($installer.FullName, $manifestPath)
 
 # ポータブル版があれば一緒に上げる。latest.json はインストーラを指したまま
 # にする —— 更新はインストーラ経由でしか適用できない。
+# こちらも版で絞る。前の版の zip が残っていても関係ない。
 $portableZip = Get-ChildItem (Join-Path $repo 'src-tauri\target\release') `
-    -Filter '*-portable.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+    -Filter "*_${version}_*-portable.zip" -ErrorAction SilentlyContinue |
+    Select-Object -First 1
 if ($portableZip) {
-    # 中身の確認まではしないが、名前だけでも版が合っているかは見る。
-    if ($portableZip.Name -notmatch [regex]::Escape($version)) {
-        Fail "ポータブル版の名前が版 $version と合わない: $($portableZip.Name)"
-    }
     $assets += $portableZip.FullName
+} else {
+    Write-Warn "$version のポータブル版が無いので、インストーラだけ上げる"
 }
 
 foreach ($a in $assets) { Write-Host "    $a" }
