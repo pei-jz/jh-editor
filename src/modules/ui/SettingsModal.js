@@ -323,7 +323,7 @@ export function initSettingsModal() {
     }
 
     // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || 'light';
+    const savedTheme = localStorage.getItem('theme') || 'dark';
     // Build the picker from the registry rather than from markup: a theme
     // added to Themes.js appears here without anyone remembering to add an
     // <option>, and the label goes through t() like every other string.
@@ -611,7 +611,7 @@ export function initSettingsModal() {
                 viewModeSelector.value = isCompact ? 'compact' : 'normal';
             }
             if (themeSelector) {
-                themeSelector.value = localStorage.getItem('theme') || 'light';
+                themeSelector.value = localStorage.getItem('theme') || 'dark';
             }
 
             // Reset to General Tab

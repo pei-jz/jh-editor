@@ -270,13 +270,21 @@ describe('getting to DevTools', () => {
         expect(read('src/modules/core/App.js')).toContain("invoke('open_devtools')");
     });
 
-    // A release build has no DevTools compiled in; say so instead of silently
-    // doing nothing.
-    it('explains itself when the build has none', () => {
+    // DevTools have to survive into the shipped build. A packaged app fails in
+    // ways a dev run cannot: the assets are bundled and served from tauri://,
+    // and the configured CSP is injected only there, so a whole class of
+    // problem first appears in the packaged app and nowhere else. Gating this
+    // to debug builds left a screenshot as the only bug report such a build
+    // could produce.
+    it('stays available in a release build', () => {
         const rs = read('src-tauri/src/commands/app.rs');
         const i = rs.indexOf('pub fn open_devtools(');
-        const fn = rs.slice(i, rs.indexOf('\n}', rs.indexOf('not(debug_assertions)', i)));
-        expect(fn).toContain('cfg(debug_assertions)');
-        expect(fn).toContain('development build');
+        const fn = rs.slice(i, rs.indexOf('\n}', i));
+        expect(fn).toContain('webview.open_devtools()');
+        expect(fn).not.toContain('cfg(debug_assertions)');
+
+        // open_devtools() only exists when the feature is on. Without it the
+        // call above stops compiling, so this keeps the two in step.
+        expect(read('src-tauri/Cargo.toml')).toContain('"devtools"');
     });
 });
