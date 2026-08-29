@@ -13,7 +13,7 @@ import {
 } from '../src/modules/ui/InlineCompletion.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /** Build the context object the engine takes, from a doc and a caret marker. */
 function at(doc, marker = '|') {

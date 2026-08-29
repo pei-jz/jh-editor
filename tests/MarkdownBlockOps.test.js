@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { TableEditor } from '../src/modules/editors/TableEditor.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (...p) => readFileSync(join(here, '..', ...p), 'utf8');
+const read = (...p) => readFileSync(join(here, '..', ...p), 'utf8').replace(/\r\n/g, '\n');
 
 /*
    Removing a block used to take four steps: F2, select all, delete, save. And

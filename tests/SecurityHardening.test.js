@@ -6,7 +6,7 @@ import { sanitizeHtml, escapeAttr } from '../src/modules/utils/SanitizeHtml.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
-const read = (...p) => readFileSync(join(repo, ...p), 'utf8');
+const read = (...p) => readFileSync(join(repo, ...p), 'utf8').replace(/\r\n/g, '\n');
 
 /*
    Opening a Markdown file someone else wrote used to be enough to run arbitrary

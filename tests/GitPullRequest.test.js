@@ -9,7 +9,7 @@ vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn(async () => {}) }));
 import { parseRemoteUrl, pullRequestUrl } from '../src/modules/ui/GitPanel.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 describe('parseRemoteUrl', () => {
     it('reads the four shapes a remote actually comes in', () => {

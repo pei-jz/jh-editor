@@ -87,7 +87,7 @@ describe('with no file open', () => {
         const { fileURLToPath } = await import('node:url');
         const { dirname, join } = await import('node:path');
         const here = dirname(fileURLToPath(import.meta.url));
-        const src = readFileSync(join(here, '..', 'src/modules/core/Editor.js'), 'utf8');
+        const src = readFileSync(join(here, '..', 'src/modules/core/Editor.js'), 'utf8').replace(/\r\n/g, '\n');
         const i = src.indexOf('export function updateStatusBar(');
         const block = src.slice(i, src.indexOf('const isMd', i));
         expect(block).toContain("'status-size'");

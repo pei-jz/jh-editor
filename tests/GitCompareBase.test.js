@@ -90,7 +90,7 @@ describe('resolveCompareBase', () => {
    arrived at git as literal characters and came back around every branch name.
    `git checkout "master"` then looked for a FILE called `"master"`. */
 describe('branch names out of the shell', () => {
-    const src = readFileSync(join(here, '..', 'src/modules/ui/GitPanel.js'), 'utf8');
+    const src = readFileSync(join(here, '..', 'src/modules/ui/GitPanel.js'), 'utf8').replace(/\r\n/g, '\n');
 
     it('asks git for a format that needs no quoting', () => {
         // The doc comment quotes the broken form, so match the command itself.

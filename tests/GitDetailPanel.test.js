@@ -126,7 +126,7 @@ describe('git panel layout', () => {
     // section's own bottom border stranded in the middle of it.
     it('gives the leftover height to the history section', () => {
         const here = dirname(fileURLToPath(import.meta.url));
-        const css = readFileSync(join(here, '..', 'src/styles/explorer.css'), 'utf8');
+        const css = readFileSync(join(here, '..', 'src/styles/explorer.css'), 'utf8').replace(/\r\n/g, '\n');
         const i = css.indexOf('#git-section-history {');
         expect(i).toBeGreaterThan(-1);
         expect(css.slice(i, css.indexOf('}', i))).toContain('flex: 1 1 auto;');

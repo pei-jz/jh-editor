@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 // A vertical split left the window in a state that looked broken: a stray
 // "select a file" message stacked above the real editor, an empty tab strip,

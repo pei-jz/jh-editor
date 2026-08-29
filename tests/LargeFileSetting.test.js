@@ -9,7 +9,7 @@ import {
 } from '../src/modules/utils/LargeFileSetting.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /* The line between "edit this" and "view this read-only" was a constant at
    500 MB. Whether that is right depends on the machine and the file, so it is

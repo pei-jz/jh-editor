@@ -8,7 +8,7 @@ import {
 } from '../src/modules/ai/ContextScope.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /* The MCP tools JHEditor publishes are PULL tools: the model decides when to
    call them and the editor never asks the user first. How far they reach is

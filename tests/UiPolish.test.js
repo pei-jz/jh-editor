@@ -9,7 +9,7 @@ import {
 import { _replacedMessage } from '../src/modules/ui/Search.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 const luminance = (hex) => {
     const c = hex.replace('#', '');
