@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tauri": "set TMP=%CD%\\target\\temp_build&& set TEMP=%CD%\\target\\temp_build&& tauri",
     "test": "vitest run --exclude tests/e2e/**",
+    "release:manifest": "node scripts/make-latest-json.mjs",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
