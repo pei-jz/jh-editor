@@ -38,7 +38,15 @@
     --hl-operator: #000000;
 
     /* Font Settings */
-    --font-main: system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Helvetica Neue", sans-serif;
+    /* 既定は日本語向け。Segoe UI に漢字は無いので、CJK の面を明示
+       しないと 1 文字ずつのフォールバックになり、Windows では簡体字
+       が SimSun (宋体) に落ちて UI の大きさでは粗く見える。漢字は
+       日中韓で共有されるため、先に並べた面が全部取る。だから言語
+       ごとに分ける必要があり、下の :lang() がそれを担う。 */
+    --font-main: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe WPC", "Segoe UI", "Helvetica Neue",
+        "Yu Gothic UI", "Meiryo", "Hiragino Sans",
+        sans-serif;
     --font-mono: 'HackGen Console', 'HackGen', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Hack', 'Consolas', 'BIZ UDGothic', 'BIZ UDゴシック', monospace;
     --editor-font-family: var(--font-mono);
     --editor-font-size: 11.5pt;
@@ -1399,4 +1407,20 @@ body.theme-nord {
        drops; the same 6% mix reads as almost nothing against dark ink. */
     --surface-raised: color-mix(in srgb, var(--bg-color-secondary, var(--bg-color)) 90%, #fff);
     --text-on-primary: #fff;
+}
+
+/* 言語別の字形。<html lang> は I18n.applyDocumentLanguage が設定する。
+   漢字を共有する言語同士でスタックを分けないと、どれか一つが必ず他の
+   言語の字形で表示される。 */
+:root:lang(zh) {
+    --font-main: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe WPC", "Segoe UI", "Helvetica Neue",
+        "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC",
+        "Noto Sans SC", sans-serif;
+}
+
+:root:lang(ko) {
+    --font-main: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe WPC", "Segoe UI", "Helvetica Neue",
+        "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }

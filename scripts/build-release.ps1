@@ -211,16 +211,24 @@ $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
 # ので、ここで一緒に入れる。
 Write-Step 'ポータブル版'
 
-$portableExe = Join-Path $repo 'src-tauri\target\release\jh_editor.exe'
-if (-not (Test-Path $portableExe)) {
-    Write-Warn 'jh_editor.exe が無いのでポータブル版は作らない'
+# mainBinaryName を設定しているので tauri build が出力を改名する。cargo が
+# 出した名前のままのこともあるため、どちらでも拾えるようにしておく。
+$portableExe = @(
+    (Join-Path $repo 'src-tauri\target\release\J.H Editor.exe'),
+    (Join-Path $repo 'src-tauri\target\release\jh_editor.exe')
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $portableExe) {
+    Write-Warn '実行ファイルが見つからないのでポータブル版は作らない'
     $portableZip = $null
 } else {
     $stage = Join-Path $repo 'src-tauri\target\release\portable'
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     New-Item -ItemType Directory -Path $stage | Out-Null
 
-    Copy-Item $portableExe (Join-Path $stage 'jh_editor.exe')
+    # インストール版は 'J.H Editor.exe'。同じ名前で配ると、どちらを起動して
+    # いるのか本人にも分からなくなる。
+    Copy-Item $portableExe (Join-Path $stage 'J.H Editor Portable.exe')
     foreach ($f in @('LICENSE', 'THIRD-PARTY-NOTICES.md')) {
         $src = Join-Path $repo $f
         if (-not (Test-Path $src)) { Fail "$f が無い。ポータブル版に同梱できない" }
@@ -232,7 +240,7 @@ if (-not (Test-Path $portableExe)) {
     $readme = @"
 J.H Editor $version (ポータブル版)
 
-jh_editor.exe をそのまま実行してください。インストールは不要です。
+「J.H Editor Portable.exe」をそのまま実行してください。インストールは不要です。
 
 ## インストーラ版との違い
 

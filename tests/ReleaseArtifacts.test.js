@@ -157,3 +157,38 @@ describe('a portable copy', () => {
         }
     });
 });
+
+describe('installing', () => {
+    const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
+
+    // The default install mode is per-user and never elevates, so picking
+    // C:\Program Files on the directory page produced "Error opening file for
+    // writing" partway through — after the progress bar had already started.
+    // `both` offers the choice up front and elevates when the user takes the
+    // all-users option.
+    it('can install somewhere that needs elevation', () => {
+        expect(conf.bundle.windows?.nsis?.installMode).toBe('both');
+    });
+
+    // Both builds were called jh_editor.exe, so once either was running there
+    // was no way to tell which. The installed one takes the product name; the
+    // portable copy is renamed inside its zip.
+    it('names the installed and portable builds differently', () => {
+        expect(conf.mainBinaryName).toBe('J.H Editor');
+
+        const build = read('scripts/build-release.ps1');
+        expect(build).toContain("'J.H Editor Portable.exe'");
+    });
+
+    // A name only helps until the thing is running. The About panel says
+    // which build this is, rather than leaving it to be inferred from whether
+    // the update button happens to be there.
+    it('says which build is running', () => {
+        expect(read('index.html')).toContain('about-install-kind');
+        expect(read('src/modules/ui/SettingsModal.js')).toContain("t('Portable')");
+        for (const loc of ['ja', 'zh', 'ko']) {
+            expect(read(`src/locales/${loc}.js`), `${loc} is missing the label`)
+                .toContain("'Portable':");
+        }
+    });
+});

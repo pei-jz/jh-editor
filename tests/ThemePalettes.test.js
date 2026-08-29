@@ -401,3 +401,77 @@ describe('overlays read the theme', () => {
         expect(js).toContain('var(--warning-color');
     });
 });
+
+describe('the terminal palette', () => {
+    const src = read('src/modules/ui/TerminalManager.js');
+
+    /** Pull one of the ANSI tables out of the source. */
+    const palette = (name) => {
+        const m = new RegExp(`const ${name} = \\{([\\s\\S]*?)\\};`).exec(src);
+        expect(m, `${name} is not defined`).toBeTruthy();
+        const out = {};
+        for (const hit of m[1].matchAll(/(\w+):\s*'(#[0-9a-f]{6})'/gi)) {
+            out[hit[1]] = hit[2];
+        }
+        return out;
+    };
+
+    // xterm falls back to its own defaults for any colour not handed to it,
+    // and those defaults assume a dark background. Only six were being set,
+    // so on a light theme most of the palette was too pale to read — and
+    // `black` was being set to the BACKGROUND, which made black text vanish
+    // entirely on light themes.
+    it('sets all sixteen colours, not just a handful', () => {
+        for (const name of ['ANSI_DARK', 'ANSI_LIGHT']) {
+            const p = palette(name);
+            for (const c of ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']) {
+                expect(p[c], `${name}.${c} is missing`).toBeTruthy();
+                const bright = 'bright' + c[0].toUpperCase() + c.slice(1);
+                expect(p[bright], `${name}.${bright} is missing`).toBeTruthy();
+            }
+        }
+    });
+
+    // black and brightBlack are mixed from the actual background and
+    // foreground rather than pinned. A fixed pair sinks into either a dark
+    // theme with a light ground (Nord) or a light theme with a dark one.
+    it('derives black from the theme instead of pinning it', () => {
+        expect(src).toContain('mixHex(finalBg, finalFg');
+        expect(src, 'black must not be the background colour again')
+            .not.toMatch(/black:\s*finalBg/);
+    });
+
+    // Every colour has to clear a readable ratio on every ground it can land
+    // on. Tying this to the registry means a new theme with an awkward
+    // background fails here rather than in someone's terminal.
+    it('stays readable on every theme background', () => {
+        const check = (name, wantDark) => {
+            const p = palette(name);
+            const grounds = THEMES.filter((t) => t.dark === wantDark && t.bootBg);
+            expect(grounds.length, `no ${wantDark ? 'dark' : 'light'} themes found`)
+                .toBeGreaterThan(0);
+
+            const bad = [];
+            for (const [colour, hex] of Object.entries(p)) {
+                for (const g of grounds) {
+                    const ratio = contrast(hex, g.bootBg);
+                    if (ratio < 4.0) {
+                        bad.push(`${name}.${colour} ${hex} on ${g.id} = ${ratio.toFixed(2)}`);
+                    }
+                }
+            }
+            expect(bad, bad.join('\n')).toEqual([]);
+        };
+
+        check('ANSI_DARK', true);
+        check('ANSI_LIGHT', false);
+    });
+
+    // The old code branched on theme class names, so every new theme needed a
+    // line added here and the ones nobody remembered fell back to dark.
+    it('asks the registry which theme it is', () => {
+        expect(src).toContain("from '../utils/Themes.js'");
+        expect(src, 'theme detection must not be a chain of class-name checks')
+            .not.toMatch(/classList\.contains\('theme-\w+'\)/);
+    });
+});

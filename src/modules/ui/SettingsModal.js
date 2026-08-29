@@ -127,7 +127,13 @@ async function initUpdateCheck() {
     // ビルドになる。エラーも出ないので、更新できたと思い込むことになる。
     // 押せば黙って外れる導線は置かない。
     try {
-        if (!(await invoke('is_installed'))) {
+        const installed = await invoke('is_installed');
+        // どちらとして動いているかを出す。名前を分けても、起動してしまえば
+        // 見分けは付かない。更新ボタンの有無から推測させるより、書く。
+        const kind = document.getElementById('about-install-kind');
+        if (kind) kind.textContent = installed ? t('Installed') : t('Portable');
+
+        if (!installed) {
             btn.style.display = 'none';
             const note = document.getElementById('about-portable-note');
             if (note) note.style.display = '';

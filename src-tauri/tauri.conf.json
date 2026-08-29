@@ -1,6 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "J.H Editor",
+  "mainBinaryName": "J.H Editor",
   "version": "0.1.0",
   "identifier": "io.github.pei-jz.jheditor",
   "build": {
@@ -67,7 +68,8 @@
     ],
     "windows": {
       "nsis": {
-        "installerHooks": "nsis/hooks.nsh"
+        "installerHooks": "nsis/hooks.nsh",
+        "installMode": "both"
       }
     },
     "createUpdaterArtifacts": true
