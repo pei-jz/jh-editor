@@ -164,3 +164,33 @@ describe('the UI reaches the translator', () => {
         expect(read('src/modules/ui/Modal.js')).not.toContain("t('file_name')");
     });
 });
+
+describe('scripts and typefaces', () => {
+    const here2 = dirname(fileURLToPath(import.meta.url));
+    const readFile = (rel) =>
+        readFileSync(join(here2, '..', rel), 'utf8').replace(/\r\n/g, '\n');
+
+    // Han characters are shared between Japanese, Chinese and Korean and the
+    // shapes differ, so one stack cannot serve all three — whichever face is
+    // listed first claims every Han character. Splitting per language needs
+    // `lang` on the root element, and the attribute was missing entirely:
+    // index.html opened with a bare <html>.
+    it('tells the document which language it is in', () => {
+        expect(readFile('src/modules/utils/I18n.js'))
+            .toContain('document.documentElement.lang');
+    });
+
+    // Segoe UI has no Han glyphs, so with no CJK face named the browser fell
+    // back per character. On Windows that lands Simplified Chinese on SimSun,
+    // which looks coarse at UI sizes.
+    it('names a face for each script', () => {
+        const css = readFile('src/styles/themes.css');
+        expect(css, 'no Japanese face').toMatch(/Yu Gothic UI|Hiragino Sans/);
+        expect(css, 'no Simplified Chinese face').toMatch(/Microsoft YaHei|PingFang SC/);
+        expect(css, 'no Korean face').toMatch(/Malgun Gothic|Apple SD Gothic Neo/);
+
+        // Scoped, not piled into one stack.
+        expect(css).toContain(':root:lang(zh)');
+        expect(css).toContain(':root:lang(ko)');
+    });
+});

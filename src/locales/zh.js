@@ -475,6 +475,9 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '检查更新',
+    'Install': '安装方式',
+    'Installed': '安装版',
+    'Portable': '便携版',
     'This is a portable build. To update, download the latest version and replace this copy.':
         '这是便携版。如需更新，请下载最新版本并替换此文件。',
     'Checking…': '检查中…',

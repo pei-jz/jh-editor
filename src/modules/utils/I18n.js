@@ -53,6 +53,24 @@ export function getLanguage() {
     return currentLang;
 }
 
+/**
+ * Tell the document what language it is in.
+ *
+ * Han characters are shared between Japanese, Chinese and Korean, and the
+ * shapes differ. A single font stack cannot serve all three: whichever face
+ * is listed first claims every Han character, so one of the languages always
+ * gets the wrong forms. Splitting the stack per language is the only way, and
+ * that needs `lang` on the root element — CSS has nothing else to key on.
+ *
+ * The attribute was missing entirely, so the browser was picking a fallback
+ * face per character with no idea which language it was rendering.
+ */
+function applyDocumentLanguage(lang) {
+    if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.lang = lang;
+    }
+}
+
 export function setLanguage(lang) {
     currentLang = normalize(lang);
     try {
@@ -60,6 +78,7 @@ export function setLanguage(lang) {
     } catch (_) {
         /* localStorage may be unavailable; in-memory still works */
     }
+    applyDocumentLanguage(currentLang);
     applyI18n();
     return currentLang;
 }
@@ -97,6 +116,7 @@ export function promptLanguageName(lang = getLanguage()) {
 }
 
 export function applyI18n(root = document) {
+    applyDocumentLanguage(getLanguage());
     root.querySelectorAll('[data-i18n]').forEach((el) => {
         el.textContent = translate(el.getAttribute('data-i18n'));
     });

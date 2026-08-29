@@ -8,6 +8,50 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { EL } from '../core/Constants.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { ContextMenu } from './ContextMenu.js';
+import { themeById, DEFAULT_THEME } from '../utils/Themes.js';
+
+/**
+ * ANSI の 16 色。
+ *
+ * xterm は色を渡さなければ既定値を使う。その既定値は暗い背景を前提にして
+ * いるので、明るいテーマでは薄すぎて読めない。テーマは明暗どちらもあるの
+ * だから、両方ぶん用意しないと片方が必ず読めなくなる。
+ *
+ * 値はどのテーマの背景に対しても 4.4:1 以上になるよう選んである。暗い側は
+ * nord (#3b4252) が、明るい側は Paper (#e7dab9) が下限を決める。背景が最も
+ * 中間に寄っているテーマが通れば、他はそれより楽になる。
+ */
+const ANSI_DARK = {
+    red: '#ff8a80', green: '#5ae6a8', yellow: '#f2e14c', blue: '#8ec4ff',
+    magenta: '#eda1ed', cyan: '#69dcf2', white: '#e8e8e8',
+    brightRed: '#ffa8a0', brightGreen: '#8bf0c4', brightYellow: '#f7f07a',
+    brightBlue: '#aed6ff', brightMagenta: '#f4bdf4', brightCyan: '#96e8fa',
+    brightWhite: '#ffffff',
+};
+
+const ANSI_LIGHT = {
+    red: '#b32222', green: '#006b4a', yellow: '#6b5a00', blue: '#0a4b96',
+    magenta: '#8a1f9c', cyan: '#0a5f70', white: '#4a4a4a',
+    brightRed: '#8f1a1a', brightGreen: '#005539', brightYellow: '#544700',
+    brightBlue: '#073a75', brightMagenta: '#6b1879', brightCyan: '#084a58',
+    brightWhite: '#1f1f1f',
+};
+
+/** `#rrggbb` を n:1-n で混ぜる。解決できない値が来たら null を返す。 */
+function mixHex(a, b, ratio) {
+    const parse = (h) => {
+        const m = /^#?([0-9a-f]{6})$/i.exec(String(h).trim());
+        if (!m) return null;
+        const v = parseInt(m[1], 16);
+        return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    };
+    const x = parse(a);
+    const y = parse(b);
+    if (!x || !y) return null;
+    const c = x.map((n, i) => Math.round(n + (y[i] - n) * ratio));
+    return '#' + c.map((n) => n.toString(16).padStart(2, '0')).join('');
+}
+
 
 // This window's PTY events are named per-window so no other window's terminal
 // receives them (Tauri v2 global `listen` sees events regardless of emit target).
@@ -319,56 +363,42 @@ class TerminalManager {
         // Extract colors from CSS variables - use document.body where theme classes are applied
         const style = getComputedStyle(document.body);
         
-        // Detailed theme check
-        const isSolarizedDark = document.body.classList.contains('theme-solarized-dark');
-        const isMidnight = document.body.classList.contains('theme-midnight');
-        const isDarkTheme = document.body.classList.contains('theme-dark') || document.body.classList.contains('dark-mode');
-        const isLatte = document.body.classList.contains('theme-latte');
-        const isSolarizedLight = document.body.classList.contains('theme-solarized-light');
-        const isPaper = document.body.classList.contains('theme-paper');
-        const isBamboo = document.body.classList.contains('theme-bamboo-ancient');
+        // どのテーマかはレジストリに聞く。ここでクラス名を並べていると、
+        // テーマを足すたびにこの関数へ if が増え、足し忘れたテーマだけ
+        // 配色が崩れる。
+        let themeId = DEFAULT_THEME;
+        try {
+            themeId = localStorage.getItem('theme') || DEFAULT_THEME;
+        } catch (_) { /* localStorage が無くても既定で動く */ }
+        const entry = themeById(themeId);
+        const isDark = entry ? entry.dark : true;
 
-        let bg = style.getPropertyValue('--bg-color').trim();
-        let fg = style.getPropertyValue('--text-color').trim();
-        let accent = style.getPropertyValue('--primary-color').trim();
-        let selection = style.getPropertyValue('--hover-color').trim();
+        const bg = style.getPropertyValue('--bg-color').trim();
+        const fg = style.getPropertyValue('--text-color').trim();
+        const accent = style.getPropertyValue('--primary-color').trim();
+        const selection = style.getPropertyValue('--hover-color').trim();
 
-        // Hardcoded fallbacks for known themes if variables fail to resolve correctly
-        if (isSolarizedDark) {
-            bg = bg || '#002b36';
-            fg = fg || '#839496';
-        } else if (isMidnight) {
-            bg = bg || '#0f111a';
-            fg = fg || '#c5cbe0';
-        } else if (isDarkTheme) {
-            bg = bg || '#1e1e1e';
-            fg = fg || '#d4d4d4';
-        } else if (isLatte) {
-            bg = bg || '#eff1f5';
-            fg = fg || '#4c4f69';
-        } else if (isSolarizedLight) {
-            bg = bg || '#fdf6e3';
-            fg = fg || '#657b83';
-        } else if (isPaper) {
-            bg = bg || '#f3e9d0';
-            fg = fg || '#243049';
-        } else if (isBamboo) {
-            bg = bg || '#3a2e1e';
-            fg = fg || '#e8e0cc';
-        }
+        // 変数が解決できないときの逃げ道。レジストリの bootBg があればそれ、
+        // 無ければ明暗だけ合わせる。テーマごとの分岐は持たない。
+        const finalBg = bg || (entry && entry.bootBg) || (isDark ? '#1e1e22' : '#ffffff');
+        const finalFg = fg || (isDark ? '#d4d4d4' : '#1f1f1f');
 
-        const finalBg = bg || '#1e1e1e';
-        const finalFg = fg || '#d4d4d4';
+        // black / brightBlack は背景と前景から作る。固定値にすると、背景が
+        // 明るい暗テーマ (nord) や暗い明テーマで沈む。以前は black に背景色
+        // をそのまま入れていたので、明るいテーマでは黒い文字が消えていた。
+        const black = mixHex(finalBg, finalFg, 0.45) || (isDark ? '#5a5a5a' : '#000000');
+        const brightBlack = mixHex(finalBg, finalFg, 0.65) || (isDark ? '#8a8a8a' : '#4a4a4a');
 
         const theme = {
             background: finalBg,
             foreground: finalFg,
-            cursor: accent || '#0078d7',
+            cursor: accent || (isDark ? '#8ec4ff' : '#0a4b96'),
             cursorAccent: finalBg,
-            selectionBackground: selection || 'rgba(255, 255, 255, 0.1)',
-            black: finalBg,
-            // Brighten up the colors for dark themes to ensure visibility
-            brightBlack: isDarkTheme || isSolarizedDark || isMidnight ? '#666666' : '#888888',
+            selectionBackground: selection
+                || (isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)'),
+            black,
+            brightBlack,
+            ...(isDark ? ANSI_DARK : ANSI_LIGHT),
         };
         for (const session of this.sessions.values()) session.term.options.theme = theme;
 
