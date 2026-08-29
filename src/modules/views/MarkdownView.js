@@ -1217,6 +1217,34 @@ export class MarkdownView extends BaseView {
         return { from: Math.min(anchor, head), to: Math.max(anchor, head) };
     }
 
+    /**
+     * Move the block cursor, keeping the selection anchor honest.
+     *
+     * The anchor is half of the selection: `selectedRange()` spans from it to
+     * the cursor. Anything that moved the cursor WITHOUT going through here
+     * left the anchor pointing at a block the user had long since moved away
+     * from, and the next F2 opened everything in between.
+     *
+     * That is exactly what happened: book mode has its own click handler, and
+     * it assigned `State.vimState.selectedIndex` directly. Clicking a block
+     * moved the cursor to it while the anchor stayed at 0 (put there by the
+     * earlier `focus()`), so the first F2 edited the whole document as one
+     * range — 1 / 44, with the entire file in the editor.
+     *
+     * `moveBlock` had the same shape. There is a test that no assignment to
+     * `State.vimState.selectedIndex` exists outside this method and the two
+     * places that deliberately clear the selection.
+     */
+    _setCursor(index, { extend = false } = {}) {
+        if (!extend) {
+            this._selAnchor = index;
+        } else if (this._selAnchor === null || this._selAnchor === undefined) {
+            this._selAnchor = (State.vimState.selectedIndex >= 0)
+                ? State.vimState.selectedIndex : index;
+        }
+        State.vimState.selectedIndex = index;
+    }
+
     selectBlock(index, opts = {}) {
         const { reveal = 'nearest', focus = true, extend = false } = opts;
         if (State.activeTabIndex < 0) return;
@@ -1229,16 +1257,7 @@ export class MarkdownView extends BaseView {
         if (index < 0) index = 0;
         if (index >= count) index = count - 1;
 
-        // A plain move collapses the range; extending keeps the anchor where
-        // the selection started. Set BEFORE selectedIndex so the anchor is the
-        // block the user was on, not the one they are moving to.
-        if (!extend) {
-            this._selAnchor = index;
-        } else if (this._selAnchor === null || this._selAnchor === undefined) {
-            this._selAnchor = (State.vimState.selectedIndex >= 0)
-                ? State.vimState.selectedIndex : index;
-        }
-        State.vimState.selectedIndex = index;
+        this._setCursor(index, { extend });
 
         // If in book mode, determine which page contains this block index and jump to it
         if (State.markdownViewMode === 'book' && this.pages && this.pageFlipInstance) {
@@ -1361,9 +1380,8 @@ export class MarkdownView extends BaseView {
         // Land on the block that took the deleted one's place, or the last one
         // if the deletion ran off the end. Leaving the cursor past the end
         // would put it on the phantom, which reads as "nothing is selected".
-        this._selAnchor = null;
         const next = Math.min(from, Math.max(0, this.blocksData.length - 1));
-        State.vimState.selectedIndex = next;
+        this._setCursor(next);
 
         if (this.renderTabs) this.renderTabs();
         if (this.renderEditor) this.renderEditor();
@@ -1644,7 +1662,7 @@ export class MarkdownView extends BaseView {
         if (from < 0 || from >= blocks.length || to < 0 || to >= blocks.length) return;
 
         [blocks[from], blocks[to]] = [blocks[to], blocks[from]];
-        State.vimState.selectedIndex = to;
+        this._setCursor(to);
 
         // Persist via the same join logic used by saveBlock, then re-render.
         if (State.activeTabIndex < 0) return;
@@ -2401,7 +2419,10 @@ export class MarkdownView extends BaseView {
                 div.onclick = (e) => {
                     e.stopPropagation();
                     if (div.classList.contains('editing')) return;
-                    State.vimState.selectedIndex = item.index;
+                    // Ctrl / Shift extend, matching the scroll-mode handler.
+                    this._setCursor(item.index, {
+                        extend: e.ctrlKey || e.metaKey || e.shiftKey,
+                    });
                     const blocks = this.container.querySelectorAll('.md-block');
                     blocks.forEach((b) => {
                         if (b === div) {
