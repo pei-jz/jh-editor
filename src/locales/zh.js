@@ -471,4 +471,16 @@ export default {
     'Copy the whole table': '复制整个表格',
     'Copy the whole table (paste into Excel with formatting)': '复制整个表格（可带格式粘贴到 Excel）',
 
+    // ── Runtime strings ───────────────────────────────────────────
+    // Added when the app's dynamic UI started going through t() as well
+    // as its static chrome. Anything still missing renders in English.
+    'Check for updates': '检查更新',
+    'Checking…': '检查中…',
+    'Could not check for updates: {msg}': '无法检查更新：{msg}',
+    'Downloading…': '下载中…',
+    'The update is installed. Restart now to use it?': '更新已安装。要立即重启以应用吗？',
+    'Update Available': '有可用更新',
+    'Version {v} is available. Download and install it now?': '有可用版本 {v}。要立即下载并安装吗？',
+    'You are on the latest version.': '已是最新版本。',
+
 };
