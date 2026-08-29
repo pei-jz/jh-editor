@@ -1,10 +1,10 @@
 [package]
 name = "jh_editor"
 version = "0.1.0"
-description = "J.H Editor- A block-based Markdown editor"
+description = "A local-first editor for text, Markdown, tabular data and very large logs"
 authors = ["J.H Editor Team"]
 license = "MIT"
-repository = ""
+repository = "https://github.com/pei-jz/jh-editor"
 edition = "2021"
 rust-version = "1.77.2"
 

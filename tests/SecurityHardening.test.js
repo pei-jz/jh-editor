@@ -167,6 +167,24 @@ describe('tauri configuration', () => {
         expect(csp['base-uri']).toBe("'self'");
     });
 
+    it('pins the bundle identifier', () => {
+        // The identifier is the path to the WebView2 data directory, and this
+        // app keeps its settings, session, drafts and recent workspaces in
+        // localStorage — which lives there. Changing it after release orphans
+        // all of that and makes the installer treat the build as a different
+        // application, so updates stop arriving too.
+        //
+        // It has already happened once in this project: a folder for the
+        // misspelled `com.jh-editer.app` is still on disk, 7 GB of it.
+        expect(conf.identifier).toBe('io.github.pei-jz.jheditor');
+    });
+
+    it('bundles only what has been tested on real hardware', () => {
+        // "all" also produces macOS and Linux artefacts. The sh / open /
+        // xdg-open branches compile but have not been run on those systems.
+        expect(conf.bundle.targets).toEqual(['nsis']);
+    });
+
     it('keeps the version in step across the three manifests', () => {
         const pkg = JSON.parse(read('package.json')).version;
         const cargo = read('src-tauri/Cargo.toml').match(/^version = "([^"]+)"/m)[1];
