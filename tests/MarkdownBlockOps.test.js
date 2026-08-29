@@ -356,3 +356,39 @@ describe('the table carries its own copy control', () => {
         expect(src).toContain('if (e.button !== 0) return;');
     });
 });
+
+/* Two more from use. Both are the same shape: the code was right and one line
+   of plumbing was not, so the feature existed and was unreachable. */
+describe('the table copy button reaches the page', () => {
+    const view = read('src/modules/views/MarkdownView.js');
+
+    it('appends the HOST, not the scroller inside it', () => {
+        // Appending tableContainer left tableHost — and the copy button
+        // positioned against it — out of the document entirely. The table
+        // rendered from inside the detached host, so everything looked normal
+        // except that the button did not exist.
+        expect(view).toContain('container.appendChild(tableHost);');
+        expect(view).not.toContain('container.appendChild(tableContainer);');
+    });
+
+    it('keeps the host out of the scrolling box', () => {
+        // The button is absolutely positioned against the host; inside the
+        // scroller it slides away as soon as a wide table is scrolled.
+        const host = view.indexOf("tableHost.className = 'table-editor-host'");
+        const scroll = view.indexOf("tableContainer.className = 'table-editor-scroll'");
+        expect(host).toBeGreaterThan(-1);
+        expect(scroll).toBeGreaterThan(host);
+        expect(view).toContain('tableHost.appendChild(tableContainer);');
+    });
+});
+
+describe('the toolbar hints belong to Alt alone', () => {
+    const view = read('src/modules/views/MarkdownView.js');
+
+    it('ignores the Alt inside a combination', () => {
+        // Ctrl+Alt+L flashed the hint overlay on the way to the shortcut, and
+        // left it up — the matching keyup never arrives as a bare Alt. It read
+        // as "something else fired instead".
+        expect(view).toContain("if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey)");
+    });
+});
