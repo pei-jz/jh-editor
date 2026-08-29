@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 // xterm's canvas), and that a drop cannot escape to the app's global handler.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(join(here, '..', 'src/modules/ui/TerminalManager.js'), 'utf8');
+const src = readFileSync(join(here, '..', 'src/modules/ui/TerminalManager.js'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('terminal clipboard & drop wiring', () => {
     it('copies through the Tauri clipboard, not execCommand', () => {

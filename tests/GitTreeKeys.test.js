@@ -7,7 +7,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(async () => '') }));
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn() }));
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 const src = read('src/modules/ui/GitPanel.js');
 
 /* The Git tree had no keyboard handling at all — no focusable rows, no keydown

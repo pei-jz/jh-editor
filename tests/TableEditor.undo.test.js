@@ -135,7 +135,7 @@ describe('Ctrl+Z reaching the grid', () => {
         const { fileURLToPath } = await import('node:url');
         const { dirname, join } = await import('node:path');
         const here = dirname(fileURLToPath(import.meta.url));
-        const sm = readFileSync(join(here, '..', 'src/modules/core/ShortcutManager.js'), 'utf8');
+        const sm = readFileSync(join(here, '..', 'src/modules/core/ShortcutManager.js'), 'utf8').replace(/\r\n/g, '\n');
         // Without this the GLOBAL app:undo fires first and preventDefaults, so
         // the cell's own keydown handler never runs.
         expect(sm).toContain("this.currentScope === 'MARKDOWN_TABLE'");

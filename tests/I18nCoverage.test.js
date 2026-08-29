@@ -8,7 +8,7 @@ import ko from '../src/locales/ko.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
-const read = (...p) => readFileSync(join(repo, ...p), 'utf8');
+const read = (...p) => readFileSync(join(repo, ...p), 'utf8').replace(/\r\n/g, '\n');
 
 /*
    The app claimed four languages while only its static chrome was translated:
@@ -40,7 +40,7 @@ function keysInUse() {
         // The locale files hold translations; I18n.js documents t() with
         // examples that are not real keys.
         if (rel.startsWith('src/locales/') || rel.endsWith('utils/I18n.js')) continue;
-        const src = readFileSync(file, 'utf8');
+        const src = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
         // `tr(` is the translator under a different name in CodeMirrorView,
         // where `t` is already bound to Lezer's highlight tags.
         for (const m of src.matchAll(/\btr?\(\s*'((?:[^'\\]|\\.)+)'/g)) {

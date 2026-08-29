@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { TableEditor } from '../src/modules/editors/TableEditor.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /* A Markdown table cell wrapped when you were reading it and stopped wrapping
    the moment you edited it: the editor was an <input type="text">, which is

@@ -15,7 +15,7 @@ const { handleStillInUse } = await import('../src/modules/core/Panes.js');
 const { State } = await import('../src/modules/core/Store.js');
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 const editor = read('src/modules/core/Editor.js');
 const cm = read('src/modules/views/CodeMirrorView.js');

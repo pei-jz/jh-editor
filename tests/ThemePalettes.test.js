@@ -11,7 +11,7 @@ import { THEMES, themeClasses, darkThemeClasses } from '../src/modules/utils/The
 // enforced here rather than re-pinned per hex value.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 const themes = read('src/styles/themes.css');
 

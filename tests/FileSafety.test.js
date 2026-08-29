@@ -45,7 +45,7 @@ const { confirmOverwrite, syncWatchers } = await import('../src/modules/core/Edi
 const { State } = await import('../src/modules/core/Store.js');
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /** A file object as the editor holds one. */
 const fileAt = (mtime, content = 'mine') => ({

@@ -7,7 +7,7 @@ import { highlightCode, escapeHtml, supportedLanguages } from '../src/modules/ut
 import { SyntaxHighlighter } from '../src/modules/utils/SyntaxHighlighter.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
+const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
 
 /* Two engines did this job: CodeMirror inside the editor, shiki everywhere
    else. shiki shipped 6.8 MB of TextMate grammars for languages nothing here
