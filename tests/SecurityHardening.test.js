@@ -167,6 +167,37 @@ describe('tauri configuration', () => {
         expect(csp['base-uri']).toBe("'self'");
     });
 
+    // Tauri does not serve this policy as written. At build time it puts a
+    // nonce attribute on every <style> in the document, and at request time it
+    // appends that nonce to style-src (tauri-utils html.rs inject_nonce, tauri
+    // manager/mod.rs replace_csp_nonce). CSP says a nonce makes 'unsafe-inline'
+    // be IGNORED — so the policy that actually ships is stricter than the one
+    // configured here, and only in a packaged build. `tauri dev` never sees it:
+    // the CSP is injected into bundled assets, not into what the dev server
+    // serves.
+    //
+    // That shipped once. Every style="display: none;" in index.html was
+    // blocked, so the welcome screen, the settings panel, the input dialog and
+    // the shortcut guide all rendered at once on top of each other, and no
+    // theme was applied. 73 violations, invisible to the whole test suite and
+    // to every dev run.
+    //
+    // Tauri only rewrites script-src and style-src. Naming the two more
+    // specific directives takes style elements and style attributes out of the
+    // rewritten one, so what is configured is what runs.
+    it('keeps inline styles working under the nonce Tauri injects', () => {
+        const csp = conf.app.security.csp;
+
+        // Runtime-injected <style> elements: CodeMirror, xterm, KaTeX and
+        // mermaid all add their stylesheets this way.
+        expect(csp['style-src-elem']).toContain("'unsafe-inline'");
+        expect(csp['style-src-elem']).toContain("'self'");
+
+        // style="..." attributes, including the ones index.html uses to keep
+        // the modals hidden before any script runs.
+        expect(csp['style-src-attr']).toContain("'unsafe-inline'");
+    });
+
     it('pins the bundle identifier', () => {
         // The identifier is the path to the WebView2 data directory, and this
         // app keeps its settings, session, drafts and recent workspaces in
