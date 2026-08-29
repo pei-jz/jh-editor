@@ -15,10 +15,14 @@
  * ままだと manifest に書いた URL と実際の配信 URL がずれる。空白のない名前で
  * 上げてしまえば、その挙動に依存しなくて済む。
  *
+ * 複製ではなくリネームするのは、選ぶ余地を残さないため。並べて置くと中身の
+ * 同じ exe が 2 つになり、見分けはファイル名だけになる。取り違えてもビルドは
+ * 通りリリースも通り、気づくのは更新が届かないと言われたときになる。
+ *
  *   node scripts/make-latest-json.mjs [--notes "変更点"]
  */
 
-import { readFileSync, writeFileSync, readdirSync, copyFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,21 +48,28 @@ const nsisDir = join(bundleDir, 'nsis');
 if (!existsSync(nsisDir)) die('ビルド出力がない。先に `npm run tauri build` を実行する');
 
 const files = readdirSync(nsisDir);
-const installer = files.find((f) => f.endsWith('-setup.exe'));
-if (!installer) die('インストーラ (*-setup.exe) が見つからない');
 
-const sigName = `${installer}.sig`;
-if (!files.includes(sigName)) {
-    die('署名 (.sig) がない。TAURI_SIGNING_PRIVATE_KEY を設定してビルドし直す');
+// 署名の付いているものが今回のビルド出力。前回の残骸が同居していても、
+// .sig を伴っているのは一つだけなのでこれで絞れる。
+const installer = files.find((f) => f.endsWith('-setup.exe') && files.includes(`${f}.sig`));
+if (!installer) {
+    const anyExe = files.some((f) => f.endsWith('-setup.exe'));
+    die(anyExe
+        ? '署名 (.sig) のないインストーラしかない。TAURI_SIGNING_PRIVATE_KEY を設定してビルドし直す'
+        : 'インストーラ (*-setup.exe) が見つからない');
 }
 
-const signature = readFileSync(join(nsisDir, sigName), 'utf8').trim();
+const signature = readFileSync(join(nsisDir, `${installer}.sig`), 'utf8').trim();
 if (!signature) die('署名が空');
 
-// 空白のない名前でリリースに上げる。manifest の URL はこちらを指す。
+// 空白のない名前へ揃える。残すのは一つだけにして、上げるファイルを選ばせない。
 const assetName = installer.replace(/\s+/g, '.');
 if (assetName !== installer) {
-    copyFileSync(join(nsisDir, installer), join(nsisDir, assetName));
+    for (const [from, to] of [[installer, assetName],
+                              [`${installer}.sig`, `${assetName}.sig`]]) {
+        rmSync(join(nsisDir, to), { force: true });   // 前回ビルドの残骸
+        renameSync(join(nsisDir, from), join(nsisDir, to));
+    }
 }
 
 const notesArg = process.argv.indexOf('--notes');
@@ -82,11 +93,11 @@ writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 console.log('latest.json を生成しました:');
 console.log('  ' + out);
 console.log('');
-console.log('リリースに上げるファイル:');
+console.log('リリースに上げるファイル (この 2 つだけ):');
 console.log('  ' + join(nsisDir, assetName));
 console.log('  ' + out);
 if (assetName !== installer) {
     console.log('');
-    console.log(`  ※ 空白を除いた名前 (${assetName}) で上げること。`);
-    console.log('     元の名前で上げると manifest の URL と一致しない。');
+    console.log(`  ※ ${installer} は ${assetName} へ改名した。`);
+    console.log('     空白入りの名前で上げると manifest の URL と一致しない。');
 }
