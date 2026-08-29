@@ -83,18 +83,17 @@ pub fn expand_env_path(path: String) -> String {
 /// the editor, and a matched shortcut calls preventDefault() — which also
 /// swallows WebView2's own DevTools hotkey, so the only way in was gone.
 /// Ctrl+Shift+I now routes here instead of relying on the runtime.
+///
+/// This stays available in release builds (the `devtools` feature on the tauri
+/// crate). A shipped build fails differently from a dev one — the assets are
+/// bundled and served from `tauri://`, and the configured CSP is only injected
+/// there, so a whole class of problem first appears in the packaged app and
+/// nowhere else. Without this the only report from such a build is whatever the
+/// user can describe from a screenshot.
 #[command]
 pub fn open_devtools(webview: tauri::WebviewWindow) -> Result<(), String> {
-    #[cfg(debug_assertions)]
-    {
-        webview.open_devtools();
-        Ok(())
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        let _ = webview;
-        Err("DevTools are only built into a development build.".into())
-    }
+    webview.open_devtools();
+    Ok(())
 }
 
 /// Reveal a path in the OS file manager (Explorer / Finder / the desktop's
