@@ -122,6 +122,14 @@ describe('licence obligations', () => {
         expect(conf.bundle.resources).toContain('../LICENSE');
     });
 
+    // Left unset, Tauri takes the publisher from the second element of the
+    // identifier. `io.github.pei-jz.jheditor` made Windows list the publisher
+    // as "github", which reads as though GitHub shipped it.
+    it('says who published it', () => {
+        expect(conf.bundle.publisher).toBeTruthy();
+        expect(conf.bundle.publisher).not.toBe('github');
+    });
+
     it('puts the licence in front of the user during install', () => {
         // The MIT text carries the warranty disclaimer, so the acceptance
         // page doubles as where that gets shown.
@@ -145,11 +153,29 @@ describe('a portable copy', () => {
         expect(hooks).toContain('NSIS_HOOK_POSTINSTALL');
         expect(hooks).toContain('InstallLocation');
         expect(hooks).toContain(conf.identifier);
+    });
 
-        // Uninstall has to clear it, or the next portable copy dropped in
-        // that directory inherits the answer.
+    // Deleting through SHCTX did not work: after a per-machine uninstall the
+    // HKLM value was still there with its files gone. A key that outlives the
+    // install is not just untidy — is_installed() reads it, so a portable copy
+    // dropped into the old directory would be told it is the installed build.
+    // Naming both hives is safe, since removing a key that was never written
+    // is not an error.
+    it('takes its registry key with it', () => {
+        const hooks = read('src-tauri/nsis/hooks.nsh');
         expect(hooks).toContain('NSIS_HOOK_POSTUNINSTALL');
-        expect(hooks).toContain('DeleteRegKey');
+        expect(hooks).toContain('DeleteRegKey HKCU');
+        expect(hooks).toContain('DeleteRegKey HKLM');
+        expect(hooks, 'SHCTX did not resolve to the write hive on uninstall')
+            .not.toContain('DeleteRegKey SHCTX');
+    });
+
+    // makensis compiles this file. An encoding mismatch here fails the build,
+    // not the test suite, so keep it to ASCII.
+    it('keeps the hook file to ASCII', () => {
+        const hooks = read('src-tauri/nsis/hooks.nsh');
+        const bad = [...hooks].filter((ch) => ch.charCodeAt(0) > 127);
+        expect(bad, `non-ASCII in hooks.nsh: ${bad.join(' ')}`).toEqual([]);
     });
 
     it('does not offer an update it cannot apply', () => {
