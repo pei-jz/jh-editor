@@ -1,3 +1,57 @@
+import { icon as svgIcon } from '../ui/Icons.js';
+import { t } from '../utils/I18n.js';
+
+/**
+ * The editing control inside a cell.
+ *
+ * It is a <textarea> (so a long cell wraps instead of scrolling sideways
+ * through a letterbox). `querySelector('input')` does NOT match a textarea,
+ * and when the tag changed, three call sites kept asking for 'input' and
+ * silently got null: the box was never shown, never focused and never
+ * hidden again — while the display span WAS hidden, so a double-clicked
+ * cell just went blank and could not be typed into.
+ *
+ * Selecting both tags means the same mistake cannot happen twice.
+ */
+function cellEditor(cell) {
+    return cell ? cell.querySelector('textarea, input') : null;
+}
+
+/** Escape a cell value for insertion into the generated HTML table. */
+function esc(v) {
+    return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+/**
+ * Resolve the current theme's table colours to literal values.
+ *
+ * The clipboard leaves the app, so `var(--border-color)` means nothing on the
+ * other side — Excel needs the colour itself. Custom properties compute to
+ * their declared value, which in every theme here is a literal, so reading
+ * them off the body is enough.
+ */
+function themeTableColors() {
+    const fallback = {
+        headerBg: '#f2f2f2', bg: '#ffffff', text: '#111111', border: '#c9c9c9',
+    };
+    try {
+        const cs = getComputedStyle(document.body);
+        const v = (name, alt) => ((cs.getPropertyValue(name) || '').trim() || alt);
+        return {
+            headerBg: v('--table-header-bg', fallback.headerBg),
+            bg: v('--bg-color', fallback.bg),
+            text: v('--text-color', fallback.text),
+            border: v('--border-color', fallback.border),
+        };
+    } catch (_) {
+        return fallback;
+    }
+}
+
 export const TableEditor = {
     /**
      * Undo history for the visual table editor.
@@ -12,6 +66,137 @@ export const TableEditor = {
      * array from parse() and should start over.
      */
     _history: null,
+
+    /**
+     * The table as tab-separated text — what a spreadsheet reads when it gets
+     * plain text, and what the existing cell-range copy already produced.
+     */
+    toTsv(data, range = null) {
+        if (!Array.isArray(data) || !data.length) return '';
+        const r1 = range ? range.r1 : 0;
+        const r2 = range ? range.r2 : data.length - 1;
+        const c1 = range ? range.c1 : 0;
+        const c2 = range ? range.c2 : (data[0] ? data[0].length - 1 : 0);
+
+        const rows = [];
+        for (let r = r1; r <= r2 && r < data.length; r++) {
+            const cells = [];
+            for (let c = c1; c <= c2; c++) cells.push((data[r] && data[r][c]) || '');
+            rows.push(cells.join('\t'));
+        }
+        return rows.join('\n');
+    },
+
+    /**
+     * The table as a styled HTML table.
+     *
+     * Excel, Word and Google Sheets all prefer `text/html` off the clipboard
+     * when it is there, and they honour INLINE styles on the cells — so this
+     * is how the paste arrives formatted rather than as bare text. The colours
+     * are the current theme's, resolved to literals, because a paste that
+     * looks like what was on screen is the point of the exercise.
+     *
+     * First row is treated as the header, matching Markdown's own table rule.
+     */
+    toHtml(data, opts = {}) {
+        if (!Array.isArray(data) || !data.length) return '';
+        const c = themeTableColors();
+        // SINGLE quotes around the family names. The stack goes inside a
+        // style="..." attribute, so a double quote here closes the attribute
+        // early and the rest of the declaration becomes stray markup — the
+        // table arrived in Excel unstyled and malformed.
+        const font = opts.fontFamily
+            || "Calibri, 'Segoe UI', 'Yu Gothic UI', Meiryo, sans-serif";
+
+        const cellBase = `border:1px solid ${c.border};padding:4px 8px;`
+            + `color:${c.text};font-family:${font};font-size:11pt;`
+            // Long cells should wrap in the spreadsheet the way they wrap here,
+            // rather than spilling across neighbouring columns.
+            + 'vertical-align:top;white-space:normal;';
+
+        const head = (data[0] || []).map((v) =>
+            `<th style="${cellBase}background-color:${c.headerBg};font-weight:bold;text-align:center;">${esc(v)}</th>`
+        ).join('');
+
+        const body = data.slice(1).map((row) =>
+            '<tr>' + (row || []).map((v) =>
+                `<td style="${cellBase}background-color:${c.bg};">${esc(v)}</td>`
+            ).join('') + '</tr>'
+        ).join('');
+
+        return `<table style="border-collapse:collapse;">`
+            + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    },
+
+    /**
+     * Put the whole table on the clipboard as both HTML and text.
+     *
+     * Two routes, because neither is universally available: the async
+     * Clipboard API needs a secure context and a permission the webview does
+     * not always grant, and `execCommand` is deprecated but still the only
+     * thing that reliably carries multiple flavours from a button click. The
+     * fallback selects a detached node and lets a one-shot `copy` listener
+     * fill in both types, so the user never sees the scratch markup.
+     *
+     * @returns {Promise<boolean>} whether anything reached the clipboard
+     */
+    async copyToClipboard(data, range = null) {
+        const text = this.toTsv(data, range);
+        const html = this.toHtml(
+            range
+                ? data.slice(range.r1, range.r2 + 1).map((row) => row.slice(range.c1, range.c2 + 1))
+                : data,
+        );
+        if (!text) return false;
+
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.write === 'function'
+                && typeof ClipboardItem !== 'undefined') {
+                await navigator.clipboard.write([new ClipboardItem({
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                    'text/plain': new Blob([text], { type: 'text/plain' }),
+                })]);
+                return true;
+            }
+        } catch (_) {
+            /* fall through to the execCommand route */
+        }
+
+        try {
+            const onCopy = (e) => {
+                e.clipboardData.setData('text/html', html);
+                e.clipboardData.setData('text/plain', text);
+                e.preventDefault();
+            };
+            document.addEventListener('copy', onCopy, { once: true, capture: true });
+
+            // Something has to be selected for execCommand('copy') to fire at
+            // all; the listener above replaces whatever this node contains.
+            const scratch = document.createElement('div');
+            scratch.setAttribute('aria-hidden', 'true');
+            scratch.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre;';
+            scratch.textContent = text;
+            document.body.appendChild(scratch);
+
+            const sel = window.getSelection();
+            const saved = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+            const r = document.createRange();
+            r.selectNodeContents(scratch);
+            sel.removeAllRanges();
+            sel.addRange(r);
+
+            const ok = document.execCommand('copy');
+
+            sel.removeAllRanges();
+            if (saved) sel.addRange(saved);
+            scratch.remove();
+            document.removeEventListener('copy', onCopy, { capture: true });
+            return ok;
+        } catch (e) {
+            console.error('Table copy failed', e);
+            return false;
+        }
+    },
 
     _ensureHistory(data) {
         if (this._history && this._history.data === data) return this._history;
@@ -173,7 +358,7 @@ export const TableEditor = {
         if (cell) {
             cell.focus();
             if (editMode) {
-                const input = cell.querySelector('input');
+                const input = cellEditor(cell);
                 if (input) {
                     input.style.display = 'block';
                     input.style.height = 'auto';
@@ -203,6 +388,15 @@ export const TableEditor = {
         const table = document.createElement('table');
         table.className = 'visual-table-editor';
         table.tabIndex = -1; 
+
+        // Dragging across cells extends the selection. Shift+Arrow already
+        // did this from the keyboard; the mouse had no equivalent, so selecting
+        // a block of cells meant clicking one corner and shift-clicking the
+        // other — which is not what anyone tries first.
+        //
+        // Tracked on the instance rather than in a closure so a re-render
+        // (insert row, sort) cannot leave a drag half-finished.
+        this._drag = this._drag || { active: false };
 
         // Initialize state if not present
         if (!this._state) {
@@ -250,7 +444,7 @@ export const TableEditor = {
                     if (this._state.isEditing) cell.classList.add('editing-cell');
                 }
 
-                const input = cell.querySelector('input');
+                const input = cellEditor(cell);
                 const textSpan = cell.querySelector('.cell-text');
                 if (input && !edit) input.style.display = 'none';
                 if (textSpan) textSpan.style.display = (edit && cell.classList.contains('active-cell')) ? 'none' : 'block';
@@ -259,7 +453,7 @@ export const TableEditor = {
             const target = table.querySelector(`[data-row="${this._state.activeRow}"][data-col="${this._state.activeCol}"]`);
             if (target) {
                 if (this._state.isEditing) {
-                    const input = target.querySelector('input');
+                        const input = cellEditor(target);
                     if (input) {
                         input.style.display = 'block';
                         input.style.height = 'auto';
@@ -308,7 +502,24 @@ export const TableEditor = {
 
             cell.onmousedown = (e) => {
                 e.stopPropagation();
+                if (e.button !== 0) return;          // right-click opens the menu
+                if (this._state.isEditing && this._state.activeRow === r
+                    && this._state.activeCol === c) {
+                    return;                          // let the caret land in the editor
+                }
                 updateSelection(r, c, false, e.shiftKey);
+                this._drag.active = true;
+                // The browser would otherwise start a text selection across the
+                // cells as the pointer moves, which fights the cell highlight.
+                table.classList.add('is-dragging');
+            };
+
+            // `mouseenter` on each cell, not `mousemove` on the table: it fires
+            // once per cell crossed rather than on every pixel, so a drag across
+            // a wide table is a handful of updates instead of hundreds.
+            cell.onmouseenter = () => {
+                if (!this._drag.active) return;
+                updateSelection(r, c, false, true);
             };
             cell.ondblclick = (e) => {
                 e.stopPropagation();
@@ -484,15 +695,16 @@ export const TableEditor = {
             const c1 = Math.min(this._state.activeCol, this._state.selectionEndCol);
             const c2 = Math.max(this._state.activeCol, this._state.selectionEndCol);
 
-            let copyText = "";
-            for (let r = r1; r <= r2; r++) {
-                let rowText = [];
-                for (let c = c1; c <= c2; c++) {
-                    rowText.push(data[r][c] || "");
-                }
-                copyText += rowText.join("\t") + (r === r2 ? "" : "\n");
-            }
+            const range = { r1, r2, c1, c2 };
+            const copyText = this.toTsv(data, range);
             e.clipboardData.setData('text/plain', copyText);
+            // The same selection as styled HTML, so pasting a range into Excel
+            // arrives formatted instead of as bare tab-separated text. Plain
+            // text is still there for editors that want it.
+            try {
+                const slice = data.slice(r1, r2 + 1).map((row) => row.slice(c1, c2 + 1));
+                e.clipboardData.setData('text/html', this.toHtml(slice));
+            } catch (_) { /* text/plain is enough on its own */ }
             e.preventDefault();
             e.stopPropagation();
         };
@@ -560,16 +772,57 @@ export const TableEditor = {
         table.appendChild(tbody);
         container.appendChild(table);
 
+        // The drag ends wherever the button comes up — including outside the
+        // table, or outside the window. Bound on document for that reason, and
+        // torn down on the next render so instances do not accumulate.
+        if (this._endDrag) {
+            document.removeEventListener('mouseup', this._endDrag, true);
+        }
+        this._endDrag = () => {
+            if (!this._drag.active) return;
+            this._drag.active = false;
+            table.classList.remove('is-dragging');
+        };
+        document.addEventListener('mouseup', this._endDrag, true);
+
         // Initial Selection or restore previous
         const startR = this._state ? this._state.activeRow : 0;
         const startC = this._state ? this._state.activeCol : 0;
         setTimeout(() => updateSelection(startR, startC, false, this._state && this._state.activeRow !== this._state.selectionEndRow), 0);
 
+        // One click copies the WHOLE table, formatted. Distinct from the cell
+        // range copy (Ctrl+C), which copies what is selected: wanting the table
+        // out of here — into a spreadsheet, usually — should not start with
+        // selecting every cell.
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'table-copy-btn';
+        copyBtn.title = t('Copy the whole table (paste into Excel with formatting)');
+        copyBtn.setAttribute('aria-label', t('Copy the whole table'));
+        copyBtn.innerHTML = svgIcon('copy-table', { size: 13 });
+        copyBtn.onmousedown = (e) => e.preventDefault();   // keep the cell focus
+        copyBtn.onclick = async () => {
+            const ok = await this.copyToClipboard(data);
+            // Feedback on the button itself: a toast for something this small
+            // and this local reads as an interruption.
+            copyBtn.classList.add(ok ? 'is-done' : 'is-failed');
+            copyBtn.innerHTML = svgIcon(ok ? 'check' : 'x', { size: 13 });
+            setTimeout(() => {
+                copyBtn.classList.remove('is-done', 'is-failed');
+                copyBtn.innerHTML = svgIcon('copy-table', { size: 13 });
+            }, 1400);
+        };
+        // The host is the non-scrolling wrapper; falling back to the
+        // container keeps this working for any caller that has no host.
+        const copyHost = (container.closest && container.closest('.table-editor-host'))
+            || container.parentElement || container;
+        copyHost.appendChild(copyBtn);
+
         const hints = document.createElement('div');
         hints.className = 'table-editor-hints';
         hints.innerHTML = `
             <span><strong>Type characters:</strong> Edit</span>
-            <span><strong>Shift+Arrows:</strong> Select Range</span>
+            <span><strong>Shift+Arrows / Drag:</strong> Select Range</span>
             <span><strong>Alt+; / -</strong> Add/Del Line</span>
             <span><strong>Ctrl+C / V:</strong> Copy/Paste</span>
         `;

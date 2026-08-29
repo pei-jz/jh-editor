@@ -1,19 +1,27 @@
 /* --- Inline AI Modal --- */
+/* Inline AI was a fixed dark panel: rgba(30,30,35,.7) with #e0e0e0 text and
+   white borders. On the six LIGHT themes that is a dark slab of glass floating
+   over a pale document — legible, but plainly not part of the app. It reads
+   from the palette now, so it is the same panel in eleven colourways.
+
+   The frosted glass survives: the blur is the effect, the colour was the bug.
+   `--overlay-bg` is the theme's raised surface, made translucent here so the
+   blur has something to do. */
 .inline-ai-modal {
     position: fixed;
     width: 420px;
-    background: rgba(30, 30, 35, 0.7);
+    background: color-mix(in srgb, var(--overlay-bg) 82%, transparent);
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--overlay-border);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--overlay-shadow);
     z-index: 10000;
     padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    color: #e0e0e0;
+    color: var(--text-color);
 }
 
 .inline-ai-header {
@@ -24,35 +32,35 @@
 }
 
 .model-badge {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--control-bg);
     padding: 2px 8px;
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    color: #aaa;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border: 1px solid var(--control-border);
 }
 
 .inline-ai-close {
     background: none;
     border: none;
-    color: #888;
+    color: var(--text-faint);
     font-size: 18px;
     cursor: pointer;
     transition: color 0.2s;
 }
 
 .inline-ai-close:hover {
-    color: white;
+    color: var(--text-color);
 }
 
 .inline-ai-input {
     width: 100%;
     height: 80px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface-sunken);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
-    color: white;
+    color: var(--text-color);
     padding: 10px;
     font-size: 14px;
     resize: none;
@@ -76,9 +84,9 @@
     opacity: 0.6;
     margin-left: 6px;
     padding: 1px 4px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--surface-sunken);
     border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--control-border);
 }
 
 .inline-ai-gen-btn,
@@ -106,7 +114,7 @@
 }
 
 .inline-ai-copy-btn {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--control-bg);
     border: 1px solid var(--border-color);
     color: var(--text-color);
 }
@@ -115,24 +123,27 @@
     background: var(--hover-color);
 }
 
+/* The send button was a fixed violet — the one colour in the panel that
+   belonged to no theme at all. It is the accent now, so it matches every other
+   primary action in the app. */
 .inline-ai-gen-btn {
-    background: #6c5ce7;
-    color: white;
+    background: var(--primary-color);
+    color: var(--text-on-primary);
 }
 
 .inline-ai-gen-btn:hover {
-    background: #5b4cc4;
+    filter: brightness(1.1);
     transform: translateY(-1px);
 }
 
 .inline-ai-stop-btn {
-    background: rgba(255, 71, 87, 0.2);
-    border: 1px solid rgba(255, 71, 87, 0.3);
-    color: #ff4757;
+    background: var(--danger-soft);
+    border: 1px solid color-mix(in srgb, var(--danger-color) 35%, transparent);
+    color: var(--danger-color);
 }
 
 .inline-ai-stop-btn:hover {
-    background: rgba(255, 71, 87, 0.3);
+    background: color-mix(in srgb, var(--danger-color) 26%, transparent);
 }
 
 .inline-ai-review-bar {
@@ -143,14 +154,14 @@
 }
 
 .review-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #ccc;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    color: var(--text-muted);
 }
 
 .review-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--hover-color);
+    color: var(--text-color);
 }
 
 /* --- Agent Status Messages (Chat) --- */

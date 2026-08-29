@@ -43,3 +43,14 @@ coverage/
 test-results/
 test_data/
 playwright-report/
+# Unzipped xlsx scratch from a design exercise (not source)
+docs/design/_unzip_tmp/
+
+# Signing keys. The updater's private key must never enter the repository —
+# it is what proves an update came from this project, and a copy in git is a
+# copy in every clone. Kept as a pattern rather than one path so a key written
+# to the repo root by mistake is caught too.
+*.key
+*.pem
+.tauri/
+tauri-signing-*

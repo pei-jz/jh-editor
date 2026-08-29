@@ -1,4 +1,5 @@
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
 
 // Ctrl+L: jump the active editor to a given line number.
 export const GotoLineModal = {
@@ -26,7 +27,7 @@ export const GotoLineModal = {
         const input = document.createElement('input');
         input.type = 'text';
         input.inputMode = 'numeric';
-        input.placeholder = 'Line number (Enter)';
+        input.placeholder = t('Line number (Enter)');
         input.style.cssText = 'width:100%; padding:8px 10px; font-size:14px; background:var(--bg-color-secondary,var(--bg-color)); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;';
 
         const err = document.createElement('div');

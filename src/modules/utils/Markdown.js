@@ -9,7 +9,7 @@ import { isDarkTheme } from './ThemeInfo.js';
  * left alone: this lands in a text node, not an attribute, and mermaid's own
  * syntax uses them.
  */
-function escapeForMermaid(code) {
+export function escapeForMermaid(code) {
     return String(code == null ? '' : code)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -63,6 +63,62 @@ export function configureMarkdown() {
     });
 }
 
+/** Where the mermaid bundle lives once Vite has copied `public/` into `dist/`. */
+const MERMAID_SRC = '/lib/mermaid.min.js';
+
+let _mermaidLoad = null;
+
+/**
+ * Load mermaid on first use, not at startup.
+ *
+ * The bundle is ~2.7 MB. It used to be a plain `<script>` in index.html, so
+ * every window paid to parse it on launch — including the windows that only
+ * ever open a log file. Diagrams are common in Markdown and rare everywhere
+ * else, so the cost belongs at the first diagram, not at every boot.
+ *
+ * Resolves to false rather than throwing when the file is missing: a document
+ * that cannot draw its diagram should still render its prose.
+ */
+export function ensureMermaid() {
+    if (typeof mermaid !== 'undefined') return Promise.resolve(true);
+    if (_mermaidLoad) return _mermaidLoad;
+
+    _mermaidLoad = new Promise((resolve) => {
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            // On failure the cached promise is cleared so the next diagram
+            // retries, instead of every later render inheriting one bad load.
+            if (!ok) _mermaidLoad = null;
+            resolve(ok);
+        };
+
+        // A script tag that neither loads nor errors would leave every caller
+        // awaiting forever, and renderMermaid is awaited by the preview path.
+        // Far longer than reading a local file, short enough to end.
+        const timer = setTimeout(() => {
+            console.error('Mermaid library timed out loading from', MERMAID_SRC);
+            finish(false);
+        }, 20000);
+
+        const script = document.createElement('script');
+        script.src = MERMAID_SRC;
+        script.async = true;
+        script.onload = () => {
+            initMermaid();
+            finish(typeof mermaid !== 'undefined');
+        };
+        script.onerror = () => {
+            console.error('Mermaid library failed to load from', MERMAID_SRC);
+            finish(false);
+        };
+        document.head.appendChild(script);
+    });
+    return _mermaidLoad;
+}
+
 export function initMermaid() {
     if (typeof mermaid === 'undefined') {
         console.error('Mermaid library not found');
@@ -72,7 +128,14 @@ export function initMermaid() {
         const isDark = isDarkTheme();
         mermaid.initialize({
             startOnLoad: false,
-            securityLevel: 'loose',
+            // 'strict', not 'loose'. Loose lets a diagram's `click` directive
+            // call arbitrary JavaScript and passes HTML in labels straight
+            // through — from a fence in a document the user merely opened, in
+            // the privileged main window. Strict encodes label HTML and runs
+            // mermaid's own sanitiser over the SVG it produces. `<br/>` still
+            // breaks lines: mermaid splits on it itself rather than relying on
+            // the HTML parser.
+            securityLevel: 'strict',
             theme: isDark ? 'dark' : 'default'
         });
     } catch (e) {
@@ -108,7 +171,9 @@ let _mermaidQueue = Promise.resolve();
 let _mermaidSeq = 0;
 
 export async function renderMermaid(container = document) {
-    if (typeof mermaid === 'undefined') return;
+    // Every diagram render in the app funnels through here, which is why this
+    // is where the library gets loaded: nothing else has to remember to.
+    if (!(await ensureMermaid())) return;
 
     // 1. Fallback for language-mermaid class
     const defaultBlocks = container.querySelectorAll('code.language-mermaid');
@@ -140,9 +205,12 @@ export async function renderMermaid(container = document) {
     _mermaidQueue = _mermaidQueue.then(async () => {
         try {
             const isDark = isDarkTheme();
+            // Re-initialised per run to pick up a theme change. Kept in step
+            // with initMermaid() above — including securityLevel: a second
+            // 'loose' here would have quietly undone the first one.
             mermaid.initialize({
                 startOnLoad: false,
-                securityLevel: 'loose',
+                securityLevel: 'strict',
                 theme: isDark ? 'dark' : 'default'
             });
             await mermaid.run({ nodes, suppressErrors: true });

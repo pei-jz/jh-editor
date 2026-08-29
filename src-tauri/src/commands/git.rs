@@ -663,3 +663,40 @@ pub async fn git_ignore(path: String, file: String) -> Result<(), String> {
     Ok(())
 }
 
+
+/// Run a git subcommand given as ARGUMENTS, and return its stdout.
+///
+/// This replaces the old `app::run_command`, which handed a whole command line
+/// to `cmd /C` (Windows) or `sh -c`. That command was registered for the whole
+/// webview, so any JavaScript running in the window — including script injected
+/// through a rendered Markdown document — could execute arbitrary shell. Every
+/// caller was running git, so the general shell was pure attack surface with no
+/// user-visible benefit.
+///
+/// Arguments go through `Command::args`, so a branch or tag whose name contains
+/// a space, a quote or `&` reaches git as exactly one argv entry. The quoting
+/// that `cleanRef` was written to undo cannot happen here, because there is no
+/// shell left to do the quoting.
+#[tauri::command]
+pub async fn git_exec(args: Vec<String>, cwd: String) -> Result<String, String> {
+    if args.is_empty() {
+        return Err("git_exec: no arguments given".into());
+    }
+
+    let output = git_command()
+        .args(&args)
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+
+    let stdout = decode_git_bytes(&output.stdout);
+    if output.status.success() {
+        return Ok(stdout);
+    }
+
+    // git writes the useful part to stderr; fall back to stdout when it is
+    // silent, so the caller never gets an empty error message.
+    let stderr = decode_git_bytes(&output.stderr);
+    let detail = if stderr.trim().is_empty() { stdout } else { stderr };
+    Err(format!("git {} failed: {}", args.join(" "), detail.trim()))
+}

@@ -77,40 +77,6 @@ pub fn expand_env_path(path: String) -> String {
     out
 }
 
-#[command]
-pub async fn run_command(command: String, cwd: Option<String>) -> Result<String, String> {
-    let mut cmd = if cfg!(target_os = "windows") {
-        let mut c = std::process::Command::new("cmd");
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            c.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
-        c.arg("/C").arg(&command);
-        c
-    } else {
-        let mut c = std::process::Command::new("sh");
-        c.arg("-c").arg(&command);
-        c
-    };
-
-    if let Some(c) = cwd {
-        cmd.current_dir(c);
-    }
-
-    let output = cmd.output().map_err(|e| e.to_string())?;
-    
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    
-    if output.status.success() {
-        Ok(stdout)
-    } else {
-        Err(format!("Command failed with exit code: {:?}\nStdout: {}\nStderr: {}", 
-            output.status.code(), stdout, stderr))
-    }
-}
-
 /// Open the webview's developer tools.
 ///
 /// The window has to ask for these itself. F12 is bound to Go to Definition in

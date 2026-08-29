@@ -1,6 +1,8 @@
 import { State } from '../core/Store.js';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { icon as svgIcon } from './Icons.js';
+import { t } from '../utils/I18n.js';
 
 // Ctrl+G: workspace grep. Pick a folder + subfolder toggle + options, run the
 // search, and show the results in a tab (see window.app.openSearchResults).
@@ -104,13 +106,13 @@ export const GrepModal = {
         folderRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
         const folderLabel = document.createElement('span');
         folderLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        folderLabel.textContent = 'In:';
+        folderLabel.textContent = t('In:');
         const folderPath = document.createElement('span');
         folderPath.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--primary-color);';
         folderPath.textContent = folder || '';
         folderPath.title = folder || '';
         const folderBtn = document.createElement('button');
-        folderBtn.textContent = '📁 Choose Folder';
+        folderBtn.innerHTML = svgIcon('folder', { size: 13 }) + `<span>${t('Choose Folder')}</span>`;
         folderBtn.className = 'grep-btn';
         folderBtn.onclick = async () => {
             try {
@@ -119,8 +121,8 @@ export const GrepModal = {
             } catch (_) {}
         };
         const resetBtn = document.createElement('button');
-        resetBtn.textContent = 'WS Root';
-        resetBtn.title = 'Back to the workspace root';
+        resetBtn.textContent = t('WS Root');
+        resetBtn.title = t('Back to the workspace root');
         resetBtn.className = 'grep-btn';
         resetBtn.onclick = () => { folder = State.currentDir; folderPath.textContent = folder; folderPath.title = folder; };
         folderRow.append(folderLabel, folderPath, folderBtn, resetBtn);
@@ -130,7 +132,7 @@ export const GrepModal = {
         globRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
         const globLabel = document.createElement('span');
         globLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        globLabel.textContent = 'Files:';
+        globLabel.textContent = t('Files:');
         const glob = document.createElement('input');
         glob.type = 'text';
         glob.placeholder = '*.java, *.xml   (empty = all / prefix ! to exclude)';
@@ -164,7 +166,7 @@ export const GrepModal = {
         const status = document.createElement('span');
         status.style.cssText = 'flex:1; font-size:12px; opacity:0.75;';
         const searchBtn = document.createElement('button');
-        searchBtn.textContent = '🔍 Search';
+        searchBtn.innerHTML = svgIcon('search', { size: 13 }) + `<span>${t('Search')}</span>`;
         searchBtn.className = 'grep-btn grep-btn-primary';
         footer.append(status, searchBtn);
 
@@ -195,7 +197,7 @@ export const GrepModal = {
             const opts = { regex: cRegex._cb.checked, caseSensitive: cCase._cb.checked, wholeWord: cWord._cb.checked };
             // Validate a regex pattern up-front so we don't open an empty tab.
             if (opts.regex) {
-                try { new RegExp(q); } catch (e) { status.textContent = 'Invalid regular expression: ' + e.message; return; }
+                try { new RegExp(q); } catch (e) { status.textContent = t('Invalid regular expression: ') + e.message; return; }
             }
             const searchId = Date.now() + Math.random();
 
@@ -225,7 +227,7 @@ export const GrepModal = {
                 });
                 close();
             } catch (e) {
-                status.textContent = 'Error: ' + (e && e.message ? e.message : e);
+                status.textContent = t('Error: ') + (e && e.message ? e.message : e);
                 running = false;
                 searchBtn.disabled = false;
             }

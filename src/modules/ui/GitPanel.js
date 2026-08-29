@@ -5,22 +5,22 @@ import { State } from '../core/Store.js';
 import { ContextMenu } from './ContextMenu.js';
 import AIAgent from '../ai/AIAgent.js';
 import { open } from '@tauri-apps/plugin-shell';
-import { promptLanguageName } from '../utils/I18n.js';
+import { promptLanguageName, t } from '../utils/I18n.js';
+import { icon as svgIcon, iconEl } from './Icons.js';
 
 /**
  * Strip quoting that leaked out of the shell.
  *
- * `run_command` runs through `cmd /C` on Windows, and Rust escapes the command
- * line it hands to cmd — but cmd does not understand that escaping, so a `"` in
- * the command survives as a literal character in the child's argv. A branch
- * listed with `--format="%(refname:short)"` therefore came back as `"master"`,
- * quotes included, and checking it out asked git for a *file* by that name:
+ * Git now runs through `git_exec`, which passes arguments as argv rather than
+ * building a command line for `cmd /C`, so the failure this was written for —
+ * a branch coming back as `"master"`, quotes included, and `checkout` then
+ * looking for a *file* by that name — can no longer happen:
  *
  *     pathspec '"memory-audit-fixes"' did not match any file(s) known to git
  *
- * The format strings no longer carry quotes. This is the belt to that braces —
- * a ref name can never legally contain a quote or a backslash, so anything of
- * the sort is quoting, not part of the name.
+ * Kept as a cheap guard on output that is about to be handed back to git. A ref
+ * name can never legally contain a quote or a backslash, so anything of the
+ * sort is quoting, not part of the name.
  */
 /**
  * Escape a value for use inside an attribute selector.
@@ -219,28 +219,28 @@ class GitPanel {
         this.element.className = 'git-panel-v2';
         this.element.innerHTML = `
             <div class="git-v2-repo" id="git-repo-row" style="display:none;">
-                <span class="git-icon">📁</span>
+                <span class="git-icon">${svgIcon('folder', { size: 13 })}</span>
                 <select id="git-repo-select" class="git-branch-dropdown"></select>
             </div>
             <div class="git-v2-header">
                 <div class="git-v2-branch">
-                    <span class="git-icon">🌿</span>
+                    <span class="git-icon">${svgIcon('branch', { size: 13 })}</span>
                     <div id="git-branch-select" class="git-branch-dropdown-host"></div>
                 </div>
                 <div class="git-v2-toolbar">
-                    <button id="git-compare-btn" title="Compare Branches">⇄</button>
+                    <button id="git-compare-btn" title="${t('Compare Branches')}" aria-label="Compare Branches">${svgIcon('compare', { size: 13 })}</button>
                     <button id="git-fetch-btn" title="Fetch All">⟳</button>
                     <button id="git-pull-btn" title="Pull">⤓</button>
                     <button id="git-push-btn" title="Push">⤒</button>
                     <button id="git-pr-btn" title="New Pull Request">PR</button>
-                    <button id="git-refresh-btn" title="Refresh Status">↺</button>
+                    <button id="git-refresh-btn" title="${t('Refresh Status')}" aria-label="Refresh Status">${svgIcon('refresh', { size: 13 })}</button>
                 </div>
             </div>
             
             <div class="git-v2-content">
                 <section class="git-section" id="git-section-changes">
                     <div class="git-section-header">
-                        <span class="git-section-arrow">▼</span>
+                        <span class="git-section-arrow jh-icon-rotate is-open">${svgIcon('chevron-right', { size: 11 })}</span>
                         <span>CHANGES</span>
                         <span class="git-count" id="git-count-changes">0</span>
                         <div class="git-section-actions">
@@ -252,12 +252,12 @@ class GitPanel {
 
                 <section class="git-section" id="git-section-staged">
                     <div class="git-section-header">
-                        <span class="git-section-arrow">▼</span>
+                        <span class="git-section-arrow jh-icon-rotate is-open">${svgIcon('chevron-right', { size: 11 })}</span>
                         <span>STAGED CHANGES</span>
                         <span class="git-count" id="git-count-staged">0</span>
                         <div class="git-section-actions">
                             <button id="git-unstage-all-btn" title="Unstage All"><svg viewBox="0 0 12 12" width="10" height="10"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="2"/></svg></button>
-                            <button id="git-commit-modal-btn" title="Commit" class="git-commit-btn-icon">✓</button>
+                            <button id="git-commit-modal-btn" title="${t('Commit')}" aria-label="Commit" class="git-commit-btn-icon">${svgIcon('check', { size: 13 })}</button>
                         </div>
                     </div>
                     <div class="git-section-list" id="git-list-staged"></div>
@@ -265,7 +265,7 @@ class GitPanel {
 
                 <section class="git-section" id="git-section-history">
                     <div class="git-section-header">
-                        <span class="git-section-arrow">▼</span>
+                        <span class="git-section-arrow jh-icon-rotate is-open">${svgIcon('chevron-right', { size: 11 })}</span>
                         <span>HISTORY</span>
                         <span class="git-compare-hint" id="git-compare-hint" style="margin-left:auto;margin-right:8px;font-size:10px;color:var(--primary-color);display:none;"></span>
                     </div>
@@ -289,7 +289,7 @@ class GitPanel {
                     <h3>Commit Changes</h3>
                     <textarea id="git-commit-input" placeholder="Commit message (Required)"></textarea>
                     <div class="git-modal-btns">
-                        <button id="git-commit-ai-btn" title="Generate a commit message from the staged diff">✨ AI</button>
+                        <button id="git-commit-ai-btn" title="${t('Generate a commit message from the staged diff')}">${svgIcon('sparkles', { size: 12 })}<span>AI</span></button>
                         <button id="git-commit-cancel">Cancel</button>
                         <button id="git-commit-confirm" class="primary-btn">Commit</button>
                     </div>
@@ -337,7 +337,8 @@ class GitPanel {
                 if (e.target.tagName === 'BUTTON') return;
                 const section = header.parentElement;
                 section.classList.toggle('collapsed');
-                header.querySelector('.git-section-arrow').textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+                header.querySelector('.git-section-arrow')
+            .classList.toggle('is-open', !section.classList.contains('collapsed'));
             };
         });
 
@@ -481,7 +482,7 @@ class GitPanel {
     async _checkGitDir(path) {
         if (!path) return false;
         try {
-            const result = await invoke('run_command', { command: 'git rev-parse --git-dir', cwd: path });
+            const result = await invoke('git_exec', { args: ['rev-parse', '--git-dir'], cwd: path });
             return result && result.trim().length > 0;
         } catch (e) {
             return false;
@@ -495,7 +496,7 @@ class GitPanel {
             prompt.className = 'git-init-prompt';
             prompt.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;';
             prompt.innerHTML = `
-                <div style="font-size:36px;opacity:0.4;">📁</div>
+                <div style="opacity:0.4;">${svgIcon('folder', { size: 36 })}</div>
                 <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">No Git repository here</div>
                 <button id="git-init-btn" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--primary-color, #3b82f6);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:opacity 0.15s;">
                     <span style="font-size:14px;">＋</span> Create a repository
@@ -552,9 +553,9 @@ class GitPanel {
         // longer answers "which branch am I on".
         this._activeBranch = activeBranch || '';
         try {
-            const output = await invoke('run_command', { 
-                command: 'git branch --format=%(refname:short)', 
-                cwd: State.gitRoot 
+            const output = await invoke('git_exec', {
+                args: ['branch', '--format=%(refname:short)'],
+                cwd: State.gitRoot,
             });
             const branches = output.split('\n').map(cleanRef).filter(b => b.length > 0);
             
@@ -565,8 +566,8 @@ class GitPanel {
                 const checkout = async (newBranch) => {
                     if (!newBranch || newBranch === activeBranch) return;
                     try {
-                        await invoke('run_command', {
-                            command: `git checkout ${newBranch}`,
+                        await invoke('git_exec', {
+                            args: ['checkout', newBranch],
                             cwd: State.gitRoot,
                         });
                         this.refresh();
@@ -815,7 +816,7 @@ class GitPanel {
 
                 div.innerHTML = `
                     <span class="git-tree-arrow" style="display: inline-block; width: 12px; text-align: center; margin-right: 6px; font-size: 10px; opacity: ${hasNoChildren ? '0.3' : '0.7'};">${isExpanded && !hasNoChildren ? '▼' : '▶'}</span>
-                    <span class="git-tree-icon" style="margin-right: 6px;">${hasNoChildren ? '📂' : '📁'}</span>
+                    <span class="git-tree-icon" style="margin-right: 6px;">${svgIcon(hasNoChildren ? 'folder-open' : 'folder', { size: 13 })}</span>
                     <span class="git-tree-label" style="font-weight: 500;">${node.name}</span>
                     <div class="git-file-actions" style="margin-left: auto;">
                         ${folderActionHtml}
@@ -1077,7 +1078,7 @@ class GitPanel {
 
     _showHistoryContextMenu(e, entry) {
         const items = [
-            { label: 'Select for Compare', action: () => this._setCompareBase(entry) },
+            { label: t('Select for Compare'), action: () => this._setCompareBase(entry) },
         ];
         if (this._compareBase && this._compareBase.hash !== entry.hash) {
             items.push({
@@ -1086,11 +1087,11 @@ class GitPanel {
             });
         }
         items.push({
-            label: 'Compare with Working Tree',
+            label: t('Compare with Working Tree'),
             action: () => this._compareWithWorkingTree(entry),
         });
         if (this._compareBase) {
-            items.push({ label: 'Clear Base', action: () => this._clearCompareBase() });
+            items.push({ label: t('Clear Base'), action: () => this._clearCompareBase() });
         }
         ContextMenu.show(e, items);
     }
@@ -1216,12 +1217,12 @@ class GitPanel {
         const titleEl = document.createElement('input');
         titleEl.type = 'text';
         titleEl.value = subject;
-        titleEl.placeholder = 'Pull request title';
+        titleEl.placeholder = t('Pull request title');
         titleEl.style.cssText = INPUT_CSS;
 
         const bodyEl = document.createElement('textarea');
         bodyEl.rows = 6;
-        bodyEl.placeholder = 'Description (optional)';
+        bodyEl.placeholder = t('Description (optional)');
         bodyEl.style.cssText = INPUT_CSS + 'resize:vertical;line-height:1.5;';
         // Enter must insert a newline here, not fire the dialog's primary button.
         bodyEl.dataset.dialogKeys = 'own';
@@ -1243,8 +1244,8 @@ class GitPanel {
             width: 'min(620px, 92vw)',
             content: form,
             buttons: [
-                { label: 'Cancel', value: false, cancel: true },
-                { label: 'Create', value: true, primary: true },
+                { label: t('Cancel'), value: false, cancel: true },
+                { label: t('Create'), value: true, primary: true },
             ],
         });
         if (!go) return;
@@ -1269,8 +1270,8 @@ class GitPanel {
                     title: 'Pull Request', kind: 'info',
                     message: `Created:\n${url}`,
                     buttons: [
-                        { label: 'Close', value: false, cancel: true },
-                        { label: 'Open in Browser', value: true, primary: true },
+                        { label: t('Close'), value: false, cancel: true },
+                        { label: t('Open in Browser'), value: true, primary: true },
                     ],
                 });
                 if (wantsOpen) this._openExternal(url);
@@ -1306,27 +1307,27 @@ class GitPanel {
      * (`%(refname:short)` renders those as `origin/main`), then tags.
      */
     async _listRefs() {
-        const run = async (cmd) => {
+        const run = async (args) => {
             try {
-                const out = await invoke('run_command', { command: cmd, cwd: State.gitRoot });
+                const out = await invoke('git_exec', { args, cwd: State.gitRoot });
                 return String(out || '').split('\n').map(cleanRef).filter(Boolean);
             } catch (e) {
                 return [];
             }
         };
-        const local = await run('git branch --format=%(refname:short)');
-        const remote = (await run('git branch -r --format=%(refname:short)'))
+        const local = await run(['branch', '--format=%(refname:short)']);
+        const remote = (await run(['branch', '-r', '--format=%(refname:short)']))
             // origin/HEAD is a symbolic pointer, not something to diff against.
             .filter((r) => !r.endsWith('/HEAD'));
-        const tags = await run('git tag --sort=-creatordate');
+        const tags = await run(['tag', '--sort=-creatordate']);
         return { local, remote, tags };
     }
 
     /** The commit a ref points at. `^{commit}` peels annotated tags. */
     async _revCommit(ref) {
         try {
-            const out = await invoke('run_command', {
-                command: `git rev-parse ${ref}^{commit}`, cwd: State.gitRoot,
+            const out = await invoke('git_exec', {
+                args: ['rev-parse', `${ref}^{commit}`], cwd: State.gitRoot,
             });
             return String(out || '').trim().split('\n')[0] || '';
         } catch (e) {
@@ -1361,9 +1362,9 @@ class GitPanel {
 
         const groupsFor = (extra) => [
             ...(extra ? [{ label: '', items: extra }] : []),
-            { label: 'Local', items: local },
-            { label: 'Remote', items: remote },
-            { label: 'Tags', items: tags },
+            { label: t('Local'), items: local },
+            { label: t('Remote'), items: remote },
+            { label: t('Tags'), items: tags },
         ].filter((g) => g.items.length);
 
         const label = (text) => {
@@ -1408,8 +1409,8 @@ class GitPanel {
             width: 'min(620px, 92vw)',
             content: form,
             buttons: [
-                { label: 'Cancel', value: false, cancel: true },
-                { label: 'Compare', value: true, primary: true },
+                { label: t('Cancel'), value: false, cancel: true },
+                { label: t('Compare'), value: true, primary: true },
             ],
         });
         if (!go) return;
@@ -1428,8 +1429,8 @@ class GitPanel {
         let headCommit = '';
         if (useMergeBase) {
             try {
-                const mb = await invoke('run_command', {
-                    command: `git merge-base ${base} ${head}`, cwd: State.gitRoot,
+                const mb = await invoke('git_exec', {
+                    args: ['merge-base', base, head], cwd: State.gitRoot,
                 });
                 mergeBase = String(mb || '').trim().split('\n')[0];
                 headCommit = await this._revCommit(head);
@@ -1485,7 +1486,7 @@ class GitPanel {
             });
             this._showCompareFileList(
                 { rev: entry.hash, short: entry.short_hash, label: entry.short_hash },
-                { rev: '', short: 'WT', label: 'Working Tree' },
+                { rev: '', short: 'WT', label: t('Working Tree') },
                 files,
                 `${entry.short_hash} … Working Tree`,
             );
@@ -1530,9 +1531,9 @@ class GitPanel {
 
         const header = document.createElement('div');
         header.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:8px;';
-        header.innerHTML = `<span style="font-weight:600;font-size:12px;">⇄ ${title}</span>
+        header.innerHTML = `<span class="jh-icon-row" style="font-weight:600;font-size:12px;">${svgIcon('compare', { size: 12 })}${title}</span>
             <span style="color:var(--text-secondary);font-size:11px;flex:1;text-align:right;">${files.length} files</span>
-            <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close">✕</button>`;
+            <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>`;
         header.querySelector('.git-commit-file-close').onclick = () => this._hideDetailPanel();
         listContainer.appendChild(header);
 
@@ -1572,7 +1573,7 @@ class GitPanel {
             row.style.paddingLeft = `${pad(depth)}px`;
             const caret = document.createElement('span');
             caret.className = 'git-cmp-caret';
-            caret.textContent = '▾';
+            caret.replaceChildren(iconEl('caret-down', { size: 12 }));
             const name = document.createElement('span');
             name.className = 'git-cmp-dir-name';
             name.textContent = dir.name;
@@ -1587,7 +1588,7 @@ class GitPanel {
             row.onclick = () => {
                 const hidden = children.style.display === 'none';
                 children.style.display = hidden ? '' : 'none';
-                caret.textContent = hidden ? '▾' : '▸';
+                caret.replaceChildren(iconEl(hidden ? 'caret-down' : 'caret-right', { size: 12 }));
             };
 
             host.append(row, children);
@@ -1655,9 +1656,9 @@ class GitPanel {
             refs.forEach(r => {
                 if (r.includes('tag:')) {
                     const tagName = r.replace('tag:', '').trim();
-                    tagsHtml += `<span style="background:rgba(56,139,253,0.15);color:#58a6ff;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;">🏷 ${tagName}</span>`;
+                    tagsHtml += `<span style="background:rgba(56,139,253,0.15);color:#58a6ff;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" class="jh-icon-row">${svgIcon('tag', { size: 10 })}${tagName}</span>`;
                 } else if (r.startsWith('HEAD ->') || r.includes('origin/') || r.includes('->')) {
-                    branchesHtml += `<span style="background:rgba(63,185,80,0.15);color:#3fb950;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;">🌿 ${r}</span>`;
+                    branchesHtml += `<span style="background:rgba(63,185,80,0.15);color:#3fb950;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" class="jh-icon-row">${svgIcon('branch', { size: 10 })}${r}</span>`;
                 } else {
                     branchesHtml += `<span style="background:rgba(63,185,80,0.15);color:#3fb950;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;">${r}</span>`;
                 }
@@ -1667,7 +1668,7 @@ class GitPanel {
         detail.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                 <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--text-color);">${entry.hash}</span>
-                <button class="git-commit-detail-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close">✕</button>
+                <button class="git-commit-detail-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-secondary);">
                 <div style="display:flex;align-items:center;gap:6px;">
@@ -1718,7 +1719,7 @@ class GitPanel {
         header.innerHTML = `<span style="font-weight:600;font-size:12px;">${hash.substring(0, 7)}</span>
             <span style="color:var(--text-secondary);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this._truncate(message, 40)}</span>
             <span style="color:var(--text-secondary);font-size:11px;">${files.length} files</span>
-            <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close">✕</button>`;
+            <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>`;
         listContainer.appendChild(header);
 
         // Close button handler
@@ -1852,7 +1853,7 @@ class GitPanel {
             return;
         }
 
-        input.placeholder = '✨ Generating…';
+        input.placeholder = t('Generating…');
         input.value = '';
 
         try {
@@ -1862,10 +1863,10 @@ class GitPanel {
             });
             const cleaned = (message || '').trim().replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/, '').trim();
             input.value = cleaned || '';
-            input.placeholder = 'Commit message (Required)';
+            input.placeholder = t('Commit message (Required)');
             if (cleaned) input.focus();
         } catch (e) {
-            input.placeholder = 'Commit message (Required)';
+            input.placeholder = t('Commit message (Required)');
             const msg = (e && e.message) || String(e);
             if (/not reachable|failed to fetch|connection refused/i.test(msg)) {
                 showAlert('Cannot reach J.H AI Agent. Start the agent and try again.', { title: 'Commit Message', kind: 'error' });

@@ -1316,3 +1316,87 @@ body.theme-kakejiku option {
     background-color: #e8edf1;
     color: #2b2f36;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DERIVED TOKENS
+   ═══════════════════════════════════════════════════════════════════════
+
+   Everything below is COMPUTED from the palette each theme already defines.
+   The point is that adding a theme stays a small job: declare the eight base
+   colours plus one direction flag, and the twenty-odd surface, text and state
+   tokens the components actually use come out of it.
+
+   Declared on `body`, not `:root`, and that matters. Custom properties resolve
+   where they are declared: a derived token written on :root would substitute
+   the :root palette and then inherit that resolved value downward — so every
+   theme, whose overrides land on `body.theme-x`, would silently get the LIGHT
+   values. Declaring them on `body` means they substitute the same element's
+   (themed) palette.
+
+   `--theme-contrast` is the one thing a theme must state that is not a colour
+   it already had: which way "away from the background" points. White on a dark
+   theme, black on a light one. With it, a raised surface, a scrim and a muted
+   text colour are all one color-mix() away, in a direction that is correct for
+   both families. */
+
+body {
+    /* Direction of "further from the background". Overridden by every dark
+       theme below; light themes keep this default. */
+    --theme-contrast: #000;
+
+    /* ── Surfaces ──────────────────────────────────────────────────────
+       An overlay is not the page: it sits above it and needs to read as a
+       separate plane, which on a light theme means slightly darker and on a
+       dark theme slightly lighter — hence mixing toward --theme-contrast. */
+    --surface-raised: color-mix(in srgb, var(--bg-color-secondary, var(--bg-color)) 94%, var(--theme-contrast));
+    --surface-sunken: color-mix(in srgb, var(--bg-color) 92%, var(--theme-contrast));
+    --overlay-bg: var(--surface-raised);
+    --overlay-border: var(--border-color);
+    --overlay-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.25));
+
+    /* The dimmer behind a modal. Always toward black — a white scrim over a
+       light theme reads as fog rather than as depth. */
+    --scrim: rgba(0, 0, 0, 0.45);
+
+    /* ── Text ─────────────────────────────────────────────────────────
+       Mixing toward transparent rather than toward a grey keeps these legible
+       on whatever surface they land on, including a translucent one. */
+    --text-muted: color-mix(in srgb, var(--text-color) 68%, transparent);
+    --text-faint: color-mix(in srgb, var(--text-color) 45%, transparent);
+    --text-on-primary: #fff;
+
+    /* ── The accent, at usable strengths ──────────────────────────────
+       Components kept reaching for rgba(10, 108, 255, 0.14) — the default
+       accent, frozen, on every theme. These are the same idea, themed. */
+    --primary-soft: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    --primary-soft-strong: color-mix(in srgb, var(--primary-color) 26%, transparent);
+    --primary-border: color-mix(in srgb, var(--primary-color) 45%, transparent);
+
+    /* ── Status ───────────────────────────────────────────────────────
+       Semantic, and separate from the accent. The git colours were already
+       carrying this job in a few places; these are the general names. */
+    --success-color: var(--git-staged-color, #3fb950);
+    --warning-color: var(--git-modified-color, #d29922);
+    --danger-color: var(--code-color, #f85149);
+    --success-soft: color-mix(in srgb, var(--success-color) 16%, transparent);
+    --warning-soft: color-mix(in srgb, var(--warning-color) 16%, transparent);
+    --danger-soft: color-mix(in srgb, var(--danger-color) 16%, transparent);
+
+    /* ── Controls ─────────────────────────────────────────────────────── */
+    --control-bg: color-mix(in srgb, var(--bg-color) 88%, var(--theme-contrast));
+    --control-border: var(--border-color);
+    --divider-color: color-mix(in srgb, var(--text-color) 14%, transparent);
+}
+
+/* The dark family. One line each — everything above follows. */
+body.theme-dark,
+body.theme-midnight,
+body.theme-solarized-dark,
+body.theme-bamboo-ancient,
+body.theme-nord {
+    --theme-contrast: #fff;
+    /* A raised surface on a dark theme should lift more than a light one
+       drops; the same 6% mix reads as almost nothing against dark ink. */
+    --surface-raised: color-mix(in srgb, var(--bg-color-secondary, var(--bg-color)) 90%, #fff);
+    --text-on-primary: #fff;
+}

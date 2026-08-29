@@ -1,4 +1,5 @@
 import { EL } from '../core/Constants.js';
+import { t } from '../utils/I18n.js';
 import { State } from '../core/Store.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { shortcuts } from '../core/ShortcutManager.js';
@@ -269,7 +270,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
             EL.findInput.title = '';
         } catch (e) {
             EL.findInput.style.borderColor = 'red';
-            EL.findInput.title = 'Invalid Regular Expression';
+            EL.findInput.title = t('Invalid Regular Expression');
             _updateMatchCount();
             return;
         }
@@ -312,7 +313,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
             EL.findInput.title = '';
         } catch (e) {
             EL.findInput.style.borderColor = 'red';
-            EL.findInput.title = 'Invalid Regular Expression';
+            EL.findInput.title = t('Invalid Regular Expression');
             _updateMatchCount();
             return;
         }
@@ -364,7 +365,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
             EL.findInput.title = '';
         } catch (e) {
             EL.findInput.style.borderColor = 'red';
-            EL.findInput.title = 'Invalid Regular Expression';
+            EL.findInput.title = t('Invalid Regular Expression');
             _updateMatchCount();
             return;
         }
@@ -405,7 +406,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
         EL.findInput.title = '';
     } catch (e) {
         EL.findInput.style.borderColor = 'red';
-        EL.findInput.title = 'Invalid Regular Expression';
+        EL.findInput.title = t('Invalid Regular Expression');
         _updateMatchCount();
         return;
     }

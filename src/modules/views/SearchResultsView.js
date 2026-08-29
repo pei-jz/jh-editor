@@ -1,4 +1,5 @@
 import { State } from '../core/Store.js';
+import { iconEl } from '../ui/Icons.js';
 
 // Renders workspace grep results as an interactive tab, grouped by file, each
 // match line clickable to open the file at that line. Supports STREAMING: the
@@ -68,7 +69,7 @@ export class SearchResultsView {
         .sr-dir-head { display: flex; align-items: center; gap: 6px; padding: 3px 12px; cursor: pointer; user-select: none; font-weight: 600; opacity: 0.9; }
         .sr-dir-head:hover { background: var(--hover-color); }
         .sr-dir-name { color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sr-dir-name::before { content: '📁'; margin-right: 5px; font-size: 11px; opacity: 0.8; }
+        .sr-dir-name { display: inline-flex; align-items: center; gap: 5px; }
         .sr-dir-count { opacity: 0.5; font-weight: 400; font-size: 11px; }
         .sr-dir-children { padding-left: 12px; border-left: 1px solid var(--border-color); margin-left: 6px; }
         .sr-caret { width: 10px; display: inline-block; opacity: 0.7; flex-shrink: 0; }
@@ -186,10 +187,11 @@ export class SearchResultsView {
         head.className = 'sr-dir-head';
         const caret = document.createElement('span');
         caret.className = 'sr-caret';
-        caret.textContent = '▾';
+        caret.replaceChildren(iconEl('caret-down', { size: 12 }));
         const nameEl = document.createElement('span');
         nameEl.className = 'sr-dir-name';
-        nameEl.textContent = name;
+        nameEl.appendChild(iconEl('folder', { size: 12 }));
+        nameEl.appendChild(document.createTextNode(name));
         nameEl.title = dirRel;
         const countEl = document.createElement('span');
         countEl.className = 'sr-dir-count';
@@ -200,7 +202,7 @@ export class SearchResultsView {
         const applyDirState = () => {
             const collapsed = this._collapsedDirs.has(dirRel);
             childrenEl.style.display = collapsed ? 'none' : 'block';
-            caret.textContent = collapsed ? '▸' : '▾';
+            caret.replaceChildren(iconEl(collapsed ? 'caret-right' : 'caret-down', { size: 12 }));
         };
         head.onclick = () => {
             if (this._collapsedDirs.has(dirRel)) this._collapsedDirs.delete(dirRel);
@@ -234,7 +236,7 @@ export class SearchResultsView {
         head.className = 'sr-file-head';
         const caret = document.createElement('span');
         caret.className = 'sr-file-caret';
-        caret.textContent = '▾';
+        caret.replaceChildren(iconEl('caret-down', { size: 12 }));
         const pathEl = document.createElement('span');
         pathEl.className = 'sr-file-path';
         pathEl.textContent = fileName;
@@ -248,7 +250,7 @@ export class SearchResultsView {
         const applyFileState = () => {
             const collapsed = this._collapsedFiles.has(path);
             linesDiv.style.display = collapsed ? 'none' : 'block';
-            caret.textContent = collapsed ? '▸' : '▾';
+            caret.replaceChildren(iconEl(collapsed ? 'caret-right' : 'caret-down', { size: 12 }));
         };
         head.onclick = () => {
             if (this._collapsedFiles.has(path)) this._collapsedFiles.delete(path);

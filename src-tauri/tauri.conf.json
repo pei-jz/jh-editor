@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "J.H Editor",
   "version": "0.1.0",
-  "identifier": "com.jh-editor.app",
+  "identifier": "io.github.pei-jz.jheditor",
   "build": {
     "devUrl": "http://localhost:1425",
     "frontendDist": "../dist",
@@ -23,22 +23,48 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self' 'unsafe-inline'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: asset: http://asset.localhost https://asset.localhost",
+        "media-src": "'self' data: blob: asset: http://asset.localhost https://asset.localhost",
+        "font-src": "'self' data:",
+        "worker-src": "'self' blob:",
+        "frame-src": "'self' data: blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost ws: wss: http: https: asset: http://asset.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'"
+      },
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**"]
+        "scope": [
+          "$HOME/**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/pei-jz/jh-editor/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDNTc4QzBDOTUwRDIxMTIKUldRU0lRMlZESXhYUENtN1NTcjgwWVV6RGRiQ3VNUkdqc0tuRDJwNGFkbXRqNFNmdlpmKy9uUSsK"
+    }
   }
 }

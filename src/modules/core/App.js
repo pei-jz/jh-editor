@@ -1,6 +1,6 @@
 import { State } from './Store.js';
 import { EL } from './Constants.js';
-import { configureMarkdown, initMermaid } from '../utils/Markdown.js';
+import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
 import { openFile, createNewFileAction, saveCurrentFile, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
@@ -20,6 +20,8 @@ import { initWelcomeScreen, showWelcomeScreen, hideWelcomeScreen } from '../ui/W
 import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal } from '../ui/SettingsModal.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
+import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
+import { applyIcons, iconEl } from '../ui/Icons.js';
 import { OutlineModal } from '../ui/OutlineModal.js';
 import { FileSearchModal } from '../ui/FileSearchModal.js';
 import { GrepModal } from '../ui/GrepModal.js';
@@ -42,7 +44,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
 import { setPaneActiveIndex } from './Panes.js';
-import { applyI18n } from '../utils/I18n.js';
+import { applyI18n, t } from '../utils/I18n.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -64,10 +66,109 @@ function initScrollbarAutoHide() {
     }, true); // capture: scroll doesn't bubble
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+/**
+ * Startup safety net.
+ *
+ * The window is created with `visible: false` (tauri.conf.json) so the user
+ * never sees an unpainted white rectangle while the frontend boots. The cost of
+ * that trade is that the FRONTEND owns making the window appear — and when boot
+ * threw on the way there, the process stayed alive with no window at all. From
+ * the outside that is an application that does nothing when you launch it, with
+ * no error, no log the user can reach, and nothing to report. A corrupt session
+ * file was enough to cause it.
+ *
+ * So: every exit from boot ends at `showMainWindow()` — success, throw, or a
+ * hang that never returns — and a failure puts the error on screen instead of
+ * leaving a blank window behind.
+ */
+let _windowShown = false;
+let _bootFinished = false;
+
+/** Reveal the main window. Idempotent — the watchdog and the normal path race. */
+function showMainWindow() {
+    if (_windowShown) return;
+    _windowShown = true;
+    try {
+        getCurrentWindow().show();
+    } catch (e) {
+        console.error('Failed to show window', e);
+    }
+}
+
+/**
+ * Boot failed. Show the window anyway and put the error somewhere the user can
+ * read and copy it, rather than leaving them with a window that never appears.
+ *
+ * Built with createElement/textContent, not innerHTML: this runs when the app
+ * is already in an unknown state, and an error message is the last place that
+ * should be able to inject markup.
+ */
+function reportBootFailure(err) {
+    console.error('Startup failed', err);
+    try {
+        const detail = (err && (err.stack || err.message)) || String(err);
+
+        const box = document.createElement('div');
+        box.setAttribute('role', 'alert');
+        box.style.cssText = 'position:fixed; inset:0; z-index:99999; overflow:auto;'
+            + 'display:flex; flex-direction:column; gap:12px; padding:32px;'
+            + 'background:var(--bg-color,#1e1e1e); color:var(--text-color,#ddd);'
+            + 'font-family:system-ui,sans-serif; font-size:14px; line-height:1.6;';
+
+        const title = document.createElement('h2');
+        title.textContent = t('J.H Editor failed to start');
+        title.style.cssText = 'margin:0; font-size:18px;';
+
+        const hint = document.createElement('p');
+        // One key for the whole sentence. Splitting a sentence across keys
+        // makes it untranslatable — word order is not the same in every
+        // language, so a translator needs the whole thought.
+        hint.textContent = t('The editor could not finish loading. The error is below — please include it when reporting this. Restarting may clear it; if it persists, the saved session may be corrupt.');
+        hint.style.cssText = 'margin:0; max-width:70ch; opacity:.85;';
+
+        const pre = document.createElement('pre');
+        pre.textContent = detail;
+        pre.style.cssText = 'margin:0; padding:12px; border-radius:4px; overflow:auto;'
+            + 'background:rgba(127,127,127,.15); white-space:pre-wrap; user-select:text;';
+
+        box.append(title, hint, pre);
+        document.body.appendChild(box);
+    } catch (_) {
+        /* The error reporter must never be the thing that throws. */
+    }
+    showMainWindow();
+}
+
+// Nothing was watching for uncaught errors at all, so a failure during boot was
+// invisible from inside the app.
+//
+// These deliberately do NOT paint the failure screen. Plenty of things reject
+// during boot without boot having failed — the AI agent being offline, an LSP
+// server that is not installed — and covering the editor with "failed to start"
+// because a background connect gave up would be worse than the bug this whole
+// block exists to fix. The screen is reserved for `bootstrap()` itself
+// throwing, which is the only signal that actually means boot did not finish.
+// What these guarantee is the part that matters: whatever goes wrong, the user
+// gets a window rather than a process with no UI.
+window.addEventListener('error', (e) => {
+    if (_bootFinished) return;
+    console.error('Uncaught error during startup', e.error || e.message);
+    showMainWindow();
+});
+window.addEventListener('unhandledrejection', (e) => {
+    if (_bootFinished) return;
+    console.error('Unhandled rejection during startup', e.reason);
+    showMainWindow();
+});
+
+async function bootstrap() {
     let gitPanel = null;
 
     initScrollbarAutoHide();
+    // Static chrome declares icons as data-icon and they are drawn here.
+    // Safe to do before paint: the window is still hidden, so there is no
+    // moment where the buttons are visibly empty.
+    applyIcons();
     applyI18n();
 
     // Persist the session + unsaved drafts on the way out. `pagehide` fires for
@@ -142,7 +243,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const branchEl = document.getElementById('status-git-branch');
                 if (branchEl) {
                     if (status && status.branch) {
-                        branchEl.textContent = `🌿 ${status.branch}`;
+                        branchEl.classList.add('jh-icon-row');
+                        branchEl.replaceChildren(
+                            iconEl('branch', { size: 12 }),
+                            document.createTextNode(status.branch),
+                        );
                         branchEl.style.display = 'inline';
                     } else {
                         branchEl.style.display = 'none';
@@ -153,9 +258,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Make git panel globally accessible for auto-refresh
             window.app.gitPanel = gitPanel;
 
-            // Heavy visual/parse stuff
+            // Heavy visual/parse stuff. Mermaid is NOT initialised here: it is
+            // 2.7 MB that most sessions never draw a diagram with, and
+            // renderMermaid() loads and initialises it on the first one.
             configureMarkdown();
-            initMermaid();
 
             // JHAI "AI Hub" MCP adapter — expose JHEditor's buffer/selection as
             // tools JHAI's LLM can call, and run intents (e.g. summarize_logs).
@@ -175,16 +281,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(deferInits, 500);
     }
 
+    /**
+     * Enter the editor with NO workspace.
+     *
+     * "Open File" and "New File" are the answer to "I just want to write
+     * something", so neither adopts a folder. That has to be done explicitly:
+     * the explorer, workspace grep and the Git panel all key off
+     * `State.currentDir`, and leaving it set — or leaving the empty explorer
+     * on screen — presents a workspace the user never chose.
+     *
+     * Same shape as the single-file launch argument path (`checkLaunchArgs`),
+     * which is why both go through here instead of each doing it their own way.
+     */
+    function startWorkspaceless() {
+        State.currentDir = '';
+        State.isExplorerVisible = false;
+        if (EL.explorer) EL.explorer.style.display = 'none';
+        showMainLayout();
+    }
+    window.app.startWorkspaceless = startWorkspaceless;
+
     // 2.2 Welcome Screen (Visible Part)
-    initWelcomeScreen(async (path) => {
-        await switchProject(path);
-        hideWelcomeScreen();
-        // Show Main Layout
-        const mainLayout = document.getElementById('main-layout');
-        if (mainLayout) {
-            mainLayout.style.display = 'flex';
-        }
-    });
+    initWelcomeScreen(
+        async (path) => {
+            await switchProject(path);
+            showMainLayout();
+        },
+        {
+            onOpenFile: async (path) => {
+                startWorkspaceless();
+                await openFile(path);
+                window.app.updateWindowTitle?.(path);
+            },
+            onNewFile: () => {
+                startWorkspaceless();
+                createNewFileAction();
+            },
+        },
+    );
 
     async function switchProject(path) {
         // Persist the OUTGOING project's session before anything closes, then
@@ -365,7 +499,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // A shortcut cannot tell you it exists, so the shortcut guide gets a
     // permanent, visible way in. It shows its own key, so it is a lesson as
     // much as a button.
-    EL.statusCommandsBtn?.addEventListener('click', () => toggleShortcutGuide());
+    // The always-visible way in. It used to open the shortcut GUIDE, which
+    // only lists things and only the things that have a key bound; it now
+    // opens the palette, which lists everything and runs it. The guide is
+    // still one row down the palette, and still on F1.
+    EL.statusCommandsBtn?.addEventListener('click', () => CommandPalette.toggle());
 
     // 3. Global Event Listeners
     if (EL.newFileBtn) EL.newFileBtn.addEventListener('click', createNewFileAction);
@@ -492,6 +630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'app:replace-next': replaceNext,
         'app:refresh-explorer': loadExplorer,
         'app:shortcut-guide': toggleShortcutGuide,
+        'app:command-palette': () => CommandPalette.toggle(),
         'app:focus-explorer': focusExplorer,
         'app:focus-editor': () => focusEditor({ toStart: true }),
         'app:agent-tasks': () => {
@@ -626,6 +765,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             globalActions[cmd](e);
         }
     };
+
+    // The palette runs commands through exactly the path a keystroke takes —
+    // active view first, global action second. Anything else would give a
+    // command two behaviours depending on how it was invoked.
+    initCommandPalette((cmd) => delegateToView(cmd)(null));
 
     // Skip GLOBAL as it's handled separately above. IMPORTANT: only register
     // the view-delegation fallback for commands that NO module has already
@@ -802,11 +946,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, true);
 
     // 6. Show Window (Hidden by default in tauri.conf.json to avoid white flash)
-    try {
-        getCurrentWindow().show();
-    } catch (e) {
-        console.error('Failed to show window', e);
-    }
+    showMainWindow();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // The watchdog covers the case a try/catch cannot: boot does not throw, it
+    // simply never returns — an await on something that will not settle. Four
+    // seconds is far longer than a normal boot and far shorter than the user
+    // deciding the app is broken.
+    const watchdog = setTimeout(showMainWindow, 4000);
+
+    bootstrap()
+        .catch(reportBootFailure)
+        .finally(() => {
+            clearTimeout(watchdog);
+            _bootFinished = true;
+            // Belt to the watchdog's braces: whatever happened above, the
+            // window is visible by the time this resolves.
+            showMainWindow();
+        });
 });
 
 async function checkLaunchArgs() {
@@ -841,9 +999,14 @@ async function checkLaunchArgs() {
         }
 
         // File → open directly as a workspace-less view in this window.
-        State.isExplorerVisible = false;
-        if (EL.explorer) EL.explorer.style.display = 'none';
+        // Same helper the Welcome screen's "Open File" uses, so the two cannot
+        // drift into treating a lone file differently.
         hideWelcomeScreen();
+        if (window.app.startWorkspaceless) window.app.startWorkspaceless();
+        else {
+            State.isExplorerVisible = false;
+            if (EL.explorer) EL.explorer.style.display = 'none';
+        }
         await openFile(target);
         showMain();
         window.app.updateWindowTitle?.(target);
@@ -856,26 +1019,60 @@ async function checkLaunchArgs() {
 }
 
 /**
+ * A buffer that has never been written to disk, so saving it must ask the user
+ * where to put it. Same test `saveCurrentFile()` applies before opening its
+ * Save As dialog — a relative path counts as "not yet on disk".
+ */
+function needsSaveLocation(file) {
+    const p = file && file.path;
+    return !(p && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/')));
+}
+
+/**
  * Save every dirty buffer, whichever pane it is in.
  *
- * Returns the names it could not save. Each file is made active first because
- * saveCurrentFile() works on the active tab — saving them in place would write
- * the front file's text once per dirty buffer.
+ * Each file is made active first because saveCurrentFile() works on the active
+ * tab — saving them in place would write the front file's text once per dirty
+ * buffer.
+ *
+ * Two things make this more than a loop:
+ *
+ *  - Buffers that already have a path go FIRST. They save without asking
+ *    anything, and the old order could reach an untitled buffer, have the user
+ *    cancel its Save As, and abandon the quit with work still unwritten that
+ *    needed no dialog at all.
+ *  - Cancelling a Save As is reported separately from a save that FAILED.
+ *    Both left the buffer dirty, so both used to come back as "Could not
+ *    save" — telling the user something went wrong when they had simply
+ *    changed their mind.
+ *
+ * Returns `{ failed, cancelled }`, both arrays of display names.
  */
 async function saveAllDirty(dirty) {
+    const ordered = [
+        ...dirty.filter((f) => !needsSaveLocation(f)),
+        ...dirty.filter((f) => needsSaveLocation(f)),
+    ];
+
     const failed = [];
-    for (const file of dirty) {
+    const cancelled = [];
+
+    for (const file of ordered) {
+        // Captured before saving: a successful Save As gives the file a path,
+        // so asking afterwards would always answer "no".
+        const willPrompt = needsSaveLocation(file);
+        const label = file.name || file.path || 'Untitled';
         try {
             const pane = (State.rightOpenFiles || []).includes(file) ? 'right' : 'left';
             const index = (pane === 'right' ? State.rightOpenFiles : State.openFiles).indexOf(file);
             if (index >= 0) setPaneActiveIndex(pane, index);
             await saveCurrentFile();
-            if (file.isDirty) failed.push(file.name || file.path || 'Untitled');
+            if (file.isDirty) (willPrompt ? cancelled : failed).push(label);
         } catch (e) {
-            failed.push(file.name || file.path || 'Untitled');
+            failed.push(label);
         }
     }
-    return failed;
+    return { failed, cancelled };
 }
 
 function setupCloseListener() {
@@ -894,31 +1091,51 @@ function setupCloseListener() {
 
             // Name them. "You have unsaved changes" leaves the reader deciding
             // blind about work they cannot see from the dialog.
-            const names = dirty.map((f) => f.name || f.path || 'Untitled');
+            const names = dirty.map((f) => f.name || f.path || t('Untitled'));
             const shown = names.slice(0, 6).join('\n  • ');
-            const more = names.length > 6 ? `\n  …and ${names.length - 6} more` : '';
+            const more = names.length > 6 ? `\n  ${t('…and {n} more').replace('{n}', names.length - 6)}` : '';
+
+            // "Save all" on a never-saved buffer opens a Save As dialog, one per
+            // buffer. Finding that out only after committing to quit is a
+            // surprise; saying so in the dialog makes it a choice.
+            const promptCount = dirty.filter(needsSaveLocation).length;
+            const promptNote = promptCount
+                ? '\n\n' + t('{n} of these have never been saved — you will be asked where to put each one.')
+                    .replace('{n}', promptCount)
+                : '';
 
             const choice = await showDialog({
-                title: 'Unsaved Changes',
+                title: t('Unsaved Changes'),
                 kind: 'warning',
-                message: `${names.length} file${names.length === 1 ? '' : 's'} `
-                    + `${names.length === 1 ? 'has' : 'have'} unsaved changes:\n\n  • ${shown}${more}`,
+                message: t('{n} file(s) have unsaved changes:').replace('{n}', names.length)
+                    + `\n\n  • ${shown}${more}${promptNote}`,
                 buttons: [
-                    { label: 'Cancel', value: 'cancel', cancel: true },
-                    { label: 'Quit without saving', value: 'discard' },
-                    { label: 'Save all and quit', value: 'save', primary: true },
+                    { label: t('Cancel'), value: 'cancel', cancel: true },
+                    { label: t('Quit without saving'), value: 'discard' },
+                    { label: t('Save all and quit'), value: 'save', primary: true },
                 ],
             });
 
             if (choice === 'save') {
-                const failed = await saveAllDirty(dirty);
+                const { failed, cancelled } = await saveAllDirty(dirty);
                 // A save that did not happen must not be followed by a quit:
                 // the user was told why, and quitting now loses exactly the
                 // work they just asked to keep.
-                if (failed.length) {
+                if (failed.length || cancelled.length) {
+                    const parts = [];
+                    if (failed.length) {
+                        parts.push(t('Could not save:') + `\n  • ${failed.join('\n  • ')}`);
+                    }
+                    if (cancelled.length) {
+                        parts.push(t('No location was chosen for:') + `\n  • ${cancelled.join('\n  • ')}`);
+                    }
                     await showAlert(
-                        `Could not save:\n  • ${failed.join('\n  • ')}\n\nNothing was closed.`,
-                        { title: 'Save Failed', kind: 'error' },
+                        parts.join('\n\n') + '\n\n' + t('Nothing was closed.'),
+                        {
+                            title: failed.length ? t('Save Failed') : t('Save Incomplete'),
+                            // A cancelled Save As is a choice, not a fault.
+                            kind: failed.length ? 'error' : 'warning',
+                        },
                     );
                     return;
                 }
