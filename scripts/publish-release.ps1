@@ -254,6 +254,19 @@ if ($NotesFile -and -not (Test-Path $NotesFile)) {
 Write-Step '公開'
 
 $assets = @($installer.FullName, $manifestPath)
+
+# ポータブル版があれば一緒に上げる。latest.json はインストーラを指したまま
+# にする —— 更新はインストーラ経由でしか適用できない。
+$portableZip = Get-ChildItem (Join-Path $repo 'src-tauri\target\release') `
+    -Filter '*-portable.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($portableZip) {
+    # 中身の確認まではしないが、名前だけでも版が合っているかは見る。
+    if ($portableZip.Name -notmatch [regex]::Escape($version)) {
+        Fail "ポータブル版の名前が版 $version と合わない: $($portableZip.Name)"
+    }
+    $assets += $portableZip.FullName
+}
+
 foreach ($a in $assets) { Write-Host "    $a" }
 
 $exists = $false

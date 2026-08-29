@@ -204,11 +204,76 @@ if (-not (Test-Path $manifest)) { Fail 'latest.json が見つからない' }
 
 $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
 
+# ------------------------------------------------------ ポータブル版
+
+# exe だけを固めた zip は配れない。著作権表示を複製物に含める条件は、
+# インストーラでもポータブルでも同じようにかかる。手で固めると必ず忘れる
+# ので、ここで一緒に入れる。
+Write-Step 'ポータブル版'
+
+$portableExe = Join-Path $repo 'src-tauri\target\release\jh_editor.exe'
+if (-not (Test-Path $portableExe)) {
+    Write-Warn 'jh_editor.exe が無いのでポータブル版は作らない'
+    $portableZip = $null
+} else {
+    $stage = Join-Path $repo 'src-tauri\target\release\portable'
+    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+    New-Item -ItemType Directory -Path $stage | Out-Null
+
+    Copy-Item $portableExe (Join-Path $stage 'jh_editor.exe')
+    foreach ($f in @('LICENSE', 'THIRD-PARTY-NOTICES.md')) {
+        $src = Join-Path $repo $f
+        if (-not (Test-Path $src)) { Fail "$f が無い。ポータブル版に同梱できない" }
+        Copy-Item $src (Join-Path $stage $f)
+    }
+
+    # インストーラと違い、ここには自動更新も WebView2 の導入も無い。
+    # 中に書いておかないと伝わらない。
+    $readme = @"
+J.H Editor $version (ポータブル版)
+
+jh_editor.exe をそのまま実行してください。インストールは不要です。
+
+## インストーラ版との違い
+
+自動更新はありません。インストーラを使わずに置いた場合、更新はこの
+ファイルではなくインストール先へ適用されてしまうため、更新機能自体を
+表示しないようにしています。新しい版は配布ページから入れ替えてください。
+
+Microsoft Edge WebView2 ランタイムが必要です。Windows 11 と、最近の
+Windows 10 には最初から入っています。起動しない場合は Microsoft の
+配布ページから WebView2 ランタイムを入れてください。インストーラ版は
+不足していれば自動で導入しますが、こちらにはその仕組みがありません。
+
+設定と履歴は exe の隣ではなく、次の場所に保存されます。
+持ち歩いても設定は付いてきません。
+
+  %LOCALAPPDATA%\io.github.pei-jz.jheditor
+
+## ライセンス
+
+MIT ライセンスです。本ソフトウェアは無保証で提供されます。
+LICENSE を参照してください。
+
+同梱している第三者ソフトウェアの著作権表示は
+THIRD-PARTY-NOTICES.md に記載しています。
+"@
+    Set-Content -Path (Join-Path $stage 'README.txt') -Value $readme -Encoding UTF8
+
+    $portableZip = Join-Path $repo ("src-tauri\target\release\J.H.Editor_{0}_x64-portable.zip" -f $version)
+    if (Test-Path $portableZip) { Remove-Item $portableZip -Force }
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $portableZip
+    Remove-Item $stage -Recurse -Force
+
+    Write-Ok ('{0} ({1:N0} bytes)' -f (Split-Path $portableZip -Leaf), (Get-Item $portableZip).Length)
+}
+
 Write-Step '成果物'
 Write-Host ('    {0}' -f $installer.FullName)
 Write-Host ('    {0:N0} bytes' -f $installer.Length) -ForegroundColor DarkGray
 Write-Host ('    SHA-256 {0}' -f $hash) -ForegroundColor DarkGray
 Write-Host ('    {0}' -f $manifest)
+if ($portableZip) { Write-Host ('    {0}' -f $portableZip) }
 
 Write-Step '次にすること'
 Write-Host '    1. ビルドした exe を実際に触って確認する'
