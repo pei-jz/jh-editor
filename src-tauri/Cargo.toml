@@ -50,6 +50,13 @@ memmap2 = "0.9"
 memchr = "2"
 ropey = "1.6"
 
+# インストール先を記録したレジストリ値を読むためだけに使う。ポータブルな
+# exe から更新をかけると、インストーラは登録済みの場所へ入るので、手元の
+# exe は古いまま残る。自分がインストールされた実体かどうかを、これで判定
+# する。src-tauri/nsis/hooks.nsh が書いた値を読む。
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6"
+
 [profile.release]
 lto = true
 strip = true

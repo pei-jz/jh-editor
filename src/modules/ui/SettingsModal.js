@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { shortcuts } from '../core/ShortcutManager.js';
 import { icon as svgIcon, iconEl } from './Icons.js';
 import * as Layout from '../core/Layout.js';
@@ -119,6 +120,26 @@ async function initUpdateCheck() {
     // 走った後は二度とボタンを出せなくなる —— 起動が一度きりの本番では
     // 起きないが、状態の片道通行はいずれ誰かを困らせる。
     btn.style.display = '';
+
+    // インストールされた実体でなければ、更新は成功したように見えて何も
+    // 変わらない。更新はインストーラを登録済みの場所へ展開するので、いま
+    // 動いているポータブルな exe はそのまま残り、次に起動するのも同じ古い
+    // ビルドになる。エラーも出ないので、更新できたと思い込むことになる。
+    // 押せば黙って外れる導線は置かない。
+    try {
+        if (!(await invoke('is_installed'))) {
+            btn.style.display = 'none';
+            const note = document.getElementById('about-portable-note');
+            if (note) note.style.display = '';
+            return;
+        }
+    } catch (e) {
+        // 判定できないときは更新させない。誤って古いままにするほうが、
+        // 更新したつもりで別の場所へ展開させるより害が小さい。
+        console.warn('Could not tell whether this is an installed build', e);
+        btn.style.display = 'none';
+        return;
+    }
 
     let check = null;
     try {

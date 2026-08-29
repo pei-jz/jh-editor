@@ -64,3 +64,96 @@ describe('the update manifest', () => {
         expect(script).toContain('const tag = `v${version}`');
     });
 });
+
+describe('licence obligations', () => {
+    const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
+
+    it('states the project licence without a typo in it', () => {
+        const text = read('LICENSE');
+        expect(text).toContain('MIT License');
+        // The name was misspelled here and in the old bundle identifier
+        // (`com.jh-editer.app`). A copyright line is the one file where a
+        // typo is quoted back at you by everyone who redistributes it.
+        expect(text).not.toContain('Editer');
+        expect(text).toContain('Copyright (c) 2026 J.H Editor Team');
+    });
+
+    // MIT and BSD both require the copyright notice and permission text to
+    // travel with copies, and a binary is a copy. Shipping an installer with
+    // library code inside it and no notices is a licence violation, whatever
+    // this project licenses its own code under.
+    it('ships notices for the third-party code it bundles', () => {
+        const notices = read('THIRD-PARTY-NOTICES.md');
+
+        // Generated, not maintained by hand: dependencies get added and
+        // bumped, and a hand-written list is out of date the first time that
+        // happens — at which point it is a list, not compliance.
+        expect(notices).toContain('scripts/make-third-party-notices.mjs');
+
+        // The two libraries served straight out of public/lib never appear in
+        // any dependency graph, so nothing else would catch them going
+        // unattributed.
+        expect(notices).toContain('marked');
+        expect(notices).toContain('mermaid');
+
+        // Both halves of what actually ships.
+        expect(notices).toContain('npm');
+        expect(notices).toContain('Rust');
+    });
+
+    it('installs those notices next to the application', () => {
+        // Terms nobody can find after install are not much better than none.
+        expect(conf.bundle.resources).toContain('../THIRD-PARTY-NOTICES.md');
+        expect(conf.bundle.resources).toContain('../LICENSE');
+    });
+
+    it('puts the licence in front of the user during install', () => {
+        // The MIT text carries the warranty disclaimer, so the acceptance
+        // page doubles as where that gets shown.
+        expect(conf.bundle.licenseFile).toBe('../LICENSE');
+        expect(conf.bundle.copyright).toContain('2026');
+    });
+});
+
+describe('a portable copy', () => {
+    const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
+
+    // The updater runs the NSIS installer with /UPDATE and no /D, so the new
+    // version always goes to the registered install directory. From a
+    // portable exe that "succeeds" while changing nothing the user is running
+    // — no error, and the next launch is the same old build. The only way to
+    // tell is to ask whether this exe is the installed one.
+    it('is told apart by what the installer recorded', () => {
+        expect(conf.bundle.windows?.nsis?.installerHooks).toBe('nsis/hooks.nsh');
+
+        const hooks = read('src-tauri/nsis/hooks.nsh');
+        expect(hooks).toContain('NSIS_HOOK_POSTINSTALL');
+        expect(hooks).toContain('InstallLocation');
+        expect(hooks).toContain(conf.identifier);
+
+        // Uninstall has to clear it, or the next portable copy dropped in
+        // that directory inherits the answer.
+        expect(hooks).toContain('NSIS_HOOK_POSTUNINSTALL');
+        expect(hooks).toContain('DeleteRegKey');
+    });
+
+    it('does not offer an update it cannot apply', () => {
+        const rs = read('src-tauri/src/commands/app.rs');
+        expect(rs).toContain('pub fn is_installed()');
+        // A string compare fails over a trailing separator or a short path,
+        // and every such failure reads as "not installed".
+        expect(rs).toContain('canonicalize');
+
+        const ui = read('src/modules/ui/SettingsModal.js');
+        expect(ui).toContain("invoke('is_installed')");
+        expect(read('src-tauri/src/lib.rs')).toContain('commands::app::is_installed');
+    });
+
+    it('says why the button is missing rather than just hiding it', () => {
+        expect(read('index.html')).toContain('about-portable-note');
+        for (const loc of ['ja', 'zh', 'ko']) {
+            expect(read(`src/locales/${loc}.js`), `${loc} is missing the note`)
+                .toContain('This is a portable build.');
+        }
+    });
+});

@@ -475,6 +475,8 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '更新を確認',
+    'This is a portable build. To update, download the latest version and replace this copy.':
+        'これはポータブル版です。更新するには最新版をダウンロードして、このファイルを置き換えてください。',
     'Checking…': '確認中…',
     'Could not check for updates: {msg}': '更新を確認できませんでした: {msg}',
     'Downloading…': 'ダウンロード中…',

@@ -54,3 +54,4 @@ docs/design/_unzip_tmp/
 *.pem
 .tauri/
 tauri-signing-*
+.claude/launch.json
