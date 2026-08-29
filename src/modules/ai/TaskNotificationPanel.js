@@ -13,6 +13,8 @@
  */
 
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
+import { icon as svgIcon } from '../ui/Icons.js';
 import { showAlert } from '../ui/Dialog.js';
 
 export class TaskNotificationPanel {
@@ -59,12 +61,12 @@ export class TaskNotificationPanel {
             <div class="tnp-editor-wrap">
                 <div class="tnp-header" data-tauri-drag-region>
                     <div class="tnp-title">
-                        <span class="tnp-icon">🤖</span>
+                        <span class="tnp-icon">${svgIcon('robot', { size: 15 })}</span>
                         <span>Agent Tasks Control Panel</span>
                         <span class="tnp-badge" id="tnp-task-count" style="display: none;">0</span>
                     </div>
                     <div class="tnp-header-actions">
-                        <button id="tnp-refresh-btn" class="tnp-btn-icon" title="Refresh connection">🔄 Refresh Connection</button>
+                        <button id="tnp-refresh-btn" class="tnp-btn-icon" title="Refresh connection" data-i18n-title="Refresh connection">${svgIcon('refresh', { size: 13 })}<span>Refresh Connection</span></button>
                         <span id="tnp-status-dot" class="tnp-status-dot offline" title="Disconnected"></span>
                     </div>
                 </div>
@@ -104,18 +106,18 @@ export class TaskNotificationPanel {
             
             if (res.ok) {
                 dot.className = 'tnp-status-dot online';
-                dot.title = 'Connected to J.H AI Agent';
+                dot.title = t('Connected to J.H AI Agent');
                 this.isOffline = false;
                 await this._fetchTasks();
             } else {
                 dot.className = 'tnp-status-dot offline';
-                dot.title = 'Agent not responding';
+                dot.title = t('Agent not responding');
                 this.isOffline = true;
                 this._renderTaskList();
             }
         } catch (e) {
             dot.className = 'tnp-status-dot offline';
-            dot.title = 'Agent offline';
+            dot.title = t('Agent offline');
             this.isOffline = true;
             this._renderTaskList();
         }
@@ -216,7 +218,7 @@ export class TaskNotificationPanel {
                     break;
 
                 case 'tool_call':
-                    task.messages.push({ type: 'tool', text: `🛠️ ${data.name}` });
+                    task.messages.push({ type: 'tool', text: data.name });
                     break;
 
                 case 'confirm_request':
@@ -339,7 +341,7 @@ export class TaskNotificationPanel {
                         break;
 
                     case 'tool_call':
-                        task.messages.push({ type: 'tool', text: `🛠️ ${data.name}` });
+                        task.messages.push({ type: 'tool', text: data.name });
                         break;
 
                     case 'confirm_request':
@@ -410,7 +412,7 @@ export class TaskNotificationPanel {
         if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('J.H AI Agent — Task Complete', {
                 body: task.prompt.substring(0, 100),
-                icon: '🤖'
+                icon: 'robot'
             });
         }
     }
@@ -471,13 +473,16 @@ export class TaskNotificationPanel {
         if (tabsEl) {
             let tabsHtml = `
                 <div class="tnp-tab-item ${this.activeTabId === 'new-task' ? 'active' : ''}" data-tab-id="new-task">
-                    <span>➕ New Task</span>
+                    <span class="jh-icon-row">${svgIcon('plus', { size: 13 })}New Task</span>
                 </div>
             `;
             
             tabsHtml += this.tasks.map(task => {
                 const shortId = task.id.substring(0, 8);
-                const statusIcon = task.status === 'completed' ? '✅' : task.status === 'failed' ? '❌' : '⏳';
+                const statusIcon = svgIcon(
+                task.status === 'completed' ? 'check-circle'
+                : task.status === 'failed' ? 'x-circle'
+                : 'clock', { size: 13 });
                 const isActive = this.activeTabId === task.id;
                 return `
                     <div class="tnp-tab-item ${isActive ? 'active' : ''}" data-tab-id="${task.id}" title="${this._escapeHtml(task.prompt)}">
@@ -503,21 +508,21 @@ export class TaskNotificationPanel {
                 if (this.isOffline) {
                     bodyContentEl.innerHTML = `
                         <div class="tnp-empty-state" style="padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%;">
-                            <span style="font-size: 32px;">🔌</span>
+                            <span>${svgIcon('plug', { size: 32 })}</span>
                             <span style="font-size: 15px; font-weight: bold; color: var(--error-color, #ff4d4f);">J.H AI Agent Server is offline</span>
                             <span class="tnp-empty-hint" style="max-width: 400px; line-height: 1.5; margin-bottom: 12px;">
                                 The editor could not reach the agent. Check that the agent server is running.
                             </span>
-                            <div style="text-align: left; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
-                                <strong style="display:block; margin-bottom: 6px;">💡 To reconnect:</strong>
+                            <div style="text-align: left; background: var(--surface-sunken); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
+                                <strong class="jh-icon-row" style="margin-bottom: 6px;">${svgIcon('lightbulb', { size: 13 })}To reconnect:</strong>
                                 <ol style="margin: 0; padding-left: 18px; line-height: 1.6; opacity: 0.8;">
                                     <li>Start the <strong>J.H AI Agent</strong> app.</li>
-                                    <li>In the agent, press <strong>Settings → General → 📤 Export Connection</strong>.</li>
-                                    <li>Or enter the connection details by hand in <strong>⚙️ Settings → Agent</strong>.</li>
+                                    <li>In the agent, press <strong>Settings → General → Export Connection</strong>.</li>
+                                    <li>Or enter the connection details by hand in <strong>Settings → Agent</strong>.</li>
                                 </ol>
                             </div>
                             <button id="tnp-retry-conn-btn" class="primary-btn" style="padding: 8px 16px; font-size: 12px; margin-top: 10px; cursor: pointer;">
-                                🔄 Test the connection again
+                                Test the connection again
                             </button>
                         </div>
                     `;
@@ -537,7 +542,7 @@ export class TaskNotificationPanel {
                                     <input id="tnp-workspace-input" class="tnp-workspace" type="text" placeholder="Workspace path" value="${State.currentDir || ''}" style="width: 100%; height: 32px;" />
                                 </div>
                                 <button id="tnp-submit-btn" class="tnp-submit-btn" title="Submit Task" style="height: 32px; padding: 0 16px;">
-                                    <span>▶</span> Run Agent Task
+                                    <span>${svgIcon('play', { size: 12 })}</span> Run Agent Task
                                 </button>
                             </div>
                         </div>
@@ -555,7 +560,10 @@ export class TaskNotificationPanel {
                 } else {
                     const taskIdStr = task.id || '';
                     const shortId = taskIdStr.substring(0, 8);
-                    const statusIcon = task.status === 'completed' ? '✅' : task.status === 'failed' ? '❌' : '⏳';
+                    const statusIcon = svgIcon(
+                task.status === 'completed' ? 'check-circle'
+                : task.status === 'failed' ? 'x-circle'
+                : 'clock', { size: 13 });
                     const progressPct = Math.round((task.progress || 0) * 100);
                     
                     // Stats
@@ -567,9 +575,9 @@ export class TaskNotificationPanel {
                     
                     let statsHtml = `
                         <div class="tnp-detail-stats" style="display: flex; gap: 12px; font-size: 11px; opacity: 0.8; margin-top: 6px;">
-                            <span>🕒 Started: ${startedAtStr}</span>
-                            ${completedAtStr ? `<span>🏁 Finished: ${completedAtStr}</span>` : ''}
-                            <span>🪙 Tokens: ${totalTokens} (Prompt: ${promptTokens}, Completion: ${completionTokens})</span>
+                            <span class="jh-icon-row">${svgIcon('clock', { size: 12 })}Started: ${startedAtStr}</span>
+                            ${completedAtStr ? `<span class="jh-icon-row">${svgIcon('flag', { size: 12 })}Finished: ${completedAtStr}</span>` : ''}
+                            <span class="jh-icon-row">${svgIcon('coin', { size: 12 })}Tokens: ${totalTokens} (Prompt: ${promptTokens}, Completion: ${completionTokens})</span>
                         </div>
                     `;
 
@@ -579,17 +587,17 @@ export class TaskNotificationPanel {
                     if (pendingApproval) {
                         const globalIdx = (task.messages || []).indexOf(pendingApproval);
                         approvalHtml = `
-                            <div class="tnp-msg-approval" style="margin-bottom: 16px; padding: 16px; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 8px;">
-                                <h4 style="margin: 0 0 8px 0; color: #ffc107; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px;">
-                                    ⚠️ Approval Required
+                            <div class="tnp-msg-approval" style="margin-bottom: 16px; padding: 16px; background: var(--warning-soft); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 8px;">
+                                <h4 style="margin: 0 0 8px 0; color: var(--warning-color); font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                                    Approval Required
                                 </h4>
                                 <div style="font-size: 13px; margin-bottom: 12px; line-height: 1.4;">
                                     ${pendingApproval.data?.message || 'The agent requires your confirmation to proceed.'}
                                 </div>
-                                ${pendingApproval.data?.command ? `<pre style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap;">${this._escapeHtml(pendingApproval.data.command)}</pre>` : ''}
+                                ${pendingApproval.data?.command ? `<pre style="background: var(--surface-sunken); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap;">${this._escapeHtml(pendingApproval.data.command)}</pre>` : ''}
                                 <div class="tnp-approval-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
-                                    <button id="tnp-approve-${task.id}-${globalIdx}" class="tnp-btn-approve" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">✅ Approve</button>
-                                    <button id="tnp-deny-${task.id}-${globalIdx}" class="tnp-btn-deny" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">❌ Deny</button>
+                                    <button id="tnp-approve-${task.id}-${globalIdx}" class="tnp-btn-approve" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">${svgIcon('check', { size: 12 })}<span>Approve</span></button>
+                                    <button id="tnp-deny-${task.id}-${globalIdx}" class="tnp-btn-deny" style="padding: 6px 14px; font-size: 11px; font-weight: bold;">${svgIcon('x', { size: 12 })}<span>Deny</span></button>
                                 </div>
                             </div>
                         `;
@@ -602,7 +610,7 @@ export class TaskNotificationPanel {
                         const latestAction = [...(task.messages || [])].reverse().find(msg => msg.type === 'tool' || msg.type === 'status');
                         
                         runningProgressHtml = `
-                            <div class="tnp-detail-progress-card" style="padding: 12px; background: rgba(55, 148, 255, 0.05); border: 1px solid rgba(55, 148, 255, 0.15); border-radius: 8px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+                            <div class="tnp-detail-progress-card" style="padding: 12px; background: var(--primary-soft); border: 1px solid rgba(55, 148, 255, 0.15); border-radius: 8px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <span style="font-size: 12px; font-weight: 600; color: var(--primary-color);">⏳ Agent is executing...</span>
                                     <span style="font-size: 12px; font-weight: 700; color: var(--primary-color);">${progressPct}%</span>
@@ -610,7 +618,7 @@ export class TaskNotificationPanel {
                                 <div class="tnp-progress-bar"><div class="tnp-progress-fill" style="width: ${progressPct}%"></div></div>
                                 
                                 ${latestThought ? `
-                                    <div class="tnp-detail-latest-thought" style="font-size: 12px; color: var(--text-secondary); background: rgba(0,0,0,0.15); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--primary-color);">
+                                    <div class="tnp-detail-latest-thought" style="font-size: 12px; color: var(--text-secondary); background: var(--surface-sunken); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--primary-color);">
                                         <strong style="font-size: 10px; text-transform: uppercase; display: block; opacity: 0.6; margin-bottom: 4px; font-family: sans-serif;">Latest Thought</strong>
                                         <span style="font-style: italic;">"${this._escapeHtml(latestThought.text)}"</span>
                                     </div>
@@ -618,7 +626,7 @@ export class TaskNotificationPanel {
                                 
                                 ${latestAction ? `
                                     <div class="tnp-detail-latest-action" style="font-size: 12px; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.1); padding: 6px 10px; border-radius: 6px;">
-                                        <span style="font-size: 14px;">⚡</span>
+                                        <span>${svgIcon('bolt', { size: 14 })}</span>
                                         <span>${this._escapeHtml(latestAction.text)}</span>
                                     </div>
                                 ` : ''}
@@ -633,9 +641,9 @@ export class TaskNotificationPanel {
                             ? marked.parse(task.finalResponse)
                             : `<p>${this._escapeHtml(task.finalResponse)}</p>`;
                         finalResponseHtml = `
-                            <div class="tnp-final-response" style="margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.015); border: 1px solid var(--border-color); border-radius: 8px;">
-                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #4caf50; display: flex; align-items: center; gap: 6px;">
-                                    ✅ Final Response / Report
+                            <div class="tnp-final-response" style="margin-bottom: 16px; padding: 16px; background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 8px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: var(--success-color); display: flex; align-items: center; gap: 6px;">
+                                    Final Response / Report
                                 </h4>
                                 <div class="tnp-markdown-body" style="font-size: 13px; line-height: 1.5; color: var(--text-color); overflow-x: auto; user-select: text;">
                                     ${rendered}
@@ -651,7 +659,7 @@ export class TaskNotificationPanel {
                         filesHtml = `
                             <div class="tnp-files" style="margin-bottom: 16px; padding: 16px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 8px;">
                                 <div class="tnp-files-title" style="font-size: 13px; font-weight: bold; color: var(--text-color); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                                    📂 Modified / Created Files (${modifiedFiles.length})
+                                    Modified / Created Files (${modifiedFiles.length})
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 8px;">
                                     ${modifiedFiles.map((f, fIdx) => {
@@ -659,15 +667,15 @@ export class TaskNotificationPanel {
                                         const basename = filePath.split(/[\\/]/).pop() || '?';
                                         const hasRichContent = typeof f === 'object' && f.original !== undefined && f.current !== undefined;
                                         return `
-                                            <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
+                                            <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-sunken); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
                                                 <div style="display: flex; flex-direction: column; min-width: 0; text-align: left;">
-                                                    <span style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">📄 ${basename}</span>
+                                                    <span style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" class="jh-icon-row">${svgIcon('file', { size: 12 })}${basename}</span>
                                                     <span style="font-size: 10px; opacity: 0.6; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: monospace;" title="${filePath}">${filePath}</span>
                                                 </div>
                                                 <div style="display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px;">
-                                                    <button class="tnp-btn-file-open" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">📂 Open</button>
+                                                    <button class="tnp-btn-file-open jh-icon-row" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: var(--control-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">${svgIcon('folder-open', { size: 11 })}Open</button>
                                                     ${filePath ? `
-                                                        <button class="tnp-btn-file-diff" data-task-id="${task.id}" data-file-idx="${fIdx}" style="padding: 4px 10px; font-size: 11px; background: var(--primary-color); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 500;">🔍 Diff</button>
+                                                        <button class="tnp-btn-file-diff jh-icon-row" data-task-id="${task.id}" data-file-idx="${fIdx}" style="padding: 4px 10px; font-size: 11px; background: var(--primary-color); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 500;">${svgIcon('search', { size: 11 })}Diff</button>
                                                     ` : ''}
                                                 </div>
                                             </div>
@@ -683,7 +691,7 @@ export class TaskNotificationPanel {
                     if (task.status === 'failed' && task.errorMessage) {
                         errorHtml = `
                             <div class="tnp-error" style="margin-bottom: 16px; padding: 16px; background: rgba(244, 67, 54, 0.08); border: 1px solid rgba(244, 67, 54, 0.25); border-radius: 8px; color: #ff6b6b; font-size: 13px;">
-                                <h4 style="margin: 0 0 6px 0; font-weight: bold; font-size: 13px;">❌ Task Failed</h4>
+                                <h4 class="jh-icon-row" style="margin: 0 0 6px 0; font-weight: bold; font-size: 13px;">${svgIcon('x-circle', { size: 13 })}Task Failed</h4>
                                 <div>${task.errorMessage}</div>
                             </div>
                         `;
@@ -696,8 +704,8 @@ export class TaskNotificationPanel {
                         activityLogHtml = `
                             <details class="tnp-activity-details" style="margin-top: 16px; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.1); text-align: left;">
                                 <summary style="padding: 10px 14px; font-size: 12px; font-weight: 600; cursor: pointer; outline: none; user-select: none; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-                                    <span>📜 Activity Log (${allLogs.length} events)</span>
-                                    <span class="tnp-details-arrow" style="font-size: 10px; opacity: 0.6;">▼</span>
+                                    <span class="jh-icon-row">${svgIcon('scroll', { size: 12 })}Activity Log (${allLogs.length} events)</span>
+                                    <span class="tnp-details-arrow" style="opacity: 0.6;">${svgIcon('chevron-down', { size: 11 })}</span>
                                 </summary>
                                 <div class="tnp-activity-history-list" style="padding: 0 14px 14px 14px; display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
                                     ${allLogs.map(msg => {

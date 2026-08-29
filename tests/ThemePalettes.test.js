@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { THEMES, themeClasses, darkThemeClasses } from '../src/modules/utils/Themes.js';
 
 // Themes that carry their own syntax palette (CodeMirrorView.PALETTE_THEMES).
 // Two things have gone wrong with these before: a dark theme was handed the
@@ -83,12 +84,12 @@ describe.each(PALETTE_THEMES)('theme %s', (name) => {
         }
     });
 
-    it('is offered in the settings selector', () => {
-        expect(read('index.html')).toContain(`<option value="${name}"`);
-    });
-
-    it('is cleared when switching away', () => {
-        expect(read('src/modules/ui/SettingsModal.js')).toContain(`'theme-${name}'`);
+    // The picker and the class-removal list are DERIVED from utils/Themes.js
+    // now, so what matters is that the theme is in that registry — being in
+    // the CSS but not the registry is the failure these used to catch, and it
+    // is checked once, for every theme, in the block at the foot of this file.
+    it('is declared in the theme registry', () => {
+        expect(THEMES.map((t) => t.id)).toContain(name);
     });
 
     it('paints a pre-hydration background so there is no light flash', () => {
@@ -169,7 +170,7 @@ describe('removed themes', () => {
 
     it('leaves the bold Paper theme in place', () => {
         expect(themeBlock('paper')).toContain('--bg-color: #f3e9d0;');
-        expect(read('index.html')).toContain('<option value="paper"');
+        expect(THEMES.map((t) => t.id)).toContain('paper');
     });
 });
 
@@ -177,15 +178,17 @@ describe('theme labels', () => {
     const options = read('index.html');
 
     it('names every theme in English', () => {
+        // The label lives in the registry and is both the visible text and the
+        // i18n key; the <option> elements are built from it at startup.
         for (const [value, label] of [
             ['bamboo-ancient', 'Bamboo Slip'],
             ['sumi-e', 'Ink Brush'],
             ['nord', 'Nord'],
             ['kakejiku', 'Hanging Scroll'],
         ]) {
-            // The English label is the i18n fallback: the option carries it as
-            // textContent and as the data-i18n key (translated in the UI).
-            expect(options, value).toContain(`<option value="${value}" data-i18n="${label}">${label}</option>`);
+            const th = THEMES.find((t) => t.id === value);
+            expect(th, value).toBeTruthy();
+            expect(th.label).toBe(label);
         }
     });
 
@@ -207,9 +210,11 @@ describe('dark-theme detection', () => {
     const info = read('src/modules/utils/ThemeInfo.js');
 
     it('names every dark theme in one place', () => {
+        // ThemeInfo delegates to the registry now, so the list is asserted
+        // against the registry rather than against the text of that module.
         for (const t of ['theme-dark', 'theme-midnight', 'theme-solarized-dark',
             'theme-bamboo-ancient', 'theme-nord']) {
-            expect(info, t).toContain(`'${t}'`);
+            expect(darkThemeClasses(), t).toContain(t);
         }
     });
 
@@ -217,6 +222,7 @@ describe('dark-theme detection', () => {
     it('excludes the light themes, Hanging Scroll included', () => {
         for (const t of ['theme-sumi-e', 'theme-kakejiku', 'theme-paper',
             'theme-latte', 'theme-solarized-light']) {
+            expect(darkThemeClasses(), t).not.toContain(t);
             expect(info, t).not.toContain(`'${t}'`);
         }
     });
@@ -232,5 +238,141 @@ describe('dark-theme detection', () => {
             // A second hand-rolled allowlist would look like this.
             expect(src, f).not.toContain("contains('theme-midnight')");
         }
+    });
+});
+
+/* One registry, and everything else has to agree with it. Adding a theme used
+   to mean editing five places, and forgetting any one of them failed quietly:
+   a missing dark flag draws a light syntax palette on a dark sheet, a missing
+   removal-list entry leaves two theme classes on <body> so the palette depends
+   on stylesheet order, a missing boot colour flashes white on launch. None of
+   them throw. These do. */
+describe('the theme registry is the single source', () => {
+    const themesCss = read('src/styles/themes.css');
+    const html = read('index.html');
+
+    it('gives every theme a palette in themes.css', () => {
+        const missing = THEMES
+            .filter((t) => t.id !== 'light')                 // `light` is bare :root
+            .filter((t) => !themesCss.includes(`body.theme-${t.id} {`))
+            .map((t) => t.id);
+        expect(missing, `no palette for: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('gives every theme a pre-stylesheet background', () => {
+        // index.html paints this before any CSS loads, to avoid a white flash
+        // on a dark theme. That script runs before modules, so it cannot import
+        // the registry — the duplication is checked instead of trusted.
+        // `dark` is the default: its colour is baked straight into the
+        // critical CSS rather than set by a branch, so it is checked there.
+        expect(html).toContain('background-color: #1e1e22');
+
+        const missing = THEMES
+            .filter((t) => t.id !== 'light' && t.id !== 'dark')
+            .filter((t) => !html.includes(`theme === '${t.id}'`))
+            .map((t) => t.id);
+        expect(missing, `no boot background for: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('agrees with index.html about what that background IS', () => {
+        const wrong = [];
+        for (const t of THEMES) {
+            if (t.id === 'light') continue;
+            const m = html.match(new RegExp(`theme === '${t.id}'[^\\n]*background-color:\\s*(#[0-9a-fA-F]{6})`));
+            if (!m) continue;                                 // covered above
+            if (m[1].toLowerCase() !== t.bootBg.toLowerCase()) {
+                wrong.push(`${t.id}: registry ${t.bootBg} vs html ${m[1]}`);
+            }
+        }
+        expect(wrong).toEqual([]);
+    });
+
+    it('declares the class-removal list from the registry, not by hand', () => {
+        const settings = read('src/modules/ui/SettingsModal.js');
+        expect(settings).toContain('document.body.classList.remove(...themeClasses())');
+        // `light` has no class of its own — it is the bare :root palette.
+        expect(themeClasses()).not.toContain('theme-light');
+        expect(themeClasses()).toHaveLength(THEMES.length - 1);
+    });
+
+    it('builds the picker from the registry', () => {
+        const settings = read('src/modules/ui/SettingsModal.js');
+        expect(settings).toContain('for (const th of THEMES)');
+        // The markup must NOT carry hand-written options any more, or the two
+        // lists would drift apart again.
+        expect(html).toContain('<select id="theme-selector"></select>');
+    });
+
+    it('says whether each theme is dark', () => {
+        for (const t of THEMES) {
+            expect(typeof t.dark, t.id).toBe('boolean');
+        }
+        // A sanity check on the flag itself: the registry and the CSS should
+        // not disagree about Hanging Scroll, which is the one hybrid.
+        expect(THEMES.find((t) => t.id === 'kakejiku').dark).toBe(false);
+    });
+});
+
+/* The derived-token layer. A theme should only have to declare its palette;
+   the surfaces, muted text and state colours are computed from it. */
+describe('derived theme tokens', () => {
+    const themesCss = read('src/styles/themes.css');
+
+    it('declares them on body, not :root', () => {
+        // Custom properties resolve where they are DECLARED. On :root they
+        // would substitute the light palette and inherit that value down, so
+        // every theme would silently get the light surfaces.
+        const i = themesCss.indexOf('--surface-raised:');
+        expect(i).toBeGreaterThan(-1);
+        const before = themesCss.slice(0, i);
+        const lastSelector = before.lastIndexOf('body {');
+        const lastRoot = before.lastIndexOf(':root {');
+        expect(lastSelector).toBeGreaterThan(lastRoot);
+    });
+
+    it('gives the dark family a contrast direction', () => {
+        expect(themesCss).toContain('--theme-contrast: #fff;');
+        expect(themesCss).toContain('--theme-contrast: #000;');
+    });
+
+    it('covers what the overlays need', () => {
+        for (const token of [
+            '--overlay-bg', '--overlay-border', '--overlay-shadow',
+            '--surface-raised', '--surface-sunken', '--scrim',
+            '--text-muted', '--text-faint', '--text-on-primary',
+            '--primary-soft', '--primary-border',
+            '--success-color', '--warning-color', '--danger-color',
+            '--control-bg', '--control-border', '--divider-color',
+        ]) {
+            expect(themesCss, token).toContain(`${token}:`);
+        }
+    });
+});
+
+/* The components that were frozen to one palette. Each of these looked fine on
+   the theme it was written against and wrong on the other ten. */
+describe('overlays read the theme', () => {
+    it('Inline AI is no longer a fixed dark panel', () => {
+        const css = read('src/styles/ai.css');
+        expect(css).not.toContain('background: rgba(30, 30, 35, 0.7)');
+        expect(css).not.toContain('background: #6c5ce7');
+        expect(css).toContain('var(--overlay-bg)');
+        const js = read('src/modules/ui/InlineAI.js');
+        // The default accent, frozen as a literal, on every theme.
+        expect(js).not.toContain('rgba(10,108,255,0.14)');
+        expect(js).not.toContain('rgba(10,108,255,0.15)');
+    });
+
+    it('the activity dock is no longer a fixed dark dock', () => {
+        const js = read('src/modules/ai/JhAiActivityPanel.js');
+        expect(js).not.toContain("'background:#1e1e1e'");
+        expect(js).toContain('var(--overlay-bg)');
+    });
+
+    it('the toast uses semantic status colours', () => {
+        const js = read('src/modules/ui/Toast.js');
+        expect(js).toContain('var(--success-color');
+        expect(js).toContain('var(--danger-color');
+        expect(js).toContain('var(--warning-color');
     });
 });

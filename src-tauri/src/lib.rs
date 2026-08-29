@@ -19,6 +19,8 @@ pub fn run() {
                 .unwrap_or_default();
             commands::window::route_open_in_process(app, &target);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
@@ -52,7 +54,7 @@ pub fn run() {
             commands::app::reveal_in_file_manager,
             commands::window::create_app_window,
             commands::window::take_launch_path,
-            commands::app::run_command,
+            commands::git::git_exec,
             commands::app::expand_env_path,
             commands::parser::parse_structured_data,
             commands::parser::get_node_children,

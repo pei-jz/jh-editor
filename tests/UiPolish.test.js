@@ -427,8 +427,9 @@ describe('when a snippet popup may open', () => {
     });
 });
 
-/* Ctrl+? already opens a filterable list of every command — but a shortcut
-   cannot advertise itself, so nothing on screen ever mentioned it. */
+/* The status-bar control is the always-visible way in, because a shortcut
+   cannot advertise itself. It opens the command PALETTE (which runs things),
+   not the shortcut guide (which only lists the things that have a key). */
 describe('the way in to the commands', () => {
     const html = read('index.html');
     const css = read('src/styles/features.css');
@@ -439,18 +440,23 @@ describe('the way in to the commands', () => {
         const j = html.indexOf('</button>', i);
         const btn = html.slice(html.lastIndexOf('<button', i), j);
         // It names the key, so it only has to be clicked once.
-        expect(btn).toContain('<kbd>Ctrl+?</kbd>');
+        expect(btn).toContain('<kbd>Ctrl+Shift+P</kbd>');
         expect(btn).toContain('Commands');
         // It sits in the status bar's right group, not over the editor.
         expect(html.indexOf('id="status-selection"')).toBeLessThan(i);
     });
 
-    it('opens the guide the shortcut opens', () => {
+    it('opens the command palette, and the palette can run what it lists', () => {
         expect(read('src/modules/core/Constants.js'))
             .toContain("getElementById('status-commands')");
-        expect(read('src/modules/core/App.js'))
-            .toContain('EL.statusCommandsBtn?.addEventListener');
-        expect(read('src/modules/core/App.js')).toContain('toggleShortcutGuide()');
+        const app = read('src/modules/core/App.js');
+        expect(app).toContain('EL.statusCommandsBtn?.addEventListener');
+        expect(app).toContain('CommandPalette.toggle()');
+        // The palette dispatches through the same path a keystroke takes, so a
+        // command cannot behave differently depending on how it was invoked.
+        expect(app).toContain('initCommandPalette((cmd) => delegateToView(cmd)(null))');
+        // The guide is still reachable — it is one row inside the palette.
+        expect(app).toContain("'app:shortcut-guide': toggleShortcutGuide");
     });
 
     // The same compounding mistake as the titlebar path: a second dimming can

@@ -1,4 +1,5 @@
 import { shortcuts } from '../core/ShortcutManager.js';
+import { icon as svgIcon, iconEl } from './Icons.js';
 import * as Layout from '../core/Layout.js';
 import { EL } from '../core/Constants.js';
 import { State } from '../core/Store.js';
@@ -14,7 +15,163 @@ import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
-import { getLanguage, setLanguage } from '../utils/I18n.js';
+import { getLanguage, setLanguage, t } from '../utils/I18n.js';
+import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
+
+/**
+ * Fill in the About block at the bottom of the General tab.
+ *
+ * There was previously nowhere in the running app to find out which build you
+ * were using, which made every bug report start with a round trip asking. The
+ * Copy button exists for the same reason: the point is that the version reaches
+ * the report, not that the user reads it off the screen and retypes it.
+ *
+ * Values are read at runtime from the Tauri APIs rather than baked in, so they
+ * cannot drift from the binary the user is actually running. Everything here is
+ * best-effort: outside a Tauri shell (unit tests, a plain browser) the fields
+ * stay at their placeholder instead of throwing.
+ */
+async function initAboutSection() {
+    const versionEl = document.getElementById('about-version');
+    const platformEl = document.getElementById('about-platform');
+    const tauriEl = document.getElementById('about-tauri');
+    const copyBtn = document.getElementById('about-copy-btn');
+    if (!versionEl) return;
+
+    let version = '';
+    let tauriVersion = '';
+    let platform = '';
+
+    try {
+        const app = await import('@tauri-apps/api/app');
+        version = await app.getVersion();
+        tauriVersion = await app.getTauriVersion();
+    } catch (_) { /* not running inside Tauri */ }
+
+    try {
+        const os = await import('@tauri-apps/plugin-os');
+        const [name, arch] = await Promise.all([os.platform(), os.arch()]);
+        platform = `${name} ${arch}`;
+    } catch (_) {
+        platform = (typeof navigator !== 'undefined' && navigator.platform) || '';
+    }
+
+    if (version) versionEl.textContent = `v${version}`;
+    if (platformEl && platform) platformEl.textContent = platform;
+    if (tauriEl && tauriVersion) tauriEl.textContent = tauriVersion;
+
+    initUpdateCheck();
+
+    if (copyBtn) {
+        copyBtn.onclick = async () => {
+            const lines = [
+                `J.H Editor v${version || 'unknown'}`,
+                `Platform: ${platform || 'unknown'}`,
+                `Tauri: ${tauriVersion || 'unknown'}`,
+            ].join('\n');
+            try {
+                const clip = await import('@tauri-apps/plugin-clipboard-manager');
+                await clip.writeText(lines);
+                Toast.show(t('Version info copied'));
+            } catch (_) {
+                try {
+                    await navigator.clipboard.writeText(lines);
+                    Toast.show(t('Version info copied'));
+                } catch (e) {
+                    Toast.show(t('Could not copy — select the text above instead'), 'error');
+                }
+            }
+        };
+    }
+}
+
+/**
+ * 「更新を確認」ボタン。
+ *
+ * 起動時に黙って確認して再起動する作りにはしていない。入力中に勝手に
+ * 再起動するエディタは、1 バージョン古いエディタより悪い。押したときだけ
+ * 動き、見つかっても適用するかどうかは本人が決める。
+ *
+ * 更新の完全性はプラグイン側が担保する。配信された更新にプロジェクトの
+ * 秘密鍵による署名がなければインストールされないので、配布物にコード署名が
+ * ないこととは無関係に、偽の更新を掴まされることはない。
+ *
+ * Tauri の外（単体テスト、素のブラウザ）ではボタン自体を隠す。押しても
+ * 何も起きないボタンを置くより、無いほうがましだから。
+ *
+ * 判定は import の成否ではなく IPC の有無で行う。プラグインは Vite が
+ * バンドルするので import は素のブラウザでも「成功」し、失敗するのは
+ * 実際に呼んだときの IPC —— つまり import の try/catch では検出できない。
+ */
+function inTauri() {
+    return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
+}
+
+async function initUpdateCheck() {
+    const btn = document.getElementById('about-update-btn');
+    if (!btn) return;
+
+    if (!inTauri()) {
+        btn.style.display = 'none';
+        return;
+    }
+    // 明示的に戻す。隠すだけで戻さないと、この関数は一度でも Tauri の外で
+    // 走った後は二度とボタンを出せなくなる —— 起動が一度きりの本番では
+    // 起きないが、状態の片道通行はいずれ誰かを困らせる。
+    btn.style.display = '';
+
+    let check = null;
+    try {
+        ({ check } = await import('@tauri-apps/plugin-updater'));
+    } catch (e) {
+        console.warn('Updater plugin unavailable', e);
+        btn.style.display = 'none';
+        return;
+    }
+
+    let busy = false;
+    btn.onclick = async () => {
+        if (busy) return;
+        busy = true;
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = t('Checking…');
+        try {
+            const update = await check();
+            if (!update) {
+                Toast.show(t('You are on the latest version.'));
+                return;
+            }
+            const ok = await showConfirm(
+                t('Version {v} is available. Download and install it now?', { v: update.version }),
+                { title: t('Update Available') },
+            );
+            if (!ok) return;
+
+            btn.textContent = t('Downloading…');
+            await update.downloadAndInstall();
+
+            // 再起動しないと更新は反映されない。未保存の作業を巻き込まない
+            // よう、閉じる前に本人に確認する —— onCloseRequested は
+            // relaunch() では走らないため、ここで聞くしかない。
+            const restart = await showConfirm(
+                t('The update is installed. Restart now to use it?'),
+                { title: t('Update Available') },
+            );
+            if (restart) {
+                const { relaunch } = await import('@tauri-apps/plugin-process');
+                await relaunch();
+            }
+        } catch (e) {
+            console.error('Update check failed', e);
+            Toast.show(t('Could not check for updates: {msg}', { msg: (e && e.message) || String(e) }), 'error');
+        } finally {
+            busy = false;
+            btn.disabled = false;
+            btn.textContent = label;
+        }
+    };
+}
 
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
@@ -167,6 +324,19 @@ export function initSettingsModal() {
 
     // Load saved theme
     const savedTheme = localStorage.getItem('theme') || 'light';
+    // Build the picker from the registry rather than from markup: a theme
+    // added to Themes.js appears here without anyone remembering to add an
+    // <option>, and the label goes through t() like every other string.
+    if (themeSelector && !themeSelector.options.length) {
+        for (const th of THEMES) {
+            const opt = document.createElement('option');
+            opt.value = th.id;
+            opt.textContent = t(th.label);
+            opt.setAttribute('data-i18n', th.label);
+            themeSelector.appendChild(opt);
+        }
+    }
+
     applyTheme(savedTheme);
     if (themeSelector) themeSelector.value = savedTheme;
 
@@ -188,6 +358,8 @@ export function initSettingsModal() {
             setLanguage(e.target.value);
         };
     }
+
+    initAboutSection();
 
     // Font Size Logic
     if (fontSizeInput) {
@@ -263,11 +435,11 @@ export function initSettingsModal() {
             <div class="settings-section-title">Agent Integration</div>
 
             <div id="agent-conn-status" style="margin-bottom:15px; padding:10px 12px; border-radius:6px; background:rgba(0,180,255,0.07); border:1px solid rgba(0,180,255,0.25); font-size:12px;">
-                <strong>🔍 Discovering connection…</strong>
+                <strong class="jh-icon-row">${svgIcon('search', { size: 13 })}Discovering connection…</strong>
             </div>
 
             <div class="settings-description" style="margin-bottom:15px; padding:8px; background:rgba(0,200,150,0.05); border-left:3px solid rgba(0,200,150,0.5); font-size:12px;">
-                ℹ️ <strong>Auto-discovery is preferred.</strong> In J.H AI Agent → Settings → General, click <strong>📤 Export Connection</strong>.
+                <strong>Auto-discovery is preferred.</strong> In J.H AI Agent → Settings → General, click <strong>Export Connection</strong>.
                 The settings below are <em>manual overrides</em> — leave them blank to use whatever JH AI Agent exported.
             </div>
 
@@ -290,7 +462,7 @@ export function initSettingsModal() {
             <div class="settings-section-title">Context Scope</div>
 
             <div class="settings-description" style="margin-bottom:12px; padding:8px; background:rgba(255,180,0,0.06); border-left:3px solid rgba(255,180,0,0.55); font-size:12px;">
-                🔒 How much of the editor the AI may read. The agent PULLS this itself while a task
+                How much of the editor the AI may read. The agent PULLS this itself while a task
                 runs — it is not sent unless a tool asks for it, and nothing here is sent when no
                 task is running. Personal notes are excluded at every level.
             </div>
@@ -376,7 +548,9 @@ export function initSettingsModal() {
                         ? 'fallback (no config found)'
                         : `auto-discovered (${cfg.source})`;
                 const dotColor = reachable ? '#3cb371' : '#d9534f';
-                const stateLabel = reachable ? '✅ Reachable' : '❌ Not responding';
+                const stateLabel = reachable
+            ? svgIcon('check-circle', { size: 12 }) + ' Reachable'
+            : svgIcon('x-circle', { size: 12 }) + ' Not responding';
                 status.innerHTML = `
                     <div style="display:flex; align-items:center; gap:8px;">
                         <span style="width:10px;height:10px;border-radius:50%;background:${dotColor};display:inline-block;"></span>
@@ -390,7 +564,7 @@ export function initSettingsModal() {
             } catch (e) {
                 const status = container.querySelector('#agent-conn-status');
                 if (status) {
-                    status.innerHTML = `<span style="color:#d9534f;">⚠ Discovery failed: ${e.message || e}</span>`;
+                    status.innerHTML = `<span class="jh-icon-row" style="color:#d9534f;">${svgIcon('warning', { size: 12 })}Discovery failed: ${e.message || e}</span>`;
                 }
             }
         })();
@@ -465,9 +639,9 @@ export function initSettingsModal() {
             const activeTab = document.querySelector('.settings-tab.active')?.dataset.tab;
             if (activeTab === 'agent') saveAgentSettings();
             else if (activeTab === 'keybindings') {
-                Toast.info('Keybindings are saved automatically as you record them.');
+                Toast.info(t('Keybindings are saved automatically as you record them.'));
             } else {
-                Toast.success('Settings Applied');
+                Toast.success(t('Settings Applied'));
             }
         };
     }
@@ -681,7 +855,7 @@ export function initSettingsModal() {
                 `;
                 if (MarkdownTemplates.isDeletable(t.id)) {
                     const del = document.createElement('button');
-                    del.textContent = 'Delete';
+                    del.textContent = t('Delete');
                     del.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:#d9534f; border:1px solid #d9534f; border-radius:4px;';
                     del.onclick = () => {
                         MarkdownTemplates.remove(t.id);
@@ -711,7 +885,7 @@ export function initSettingsModal() {
                     <span style="flex:1;"></span>
                 `;
                 const restore = document.createElement('button');
-                restore.textContent = 'Restore';
+                restore.textContent = t('Restore');
                 restore.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:var(--primary-color); border:1px solid var(--primary-color); border-radius:4px;';
                 restore.onclick = () => {
                     MarkdownTemplates.restoreBuiltin(t.id);
@@ -768,7 +942,7 @@ export function initSettingsModal() {
         const resetBtn = document.getElementById('reset-shortcuts-btn');
         if (resetBtn) {
             resetBtn.onclick = async () => {
-                if (await showConfirm('Reset all shortcuts to default?', { title: 'Shortcuts' })) {
+                if (await showConfirm(t('Reset all shortcuts to default?'), { title: 'Shortcuts' })) {
                     shortcuts.resetToDefaults();
                     renderKeybindings();
                 }
@@ -867,7 +1041,9 @@ export function initSettingsModal() {
 
                 const arrow = document.createElement('span');
                 arrow.className = 'snippet-group-arrow';
-                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+                arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+            arrow.classList.add('jh-icon-rotate');
+            arrow.classList.toggle('is-open', !collapsed.has(category));
 
                 const label = document.createElement('span');
                 label.className = 'snippet-group-name';
@@ -890,7 +1066,9 @@ export function initSettingsModal() {
                     writeCollapsed(now);
                     const open = !now.has(category);
                     groupBody.style.display = open ? '' : 'none';
-                    arrow.textContent = open ? '▼' : '▶';
+                    arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+                arrow.classList.add('jh-icon-rotate');
+                arrow.classList.toggle('is-open', !!open);
                     head.setAttribute('aria-expanded', String(open));
                 };
 
@@ -906,7 +1084,7 @@ export function initSettingsModal() {
                     // Re-filing a snippet without deleting and retyping it.
                     const move = document.createElement('select');
                     move.className = 'snippet-move';
-                    move.title = 'Move to another category';
+                    move.title = t('Move to another category');
                     for (const c of [...new Set([...Snippets.categories(), category])]) {
                         const o = document.createElement('option');
                         o.value = c;
@@ -923,7 +1101,7 @@ export function initSettingsModal() {
                     const del = document.createElement('button');
                     del.className = 'snippet-del';
                     del.textContent = '×';
-                    del.title = 'Delete snippet';
+                    del.title = t('Delete snippet');
                     del.onclick = () => {
                         Snippets.remove(s.id);
                         renderList();
@@ -1068,7 +1246,9 @@ export function initSettingsModal() {
 
                 const arrow = document.createElement('span');
                 arrow.className = 'snippet-group-arrow';
-                arrow.textContent = collapsed.has(category) ? '▶' : '▼';
+                arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
+            arrow.classList.add('jh-icon-rotate');
+            arrow.classList.toggle('is-open', !collapsed.has(category));
                 const name = document.createElement('span');
                 name.className = 'snippet-group-name';
                 name.textContent = category;
@@ -1105,7 +1285,7 @@ export function initSettingsModal() {
 
                     const move = document.createElement('select');
                     move.className = 'snippet-move';
-                    move.title = 'Move to another category';
+                    move.title = t('Move to another category');
                     for (const c of [...new Set([...RegexPresets.categories(), category])]) {
                         const o = document.createElement('option');
                         o.value = c;
@@ -1160,7 +1340,7 @@ export function initSettingsModal() {
                     const btn = document.createElement('button');
                     btn.className = 'primary-btn push';
                     btn.style.cssText = 'padding:3px 12px; font-size:11px;';
-                    btn.textContent = 'Restore';
+                    btn.textContent = t('Restore');
                     btn.onclick = () => {
                         RegexPresets.restore(preset.id);
                         renderList();
@@ -1187,10 +1367,12 @@ export function initSettingsModal() {
             try {
                 new RegExp(src);
                 checkEl.style.color = 'var(--git-staged-color, #4a7a4a)';
-                checkEl.textContent = '✓ valid';
+                checkEl.classList.add('jh-icon-row');
+                checkEl.replaceChildren(iconEl('check', { size: 12 }), document.createTextNode('valid'));
             } catch (e) {
                 checkEl.style.color = 'var(--error-color, #d9534f)';
-                checkEl.textContent = `✗ ${e.message}`;
+                checkEl.classList.add('jh-icon-row');
+                checkEl.replaceChildren(iconEl('x', { size: 12 }), document.createTextNode(e.message));
             }
         };
         patInput.addEventListener('input', check);
@@ -1235,9 +1417,11 @@ export function initSettingsModal() {
 }
 
 export function applyTheme(theme) {
-    document.body.classList.remove('theme-dark', 'theme-midnight', 'theme-latte', 'theme-solarized-dark', 'theme-solarized-light', 'theme-paper', 'theme-bamboo-ancient',
-        'theme-sumi-e', 'theme-nord', 'theme-kakejiku');
-    if (theme && theme !== 'light') {
+    // Derived from the registry, not repeated here. A theme missing from this
+    // list used to leave TWO theme classes on <body> at once, after which the
+    // palette depended on stylesheet order rather than on the setting.
+    document.body.classList.remove(...themeClasses());
+    if (theme && theme !== 'light' && isKnownTheme(theme)) {
         document.body.classList.add(`theme-${theme}`);
     }
 

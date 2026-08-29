@@ -79,7 +79,8 @@ describe('where the view lands after editing a block', () => {
 
     it('centres the block that was just edited', () => {
         expect(src).toContain('selectBlock(index, opts = {})');
-        expect(src).toContain("const { reveal = 'nearest', focus = true } = opts;");
+        // `extend` joined the options when contiguous multi-select landed.
+        expect(src).toContain("const { reveal = 'nearest', focus = true, extend = false } = opts;");
         expect(src).toContain("this.selectBlock(blockIndex, { reveal: 'center' });");
     });
 
@@ -107,7 +108,7 @@ describe('book mode does not steal the keyboard', () => {
 
     it('still focuses when the user actually navigates', () => {
         // The default is focus:true, so every other caller is unaffected.
-        expect(src).toContain('const { reveal = \'nearest\', focus = true } = opts;');
+        expect(src).toContain('const { reveal = \'nearest\', focus = true, extend = false } = opts;');
         expect(src).toContain('if (!focus) return;');
     });
 });

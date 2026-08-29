@@ -73,7 +73,7 @@ test.describe('JHEditor E2E', () => {
     await expect(page.locator('#new-file-overlay')).toBeVisible();
   });
 
-  test('commands button opens the shortcut guide', async ({ page }) => {
+  test('commands button opens the command palette, which runs what it lists', async ({ page }) => {
     await page.goto('/');
 
     // The Commands button lives in the status bar of the hidden main layout;
@@ -87,7 +87,35 @@ test.describe('JHEditor E2E', () => {
     await expect(commandsBtn).toBeVisible();
     await commandsBtn.click();
 
+    const palette = page.locator('.cmdp-overlay.is-open');
+    await expect(palette).toBeVisible();
+    await expect(page.locator('.cmdp-item').first()).toBeVisible();
+
+    // Typing initials is how a palette is actually driven.
+    await page.locator('.cmdp-input').fill('tgp');
+    await expect(page.locator('.cmdp-item').first().locator('.cmdp-item-label'))
+      .toHaveText('Toggle Git Panel');
+
+    // Enter runs the highlighted row. The shortcut guide is a command like any
+    // other now, which is how it stays reachable from here.
+    await page.locator('.cmdp-input').fill('shortcut guide');
+    await page.keyboard.press('Enter');
+    await expect(palette).toBeHidden();
     await expect(page.locator('#shortcut-guide-overlay')).toBeVisible();
     await expect(page.locator('#shortcut-list li').first()).toBeVisible();
+  });
+
+  test('the palette closes on Escape without running anything', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+      document.getElementById('welcome-screen').style.display = 'none';
+      document.getElementById('main-layout').style.display = 'flex';
+    });
+
+    await page.locator('#status-commands').click();
+    await expect(page.locator('.cmdp-overlay.is-open')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cmdp-overlay.is-open')).toBeHidden();
+    await expect(page.locator('#shortcut-guide-overlay')).toBeHidden();
   });
 });

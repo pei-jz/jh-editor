@@ -148,10 +148,33 @@ describe('renderMermaid', () => {
         expect(mermaidRun).not.toHaveBeenCalled();
     });
 
-    it('is a no-op when mermaid is missing', async () => {
+    // Mermaid is no longer a page global loaded at startup — it is 2.7 MB that
+    // most sessions never draw a diagram with, so renderMermaid fetches it on
+    // the first diagram. The contract that matters is unchanged: a document
+    // whose diagrams cannot be drawn still renders, quietly.
+    it('injects the mermaid bundle on the first diagram', async () => {
         delete globalThis.mermaid;
         document.body.innerHTML = '<div class="mermaid">graph TD;</div>';
-        await expect(renderMermaid(document)).resolves.toBeUndefined();
+
+        const pending = renderMermaid(document);
+        const tag = document.querySelector('script[src="/lib/mermaid.min.js"]');
+        expect(tag).not.toBeNull();
+
+        // jsdom does not fetch scripts, so drive the failure path explicitly.
+        tag.dispatchEvent(new Event('error'));
+        await expect(pending).resolves.toBeUndefined();
+        expect(mermaidRun).not.toHaveBeenCalled();
+    });
+
+    it('does not inject the bundle when mermaid is already present', async () => {
+        // beforeEach only resets <body>; a tag left in <head> by the test above
+        // would otherwise be mistaken for one this test caused.
+        document.querySelectorAll('script[src="/lib/mermaid.min.js"]').forEach((s) => s.remove());
+
+        document.body.innerHTML = '<div class="mermaid">graph TD;</div>';
+        await renderMermaid(document);
+        expect(document.querySelector('script[src="/lib/mermaid.min.js"]')).toBeNull();
+        expect(mermaidRun).toHaveBeenCalledTimes(1);
     });
 
     it('swallows render errors so one bad diagram cannot break the page', async () => {

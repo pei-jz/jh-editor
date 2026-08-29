@@ -78,29 +78,32 @@
   <link rel="stylesheet" href="/src/styles/folding.css">
   <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
   <script src="/lib/marked.min.js" defer></script>
-  <script src="/lib/mermaid.min.js" defer></script>
+  <!-- mermaid (~2.7 MB) is NOT loaded here. It is injected on demand by
+       Markdown.js::ensureMermaid() when a document actually contains a diagram,
+       so launching the app no longer parses it. The file is local, so there is
+       nothing to prefetch — the cost was always parsing, not fetching. -->
 </head>
 
 <body>
   <div id="custom-titlebar" data-tauri-drag-region>
     <div id="titlebar-left-tools">
-      <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer">☰</button>
-      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal">>_</button>
+      <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer" data-icon="menu" aria-label="Toggle Explorer"></button>
+      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal" data-icon="terminal" aria-label="Toggle Terminal"></button>
     </div>
-    <div class="titlebar-icon" data-tauri-drag-region>📝</div>
+    <div class="titlebar-icon" data-tauri-drag-region data-icon="logo" data-icon-size="15"></div>
     <div class="titlebar-title" data-tauri-drag-region>
       <span id="file-directory" class="file-path-display"></span>
       <span id="current-file" data-i18n="No file selected">No file selected</span>
     </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
     <div id="titlebar-right-tools">
-      <button id="notes-btn" class="titlebar-tool-btn" title="Notes (Quick Notes / Daily Note)" data-i18n-title="Notes (Quick Notes / Daily Note)">🗒️</button>
-      <button id="settings-btn" class="titlebar-tool-btn" title="Settings" data-i18n-title="Settings">⚙️</button>
+      <button id="notes-btn" class="titlebar-tool-btn" title="Notes (Quick Notes / Daily Note)" data-i18n-title="Notes (Quick Notes / Daily Note)" data-icon="note" aria-label="Notes"></button>
+      <button id="settings-btn" class="titlebar-tool-btn" title="Settings" data-i18n-title="Settings" data-icon="settings" aria-label="Settings"></button>
     </div>
     <div class="titlebar-controls">
-      <button class="titlebar-btn" id="titlebar-minimize" title="Minimize" data-i18n-title="Minimize">─</button>
-      <button class="titlebar-btn" id="titlebar-maximize" title="Maximize" data-i18n-title="Maximize">□</button>
-      <button class="titlebar-btn titlebar-close" id="titlebar-close" title="Close" data-i18n-title="Close">✕</button>
+      <button class="titlebar-btn" id="titlebar-minimize" title="Minimize" data-i18n-title="Minimize" data-icon="minimize" data-icon-size="14" aria-label="Minimize"></button>
+      <button class="titlebar-btn" id="titlebar-maximize" title="Maximize" data-i18n-title="Maximize" data-icon="maximize" data-icon-size="13" aria-label="Maximize"></button>
+      <button class="titlebar-btn titlebar-close" id="titlebar-close" title="Close" data-i18n-title="Close" data-icon="close" data-icon-size="14" aria-label="Close"></button>
     </div>
   </div>
   <div id="app">
@@ -108,10 +111,15 @@
     <div id="welcome-screen" style="display: none;">
       <div class="welcome-container">
         <h1>J.H Editor</h1>
-        <p class="subtitle" data-i18n="Select a workspace to start">Select a workspace to start</p>
+        <p class="subtitle" data-i18n="Open a folder to work in, or just start writing">Open a folder to work in, or just start writing</p>
 
+        <!-- A workspace is how you get the explorer, grep and Git — but it is
+             not required to edit a file, and demanding one up front turned
+             "jot something down" into a folder-picking chore. -->
         <div class="welcome-actions">
           <button id="welcome-open-folder-btn" class="primary-btn" data-i18n="Open Folder">Open Folder</button>
+          <button id="welcome-open-file-btn" class="secondary-btn" data-i18n="Open File">Open File</button>
+          <button id="welcome-new-file-btn" class="secondary-btn" data-i18n="New File">New File</button>
         </div>
 
         <div class="recent-workspaces">
@@ -169,7 +177,7 @@
                     <input type="text" id="find-input" placeholder="Search…" data-i18n-placeholder="Search…" autocomplete="off" spellcheck="false" />
                     <span id="search-match-count" class="search-count-badge"></span>
                   </div>
-                  <button id="close-search-btn" class="search-modal-close-btn" title="Close (Esc)" data-i18n-title="Close (Esc)">✕</button>
+                  <button id="close-search-btn" class="search-modal-close-btn" title="Close (Esc)" data-i18n-title="Close (Esc)" data-icon="close" data-icon-size="14" aria-label="Close"></button>
                 </div>
 
                 <!-- Options row (below input) -->
@@ -187,12 +195,12 @@
                     <span class="search-opt-hint">Alt+W</span>
                   </div>
                   <div class="search-opt-group">
-                    <button id="regex-preset-btn" class="search-opt-btn" title="Regex Templates" data-i18n-title="Regex Templates">📋</button>
+                    <button id="regex-preset-btn" class="search-opt-btn" title="Regex Templates" data-i18n-title="Regex Templates" data-icon="clipboard" data-icon-size="14" aria-label="Regex Templates"></button>
                     <span class="search-opt-hint">Alt+T</span>
                   </div>
                   <div class="search-opt-divider"></div>
                   <div class="search-opt-group">
-                    <button id="replace-mode-toggle-btn" class="search-opt-btn" title="Toggle Replace Mode" data-i18n-title="Toggle Replace Mode">⇄</button>
+                    <button id="replace-mode-toggle-btn" class="search-opt-btn" title="Toggle Replace Mode" data-i18n-title="Toggle Replace Mode" data-icon="replace" data-icon-size="14" aria-label="Toggle Replace Mode"></button>
                     <span class="search-opt-hint">Alt+P</span>
                   </div>
                 </div>
@@ -204,11 +212,11 @@
                   </div>
                   <div class="search-replace-actions">
                     <div class="search-opt-group">
-                      <button id="replace-btn" class="search-opt-btn search-replace-btn" title="Replace (Alt+Enter)">Replace</button>
+                      <button id="replace-btn" class="search-opt-btn search-replace-btn" title="Replace (Alt+Enter)" data-i18n-title="Replace (Alt+Enter)"><span data-i18n="Replace">Replace</span></button>
                       <span class="search-opt-hint">Alt+Enter</span>
                     </div>
                     <div class="search-opt-group">
-                      <button id="replace-all-btn" class="search-opt-btn search-replace-btn" title="Replace All">All</button>
+                      <button id="replace-all-btn" class="search-opt-btn search-replace-btn" title="Replace All" data-i18n-title="Replace All"><span data-i18n="All">All</span></button>
                       <span class="search-opt-hint">Alt+A</span>
                     </div>
                   </div>
@@ -227,14 +235,14 @@
 
             <!-- Search Status Bar (shown while search is active) -->
             <div id="search-status-bar" class="search-status-bar" style="display:none;">
-              <span class="search-status-icon">🔍</span>
+              <span class="search-status-icon" data-icon="search" data-icon-size="13"></span>
               <span id="search-status-query" class="search-status-query"></span>
-              <button id="find-prev-btn" class="search-status-btn" title="Previous (Shift+F3)">↑</button>
+              <button id="find-prev-btn" class="search-status-btn" title="Previous (Shift+F3)" data-i18n-title="Previous (Shift+F3)" data-icon="chevron-up" data-icon-size="13" aria-label="Previous"></button>
               <span id="search-status-count" class="search-status-count">0 / 0</span>
-              <button id="find-next-btn" class="search-status-btn" title="Next (F3)">↓</button>
+              <button id="find-next-btn" class="search-status-btn" title="Next (F3)" data-i18n-title="Next (F3)" data-icon="chevron-down" data-icon-size="13" aria-label="Next"></button>
               <div class="search-status-spacer"></div>
-              <button id="search-status-reopen-btn" class="search-status-btn" title="Edit Search (Ctrl+F)" data-i18n="Edit">✏️ 編集</button>
-              <button id="search-status-clear-btn" class="search-status-btn search-status-clear" title="Close Search (Esc)">✕</button>
+              <button id="search-status-reopen-btn" class="search-status-btn" title="Edit Search (Ctrl+F)" data-i18n-title="Edit Search (Ctrl+F)" data-icon="pencil" data-icon-size="13"><span data-i18n="Edit">Edit</span></button>
+              <button id="search-status-clear-btn" class="search-status-btn search-status-clear" title="Close Search (Esc)" data-i18n-title="Close Search (Esc)" data-icon="close" data-icon-size="13" aria-label="Close Search"></button>
             </div>
           </div>
 
@@ -266,13 +274,13 @@
       <div id="terminal-panel" style="display: none; height: 200px; flex-direction: column;">
         <div id="terminal-header" class="pane-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px; height: 32px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); background-color: var(--header-bg);">
           <div style="display: flex; align-items: center; gap: 8px;">
-             <span style="color: var(--primary-color);">🐚</span> TERMINAL
+             <span style="color: var(--primary-color);" data-icon="terminal" data-icon-size="13"></span> <span data-i18n="TERMINAL">TERMINAL</span>
           </div>
           <div style="display: flex; gap: 8px;">
             <button id="new-terminal-btn" class="terminal-new-btn" title="New terminal">+</button>
             <select id="terminal-shell-select" title="Shell for the next terminal" style="background: var(--bg-color-secondary); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 3px; font-size: 10px; padding: 1px 4px; text-transform: none; font-weight: normal;"></select>
-            <button id="clear-terminal-btn" title="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">🗑️</button>
-            <button id="close-terminal-btn" title="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;">✖</button>
+            <button id="clear-terminal-btn" title="Clear" data-i18n-title="Clear" data-icon="trash" data-icon-size="13" aria-label="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
+            <button id="close-terminal-btn" title="Close" data-i18n-title="Close" data-icon="close" data-icon-size="13" aria-label="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
           </div>
         </div>
         <div id="terminal-body" style="flex: 1; display: flex; min-height: 0;">
@@ -302,10 +310,10 @@
                screen — and it names the key so it only has to be clicked
                once. -->
           <button id="status-commands" class="status-commands"
-                  title="All commands and shortcuts (Ctrl+? or F1)" data-i18n-title="All commands and shortcuts (Ctrl+? or F1)">
-            <span class="status-commands-icon">⌘</span>
+                  title="Run a command (Ctrl+Shift+P)" data-i18n-title="Run a command (Ctrl+Shift+P)">
+            <span class="status-commands-icon" data-icon="command" data-icon-size="13"></span>
             <span class="status-commands-label" data-i18n="Commands">Commands</span>
-            <kbd>Ctrl+?</kbd>
+            <kbd>Ctrl+Shift+P</kbd>
           </button>
         </div>
       </div>
@@ -343,19 +351,9 @@
           <div id="settings-general" class="settings-pane">
             <div class="settings-option">
               <label data-i18n="Theme">Theme</label>
-              <select id="theme-selector">
-                <option value="light" data-i18n="Light">Light</option>
-                <option value="dark" data-i18n="Dark">Dark</option>
-                <option value="midnight" data-i18n="Midnight">Midnight</option>
-                <option value="latte" data-i18n="Latte">Latte</option>
-                <option value="solarized-dark" data-i18n="Solarized Dark">Solarized Dark</option>
-                <option value="solarized-light" data-i18n="Solarized Light">Solarized Light</option>
-                <option value="paper" data-i18n="Paper">Paper</option>
-                <option value="bamboo-ancient" data-i18n="Bamboo Slip">Bamboo Slip</option>
-                <option value="sumi-e" data-i18n="Ink Brush">Ink Brush</option>
-                <option value="nord" data-i18n="Nord">Nord</option>
-                <option value="kakejiku" data-i18n="Hanging Scroll">Hanging Scroll</option>
-              </select>
+              <!-- Options are built from utils/Themes.js at startup;
+                   adding a theme there is enough. -->
+              <select id="theme-selector"></select>
             </div>
             <div class="settings-option">
               <label data-i18n="Language">Language</label>
@@ -397,6 +395,27 @@
               Files larger than this open in the read-only viewer, which streams them from
               disk instead of loading the whole thing into memory. Lower it if big files feel
               sluggish; raise it if you need to edit them. Applies to files opened from now on.
+            </div>
+
+            <!-- About: a bug report is unactionable without a version number,
+                 and until now there was nowhere in the app to find one. -->
+            <div class="settings-about">
+              <div class="settings-about-head">
+                <span class="settings-about-name">J.H Editor</span>
+                <span class="settings-about-version" id="about-version">—</span>
+              </div>
+              <div class="settings-about-rows">
+                <div><span data-i18n="Platform">Platform</span><b id="about-platform">—</b></div>
+                <div><span data-i18n="Tauri">Tauri</span><b id="about-tauri">—</b></div>
+                <div><span data-i18n="License">License</span><b>MIT</b></div>
+              </div>
+              <div class="settings-about-actions">
+                <button id="about-copy-btn" class="settings-about-btn" data-i18n="Copy version info">Copy version info</button>
+                <button id="about-update-btn" class="settings-about-btn" data-i18n="Check for updates">Check for updates</button>
+              </div>
+              <div class="settings-description" style="margin: 4px 0 0;" data-i18n="Include this information when reporting a problem.">
+                Include this information when reporting a problem.
+              </div>
             </div>
           </div>
 
@@ -465,7 +484,7 @@
   <div id="preview-modal" style="display: none;">
     <div class="preview-header">
       <span data-i18n="Live Preview">Live Preview</span>
-      <span class="close-preview">✖</span>
+      <span class="close-preview" data-icon="close" data-icon-size="13" title="Close Preview" data-i18n-title="Close Preview"></span>
     </div>
     <div id="preview-content" class="md-body"></div>
   </div>

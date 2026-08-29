@@ -228,6 +228,83 @@
     color: var(--text-color);
 }
 
+/* About — the version block at the foot of the General tab. Set apart from the
+   settings above it because nothing in it is a setting. */
+.settings-about {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-about-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.settings-about-name {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.settings-about-version {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-about-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+}
+
+.settings-about-rows > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    max-width: 420px;
+}
+
+.settings-about-rows span {
+    opacity: 0.7;
+}
+
+.settings-about-rows b {
+    font-family: var(--font-mono, monospace);
+    font-weight: 500;
+    text-align: right;
+    word-break: break-all;
+}
+
+.settings-about-actions {
+    display: flex;
+}
+
+.settings-about-btn {
+    padding: 5px 12px;
+    background: var(--hover-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.settings-about-btn:hover {
+    filter: brightness(1.15);
+}
+
+.settings-about-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
 .settings-actions {
     display: flex;
     justify-content: flex-end;
@@ -665,4 +742,139 @@
     opacity: 0.5;
     font-style: italic;
     font-size: 13px;
+}
+
+/* ── Command palette ──────────────────────────────────────────────────
+   Anchored near the top rather than centred: the list grows downward as you
+   type, and a vertically-centred panel would make the whole thing jump on
+   every keystroke. */
+.cmdp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: none;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 12vh;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.cmdp-overlay.is-open {
+    display: flex;
+}
+
+.cmdp-panel {
+    width: min(640px, 92vw);
+    max-height: 62vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-color-secondary, #1e1e1e);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.cmdp-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cmdp-input-icon {
+    opacity: 0.55;
+}
+
+.cmdp-input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-color);
+    font-size: 15px;
+    font-family: inherit;
+}
+
+.cmdp-input::placeholder {
+    color: var(--text-color);
+    opacity: 0.45;
+}
+
+.cmdp-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.cmdp-group {
+    padding: 8px 14px 4px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    user-select: none;
+}
+
+.cmdp-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    /* Transparent rather than absent so the active row's border does not
+       shift the text by a pixel when it appears. */
+    border-left: 2px solid transparent;
+}
+
+.cmdp-item-icon {
+    display: inline-flex;
+    opacity: 0.7;
+}
+
+.cmdp-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cmdp-item-key {
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    opacity: 0.65;
+    white-space: nowrap;
+}
+
+.cmdp-item.is-active {
+    background: var(--hover-color, rgba(127, 127, 127, 0.18));
+    border-left-color: var(--primary-color);
+}
+
+.cmdp-item.is-active .cmdp-item-icon,
+.cmdp-item.is-active .cmdp-item-key {
+    opacity: 1;
+}
+
+.cmdp-empty {
+    padding: 24px 14px;
+    text-align: center;
+    font-size: 13px;
+    opacity: 0.6;
+}
+
+.cmdp-hint {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border-color);
+    font-size: 11px;
+    opacity: 0.5;
+    user-select: none;
 }

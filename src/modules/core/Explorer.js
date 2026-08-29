@@ -1,5 +1,7 @@
 import { EL } from './Constants.js';
+import { t } from '../utils/I18n.js';
 import { State } from './Store.js';
+import { iconEl, iconForFile } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -477,7 +479,9 @@ class VirtualExplorer {
         const arrow = document.createElement('span');
         arrow.className = 'tree-arrow';
         if (isDir) {
-            arrow.textContent = '▶';
+            // `.tree-arrow.expanded` already rotates this 90°, so one
+            // chevron covers both states instead of swapping glyphs.
+            arrow.replaceChildren(iconEl('chevron-right', { size: 11 }));
             arrow.style.visibility = 'visible';
             if (item.expanded) {
                 arrow.classList.add('expanded');
@@ -494,7 +498,7 @@ class VirtualExplorer {
 
         const icon = document.createElement('span');
         icon.className = 'tree-icon';
-        icon.textContent = isDir ? (item.expanded ? '📂' : '📁') : '📄';
+        icon.replaceChildren(iconEl(iconForFile(item.name, isDir, item.expanded), { size: 14 }));
 
         const label = document.createElement('span');
         label.textContent = item.name;
@@ -705,19 +709,19 @@ class VirtualExplorer {
             const paths = Array.from(this.selectedPaths);
             const isDir = item.type === 'DIRECTORY';
             const menuItems = [
-                { label: 'Refresh', action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
+                { label: t('Refresh'), action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
                 { type: 'separator' },
-                { label: 'New File', action: () => handleNewFile(isDir ? item.path : FS.getParentDir(item.path)) },
-                { label: 'New Folder', action: () => handleNewFolder(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('New File'), action: () => handleNewFile(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('New Folder'), action: () => handleNewFolder(isDir ? item.path : FS.getParentDir(item.path)) },
                 { type: 'separator' },
-                { label: 'Rename', action: () => handleRename(paths[0]) },
+                { label: t('Rename'), action: () => handleRename(paths[0]) },
                 { label: `Delete (${paths.length})`, action: () => handleDelete(paths) },
                 { type: 'separator' },
                 { label: `Cut (${paths.length})`, action: () => handleCut(paths) },
                 { label: `Copy (${paths.length})`, action: () => handleCopy(paths) },
-                { label: 'Paste', action: () => handlePaste(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('Paste'), action: () => handlePaste(isDir ? item.path : FS.getParentDir(item.path)) },
                 { type: 'separator' },
-                { label: 'Find in Folder', action: () => {
+                { label: t('Find in Folder'), action: () => {
                     // Grep within this folder (a file → its parent folder).
                     const dir = isDir ? item.path : FS.getParentDir(item.path);
                     GrepModal.show(dir);
@@ -748,14 +752,14 @@ class VirtualExplorer {
             if (selectedFiles.length === 2 && selectedDirs.length === 0) {
                 const [leftPath, rightPath] = selectedFiles;
                 menuItems.splice(1, 0,
-                    { label: `Compare: ${FS.getBasename(leftPath)} ⇄ ${FS.getBasename(rightPath)}`,
+                    { label: `Compare: ${FS.getBasename(leftPath)} / ${FS.getBasename(rightPath)}`,
                       action: () => window.app.compareTwoFiles(leftPath, rightPath) },
                     { type: 'separator' },
                 );
             } else if (selectedDirs.length === 2 && selectedFiles.length === 0) {
                 const [leftDir, rightDir] = selectedDirs;
                 menuItems.splice(1, 0,
-                    { label: `Compare Folders: ${FS.getBasename(leftDir)} ⇄ ${FS.getBasename(rightDir)}`,
+                    { label: `Compare Folders: ${FS.getBasename(leftDir)} / ${FS.getBasename(rightDir)}`,
                       action: () => window.app.compareTwoFolders(leftDir, rightDir) },
                     { type: 'separator' },
                 );
@@ -878,16 +882,16 @@ export function initExplorer(openCallback, cbObj) {
         if (e.target.closest('.tree-item')) return;
         e.preventDefault();
         ContextMenu.show(e, [
-            { label: 'New File', action: () => handleNewFile(State.currentDir) },
-            { label: 'New Folder', action: () => handleNewFolder(State.currentDir) },
+            { label: t('New File'), action: () => handleNewFile(State.currentDir) },
+            { label: t('New Folder'), action: () => handleNewFolder(State.currentDir) },
             { type: 'separator' },
-            { label: 'Reveal in File Manager', action: async () => {
+            { label: t('Reveal in File Manager'), action: async () => {
                 try {
                     await invoke('reveal_in_file_manager', { path: State.currentDir });
                 } catch (err) { console.error('reveal_in_file_manager failed', err); }
             } },
             { type: 'separator' },
-            { label: 'Refresh All', action: () => loadExplorer(true) }
+            { label: t('Refresh All'), action: () => loadExplorer(true) }
         ]);
     });
 

@@ -1,4 +1,5 @@
 import { highlightCode, escapeHtml } from '../utils/CMHighlighter.js';
+import { t } from '../utils/I18n.js';
 import * as Diff from 'diff';
 
 export class DiffEditor {
@@ -192,13 +193,13 @@ export class DiffEditor {
         // 1. Block Navigation
         const prevBlockBtn = document.createElement('button');
         prevBlockBtn.className = 'diff-btn';
-        prevBlockBtn.title = 'Previous change (Alt+Up)';
+        prevBlockBtn.title = t('Previous change (Alt+Up)');
         prevBlockBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M3.22 9.78a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0l4.25 4.25a.75.75 0 01-1.06 1.06L8 6.06 4.28 9.78a.75.75 0 01-1.06 0z"></path></svg>';
         prevBlockBtn.onclick = () => this.navigateBlock(-1);
 
         const nextBlockBtn = document.createElement('button');
         nextBlockBtn.className = 'diff-btn';
-        nextBlockBtn.title = 'Next change (Alt+Down)';
+        nextBlockBtn.title = t('Next change (Alt+Down)');
         nextBlockBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M12.78 6.22a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06 0L3.22 7.28a.75.75 0 011.06-1.06L8 9.94l3.72-3.72a.75.75 0 011.06 0z"></path></svg>';
         nextBlockBtn.onclick = () => this.navigateBlock(1);
 
@@ -215,13 +216,13 @@ export class DiffEditor {
         // 2. Inline Navigation
         const prevInlineBtn = document.createElement('button');
         prevInlineBtn.className = 'diff-btn';
-        prevInlineBtn.title = 'Previous inline change';
+        prevInlineBtn.title = t('Previous inline change');
         prevInlineBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M9.78 12.78a.75.75 0 01-1.06 0L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L6.06 8l3.72 3.72a.75.75 0 010 1.06z"></path></svg>';
         prevInlineBtn.onclick = () => this.navigateInline(-1);
 
         const nextInlineBtn = document.createElement('button');
         nextInlineBtn.className = 'diff-btn';
-        nextInlineBtn.title = 'Current inline change (F4)';
+        nextInlineBtn.title = t('Current inline change (F4)');
         nextInlineBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"></path></svg>';
         nextInlineBtn.onclick = () => this.navigateInline(1);
 
@@ -249,7 +250,7 @@ export class DiffEditor {
         // so indentation-only churn collapses into "same" lines.
         const wsBtn = document.createElement('button');
         wsBtn.className = 'diff-btn diff-ws-btn' + (this.ignoreWhitespace ? ' active' : '');
-        wsBtn.title = 'Ignore whitespace differences (indentation, trailing spaces, run length) — Alt+I';
+        wsBtn.title = t('Ignore whitespace differences (indentation, trailing spaces, run length) — Alt+I');
         wsBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="margin-right:4px;vertical-align:text-bottom"><path d="M3 8.5a1 1 0 112 0 1 1 0 01-2 0zm4 0a1 1 0 112 0 1 1 0 01-2 0zm4 0a1 1 0 112 0 1 1 0 01-2 0z"/></svg> Ignore WS <span class="diff-btn-key">Alt+I</span>';
         wsBtn.onclick = () => this.toggleIgnoreWhitespace();
         this.wsBtn = wsBtn;
@@ -306,7 +307,7 @@ export class DiffEditor {
         // the distribution is visible at a glance on long files. Click to jump.
         this.minimapEl = document.createElement('div');
         this.minimapEl.className = 'diff-minimap';
-        this.minimapEl.title = 'Distribution of changes (click to jump)';
+        this.minimapEl.title = t('Distribution of changes (click to jump)');
         this.minimapViewportEl = document.createElement('div');
         this.minimapViewportEl.className = 'diff-minimap-viewport';
         this.minimapEl.appendChild(this.minimapViewportEl);

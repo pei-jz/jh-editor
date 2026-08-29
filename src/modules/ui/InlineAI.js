@@ -1,6 +1,9 @@
 import AIAgent from '../ai/AIAgent.js';
+import { t } from '../utils/I18n.js';
+import { icon as svgIcon, iconEl } from './Icons.js';
 import { State } from '../core/Store.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { listJhaiIntents, runJhaiIntent, hasEditorSelection, runJhaiFreeform, ensureJhaiConnected, runInlinePreset, listInlinePresets } from '../ai/JhAiMcp.js';
 
 export class InlineAI {
@@ -23,7 +26,7 @@ export class InlineAI {
 
         modal.innerHTML = `
             <div class="inline-ai-header">
-                <span class="model-badge">🤖 ${currentModel}</span>
+                <span class="model-badge jh-icon-row">${svgIcon('robot', { size: 12 })}${currentModel}</span>
                 <button class="inline-ai-close">×</button>
             </div>
             <div class="inline-ai-presets" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px;"></div>
@@ -42,7 +45,7 @@ export class InlineAI {
                 <button class="review-btn accept-btn">Accept <span class="shortcut">Alt+↵</span></button>
                 <button class="review-btn reject-btn">Reject <span class="shortcut">Esc</span></button>
             </div>
-            <div class="inline-ai-result" style="display:none; max-height: 250px; overflow-y: auto; overflow-x: hidden; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 8px; background: rgba(0,0,0,0.2); margin-top: 5px;">
+            <div class="inline-ai-result" style="display:none; max-height: 250px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--control-border); border-radius: 6px; padding: 8px; background: var(--surface-sunken); margin-top: 5px;">
                 <div class="result-content" style="font-size: 13px; line-height: 1.4;"></div>
             </div>
         `;
@@ -74,12 +77,16 @@ export class InlineAI {
                     b.className = 'inline-ai-preset-btn';
                     b.textContent = pr.title;
                     b.title = `AI: ${pr.title} (runs on the selection → review as a diff)`;
-                    b.style.cssText = 'background:rgba(10,108,255,0.14);border:1px solid rgba(10,108,255,0.4);color:inherit;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px;';
+                    // The accent at a usable strength, from the theme — this was the
+                    // DEFAULT accent frozen as a literal, so it stayed blue on
+                    // the ink-brush and bamboo themes.
+                    b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);'
+                        + 'color:inherit;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px;';
                     b.onclick = async () => {
                         try {
                             if (!(await ensureJhaiConnected())) {
                                 this.resultArea.style.display = 'block';
-                                this.resultContent.textContent = '❌ Cannot reach J.H AI Agent. Please start the Agent.';
+                                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Please start the Agent.');
                                 return;
                             }
                             runInlinePreset(pr.id, {}).catch((e) => console.warn('preset failed:', e));
@@ -119,8 +126,8 @@ export class InlineAI {
         copyBtn.onclick = async () => {
             try {
                 await navigator.clipboard.writeText(extractCode());
-                copyBtn.textContent = 'Copied!';
-                setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+                copyBtn.textContent = t('Copied!');
+                setTimeout(() => copyBtn.textContent = t('Copy'), 2000);
             } catch (e) { }
         };
 
@@ -178,7 +185,7 @@ export class InlineAI {
         } catch (_) { /* fall through to the legacy path */ }
 
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -219,15 +226,16 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                             const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                                 ? SyntaxHighlighter.highlight(code, lang || 'text')
                                 : code;
-                            return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                            return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
                         };
-                        this.resultContent.innerHTML = marked.parse(fullResponse, { renderer });
+                        this.resultContent.innerHTML = sanitizeHtml(marked.parse(fullResponse, { renderer }));
                         this.resultContent.style.userSelect = 'text';
                         this.resultContent.style.cursor = 'text';
                         
                         this.resultContent.querySelectorAll('pre').forEach(pre => {
                             pre.style.position = 'relative';
                             pre.style.userSelect = 'text';
+                            pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
                         });
                     } else {
                         this.resultContent.textContent = fullResponse;
@@ -263,14 +271,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                     const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                         ? SyntaxHighlighter.highlight(code, lang || 'text')
                         : code;
-                    return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                    return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
                 };
-                this.resultContent.innerHTML = marked.parse(fullResponse, { renderer });
+                this.resultContent.innerHTML = sanitizeHtml(marked.parse(fullResponse, { renderer }));
                 this.resultContent.style.userSelect = 'text';
                 this.resultContent.style.cursor = 'text';
                 this.resultContent.querySelectorAll('pre').forEach(pre => {
                     pre.style.position = 'relative';
                     pre.style.userSelect = 'text';
+                    pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
                 });
             } else if (fullResponse) {
                 this.resultContent.textContent = fullResponse;
@@ -282,7 +291,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 resultActions.style.display = 'flex';
                 stopBtn.style.display = 'none';
                 genBtn.style.display = 'inline-block';
-                genBtn.textContent = 'Retry';
+                genBtn.textContent = t('Retry');
                 if (this.onPreview) this.onPreview(fullResponse);
             } else {
                 genBtn.style.display = 'inline-block';
@@ -295,14 +304,14 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 if (isConnectionError) {
                     this.resultContent.innerHTML = `
                         <div class="agent-connection-error" style="color: var(--error-color, #ff4d4f); padding: 8px;">
-                            <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">❌ Cannot reach J.H AI Agent</div>
+                            <div class="jh-icon-row" style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">${svgIcon('x-circle', { size: 14 })}Cannot reach J.H AI Agent</div>
                             <p style="margin: 4px 0 12px 0; font-size: 12px; color: var(--text-color); opacity: 0.8; line-height: 1.4;">
                                 The agent is not running, or the connection details are wrong.
                             </p>
                             <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--text-color); opacity: 0.8; line-height: 1.6;">
                                 <li>Check that the <strong>J.H AI Agent</strong> app is running.</li>
-                                <li>In the agent, press <strong>Settings → General → 📤 Export Connection</strong> — that writes out the details this editor reads.</li>
-                                <li>Or enter the URL and token by hand in <strong>⚙️ Settings → Agent</strong>.</li>
+                                <li>In the agent, press <strong>Settings → General → Export Connection</strong> — that writes out the details this editor reads.</li>
+                                <li>Or enter the URL and token by hand in <strong>Settings → Agent</strong>.</li>
                             </ol>
                             <div style="margin-top: 12px;">
                                 <button class="primary-btn" id="ai-reconnect-btn" style="padding: 4px 8px; font-size: 11px; cursor: pointer;">Test the connection and retry</button>
@@ -317,7 +326,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                         };
                     }
                 } else {
-                    this.resultContent.textContent = 'Error: ' + e.message;
+                    this.resultContent.textContent = t('Error: ') + e.message;
                 }
                 genBtn.style.display = 'inline-block';
                 stopBtn.style.display = 'none';
@@ -360,9 +369,10 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         visible.forEach((it) => {
             const b = document.createElement('button');
             b.className = 'inline-ai-intent-btn';
-            b.textContent = `✨ ${it.title}`;
+            b.className = (b.className || '') + ' jh-icon-row';
+            b.replaceChildren(iconEl('sparkles', { size: 12 }), document.createTextNode(it.title));
             b.title = `JHAI intent: ${it.id}`;
-            b.style.cssText = 'background:rgba(10,108,255,0.15);border:1px solid rgba(10,108,255,0.4);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
+            b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
             b.onclick = () => this.handleIntent(it.id, context);
             bar.appendChild(b);
         });
@@ -375,7 +385,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         if (!prompt) return;
 
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -396,11 +406,11 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             const resultActions = this.element.querySelector('.result-actions');
             resultActions.style.display = 'flex';
             genBtn.style.display = 'inline-block';
-            genBtn.textContent = 'Retry';
+            genBtn.textContent = t('Retry');
             if (this.onPreview) this.onPreview(md);
         } catch (e) {
             const msg = (e && e.message) || String(e);
-            this.resultContent.textContent = 'Error: ' + msg;
+            this.resultContent.textContent = t('Error: ') + msg;
             genBtn.style.display = 'inline-block';
         }
     }
@@ -408,7 +418,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
     /** Run a JHAI MCP intent and render its result envelope inline. */
     async handleIntent(intentId, context) {
         this.resultArea.style.display = 'block';
-        this.resultContent.textContent = 'Thinking...';
+        this.resultContent.textContent = t('Thinking...');
 
         const genBtn = this.element.querySelector('.inline-ai-gen-btn');
         const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
@@ -430,15 +440,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             const resultActions = this.element.querySelector('.result-actions');
             resultActions.style.display = 'flex';
             genBtn.style.display = 'inline-block';
-            genBtn.textContent = 'Retry';
+            genBtn.textContent = t('Retry');
             if (this.onPreview) this.onPreview(md);
         } catch (e) {
             const msg = (e && e.message) || String(e);
             const low = msg.toLowerCase();
             if (low.includes('not available') || low.includes('not reachable') || low.includes('failed to fetch')) {
-                this.resultContent.textContent = '❌ Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.';
+                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.');
             } else {
-                this.resultContent.textContent = 'Error: ' + msg;
+                this.resultContent.textContent = t('Error: ') + msg;
             }
             genBtn.style.display = 'inline-block';
         }
@@ -449,7 +459,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
         if (!this.resultContent) return;
         let text = null;
         if (event === 'status' && data.message) text = String(data.message);
-        else if (event === 'tool_call' && data.name) text = `🛠 ${data.name}`;
+        else if (event === 'tool_call' && data.name) text = data.name;
         else if (event === 'thought' && typeof data.text === 'string') text = data.text.replace(/\s+/g, ' ').slice(0, 100);
         if (text) this.resultContent.textContent = `⏳ ${text}`;
     }
@@ -468,14 +478,15 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                 const highlighted = (typeof SyntaxHighlighter !== 'undefined')
                     ? SyntaxHighlighter.highlight(code, lang || 'text')
                     : code;
-                return `<pre><code class="language-${lang} hljs" style="user-select:text;">${highlighted}</code></pre>`;
+                return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
             };
-            this.resultContent.innerHTML = marked.parse(text, { renderer });
+            this.resultContent.innerHTML = sanitizeHtml(marked.parse(text, { renderer }));
             this.resultContent.style.userSelect = 'text';
             this.resultContent.style.cursor = 'text';
             this.resultContent.querySelectorAll('pre').forEach((pre) => {
                 pre.style.position = 'relative';
                 pre.style.userSelect = 'text';
+                pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
             });
         } else {
             this.resultContent.textContent = text || '';
@@ -518,7 +529,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             this.element.querySelector('.inline-ai-result').style.display = 'none';
             this.element.querySelector('.inline-ai-review-bar').style.display = 'none';
             this.element.querySelector('.result-actions').style.display = 'none';
-            this.element.querySelector('.inline-ai-gen-btn').textContent = 'Send';
+            this.element.querySelector('.inline-ai-gen-btn').textContent = t('Send');
 
             this.element.remove();
             this.element = null;

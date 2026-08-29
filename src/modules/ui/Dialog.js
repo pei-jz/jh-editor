@@ -19,6 +19,7 @@
  * those must stay native.
  */
 
+import { installModalKeys, focusModal } from './ModalKeys.js';
 let _styleInjected = false;
 
 function _injectStyles() {
@@ -94,7 +95,22 @@ function _injectStyles() {
         border-radius: 4px; cursor: pointer;
     }
     .app-dialog-btn:hover { background: var(--hover-color); }
-    .app-dialog-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+    /* :focus, not only :focus-visible. A button focused PROGRAMMATICALLY — as
+       the primary one is when the dialog opens, and as every button is when the
+       arrow keys walk the row — does not satisfy :focus-visible in Chromium, so
+       the ring only appeared after a second keypress. That is precisely why
+       pressing Enter felt like a guess about which button would fire. */
+    .app-dialog-btn:focus,
+    .app-dialog-btn:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+    /* The focused button also gets weight of its own, so the answer to "which
+       one will Enter press" survives a screenshot. */
+    .app-dialog-btn:focus:not(.primary) {
+        background: var(--hover-color);
+        border-color: var(--primary-color);
+    }
     .app-dialog-btn.primary {
         background: var(--primary-color);
         border-color: var(--primary-color);
@@ -184,8 +200,12 @@ export function showDialog({
         const cancelSpec = buttons.find((b) => b.cancel);
         const specOf = new Map();
 
+        // Declared before close() so the closure captures the binding; it is
+        // assigned once the box exists.
+        let disposeKeys = null;
+
         const close = (value) => {
-            document.removeEventListener('keydown', onKey, true);
+            if (disposeKeys) disposeKeys();
             overlay.remove();
             if (returnFocusTo && returnFocusTo.isConnected
                 && typeof returnFocusTo.focus === 'function') {
@@ -211,65 +231,18 @@ export function showDialog({
         }
         box.appendChild(actions);
 
-        // Capture phase: ShortcutManager also listens on window with capture, so
-        // without stopping the event here Escape/Enter would additionally fire
-        // an app command behind the dialog.
-        const onKey = (e) => {
-            // A control inside the dialog can own Enter/Escape by marking itself
-            // `data-dialog-keys="own"` — an open combobox list, for instance,
-            // where Enter picks an option and Escape closes the list. This
-            // listener is on document in the CAPTURE phase, so without the
-            // opt-out it fires the primary button before the control ever sees
-            // the key: choosing a branch would start the comparison instead.
-            const target = e.target;
-            if ((e.key === 'Enter' || e.key === 'Escape')
-                && target && typeof target.closest === 'function'
-                && target.closest('[data-dialog-keys="own"]')) {
-                return;
-            }
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                if (cancelSpec) pick(cancelSpec);
-                return;
-            }
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                // Whatever the user tabbed to wins; otherwise the primary
-                // action. Always firing the primary would turn Tab-to-Cancel +
-                // Enter into a confirmation.
-                const spec = specOf.get(document.activeElement)
-                    || buttons.find((b) => b.primary) || buttons[0];
+        // The keyboard contract lives in ModalKeys so every dialog in the app
+        // behaves the same way — Escape cancels, Enter fires the FOCUSED button
+        // (not always the primary one), Tab cycles inside, and ← → walk the
+        // action row. Each dialog growing its own handling is how they came to
+        // differ in the first place.
+        disposeKeys = installModalKeys(box, {
+            onCancel: () => { if (cancelSpec) pick(cancelSpec); },
+            onDefault: () => {
+                const spec = buttons.find((b) => b.primary) || buttons[0];
                 if (spec) pick(spec);
-                return;
-            }
-            // Tab has to cycle INSIDE the dialog. The browser's own traversal
-            // walks straight past the overlay into the editor behind it, which
-            // both moved the caret down there and left the buttons unreachable
-            // from the keyboard.
-            if (e.key === 'Tab') {
-                const focusables = Array.from(box.querySelectorAll(
-                    'button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])'
-                )).filter((el) => !el.disabled);
-                if (!focusables.length) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const i = focusables.indexOf(document.activeElement);
-                const last = focusables.length - 1;
-                const next = e.shiftKey
-                    ? (i <= 0 ? last : i - 1)
-                    : (i === -1 || i === last ? 0 : i + 1);
-                focusables[next].focus();
-                return;
-            }
-            // Keep every other key inside the dialog — typing must not reach the
-            // editor underneath.
-            if (!box.contains(e.target)) {
-                e.stopPropagation();
-            }
-        };
-        document.addEventListener('keydown', onKey, true);
+            },
+        });
 
         overlay.addEventListener('mousedown', (e) => {
             if (e.target === overlay && cancelSpec) pick(cancelSpec);
@@ -279,12 +252,11 @@ export function showDialog({
         document.body.appendChild(overlay);
 
         // The text field wins the focus when there is one; otherwise the
-        // primary action, so Space/Enter act on it immediately.
+        // primary action, so Space/Enter act on it immediately — and so the
+        // arrow keys have somewhere to start from.
         const firstInContent = content
             && content.querySelector('input, select, textarea, button');
-        if (inputEl) { inputEl.focus(); inputEl.select(); }
-        else if (firstInContent) firstInContent.focus();
-        else if (primaryBtn) primaryBtn.focus();
+        focusModal(box, inputEl || firstInContent || primaryBtn || null);
     });
 }
 

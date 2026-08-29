@@ -11,15 +11,19 @@
  */
 
 import AIAgent from '../ai/AIAgent.js';
+import { icon as svgIcon } from './Icons.js';
 import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
 import { t, promptLanguageName } from '../utils/I18n.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 
 const HISTORY_KEY = 'jh_ai_chat_history_v1';
 const MAX_HISTORY = 40;
 
 function renderMarkdown(md) {
     try {
-        if (typeof marked !== 'undefined' && marked.parse) return marked.parse(md || '');
+        // Model output is not trusted input: it lands in the main document, so
+        // it goes through the same sanitiser as a Markdown file would.
+        if (typeof marked !== 'undefined' && marked.parse) return sanitizeHtml(marked.parse(md || ''));
     } catch (_) { /* fall through */ }
     return `<pre style="white-space:pre-wrap;margin:0;">${String(md || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
 }
@@ -59,7 +63,7 @@ class AiChatPanel {
 
         root.innerHTML = `
             <div class="ai-chat-header">
-                <span class="ai-chat-header-title">🤖 ${t('AI Chat')}</span>
+                <span class="ai-chat-header-title jh-icon-row">${svgIcon('robot', { size: 14 })}${t('AI Chat')}</span>
                 <button class="clear-btn" title="${t('Clear history')}">${t('Clear')}</button>
                 <button class="close-btn" title="${t('Close')}">×</button>
             </div>
@@ -160,7 +164,7 @@ class AiChatPanel {
                 assistant.role = 'assistant';
                 if (bodyEl) {
                     bodyEl.parentElement.classList.add('error');
-                    bodyEl.innerHTML = `❌ ${String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
+                    bodyEl.innerHTML = `<span class="jh-icon-row">${svgIcon('x-circle', { size: 13 })}${String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`;
                 }
             } finally {
                 clearInterval(ticker);

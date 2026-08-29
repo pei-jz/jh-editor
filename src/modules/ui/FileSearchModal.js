@@ -1,4 +1,6 @@
 import { State } from '../core/Store.js';
+import { t } from '../utils/I18n.js';
+import { icon as svgIcon, iconEl, iconForFile } from './Icons.js';
 import { openFile } from '../core/Editor.js';
 import * as FS from '../utils/FileSystem.js';
 
@@ -38,7 +40,8 @@ export const FileSearchModal = {
         inputWrapper.style.alignItems = 'center';
         
         const searchIcon = document.createElement('span');
-        searchIcon.textContent = '🔍';
+        searchIcon.appendChild(iconEl('search', { size: 14 }));
+        searchIcon.style.display = 'inline-flex';
         searchIcon.style.position = 'absolute';
         searchIcon.style.left = '12px';
         searchIcon.style.opacity = '0.5';
@@ -57,7 +60,7 @@ export const FileSearchModal = {
         // Status bar
         const statusBar = document.createElement('div');
         statusBar.style.cssText = 'padding: 4px 12px; font-size: 11px; opacity: 0.5; border-bottom: 1px solid var(--border-color);';
-        statusBar.textContent = 'Loading files...';
+        statusBar.textContent = t('Loading files...');
 
         const list = document.createElement('ul');
         list.className = 'tab-search-list';
@@ -88,7 +91,7 @@ export const FileSearchModal = {
                 emptyMsg.className = 'tab-search-item';
                 emptyMsg.style.justifyContent = 'center';
                 emptyMsg.style.opacity = '0.5';
-                emptyMsg.textContent = 'No matching files found';
+                emptyMsg.textContent = t('No matching files found');
                 list.appendChild(emptyMsg);
                 return;
             }
@@ -98,18 +101,10 @@ export const FileSearchModal = {
                 li.className = 'tab-search-item';
                 if (i === selectedIndex) li.classList.add('selected');
 
-                // Determine icon based on extension
-                const ext = item.entry.split('.').pop().toLowerCase();
-                let icon = '📄';
-                if (ext === 'js' || ext === 'ts') icon = '⚡';
-                else if (ext === 'md' || ext === 'markdown') icon = '📝';
-                else if (ext === 'json') icon = '{}';
-                else if (ext === 'css') icon = '🎨';
-                else if (ext === 'html') icon = '🌐';
-                else if (ext === 'rs') icon = '🦀';
-                else if (ext === 'py') icon = '🐍';
-                else if (ext === 'csv') icon = '📊';
-                else if (item.type === 'DIRECTORY') icon = '📁';
+                // One shared extension→icon table (Icons.iconForFile), so the
+                // explorer and this list cannot disagree about what a .rs file
+                // looks like — they used different sets before.
+                const icon = svgIcon(iconForFile(item.entry, item.type === 'DIRECTORY'), { size: 14 });
 
                 // Highlight match
                 const rawQuery = input.value.trim();
@@ -136,7 +131,7 @@ export const FileSearchModal = {
 
                 li.innerHTML = `
                     <span class="name" style="display: flex; align-items: center; gap: 8px;">
-                        <span style="opacity: 0.8; font-family: monospace;">${icon}</span>
+                        <span style="opacity: 0.8; display: inline-flex;">${icon}</span>
                         <span style="flex-shrink: 0;">${nameHtml}</span>
                     </span>
                     <span class="dir" title="${item.dir}">${displayDir}</span>
@@ -207,7 +202,9 @@ export const FileSearchModal = {
                         allFiles = allFiles.slice(0, FILE_CACHE_LIMIT);
                         _fileCache = allFiles;
                         _fileCacheDir = null; // Don't persist - re-fetch next time
-                        statusBar.textContent = `⚠ ${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied, ${elapsed}ms)`;
+                        statusBar.classList.add('jh-icon-row');
+                statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
+                    `${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied, ${elapsed}ms)`));
                     } else {
                         _fileCache = allFiles;
                         _fileCacheDir = State.currentDir;
@@ -253,7 +250,7 @@ export const FileSearchModal = {
                 renderList();
             } catch (err) {
                 console.error('File search failed:', err);
-                statusBar.textContent = 'Error loading files';
+                statusBar.textContent = t('Error loading files');
             }
         };
 
@@ -337,20 +334,22 @@ export const FileSearchModal = {
 
         // Pre-load cache in background
         if (!_fileCache || _fileCacheDir !== State.currentDir) {
-            statusBar.textContent = 'Indexing files...';
+            statusBar.textContent = t('Indexing files...');
             FS.listAllFiles(State.currentDir).then(files => {
                 const totalCount = files.length;
                 if (totalCount > FILE_CACHE_LIMIT) {
                     _fileCache = files.slice(0, FILE_CACHE_LIMIT);
                     _fileCacheDir = null; // Don't persist
-                    statusBar.textContent = `⚠ ${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied)`;
+                    statusBar.classList.add('jh-icon-row');
+            statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
+                `${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied)`));
                 } else {
                     _fileCache = files;
                     _fileCacheDir = State.currentDir;
                     statusBar.textContent = `${totalCount.toLocaleString()} files indexed`;
                 }
             }).catch(err => {
-                statusBar.textContent = 'Failed to index files';
+                statusBar.textContent = t('Failed to index files');
                 console.error('File indexing failed:', err);
             });
         } else {

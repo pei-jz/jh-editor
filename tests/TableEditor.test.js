@@ -265,4 +265,76 @@ describe('TableEditor', () => {
             expect(data[1][1]).toBe('PastedVal2');
         });
     });
+    /* The cell editor was changed from <input> to <textarea> so long values
+       wrap instead of scrolling sideways. Three call sites kept asking the DOM
+       for 'input' — which does not match a textarea — so they all got null:
+       double-clicking a cell hid the display span and showed nothing in its
+       place, and the table could no longer be edited at all. */
+    describe('cell editing (regression: the editor is a textarea)', () => {
+        const mount = () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const data = [['H1', 'H2'], ['R1C1', 'R1C2']];
+            TableEditor.render(container, data, () => {});
+            return { container, data };
+        };
+
+        afterEach(() => { document.body.innerHTML = ''; });
+
+        it('gives every cell a textarea, not a single-line input', () => {
+            const { container } = mount();
+            const cell = container.querySelector('[data-row="1"][data-col="0"]');
+            expect(cell.querySelector('textarea')).not.toBeNull();
+            expect(cell.querySelector('input')).toBeNull();
+        });
+
+        it('reveals and focuses the editor on double click', () => {
+            const { container } = mount();
+            const cell = container.querySelector('[data-row="1"][data-col="0"]');
+            const editor = cell.querySelector('textarea');
+            const span = cell.querySelector('.cell-text');
+
+            cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+
+            // The bug: the span was hidden and the editor stayed display:none,
+            // leaving a blank cell nothing could be typed into.
+            expect(editor.style.display).toBe('block');
+            expect(span.style.display).toBe('none');
+            expect(document.activeElement).toBe(editor);
+        });
+
+        it('hides the editor again when the cell is left', () => {
+            const { container } = mount();
+            const cell = container.querySelector('[data-row="1"][data-col="0"]');
+            const other = container.querySelector('[data-row="0"][data-col="1"]');
+            const editor = cell.querySelector('textarea');
+
+            cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            expect(editor.style.display).toBe('block');
+
+            other.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            expect(editor.style.display).toBe('none');
+            expect(cell.querySelector('.cell-text').style.display).not.toBe('none');
+        });
+
+        it('writes typed text back into the data array', () => {
+            const { container, data } = mount();
+            const cell = container.querySelector('[data-row="1"][data-col="0"]');
+            const editor = cell.querySelector('textarea');
+
+            cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            editor.value = 'edited';
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect(data[1][0]).toBe('edited');
+            expect(cell.querySelector('.cell-text').textContent).toBe('edited');
+        });
+
+        it('focusCell(edit) opens the editor too', () => {
+            const { container } = mount();
+            TableEditor.focusCell(container, 1, 1, true);
+            const editor = container.querySelector('[data-row="1"][data-col="1"] textarea');
+            expect(editor.style.display).toBe('block');
+        });
+    });
 });

@@ -6,12 +6,13 @@
 // be registered straight from the modal.
 
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
+import { t } from '../utils/I18n.js';
 import { showAlert } from './Dialog.js';
 
 const TYPES = [
     {
         ext: 'txt',
-        label: 'Text',
+        label: t('Text'),
         hint: 'Plain text',
         key: '1',
         // Simple lined-document glyph.
@@ -19,7 +20,7 @@ const TYPES = [
     },
     {
         ext: 'md',
-        label: 'Markdown',
+        label: t('Markdown'),
         hint: 'Headings, tables, live preview',
         key: '2',
         // The Markdown "M▾" mark.

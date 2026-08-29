@@ -1,15 +1,31 @@
 import { exists } from '../utils/FileSystem.js';
+import { t } from '../utils/I18n.js';
 import { showAlert } from './Dialog.js';
 
 const EL = {
     screen: document.getElementById('welcome-screen'),
     openBtn: document.getElementById('welcome-open-folder-btn'),
+    openFileBtn: document.getElementById('welcome-open-file-btn'),
+    newFileBtn: document.getElementById('welcome-new-file-btn'),
     recentList: document.getElementById('recent-workspaces-list'),
 };
 
 const RECENTS_KEY = 'jheditor_recent_workspaces';
 
-export function initWelcomeScreen(onWorkspaceSelect) {
+/**
+ * Wire up the Welcome screen.
+ *
+ * @param {(path: string) => any} onWorkspaceSelect  a folder was chosen
+ * @param {{ onOpenFile?: (path: string) => any, onNewFile?: () => any }} [handlers]
+ *
+ * The extra handlers are optional so the workspace-only call still works, but
+ * they matter: the screen used to offer nothing except "Open Folder", which
+ * meant the fastest way to write one line of text was to pick a directory
+ * first. Opening a single file and starting an empty buffer both work without a
+ * workspace — the explorer, grep and Git panel simply stay empty until one is
+ * opened — so there was no reason to gate them behind the folder picker.
+ */
+export function initWelcomeScreen(onWorkspaceSelect, handlers = {}) {
     if (!EL.screen) return; // Guard
 
     // Render Recents
@@ -33,6 +49,27 @@ export function initWelcomeScreen(onWorkspaceSelect) {
             console.error('Failed to open folder dialog', e);
         }
     };
+
+    if (EL.openFileBtn && handlers.onOpenFile) {
+        EL.openFileBtn.onclick = async () => {
+            try {
+                const dialog = await import('@tauri-apps/plugin-dialog');
+                const file = await dialog.open({
+                    directory: false,
+                    multiple: false,
+                    title: 'Open File',
+                });
+                if (file) await handlers.onOpenFile(file);
+            } catch (e) {
+                console.error('Failed to open file dialog', e);
+                showAlert('Could not open the file picker.', { title: 'Open File', kind: 'error' });
+            }
+        };
+    }
+
+    if (EL.newFileBtn && handlers.onNewFile) {
+        EL.newFileBtn.onclick = () => handlers.onNewFile();
+    }
 }
 
 export function showWelcomeScreen() {
@@ -89,7 +126,7 @@ function renderRecents(onWorkspaceSelect) {
     list.innerHTML = '';
 
     if (recents.length === 0) {
-        list.innerHTML = '<li class="no-recents">No recent workspaces</li>';
+        list.innerHTML = `<li class="no-recents">${t('No recent workspaces')}</li>`;
         return;
     }
 
@@ -124,7 +161,7 @@ function renderRecents(onWorkspaceSelect) {
         newWinBtn.className = 'recent-item-newwin';
         newWinBtn.type = 'button';
         newWinBtn.textContent = '⧉';
-        newWinBtn.title = 'Open in a new window';
+        newWinBtn.title = t('Open in a new window');
         newWinBtn.onclick = (e) => {
             e.stopPropagation();
             try { window.app?.openWorkspaceInNewWindow?.(path); } catch (_) {}
