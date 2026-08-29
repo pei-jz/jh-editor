@@ -55,7 +55,7 @@ export const THEMES = [
 /** Legacy class some older paths still set; treated as dark. */
 export const LEGACY_DARK_CLASS = 'dark-mode';
 
-export const DEFAULT_THEME = 'dark';
+export const DEFAULT_THEME = 'kakejiku';
 
 /** Every `theme-<id>` class, for the removal list. `light` has none. */
 export function themeClasses() {

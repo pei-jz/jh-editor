@@ -48,7 +48,10 @@
   <script>
     // Immediate Theme Application (Sync)
     try {
-      let theme = localStorage.getItem('theme') || 'dark';
+      // 既定は Themes.js の DEFAULT_THEME と同じでなければならない。ここは
+      // スタイルシート適用前に走るためモジュールを読めず、直書きになる。
+      // 食い違うと起動直後の色と設定画面の表示がずれるので、テストで縛る。
+      let theme = localStorage.getItem('theme') || 'kakejiku';
       // Paper (Subtle) was removed: its sheet was 6 RGB units from Ink Brush's,
       // i.e. the same paper twice. Move anyone still on it across.
       if (theme === 'paper-subtle') {

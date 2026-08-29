@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { THEMES, themeClasses, darkThemeClasses } from '../src/modules/utils/Themes.js';
+import { THEMES, themeClasses, darkThemeClasses, DEFAULT_THEME, isKnownTheme } from '../src/modules/utils/Themes.js';
 
 // Themes that carry their own syntax palette (CodeMirrorView.PALETTE_THEMES).
 // Two things have gone wrong with these before: a dark theme was handed the
@@ -250,6 +250,31 @@ describe('dark-theme detection', () => {
 describe('the theme registry is the single source', () => {
     const themesCss = read('src/styles/themes.css');
     const html = read('index.html');
+
+    // The default used to be written out at four call sites while
+    // DEFAULT_THEME sat in the registry unused. Change one and the colour the
+    // window opens with stops matching what the settings selector claims.
+    it('decides the default theme once', () => {
+        expect(isKnownTheme(DEFAULT_THEME)).toBe(true);
+
+        // Everything that can import reads the registry.
+        for (const rel of ['src/modules/core/Layout.js',
+                           'src/modules/ui/SettingsModal.js']) {
+            const src = read(rel);
+            expect(src, `${rel} still hardcodes a default`)
+                .not.toMatch(/getItem\('theme'\) \|\| '/);
+            expect(src).toContain("getItem('theme') || DEFAULT_THEME");
+        }
+    });
+
+    // index.html paints the background before any stylesheet loads, so it runs
+    // too early to import and has to name the default itself. That is the one
+    // copy, and it has to agree.
+    it('agrees with index.html about what the default IS', () => {
+        const m = html.match(/getItem\('theme'\) \|\| '([a-z-]+)'/);
+        expect(m, 'index.html no longer picks a default theme').toBeTruthy();
+        expect(m[1]).toBe(DEFAULT_THEME);
+    });
 
     it('gives every theme a palette in themes.css', () => {
         const missing = THEMES
