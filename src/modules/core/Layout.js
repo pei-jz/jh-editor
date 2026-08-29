@@ -1,6 +1,7 @@
 import { EL } from './Constants.js';
 import { State } from './Store.js';
 import { applyTheme } from '../ui/SettingsModal.js';
+import { DEFAULT_THEME } from '../utils/Themes.js';
 
 export function setCompactMode(isCompact) {
     if (isCompact) document.body.classList.add('display-mode-compact');
@@ -72,7 +73,7 @@ function saveSettings() {
 }
 
 function loadSettings() {
-    let theme = localStorage.getItem('theme') || 'dark';
+    let theme = localStorage.getItem('theme') || DEFAULT_THEME;
     // See index.html: Paper (Subtle) folded into Ink Brush.
     if (theme === 'paper-subtle') {
         theme = 'sumi-e';

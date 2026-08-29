@@ -16,7 +16,7 @@ import {
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
-import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
+import { THEMES, themeClasses, isKnownTheme, DEFAULT_THEME } from '../utils/Themes.js';
 
 /**
  * Fill in the About block at the bottom of the General tab.
@@ -323,7 +323,7 @@ export function initSettingsModal() {
     }
 
     // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || 'dark';
+    const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
     // Build the picker from the registry rather than from markup: a theme
     // added to Themes.js appears here without anyone remembering to add an
     // <option>, and the label goes through t() like every other string.
@@ -611,7 +611,7 @@ export function initSettingsModal() {
                 viewModeSelector.value = isCompact ? 'compact' : 'normal';
             }
             if (themeSelector) {
-                themeSelector.value = localStorage.getItem('theme') || 'dark';
+                themeSelector.value = localStorage.getItem('theme') || DEFAULT_THEME;
             }
 
             // Reset to General Tab
