@@ -879,7 +879,11 @@ export class MarkdownView extends BaseView {
         };
 
         const handleKeyDown = (e) => {
-            if (e.key === 'Alt') {
+            // Alt ALONE opens the toolbar hints. It used to react to the Alt
+            // inside any combination, so pressing Ctrl+Alt+L flashed the hint
+            // overlay over the toolbar on the way to the shortcut — and left it
+            // up, because the matching keyup never came as a bare Alt.
+            if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
                 e.preventDefault();
                 toggleAltHints();
             } else if (e.key === 'Escape' && hintsVisible) {
@@ -937,7 +941,10 @@ export class MarkdownView extends BaseView {
 
         container.appendChild(toolbar);
         container.appendChild(cmParent);
-        container.appendChild(tableContainer);
+        // The HOST, not the scroller inside it. Appending the scroller left the
+        // host — and the copy button positioned against it — out of the
+        // document entirely: the table rendered, the button did not exist.
+        container.appendChild(tableHost);
 
         // Editing happens in a roomy modal (source left, live preview right)
         // rather than inside the block itself: an in-place box is bounded by the
