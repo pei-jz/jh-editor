@@ -40,32 +40,61 @@ function _injectStyles() {
         /* Native resize grip in the bottom-right corner. */
         resize: both;
     }
-    /* Draggable splitters between the three panes. */
+    /* Draggable splitters between the three panes. A 5px transparent strip
+       is not something anyone finds; widen the target and draw a hairline
+       down the middle so it is visible. */
     .mh-split {
-        flex: 0 0 5px; cursor: col-resize; background: transparent;
+        flex: 0 0 9px; cursor: col-resize; background: transparent;
         transition: background 0.12s ease;
+        position: relative;
+    }
+    .mh-split::after, .mh-split-h::after {
+        content: ''; position: absolute; background: var(--border-color);
+    }
+    .mh-split::after { top: 0; bottom: 0; left: 4px; width: 1px; }
+    .mh-split-h::after { left: 0; right: 0; top: 4px; height: 1px; }
+    .mh-center.mh-side > .mh-split-h::after {
+        top: 0; bottom: 0; left: 4px; right: auto; width: 1px; height: auto;
     }
     .mh-split:hover, .mh-split.dragging { background: var(--primary-color); opacity: 0.55; }
     /* Horizontal splitter between the source editor and the preview. */
     .mh-split-h {
-        flex: 0 0 5px; cursor: row-resize; background: transparent;
+        flex: 0 0 9px; cursor: row-resize; background: transparent;
         transition: background 0.12s ease;
+        position: relative;
     }
     .mh-split-h:hover, .mh-split-h.dragging { background: var(--primary-color); opacity: 0.55; }
 
-    /* 全画面。フローチャートは横に伸びるので、窓が小さいと編集にならない。 */
+    /* Full screen. A flowchart grows sideways; in a small window there is
+       nothing left to edit in. It starts BELOW the title bar, though: at
+       100vh the dialog covers the window's own close button, and anyone who
+       does not know about Esc is stuck. The bar is measured on open into
+       --mh-top rather than assumed, since it moves with theme and scale. */
+    #mermaid-helper-overlay.mh-max-overlay { top: var(--mh-top, 36px); }
     .mh-box.mh-max {
-        width: 100vw; height: 100vh;
-        max-width: 100vw; max-height: 100vh;
+        width: 100vw; height: 100%;
+        max-width: 100vw; max-height: 100%;
         border-radius: 0; resize: none;
     }
 
-    /* プレビューを右へ。縦に積むと、横長の図はどちらも狭くなる。 */
+    /* Grips on the left and right edges. CSS resize:both offers only the
+       bottom-right corner, so widening the dialog dragged its height too. */
+    .mh-edge {
+        position: absolute; top: 0; bottom: 0; width: 6px;
+        cursor: ew-resize; z-index: 2;
+    }
+    .mh-edge-l { left: 0; }
+    .mh-edge-r { right: 0; }
+    .mh-edge:hover, .mh-edge.dragging { background: var(--primary-color); opacity: 0.35; }
+    .mh-box.mh-max .mh-edge { display: none; }
+
+    /* Preview to the side. Stacked, a wide diagram squeezes both halves. */
     .mh-center.mh-side { flex-direction: row; }
     .mh-center.mh-side > .mh-editor { height: auto; width: 46%; }
     .mh-center.mh-side > .mh-split-h { cursor: col-resize; }
 
-    /* 畳んだ列。図の編集中は種類も部品も要らないことが多い。 */
+    /* Folded columns. Mid-edit, neither the type list nor the parts list
+       is usually wanted. */
     .mh-types.mh-collapsed, .mh-cheat.mh-collapsed { display: none; }
     .mh-types.mh-collapsed + .mh-split,
     .mh-split.mh-collapsed { display: none; }
@@ -194,7 +223,8 @@ export const MermaidHelper = {
             <span class="mh-sub">${_escape(t('Pick a type to insert its skeleton. Click anything on the right to add it.'))}</span>
             <span class="mh-head-spacer"></span>`;
 
-        // 表示の切り替え。図の種類によって欲しい形が違うので、固定しない。
+        // Layout controls. What a diagram needs from the dialog depends on
+        // the diagram, so none of this is fixed.
         const mkHeadBtn = (label, title) => {
             const b = document.createElement('button');
             b.className = 'mh-head-btn';
@@ -283,7 +313,8 @@ export const MermaidHelper = {
         _makeDragger(splitR, 'x', (dx) => {
             cheat.style.width = `${Math.max(180, cheat.getBoundingClientRect().width - dx)}px`;
         });
-        // 上下と左右で掴む軸が変わる。両方受け取って、いまの向きで使う。
+        // Which axis matters depends on where the preview currently sits, so
+        // take both and pick at drag time.
         _makeDragger(splitH, 'both', (dx, dy) => {
             if (center.classList.contains('mh-side')) {
                 const w = editor.getBoundingClientRect().width + dx;
@@ -296,7 +327,7 @@ export const MermaidHelper = {
             }
         });
 
-        // ── 表示の切り替え ────────────────────────────────────────────────
+        // -- layout controls --------------------------------------------
         const syncBtn = (btn, on) => btn.classList.toggle('on', on);
 
         typesBtn.onclick = () => {
@@ -314,15 +345,42 @@ export const MermaidHelper = {
 
         sideBtn.onclick = () => {
             const side = center.classList.toggle('mh-side');
-            // 掴んで決めた寸法は向きが変わると意味を失う。縦に引いた高さが
-            // 横向きの幅として効くと、開いた瞬間に潰れて見える。
+            // A size dragged in the old orientation means nothing in the new
+            // one: a height set while stacked would apply as a width side by
+            // side, and the pane opens already collapsed.
             editor.style.height = '';
             editor.style.width = '';
             syncBtn(sideBtn, side);
         };
 
+        // Widen the dialog from either edge. It is centred, so the width has
+        // to move twice the pointer delta to keep the grabbed edge under it.
+        const edgeL = document.createElement('div');
+        edgeL.className = 'mh-edge mh-edge-l';
+        edgeL.title = t('Drag to resize');
+        const edgeR = document.createElement('div');
+        edgeR.className = 'mh-edge mh-edge-r';
+        edgeR.title = t('Drag to resize');
+        box.append(edgeL, edgeR);
+
+        const widen = (delta) => {
+            const w = box.getBoundingClientRect().width + delta;
+            box.style.width = `${Math.min(Math.max(620, w), window.innerWidth)}px`;
+        };
+        _makeDragger(edgeL, 'x', (dx) => widen(-dx * 2));
+        _makeDragger(edgeR, 'x', (dx) => widen(dx * 2));
+
         maxBtn.onclick = () => {
             const max = box.classList.toggle('mh-max');
+            // Start below the title bar. Measured rather than assumed: the
+            // height moves with the theme and the display scale, and covering
+            // it takes the window's own buttons with it.
+            if (max) {
+                const bar = document.getElementById('custom-titlebar');
+                const h = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+                overlay.style.setProperty('--mh-top', `${h}px`);
+            }
+            overlay.classList.toggle('mh-max-overlay', max);
             syncBtn(maxBtn, max);
         };
 
@@ -498,12 +556,12 @@ export const MermaidHelper = {
                 if (activateCursor()) { e.preventDefault(); e.stopPropagation(); }
             }
 
-            // mermaid は字下げで入れ子を表すので、ソース欄では Tab を文字と
-            // して受ける。既定のフォーカス移動のままだと、押した瞬間に欄から
-            // 出てしまい、空白を手で並べることになる。
+            // mermaid nests by indentation, so Tab is a character here. Left
+            // as the default focus move, pressing it jumps out of the field
+            // and the only way to indent is to hold the space bar.
             //
-            // 欄から出る手段は残す。Alt+1..4 と Esc があり、Shift+Tab は
-            // 既定のまま前の要素へ戻る。閉じ込めない。
+            // There is still a way out: Alt+1..4, Esc, and Shift+Tab, which
+            // keeps its default. The field is never a trap.
             if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey
                 && document.activeElement === editor) {
                 e.preventDefault();
