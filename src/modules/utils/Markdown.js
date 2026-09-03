@@ -188,18 +188,30 @@ async function _reportIfError(node, svg) {
     // versions that do not.
     const looksBroken = svg.getAttribute('aria-roledescription') === 'error'
         || /Syntax error in text/i.test(svg.textContent || '');
-    if (!looksBroken) return;
+    if (!looksBroken) return false;
 
     const src = node.dataset.mermaidSrc || '';
     try {
         await mermaid.parse(src);
-        // parse accepted it, so the failure is in rendering rather than the
-        // grammar — worth knowing, and not the same bug.
-        console.error('Mermaid: rendering failed but the source parses', { src });
     } catch (e) {
+        // The grammar really is wrong. Leave the error graphic in place:
+        // retrying something that cannot succeed only fills the console.
         console.error('Mermaid syntax error:', (e && e.message) || e);
         console.error('Mermaid source was:\n' + src);
+        return false;
     }
+
+    // The source parses, so this was the drawing rather than the diagram.
+    // mermaid measures label text with getBBox, which returns nothing inside a
+    // display:none subtree — and book mode keeps every page but the open
+    // spread folded away.
+    //
+    // Put the source back and clear the marks. Left as it is, the error
+    // graphic counts as a rendered diagram: querySelector('svg') finds it, so
+    // every later pass skips the node and turning to the page never helps.
+    node.textContent = src;
+    node.removeAttribute('data-processed');
+    return true;
 }
 
 export async function renderMermaid(container = document) {
@@ -268,7 +280,8 @@ export async function renderMermaid(container = document) {
                 }
                 continue;
             }
-            await _reportIfError(n, svg);
+            // Restored for a later attempt: there is no SVG to size any more.
+            if (await _reportIfError(n, svg)) continue;
             _fixSvgHeight(svg);
         }
     }).catch((e) => { console.error('Mermaid queue error', e); });

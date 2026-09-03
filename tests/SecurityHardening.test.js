@@ -177,7 +177,36 @@ describe('rendering diagrams more than once', () => {
         const view = read('src/modules/views/MarkdownView.js');
         const i = view.indexOf('loadFromHTML(pageElements)');
         expect(i).toBeGreaterThan(-1);
-        expect(view.slice(i, i + 900)).toContain('Markdown.renderMermaid(bookDiv)');
+        const after = view.slice(i, i + 1200);
+        expect(after).toContain('Markdown.renderMermaid(bookDiv)');
+        // Measured after PageFlip has settled, or the open spread is not yet
+        // the open spread.
+        expect(after).toContain('requestAnimationFrame');
+    });
+
+    // mermaid sizes labels with getBBox, which measures nothing inside a
+    // display:none subtree — and book mode folds away every page but the open
+    // spread. Those diagrams have to be drawn when their page opens.
+    it('draws the diagrams on a page when it is turned to', () => {
+        const view = read('src/modules/views/MarkdownView.js');
+        const i = view.indexOf("pageFlipInstance.on('flip'");
+        expect(i).toBeGreaterThan(-1);
+        expect(view.slice(i, i + 700)).toContain('Markdown.renderMermaid');
+    });
+
+    // The error graphic counts as a rendered diagram: querySelector('svg')
+    // finds it, so every later pass skips the node and turning to the page
+    // never helps. Anything whose source still parses gets its marks cleared
+    // so a later attempt can succeed; a genuinely broken diagram keeps the
+    // error, because retrying that only fills the console.
+    it('lets a drawing failure be retried, but not a broken diagram', () => {
+        expect(src).toContain("node.removeAttribute('data-processed')");
+        const i = src.indexOf('async function _reportIfError');
+        expect(i).toBeGreaterThan(-1);
+        const fn = src.slice(i, src.indexOf('\n}', i));
+        expect(fn).toContain('await mermaid.parse(src)');
+        // The parse failure path reports and gives up.
+        expect(fn).toContain('return false;');
     });
 });
 

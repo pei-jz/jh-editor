@@ -2201,16 +2201,19 @@ export class MarkdownView extends BaseView {
                 this.pageFlipInstance.loadFromHTML(pageElements);
             }
 
-            // ここでもう一度図を描く。ブロック側の描画は setTimeout(50) で
-            // 走るが、Book mode ではその 50ms のあいだに loadFromHTML() が
-            // ページを自分の構造へ移してしまう。移動中に走った mermaid は
-            // id で引き直したノードを見失い、"Syntax error in text" になる。
-            // 二度目に開くと直るのは、そのとき DOM が落ち着いているから。
+            // 開いている見開きの図を描く。ブロック側の描画は setTimeout(50)
+            // で走るが、そのあいだに loadFromHTML() がページを自分の構造へ
+            // 移し、開いていない側を畳んでしまう。mermaid はラベルの寸法を
+            // getBBox で測るので、畳まれた中では測れず描画に失敗する。
             //
-            // renderMermaid は済んだノード (data-processed か svg 入り) を
-            // 飛ばすので、重ねて呼んでも二重には描かれない。
-            Markdown.renderMermaid(bookDiv).catch((e) => {
-                console.error('Book mode mermaid render failed', e);
+            // 次のフレームまで待つのは、PageFlip の組み立てが終わって、どの
+            // ページが開いているかが確定してから測るため。残りのページは
+            // めくられたときに描く (下の flip ハンドラ)。
+            requestAnimationFrame(() => {
+                if (!bookDiv.isConnected) return;
+                Markdown.renderMermaid(bookDiv).catch((e) => {
+                    console.error('Book mode mermaid render failed', e);
+                });
             });
 
             // Fix text selection and arrow key focus
@@ -2227,6 +2230,14 @@ export class MarkdownView extends BaseView {
             // Sync page index on flip event
             this.pageFlipInstance.on('flip', (e) => {
                 this.currentPageIndex = e.data;
+                // Draw any diagram that could not be drawn while its page was
+                // folded away. mermaid sizes labels with getBBox, which
+                // measures nothing inside a display:none subtree, so a page
+                // has to be open before its diagrams can be laid out.
+                // renderMermaid skips whatever is already drawn.
+                Markdown.renderMermaid(bookDiv).catch((err) => {
+                    console.error('Book mode mermaid render failed', err);
+                });
                 this._resetSpreadScroll(e.data);
                 this._updateBookFooter(progressBar, pageInfo);
                 // Move the selection onto the page that is now showing, so
