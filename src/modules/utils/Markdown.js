@@ -206,11 +206,27 @@ async function _reportIfError(node, svg) {
     // display:none subtree — and book mode keeps every page but the open
     // spread folded away.
     //
-    // Put the source back and clear the marks. Left as it is, the error
-    // graphic counts as a rendered diagram: querySelector('svg') finds it, so
-    // every later pass skips the node and turning to the page never helps.
-    node.textContent = src;
-    node.removeAttribute('data-processed');
+    // The element has to be REPLACED, not reset. Measured against the bundled
+    // mermaid 11.12.2 with this exact diagram:
+    //
+    //     render while open     ok
+    //     render while folded   ERROR
+    //     same node, revealed   ERROR   <- resetting text + marks is not enough
+    //     fresh node            ok
+    //     trivial diagram after ok      <- mermaid's own state is fine
+    //
+    // Something stays on the element mermaid already gave up on, and it keeps
+    // refusing that node however the content is put back. A new element with
+    // no id gets a fresh one on the next pass and draws.
+    //
+    // Leaving the error graphic in place is not an option either: it counts as
+    // a rendered diagram, so every later pass skips the node and turning to
+    // the page never helps.
+    const fresh = node.ownerDocument.createElement('div');
+    fresh.className = node.className;
+    fresh.dataset.mermaidSrc = src;
+    fresh.textContent = src;
+    node.replaceWith(fresh);
     return true;
 }
 

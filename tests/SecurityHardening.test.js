@@ -200,7 +200,11 @@ describe('rendering diagrams more than once', () => {
     // so a later attempt can succeed; a genuinely broken diagram keeps the
     // error, because retrying that only fills the console.
     it('lets a drawing failure be retried, but not a broken diagram', () => {
-        expect(src).toContain("node.removeAttribute('data-processed')");
+        // Resetting the element is not enough: mermaid keeps refusing a node
+        // it already failed on, however the content is put back. Measured
+        // against the bundled build - a fresh element draws, the same one
+        // never does.
+        expect(src).toContain('node.replaceWith(fresh)');
         const i = src.indexOf('async function _reportIfError');
         expect(i).toBeGreaterThan(-1);
         const fn = src.slice(i, src.indexOf('\n}', i));
