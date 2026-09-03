@@ -475,6 +475,18 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '更新を確認',
+    'Insert a Mermaid diagram':
+        'Mermaid 図を挿入',
+    'Pick a type to insert its skeleton. Click anything on the right to add it.':
+        '種類を選ぶと雛形が入ります。右の項目をクリックすると追記されます。',
+    'Types': '種類',
+    'Parts': '部品',
+    'Side preview': '横に並べる',
+    'Full screen': '全画面',
+    'Show or hide the diagram types': '図の種類の表示を切り替える',
+    'Show or hide the syntax list': '部品一覧の表示を切り替える',
+    'Put the preview beside the source instead of below': 'プレビューを下ではなく横に置く',
+    'Fill the window': 'ウィンドウいっぱいに広げる',
     'Install': 'インストール',
     'Installed': 'インストール版',
     'Portable': 'ポータブル版',

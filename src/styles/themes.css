@@ -718,19 +718,45 @@ body.theme-bamboo-ancient {
 
     /* Bamboo fibre grain (faint fractal noise). */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4 0.06' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.09'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
+    /* The rods of a hanging scroll: slats only, no binding cords.
+       --slip draws its cords at 17% and 82% of the element's height, which on
+       a 30px bar puts them 5px and 25px in and turns the whole strip into
+       stripes. The bars want the segments and nothing else. */
+    --slip-bar: repeating-linear-gradient(90deg,transparent 0px,transparent 42px,rgba(0,0,0,0.55) 42px,rgba(0,0,0,0.55) 45px),repeating-linear-gradient(90deg,rgba(0,0,0,0.28) 0px,rgba(0,0,0,0) 6px,rgba(220,205,160,0.09) 15px,rgba(255,255,255,0) 26px,rgba(0,0,0,0.12) 38px,rgba(0,0,0,0.28) 45px),linear-gradient(180deg,rgba(225,205,165,0.07) 0%,rgba(0,0,0,0.10) 55%,rgba(0,0,0,0.30) 100%);
+
     /* A bundle of vertically bound slats + two binding cords. */
     --slip: linear-gradient(180deg,transparent 0%,transparent 17%,rgba(0,0,0,0.55) 17%,rgba(0,0,0,0.55) calc(17% + 3px),rgba(220,205,160,0.08) calc(17% + 4px),transparent calc(17% + 6px),transparent 82%,rgba(0,0,0,0.55) 82%,rgba(0,0,0,0.55) calc(82% + 3px),rgba(220,205,160,0.08) calc(82% + 4px),transparent calc(82% + 6px),transparent 100%),repeating-linear-gradient(90deg,transparent 0px,transparent 42px,rgba(0,0,0,0.65) 42px,rgba(0,0,0,0.65) 46px),repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0px,rgba(0,0,0,0) 5px,rgba(220,205,160,0.10) 14px,rgba(255,255,255,0) 24px,rgba(0,0,0,0.15) 38px,rgba(0,0,0,0.35) 46px),radial-gradient(130% 95% at 50% 42%,rgba(225,205,165,0.04) 0%,rgba(0,0,0,0) 42%,rgba(0,0,0,0.6) 100%);
 }
 
-/* The desk: a bundle of bound slats behind the whole app. */
+/* A hanging scroll: bamboo at the rods, paper in between.
+   The slats used to run behind the whole app and through the file list, where
+   a 4px near-black line every 46px cut across the names. Reading surfaces keep
+   the fibre grain; the slats live on the two bars only. */
 body.theme-bamboo-ancient {
-    background: var(--grain), var(--slip), var(--sidebar-bg);
+    background: var(--grain), var(--sidebar-bg);
 }
 
-/* #explorer paints --sidebar-bg over the body, so the slats are layered back
-   on top of it — that panel is where the texture actually reads. */
+/* The file list reads like the editor, not like the desk it sits on. */
 body.theme-bamboo-ancient #explorer {
-    background-image: var(--grain), var(--slip);
+    background-image: var(--grain);
+}
+
+/* The rods. */
+body.theme-bamboo-ancient #custom-titlebar,
+body.theme-bamboo-ancient #status-bar {
+    background-image: var(--grain), var(--slip-bar);
+    background-color: var(--sidebar-bg);
+}
+
+/* The cords that would tie the rods: one line each, where the paper meets
+   them. A gradient is enough — the bars are too short for the real binding. */
+body.theme-bamboo-ancient #custom-titlebar {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+    box-shadow: 0 1px 0 rgba(220, 205, 160, 0.10);
+}
+body.theme-bamboo-ancient #status-bar {
+    border-top: 1px solid rgba(0, 0, 0, 0.55);
+    box-shadow: 0 -1px 0 rgba(220, 205, 160, 0.10);
 }
 
 /* Reading surfaces get the fibre grain only. The slat lines are 4px of near

@@ -52,6 +52,32 @@ function _injectStyles() {
         transition: background 0.12s ease;
     }
     .mh-split-h:hover, .mh-split-h.dragging { background: var(--primary-color); opacity: 0.55; }
+
+    /* 全画面。フローチャートは横に伸びるので、窓が小さいと編集にならない。 */
+    .mh-box.mh-max {
+        width: 100vw; height: 100vh;
+        max-width: 100vw; max-height: 100vh;
+        border-radius: 0; resize: none;
+    }
+
+    /* プレビューを右へ。縦に積むと、横長の図はどちらも狭くなる。 */
+    .mh-center.mh-side { flex-direction: row; }
+    .mh-center.mh-side > .mh-editor { height: auto; width: 46%; }
+    .mh-center.mh-side > .mh-split-h { cursor: col-resize; }
+
+    /* 畳んだ列。図の編集中は種類も部品も要らないことが多い。 */
+    .mh-types.mh-collapsed, .mh-cheat.mh-collapsed { display: none; }
+    .mh-types.mh-collapsed + .mh-split,
+    .mh-split.mh-collapsed { display: none; }
+
+    .mh-head-btn {
+        flex: 0 0 auto; padding: 3px 8px; font-size: 11px;
+        background: transparent; color: var(--text-color);
+        border: 1px solid var(--border-color); border-radius: 4px;
+        cursor: pointer; white-space: nowrap;
+    }
+    .mh-head-btn:hover { background: var(--hover-color); }
+    .mh-head-btn.on { border-color: var(--primary-color); color: var(--primary-color); }
     /* Focused pane gets a visible ring so Alt+digit navigation is obvious. */
     .mh-pane-focus { box-shadow: inset 0 0 0 2px var(--primary-color); }
     .mh-pane-badge {
@@ -164,10 +190,24 @@ export const MermaidHelper = {
         // ── header ──
         const head = document.createElement('div');
         head.className = 'mh-head';
-        head.innerHTML = `<span class="mh-title">Insert a Mermaid diagram</span>
-            <span class="mh-sub">Pick a type to insert its skeleton. Click anything on the right to add it.</span>
-            <span class="mh-head-spacer"></span>
-            <span class="mh-sub">Alt+1-4 moves between panes &middot; Up/Down selects</span>`;
+        head.innerHTML = `<span class="mh-title">${_escape(t('Insert a Mermaid diagram'))}</span>
+            <span class="mh-sub">${_escape(t('Pick a type to insert its skeleton. Click anything on the right to add it.'))}</span>
+            <span class="mh-head-spacer"></span>`;
+
+        // 表示の切り替え。図の種類によって欲しい形が違うので、固定しない。
+        const mkHeadBtn = (label, title) => {
+            const b = document.createElement('button');
+            b.className = 'mh-head-btn';
+            b.type = 'button';
+            b.textContent = label;
+            b.title = title;
+            return b;
+        };
+        const typesBtn = mkHeadBtn(t('Types'), t('Show or hide the diagram types'));
+        const partsBtn = mkHeadBtn(t('Parts'), t('Show or hide the syntax list'));
+        const sideBtn = mkHeadBtn(t('Side preview'), t('Put the preview beside the source instead of below'));
+        const maxBtn = mkHeadBtn(t('Full screen'), t('Fill the window'));
+        head.append(typesBtn, partsBtn, sideBtn, maxBtn);
 
         // ── left: diagram types ──
         const types = document.createElement('div');
@@ -243,11 +283,48 @@ export const MermaidHelper = {
         _makeDragger(splitR, 'x', (dx) => {
             cheat.style.width = `${Math.max(180, cheat.getBoundingClientRect().width - dx)}px`;
         });
-        _makeDragger(splitH, 'y', (dy) => {
-            const h = editor.getBoundingClientRect().height + dy;
-            const max = center.getBoundingClientRect().height - 120;
-            editor.style.height = `${Math.min(Math.max(80, h), Math.max(80, max))}px`;
+        // 上下と左右で掴む軸が変わる。両方受け取って、いまの向きで使う。
+        _makeDragger(splitH, 'both', (dx, dy) => {
+            if (center.classList.contains('mh-side')) {
+                const w = editor.getBoundingClientRect().width + dx;
+                const max = center.getBoundingClientRect().width - 160;
+                editor.style.width = `${Math.min(Math.max(160, w), Math.max(160, max))}px`;
+            } else {
+                const h = editor.getBoundingClientRect().height + dy;
+                const max = center.getBoundingClientRect().height - 120;
+                editor.style.height = `${Math.min(Math.max(80, h), Math.max(80, max))}px`;
+            }
         });
+
+        // ── 表示の切り替え ────────────────────────────────────────────────
+        const syncBtn = (btn, on) => btn.classList.toggle('on', on);
+
+        typesBtn.onclick = () => {
+            const off = types.classList.toggle('mh-collapsed');
+            splitL.classList.toggle('mh-collapsed', off);
+            syncBtn(typesBtn, !off);
+        };
+        partsBtn.onclick = () => {
+            const off = cheat.classList.toggle('mh-collapsed');
+            splitR.classList.toggle('mh-collapsed', off);
+            syncBtn(partsBtn, !off);
+        };
+        syncBtn(typesBtn, true);
+        syncBtn(partsBtn, true);
+
+        sideBtn.onclick = () => {
+            const side = center.classList.toggle('mh-side');
+            // 掴んで決めた寸法は向きが変わると意味を失う。縦に引いた高さが
+            // 横向きの幅として効くと、開いた瞬間に潰れて見える。
+            editor.style.height = '';
+            editor.style.width = '';
+            syncBtn(sideBtn, side);
+        };
+
+        maxBtn.onclick = () => {
+            const max = box.classList.toggle('mh-max');
+            syncBtn(maxBtn, max);
+        };
 
         // ── behaviour ─────────────────────────────────────────────────────────
         let selectedId = detectDiagramType(editor.value) || null;
@@ -420,6 +497,20 @@ export const MermaidHelper = {
             if (e.key === 'Enter' && !e.shiftKey && panes[paneIdx].list()) {
                 if (activateCursor()) { e.preventDefault(); e.stopPropagation(); }
             }
+
+            // mermaid は字下げで入れ子を表すので、ソース欄では Tab を文字と
+            // して受ける。既定のフォーカス移動のままだと、押した瞬間に欄から
+            // 出てしまい、空白を手で並べることになる。
+            //
+            // 欄から出る手段は残す。Alt+1..4 と Esc があり、Shift+Tab は
+            // 既定のまま前の要素へ戻る。閉じ込めない。
+            if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey
+                && document.activeElement === editor) {
+                e.preventDefault();
+                e.stopPropagation();
+                _indentSelection(editor);
+                schedulePreview();
+            }
         };
         // Clicking inside a pane makes it the active one for keyboard nav.
         panes.forEach((p, i) => p.el.addEventListener('mousedown', () => {
@@ -450,21 +541,37 @@ function _escape(s) {
  * event (not since the drag started), so callers can size relative to the
  * element's current box without tracking a baseline.
  */
+/**
+ * Drag a splitter.
+ *
+ * `axis` is 'x', 'y', or 'both'. The preview splitter needs 'both' because the
+ * pane can sit under the source or beside it, and which delta matters is only
+ * known at drag time. The callback always receives (dx, dy); single-axis
+ * draggers get 0 for the one they do not use.
+ */
 function _makeDragger(handle, axis, onDelta) {
     handle.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
         e.preventDefault();
-        let last = axis === 'x' ? e.clientX : e.clientY;
+        let lastX = e.clientX;
+        let lastY = e.clientY;
         handle.classList.add('dragging');
         // Suppress text selection / iframe capture while dragging.
         const prevUserSelect = document.body.style.userSelect;
         document.body.style.userSelect = 'none';
 
         const move = (ev) => {
-            const cur = axis === 'x' ? ev.clientX : ev.clientY;
-            const delta = cur - last;
-            last = cur;
-            if (delta) onDelta(delta);
+            const dx = ev.clientX - lastX;
+            const dy = ev.clientY - lastY;
+            lastX = ev.clientX;
+            lastY = ev.clientY;
+            if (axis === 'x') {
+                if (dx) onDelta(dx, 0);
+            } else if (axis === 'y') {
+                if (dy) onDelta(0, dy);
+            } else if (dx || dy) {
+                onDelta(dx, dy);
+            }
         };
         const up = () => {
             handle.classList.remove('dragging');
@@ -475,6 +582,41 @@ function _makeDragger(handle, axis, onDelta) {
         window.addEventListener('mousemove', move);
         window.addEventListener('mouseup', up);
     });
+}
+
+/**
+ * Indent at the caret with two spaces.
+ *
+ * Spaces rather than a tab character: mermaid does not care, but the source
+ * ends up inside a fenced block in the document, where a real tab renders at
+ * whatever width the reader's viewer picks. Two spaces match the skeletons
+ * this dialog inserts.
+ *
+ * With a selection spanning lines, every line moves — indenting a subgraph
+ * one line at a time is the tedious part.
+ */
+function _indentSelection(textarea) {
+    const INDENT = '  ';
+    const { selectionStart: start, selectionEnd: end, value } = textarea;
+
+    if (start === end) {
+        textarea.value = value.slice(0, start) + INDENT + value.slice(end);
+        textarea.selectionStart = textarea.selectionEnd = start + INDENT.length;
+        return;
+    }
+
+    // Grow the range to whole lines so partial selections still indent
+    // sensibly rather than injecting spaces mid-word.
+    const from = value.lastIndexOf('\n', start - 1) + 1;
+    const to = value.indexOf('\n', end);
+    const tail = to === -1 ? value.length : to;
+
+    const block = value.slice(from, tail);
+    const shifted = block.split('\n').map((line) => INDENT + line).join('\n');
+
+    textarea.value = value.slice(0, from) + shifted + value.slice(tail);
+    textarea.selectionStart = start + INDENT.length;
+    textarea.selectionEnd = end + INDENT.length * block.split('\n').length;
 }
 
 /** Insert `text` at the caret, on its own line, and keep the caret after it. */

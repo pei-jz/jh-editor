@@ -203,6 +203,14 @@ export async function renderMermaid(container = document) {
     }
 
     _mermaidQueue = _mermaidQueue.then(async () => {
+        // 集めたのはキューに入る前。順番待ちのあいだに、別の呼び出しが同じ
+        // ノードを描き終えていることがある。済んだものを渡すと mermaid は
+        // その <svg> を図の記述として読もうとし、「Syntax error in text」に
+        // なる。走る直前にもう一度絞れば、重ねて呼ばれても害が無い。
+        const pending = nodes.filter(
+            (n) => !n.getAttribute('data-processed') && !n.querySelector('svg'));
+        if (pending.length === 0) return;
+
         try {
             const isDark = isDarkTheme();
             // Re-initialised per run to pick up a theme change. Kept in step
@@ -213,11 +221,11 @@ export async function renderMermaid(container = document) {
                 securityLevel: 'strict',
                 theme: isDark ? 'dark' : 'default'
             });
-            await mermaid.run({ nodes, suppressErrors: true });
+            await mermaid.run({ nodes: pending, suppressErrors: true });
         } catch (e) {
             console.error('Mermaid rendering error', e);
         }
-        for (const n of nodes) {
+        for (const n of pending) {
             const svg = n.querySelector('svg');
             // Anything mermaid gave up on (or blanked) gets its source back, so
             // the user sees the diagram text rather than an empty block.
