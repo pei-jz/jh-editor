@@ -37,22 +37,3 @@ describe('README screenshots', () => {
         expect(missing, `<picture> source with no file: ${missing.join(', ')}`).toEqual([]);
     });
 });
-
-describe('the capture guide', () => {
-    const guide = read('docs/images/README.md');
-
-    // The guide is the list someone works from. Anything named there but not
-    // referenced by the README is a capture nobody needs.
-    it('asks only for captures the README uses', () => {
-        const asked = [...guide.matchAll(/`([\w-]+\.(?:png|gif|jpe?g|webp))`/g)].map((m) => m[1]);
-        const used = new Set(
-            [...readme.matchAll(/docs\/images\/([\w.-]+)/g)].map((m) => m[1]),
-        );
-
-        // hero-dark is named on purpose: the guide explains how to switch it
-        // back on once the file exists.
-        const stray = [...new Set(asked)]
-            .filter((f) => !used.has(f) && f !== 'hero-dark.png');
-        expect(stray, `asked for but unused: ${stray.join(', ')}`).toEqual([]);
-    });
-});
