@@ -4,7 +4,6 @@ A local-first desktop text editor built with **Tauri 2**, **vanilla JavaScript**
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
     <img src="docs/images/hero-light.png" alt="J.H Editor in Book mode, with the file tree and tab bar" width="820">
   </picture>
 </p>
@@ -38,9 +37,6 @@ agent over MCP, rather than embedding an LLM stack of its own.
   instead of re-reading the docs every time</em>
 </p>
 
-<p align="center">
-  <img src="docs/images/startup.gif" alt="J.H Editor launching from a double-click to a ready editor" width="820">
-</p>
 <p align="center">
   <em>Double-click to editable, in well under a second. The window stays hidden until
   the editor is actually ready, so there is no white flash and no empty frame.</em>
