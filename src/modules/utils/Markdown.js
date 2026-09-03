@@ -170,6 +170,38 @@ function _fixSvgHeight(svg) {
 let _mermaidQueue = Promise.resolve();
 let _mermaidSeq = 0;
 
+/**
+ * Say why a diagram failed.
+ *
+ * `suppressErrors: true` keeps one bad diagram from taking the rest of the
+ * page down, but it also means mermaid never throws for a syntax error — it
+ * draws its bomb and returns normally. So the catch around mermaid.run() never
+ * fires for the one failure mode people actually hit, and the console stays
+ * empty while the page shows "Syntax error in text".
+ *
+ * mermaid.parse() does throw, and its message names the line and the token.
+ * Called only on a node that already rendered as an error, so the cost lands
+ * on the failing case alone.
+ */
+async function _reportIfError(node, svg) {
+    // mermaid marks its error graphic; fall back to the visible text for
+    // versions that do not.
+    const looksBroken = svg.getAttribute('aria-roledescription') === 'error'
+        || /Syntax error in text/i.test(svg.textContent || '');
+    if (!looksBroken) return;
+
+    const src = node.dataset.mermaidSrc || '';
+    try {
+        await mermaid.parse(src);
+        // parse accepted it, so the failure is in rendering rather than the
+        // grammar — worth knowing, and not the same bug.
+        console.error('Mermaid: rendering failed but the source parses', { src });
+    } catch (e) {
+        console.error('Mermaid syntax error:', (e && e.message) || e);
+        console.error('Mermaid source was:\n' + src);
+    }
+}
+
 export async function renderMermaid(container = document) {
     // Every diagram render in the app funnels through here, which is why this
     // is where the library gets loaded: nothing else has to remember to.
@@ -236,6 +268,7 @@ export async function renderMermaid(container = document) {
                 }
                 continue;
             }
+            await _reportIfError(n, svg);
             _fixSvgHeight(svg);
         }
     }).catch((e) => { console.error('Mermaid queue error', e); });

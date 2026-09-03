@@ -47,6 +47,32 @@ describe('making room in the mermaid dialog', () => {
         expect(d.box.classList.contains('mh-max')).toBe(false);
     });
 
+    // At 100vh the dialog covered the title bar, taking the window's own close
+    // button with it. The bar's height is measured rather than assumed: it
+    // moves with the theme and the display scale.
+    it('starts below the title bar when filled', () => {
+        const bar = document.createElement('div');
+        bar.id = 'custom-titlebar';
+        document.body.appendChild(bar);
+        try {
+            const d = open();
+            [...d.overlay.querySelectorAll('.mh-head-btn')].at(-1).click();
+
+            expect(d.overlay.classList.contains('mh-max-overlay')).toBe(true);
+            expect(d.overlay.style.getPropertyValue('--mh-top')).toMatch(/^\d+px$/);
+        } finally {
+            bar.remove();
+        }
+    });
+
+    // `resize: both` only grips the bottom-right corner, so widening the
+    // dialog also dragged its height around.
+    it('can be widened from either edge', () => {
+        const d = open();
+        expect(d.overlay.querySelector('.mh-edge-l')).toBeTruthy();
+        expect(d.overlay.querySelector('.mh-edge-r')).toBeTruthy();
+    });
+
     // Stacked, a wide flowchart squeezes the source and the preview alike.
     it('can put the preview beside the source', () => {
         const d = open();
