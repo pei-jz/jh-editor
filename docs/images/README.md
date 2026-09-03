@@ -8,10 +8,19 @@ Drop the captures here under these exact names — the README already references
 | `hero-dark.png`  | Same framing and same document, dark theme |
 | `csv-table.png`  | A Shift_JIS CSV open in Table mode, status bar visible |
 | `mermaid.png`    | The "Insert a Mermaid diagram" recipe helper |
-| `startup.gif`    | Double-click to a ready editor |
 
-`hero-dark.png` is optional. If it is missing the README falls back to the light
-one, so the page still renders.
+`hero-dark.png` is not wired up. It cannot simply be dropped in: `<picture>`
+picks the `<source>` whose media query matches and does NOT fall back to the
+`<img>` when that file 404s — the hero just breaks for everyone reading GitHub
+in dark mode. Measured, not assumed: `naturalWidth` comes back 0.
+
+So the dark `<source>` line stays out of `README.md` until the file exists. To
+turn it back on, capture `hero-dark.png` and restore this line above the
+`<img>`:
+
+```html
+<source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
+```
 
 ## Before capturing
 
@@ -27,8 +36,8 @@ one, so the page still renders.
 ## After capturing
 
 - Crop away empty space (the blank columns to the right of a narrow CSV, for example).
-- Compress with pngquant or TinyPNG. Aim for **200-400 KB per PNG**, and keep the
-  GIF **under 5 MB** — every clone downloads all of it.
+- Compress with pngquant or TinyPNG. Aim for **200-400 KB per PNG** — every
+  clone downloads all of them.
 - Keep the same window size and document across `hero-light` / `hero-dark`, or the
   light/dark swap will visibly jump.
 
