@@ -475,6 +475,18 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '업데이트 확인',
+    'Insert a Mermaid diagram':
+        'Mermaid 다이어그램 삽입',
+    'Pick a type to insert its skeleton. Click anything on the right to add it.':
+        '종류를 고르면 골격이 삽입됩니다. 오른쪽 항목을 누르면 추가됩니다.',
+    'Types': '종류',
+    'Parts': '부품',
+    'Side preview': '나란히 미리보기',
+    'Full screen': '전체 화면',
+    'Show or hide the diagram types': '다이어그램 종류 표시를 전환',
+    'Show or hide the syntax list': '문법 목록 표시를 전환',
+    'Put the preview beside the source instead of below': '미리보기를 아래가 아닌 옆에 배치',
+    'Fill the window': '창을 가득 채우기',
     'Install': '설치 형태',
     'Installed': '설치판',
     'Portable': '포터블판',

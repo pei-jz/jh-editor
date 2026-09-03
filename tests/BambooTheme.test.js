@@ -61,10 +61,31 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         expect(block).toContain('--border-color: #6b5a3c;');
     });
 
-    it('carries the slip texture and lays it on the desk', () => {
+    // A hanging scroll: bamboo at the rods, paper in between. The slats used
+    // to run behind the whole app and through the file list, where a 4px
+    // near-black line every 46px cut across the names.
+    it('keeps the bamboo on the two bars', () => {
         expect(block).toContain("--grain: url(\"data:image/svg+xml,");
         expect(block).toContain('--slip: linear-gradient(180deg,');
-        expect(themes).toContain('background: var(--grain), var(--slip), var(--sidebar-bg);');
+
+        // The desk and the file list are paper now.
+        expect(themes).toContain('background: var(--grain), var(--sidebar-bg);');
+
+        const idx = themes.indexOf('body.theme-bamboo-ancient #explorer {');
+        expect(idx).toBeGreaterThan(-1);
+        const explorer = themes.slice(idx, themes.indexOf('}', idx));
+        expect(explorer).toContain('var(--grain)');
+        expect(explorer, 'the slats are what made the file names hard to read')
+            .not.toContain('--slip');
+
+        // The rods carry it instead, with a texture of their own: --slip draws
+        // binding cords at 17% and 82% of the height, which on a 30px bar
+        // turns the whole strip into stripes.
+        expect(block).toContain('--slip-bar:');
+        const bars = themes.indexOf('body.theme-bamboo-ancient #custom-titlebar,');
+        expect(bars).toBeGreaterThan(-1);
+        expect(themes.slice(bars, themes.indexOf('}', bars)))
+            .toContain('var(--slip-bar)');
     });
 
     // The slats are 4px of near-black every 46px. Behind prose they would cut

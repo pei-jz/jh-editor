@@ -2,11 +2,49 @@
 
 A local-first desktop text editor built with **Tauri 2**, **vanilla JavaScript** and **CodeMirror 6**.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
+    <img src="docs/images/hero-light.png" alt="J.H Editor in Book mode, with the file tree and tab bar" width="820">
+  </picture>
+</p>
+<p align="center">
+  <em>Book mode &mdash; a page-turning reading view for long documents, with highlighting intact</em>
+</p>
+
 J.H Editor is aimed at being the editor you leave open all day — a fast default for
 plain text and **Markdown**, with structured-data tools (CSV / JSON / XML / HTML) and a
 Git panel when you need them. It is not trying to be an IDE. Where AI is concerned it
 plays the **companion** role: it exposes the document you are editing to an external
 agent over MCP, rather than embedding an LLM stack of its own.
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/csv-table.png" alt="A Shift_JIS CSV file opened as a spreadsheet grid" width="820">
+</p>
+<p align="center">
+  <em>CSV opens as a grid &mdash; sort, resize, transpose, Excel-style insert/delete.
+  Shift_JIS and other legacy encodings are detected, so no mojibake.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/mermaid.png" alt="The Mermaid recipe helper, listing diagram types and syntax snippets" width="820">
+</p>
+<p align="center">
+  <em>The Mermaid recipe helper &mdash; pick a diagram type and click the syntax you need,
+  instead of re-reading the docs every time</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/startup.gif" alt="J.H Editor launching from a double-click to a ready editor" width="820">
+</p>
+<p align="center">
+  <em>Double-click to editable, in well under a second. The window stays hidden until
+  the editor is actually ready, so there is no white flash and no empty frame.</em>
+</p>
 
 ---
 

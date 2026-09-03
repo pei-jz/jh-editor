@@ -2201,6 +2201,18 @@ export class MarkdownView extends BaseView {
                 this.pageFlipInstance.loadFromHTML(pageElements);
             }
 
+            // ここでもう一度図を描く。ブロック側の描画は setTimeout(50) で
+            // 走るが、Book mode ではその 50ms のあいだに loadFromHTML() が
+            // ページを自分の構造へ移してしまう。移動中に走った mermaid は
+            // id で引き直したノードを見失い、"Syntax error in text" になる。
+            // 二度目に開くと直るのは、そのとき DOM が落ち着いているから。
+            //
+            // renderMermaid は済んだノード (data-processed か svg 入り) を
+            // 飛ばすので、重ねて呼んでも二重には描かれない。
+            Markdown.renderMermaid(bookDiv).catch((e) => {
+                console.error('Book mode mermaid render failed', e);
+            });
+
             // Fix text selection and arrow key focus
             bookDiv.addEventListener('mousedown', (e) => {
                 layoutDiv.focus();

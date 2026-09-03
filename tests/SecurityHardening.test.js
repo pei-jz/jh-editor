@@ -156,6 +156,31 @@ describe('no general shell command is exposed to the webview', () => {
     });
 });
 
+describe('rendering diagrams more than once', () => {
+    const src = read('src/modules/utils/Markdown.js');
+
+    // Nodes are collected before the call joins the queue. Two calls covering
+    // the same node both hold that list, and the second hands mermaid an
+    // element that is already an <svg> — which it tries to parse as diagram
+    // source and reports as "Syntax error in text". Narrowing again at run
+    // time is what makes a redundant call harmless, and book mode needs one:
+    // its pages are moved into the flipbook after the blocks render, so a
+    // second pass has to be safe.
+    it('drops nodes another run already finished', () => {
+        expect(src).toContain('const pending = nodes.filter');
+        expect(src).toContain('mermaid.run({ nodes: pending');
+        expect(src, 'the stale list must not reach mermaid')
+            .not.toContain('mermaid.run({ nodes, ');
+    });
+
+    it('renders again once the book pages are in place', () => {
+        const view = read('src/modules/views/MarkdownView.js');
+        const i = view.indexOf('loadFromHTML(pageElements)');
+        expect(i).toBeGreaterThan(-1);
+        expect(view.slice(i, i + 900)).toContain('Markdown.renderMermaid(bookDiv)');
+    });
+});
+
 describe('tauri configuration', () => {
     const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
 

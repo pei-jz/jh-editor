@@ -475,6 +475,18 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '检查更新',
+    'Insert a Mermaid diagram':
+        '插入 Mermaid 图表',
+    'Pick a type to insert its skeleton. Click anything on the right to add it.':
+        '选择类型即可插入骨架。点击右侧任意项目可添加。',
+    'Types': '类型',
+    'Parts': '部件',
+    'Side preview': '并排预览',
+    'Full screen': '全屏',
+    'Show or hide the diagram types': '显示或隐藏图表类型',
+    'Show or hide the syntax list': '显示或隐藏语法列表',
+    'Put the preview beside the source instead of below': '将预览放在源码旁边而非下方',
+    'Fill the window': '铺满窗口',
     'Install': '安装方式',
     'Installed': '安装版',
     'Portable': '便携版',
