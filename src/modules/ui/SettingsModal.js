@@ -376,7 +376,12 @@ export function initSettingsModal() {
     // Load saved font family
     const savedFont = localStorage.getItem('settings_fontFamily') || 'consolas';
     applyFontFamily(savedFont);
-    if (fontFamilySelector) fontFamilySelector.value = savedFont;
+    // The three legacy values are keys, not font names. Showing "consolas" in a
+    // field that otherwise holds real family names reads as a mistake, so leave
+    // it empty and let the placeholder describe the default.
+    if (fontFamilySelector) {
+        fontFamilySelector.value = LEGACY_FONTS[savedFont] ? '' : savedFont;
+    }
 
     // Language
     if (languageSelector) {
@@ -712,6 +717,7 @@ export function initSettingsModal() {
             applyFontFamily(font);
             localStorage.setItem('settings_fontFamily', font);
         };
+        populateFontList(fontFamilySelector);
     }
 
     // --- Keybindings ---
@@ -1471,12 +1477,113 @@ function setCompactMode(isCompact) {
     document.body.classList.toggle('display-mode-compact', isCompact);
 }
 
-export function applyFontFamily(font) {
-    let fontString = "'Consolas', 'Monaco', 'Courier New', 'BIZ UDGothic', 'BIZ UDゴシック', 'Meiryo', 'メイリオ', 'MS Gothic', 'ＭＳ ゴシック', 'Yu Gothic', '游ゴシック', monospace";
-    if (font === 'hackgen') {
-        fontString = "'HackGen', 'HackGen Console', 'Consolas', 'Meiryo', monospace";
-    } else if (font === 'consolas') {
-        fontString = "'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', 'Meiryo', 'メイリオ', 'MS Gothic', 'ＭＳ ゴシック', monospace";
+/**
+ * Monospace families people reach for first, in the order they are offered.
+ *
+ * Only the ones actually installed survive into the list, so this is a
+ * preference rather than a promise.
+ */
+const PREFERRED_FONTS = [
+    'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', 'Consolas',
+    'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Hack', 'Inconsolata',
+    'Roboto Mono', 'Menlo', 'Monaco', 'HackGen', 'HackGen Console',
+    'BIZ UDGothic', 'MS Gothic', 'Migu 1M', 'Ricty Diminished',
+];
+
+/**
+ * Is this family monospaced?
+ *
+ * Windows records the file behind each family, not its metrics, so the registry
+ * cannot answer this. The webview can: render a narrow glyph and a wide one and
+ * see whether they measure the same. Cheap enough for a few hundred families.
+ */
+function isMonospace(family, ctx) {
+    const probe = (ch) => {
+        ctx.font = `16px '${family.replace(/'/g, '')}', monospace`;
+        return ctx.measureText(ch.repeat(8)).width;
+    };
+    const narrow = probe('i');
+    const wide = probe('W');
+    return narrow > 0 && Math.abs(narrow - wide) < 0.5;
+}
+
+/**
+ * Fill the picker with what is installed.
+ *
+ * Several hundred families is a list nobody reads, so the order does the work:
+ * the monospace faces people actually set an editor to come first, then every
+ * other monospace family, then the rest. Past the top of the list the browser's
+ * own datalist filtering takes over — typing narrows it.
+ *
+ * Outside Tauri (tests, a plain browser) there is nothing to enumerate; the
+ * field still accepts a typed name.
+ */
+async function populateFontList(input) {
+    const list = document.getElementById('font-family-list');
+    if (!list || !inTauri()) return;
+
+    let fonts = [];
+    try {
+        fonts = await invoke('list_fonts');
+    } catch (e) {
+        console.warn('Could not list installed fonts', e);
+        return;
     }
+    if (!Array.isArray(fonts) || fonts.length === 0) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const installed = new Set(fonts);
+
+    const preferred = PREFERRED_FONTS.filter((f) => installed.has(f));
+    const seen = new Set(preferred);
+
+    const mono = [];
+    const rest = [];
+    for (const f of fonts) {
+        if (seen.has(f)) continue;
+        (ctx && isMonospace(f, ctx) ? mono : rest).push(f);
+    }
+
+    list.innerHTML = '';
+    for (const f of [...preferred, ...mono, ...rest]) {
+        const o = document.createElement('option');
+        o.value = f;
+        list.appendChild(o);
+    }
+
+    input.title = t('{n} fonts installed. Type to filter.', { n: fonts.length });
+}
+
+/** Whatever is chosen still needs something behind it for missing glyphs. */
+const FONT_FALLBACK = "'Consolas', 'Monaco', 'Courier New', 'BIZ UDGothic', "
+    + "'BIZ UDゴシック', 'Meiryo', 'メイリオ', 'MS Gothic', 'ＭＳ ゴシック', monospace";
+
+/**
+ * The three names the picker used to offer.
+ *
+ * Settings saved before the picker listed real fonts still hold these, so they
+ * keep resolving to what they always did rather than being read as the name of
+ * a font called "consolas".
+ */
+const LEGACY_FONTS = {
+    consolas: "'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', 'Meiryo', "
+        + "'メイリオ', 'MS Gothic', 'ＭＳ ゴシック', monospace",
+    hackgen: "'HackGen', 'HackGen Console', 'Consolas', 'Meiryo', monospace",
+    biz: FONT_FALLBACK,
+};
+
+export function applyFontFamily(font) {
+    const name = (font || '').trim();
+    let fontString = LEGACY_FONTS[name];
+
+    if (!fontString) {
+        // A family name from the list — or typed in, which is allowed: an
+        // unknown name simply falls through to the stack behind it.
+        fontString = name
+            ? `'${name.replace(/'/g, '')}', ${FONT_FALLBACK}`
+            : FONT_FALLBACK;
+    }
+
     document.documentElement.style.setProperty('--editor-font-family', fontString);
 }

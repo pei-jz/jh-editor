@@ -376,11 +376,10 @@
             </div>
             <div class="settings-option">
               <label data-i18n="Editor Font (Monospace)">Editor Font (Monospace)</label>
-              <select id="font-family-selector">
-                <option value="consolas">Consolas / JetBrains Mono (Default)</option>
-                <option value="biz">BIZ UDGothic</option>
-                <option value="hackgen">HackGen</option>
-              </select>
+              <input id="font-family-selector" list="font-family-list"
+                     autocomplete="off" spellcheck="false"
+                     placeholder="Consolas / JetBrains Mono (Default)">
+              <datalist id="font-family-list"></datalist>
             </div>
             <div class="settings-option">
               <label data-i18n="Font Size (pt)">Font Size (pt)</label>

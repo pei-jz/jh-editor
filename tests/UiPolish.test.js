@@ -524,3 +524,48 @@ describe('the active-pane stripe', () => {
         expect(js).toContain("classList.remove('is-split')");
     });
 });
+
+describe('the editor font picker', () => {
+    const ui = read('src/modules/ui/SettingsModal.js');
+    const html = read('index.html');
+    const rs = read('src-tauri/src/commands/app.rs');
+
+    // Three hardcoded names is no use to anyone who installed the font they
+    // want to write in.
+    it('offers what is installed, not a fixed three', () => {
+        expect(rs).toContain('pub fn list_fonts()');
+        expect(ui).toContain("invoke('list_fonts')");
+        expect(html).toContain('list="font-family-list"');
+        expect(html, 'a select cannot be typed into to filter')
+            .not.toContain('<select id="font-family-selector">');
+    });
+
+    // Several hundred families is a list nobody reads, so the order carries
+    // the weight and typing narrows the rest.
+    it('puts the useful ones first', () => {
+        expect(ui).toContain('PREFERRED_FONTS');
+        // Windows records the file behind a family, not its metrics, so
+        // monospace has to be measured in the webview.
+        expect(ui).toContain('function isMonospace');
+        expect(ui).toContain('measureText');
+    });
+
+    // Settings saved before this held 'consolas' / 'biz' / 'hackgen'. Read as
+    // family names they would resolve to nothing.
+    it('still understands the three names it used to save', () => {
+        expect(ui).toContain('LEGACY_FONTS');
+        for (const key of ['consolas', 'hackgen', 'biz']) {
+            expect(ui, `${key} lost its meaning`).toContain(`${key}:`);
+        }
+    });
+
+    // The registry lists faces: "Arial Bold Italic (TrueType)". A picker wants
+    // families.
+    it('lists families rather than every weight', () => {
+        const i = rs.indexOf('pub fn list_fonts()');
+        const fn = rs.slice(i, i + 2600);
+        expect(fn).toContain('FACES');
+        expect(fn).toContain('CURRENT_USER');
+        expect(fn, 'per-machine installs are the common case').toContain('LOCAL_MACHINE');
+    });
+});

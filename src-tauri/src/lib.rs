@@ -78,6 +78,7 @@ pub fn run() {
             commands::git::git_log,
             commands::app::open_devtools,
             commands::app::is_installed,
+            commands::app::list_fonts,
             commands::fs::file_stats,
             commands::git::git_push,
             commands::git::git_upstream,

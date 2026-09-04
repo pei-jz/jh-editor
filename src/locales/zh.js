@@ -475,6 +475,8 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '检查更新',
+    '{n} fonts installed. Type to filter.':
+        '已安装 {n} 种字体。输入可筛选。',
     'Colours': '配色',
     'Show or hide the colour controls': '显示或隐藏配色设置',
     'Palette': '调色板',
