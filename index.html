@@ -376,10 +376,13 @@
             </div>
             <div class="settings-option">
               <label data-i18n="Editor Font (Monospace)">Editor Font (Monospace)</label>
-              <input id="font-family-selector" list="font-family-list"
-                     autocomplete="off" spellcheck="false"
-                     placeholder="Consolas / JetBrains Mono (Default)">
-              <datalist id="font-family-list"></datalist>
+              <div class="font-picker">
+                <input id="font-family-selector" type="text" role="combobox"
+                       autocomplete="off" spellcheck="false" aria-expanded="false"
+                       aria-controls="font-family-list"
+                       placeholder="Consolas / JetBrains Mono (Default)">
+                <ul id="font-family-list" class="font-picker-list" role="listbox"></ul>
+              </div>
             </div>
             <div class="settings-option">
               <label data-i18n="Font Size (pt)">Font Size (pt)</label>

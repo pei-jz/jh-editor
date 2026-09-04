@@ -712,6 +712,7 @@ export function initSettingsModal() {
     }
 
     if (fontFamilySelector) {
+        // Typed and left as-is, without picking from the list.
         fontFamilySelector.onchange = (e) => {
             const font = e.target.value;
             applyFontFamily(font);
@@ -1512,8 +1513,11 @@ function isMonospace(family, ctx) {
  *
  * Several hundred families is a list nobody reads, so the order does the work:
  * the monospace faces people actually set an editor to come first, then every
- * other monospace family, then the rest. Past the top of the list the browser's
- * own datalist filtering takes over — typing narrows it.
+ * other monospace family, then the rest. Typing narrows it.
+ *
+ * The list is drawn here rather than handed to a `<datalist>`, whose popup the
+ * platform draws — it ignores the theme, so a light balloon opened over a dark
+ * settings panel and nothing about it could be styled.
  *
  * Outside Tauri (tests, a plain browser) there is nothing to enumerate; the
  * field still accepts a typed name.
@@ -1531,29 +1535,91 @@ async function populateFontList(input) {
     }
     if (!Array.isArray(fonts) || fonts.length === 0) return;
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = document.createElement('canvas').getContext('2d');
     const installed = new Set(fonts);
 
     const preferred = PREFERRED_FONTS.filter((f) => installed.has(f));
     const seen = new Set(preferred);
-
     const mono = [];
     const rest = [];
     for (const f of fonts) {
         if (seen.has(f)) continue;
         (ctx && isMonospace(f, ctx) ? mono : rest).push(f);
     }
+    const ordered = [...preferred, ...mono, ...rest];
+    const lastPreferred = preferred.length ? preferred[preferred.length - 1] : null;
 
-    list.innerHTML = '';
-    for (const f of [...preferred, ...mono, ...rest]) {
-        const o = document.createElement('option');
-        o.value = f;
-        list.appendChild(o);
-    }
+    let cursor = -1;
+    let shown = [];
+
+    const close = () => {
+        list.classList.remove('open');
+        input.setAttribute('aria-expanded', 'false');
+        cursor = -1;
+    };
+
+    const choose = (name) => {
+        input.value = name;
+        applyFontFamily(name);
+        try { localStorage.setItem('settings_fontFamily', name); } catch (_) { /* ignore */ }
+        close();
+    };
+
+    const render = (filter) => {
+        const q = (filter || '').trim().toLowerCase();
+        shown = q ? ordered.filter((f) => f.toLowerCase().includes(q)) : ordered;
+
+        list.innerHTML = '';
+        // Enough to scroll through; the rest is reached by typing.
+        for (const f of shown.slice(0, 300)) {
+            const li = document.createElement('li');
+            li.textContent = f;
+            li.setAttribute('role', 'option');
+            // Show each name in its own face — the quickest way to judge one.
+            li.style.fontFamily = `'${f.replace(/'/g, '')}', monospace`;
+            if (!q && f === lastPreferred) li.classList.add('group-end');
+            li.onmousedown = (e) => { e.preventDefault(); choose(f); };
+            list.appendChild(li);
+        }
+        cursor = -1;
+        list.classList.toggle('open', shown.length > 0);
+        input.setAttribute('aria-expanded', shown.length > 0 ? 'true' : 'false');
+    };
+
+    const moveCursor = (delta) => {
+        const items = list.children;
+        if (!items.length) return;
+        cursor = Math.max(0, Math.min(items.length - 1, cursor + delta));
+        for (let i = 0; i < items.length; i += 1) {
+            items[i].classList.toggle('cursor', i === cursor);
+        }
+        items[cursor].scrollIntoView({ block: 'nearest' });
+    };
+
+    input.onfocus = () => render(input.value);
+    input.oninput = () => render(input.value);
+    input.onblur = () => close();
+
+    input.onkeydown = (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            if (!list.classList.contains('open')) render(input.value);
+            moveCursor(e.key === 'ArrowDown' ? 1 : -1);
+            e.preventDefault();
+        } else if (e.key === 'Enter') {
+            if (cursor >= 0 && list.children[cursor]) {
+                choose(list.children[cursor].textContent);
+                e.preventDefault();
+            }
+        } else if (e.key === 'Escape' && list.classList.contains('open')) {
+            // Close the list without closing the settings dialog behind it.
+            close();
+            e.stopPropagation();
+        }
+    };
 
     input.title = t('{n} fonts installed. Type to filter.', { n: fonts.length });
 }
+
 
 /** Whatever is chosen still needs something behind it for missing glyphs. */
 const FONT_FALLBACK = "'Consolas', 'Monaco', 'Courier New', 'BIZ UDGothic', "

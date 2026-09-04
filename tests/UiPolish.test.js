@@ -535,9 +535,16 @@ describe('the editor font picker', () => {
     it('offers what is installed, not a fixed three', () => {
         expect(rs).toContain('pub fn list_fonts()');
         expect(ui).toContain("invoke('list_fonts')");
-        expect(html).toContain('list="font-family-list"');
+        expect(html).toContain('id="font-family-list"');
         expect(html, 'a select cannot be typed into to filter')
             .not.toContain('<select id="font-family-selector">');
+
+        // The platform draws a <datalist> popup itself: it ignores the theme,
+        // so a light balloon opened over a dark settings panel and none of it
+        // could be styled. The list is ours.
+        expect(html, 'the native popup cannot be themed').not.toContain('<datalist');
+        expect(html).toContain('class="font-picker-list"');
+        expect(read('src/styles/modals.css')).toContain('.font-picker-list');
     });
 
     // Several hundred families is a list nobody reads, so the order carries
