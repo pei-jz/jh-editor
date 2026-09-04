@@ -156,6 +156,84 @@ pub fn is_installed() -> bool {
     }
 }
 
+/// Font families installed on this machine.
+///
+/// The picker offered three hardcoded names, which is no use to anyone who
+/// installed the font they actually want to write in.
+///
+/// Windows registers every installed face under Fonts, keyed by display name:
+/// `"Consolas (TrueType)" = "consola.ttf"`. That is enough for a picker, and it
+/// costs one registry read — no font files are parsed and nothing is prompted
+/// for. Per-user installs live in the same path under HKCU, so both are read.
+///
+/// The trailing `(TrueType)` and the style words are stripped so the list holds
+/// families rather than every weight: "Arial", not "Arial Bold Italic". Whether
+/// a family is monospaced is not recorded here at all — the caller measures
+/// that in the webview, where it can just render two glyphs and compare.
+#[command]
+pub fn list_fonts() -> Vec<String> {
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+
+    #[cfg(windows)]
+    {
+        use std::collections::BTreeSet;
+
+        const KEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts";
+
+        // Weight and style words that turn a family into one of its faces.
+        const FACES: [&str; 14] = [
+            "Thin", "Extralight", "Ultralight", "Light", "Semilight", "Regular",
+            "Medium", "Semibold", "Demibold", "Bold", "Extrabold", "Heavy",
+            "Black", "Italic",
+        ];
+
+        let mut families: BTreeSet<String> = BTreeSet::new();
+
+        for hive in [
+            windows_registry::CURRENT_USER,
+            windows_registry::LOCAL_MACHINE,
+        ] {
+            let Ok(key) = hive.open(KEY) else { continue };
+            let Ok(values) = key.values() else { continue };
+
+            for (name, _) in values {
+                // "Consolas (TrueType)" -> "Consolas"
+                let mut label = match name.split_once(" (") {
+                    Some((head, _)) => head.to_string(),
+                    None => name.clone(),
+                };
+
+                // A single registration can list several names.
+                if let Some((first, _)) = label.split_once('&') {
+                    label = first.to_string();
+                }
+
+                // Drop trailing style words: "Arial Bold Italic" -> "Arial".
+                loop {
+                    let trimmed = label.trim().to_string();
+                    let Some((head, tail)) = trimmed.rsplit_once(' ') else { break };
+                    if FACES.iter().any(|f| f.eq_ignore_ascii_case(tail)) {
+                        label = head.to_string();
+                    } else {
+                        label = trimmed;
+                        break;
+                    }
+                }
+
+                let label = label.trim();
+                if !label.is_empty() {
+                    families.insert(label.to_string());
+                }
+            }
+        }
+
+        families.into_iter().collect()
+    }
+}
+
 /// Reveal a path in the OS file manager (Explorer / Finder / the desktop's
 /// default). For a file the item itself is selected; for a directory the folder
 /// is opened.

@@ -475,6 +475,8 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '更新を確認',
+    '{n} fonts installed. Type to filter.':
+        'インストール済み {n} 書体。入力で絞り込めます。',
     'Colours': '配色',
     'Show or hide the colour controls': '配色の指定を表示・非表示',
     'Palette': 'パレット',
