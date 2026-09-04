@@ -503,3 +503,24 @@ describe('the status bar itself', () => {
         expect(contrast('#6c757d', '#f1f3f5')).toBeLessThan(4.5);
     });
 });
+
+describe('the active-pane stripe', () => {
+    const css = read('src/styles/layout.css');
+    const js = read('src/modules/core/Editor.js');
+
+    // The stripe says which pane takes typing. With one pane it marks the only
+    // thing there is, and reads as a stray rule that stops halfway across the
+    // window — it ends at the explorer, which is not an editor pane.
+    it('appears only while the editor is split', () => {
+        expect(css).toContain('#editor-wrapper.is-split .editor-pane.active');
+        expect(css, 'an unqualified rule would show it with one pane too')
+            .not.toMatch(/^#editor-wrapper \.editor-pane\.active/m);
+    });
+
+    // Both panes are always in the DOM; the right one is hidden with display,
+    // which CSS cannot see. The class is what makes the state visible.
+    it('is driven by a class the split toggles', () => {
+        expect(js).toContain("classList.add('is-split')");
+        expect(js).toContain("classList.remove('is-split')");
+    });
+});

@@ -864,9 +864,14 @@ th {
 }
 
 /* Which pane has focus. Subtle on purpose — a full border would fight with the
-   view chrome that already lives at the top of every pane. */
-#editor-wrapper .editor-pane.active > #tab-bar,
-#editor-wrapper .editor-pane.active > #tab-bar-right {
+   view chrome that already lives at the top of every pane.
+
+   Only while the editor is actually split. With one pane the stripe marks the
+   only thing there is, which says nothing and reads as a stray rule across the
+   top of the window — it stops at the explorer, because the explorer is not an
+   editor pane, and the break looks like an oversight rather than a boundary. */
+#editor-wrapper.is-split .editor-pane.active > #tab-bar,
+#editor-wrapper.is-split .editor-pane.active > #tab-bar-right {
     box-shadow: inset 0 2px 0 0 var(--primary-color);
 }
 
