@@ -475,6 +475,15 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '检查更新',
+    'Colours': '配色',
+    'Show or hide the colour controls': '显示或隐藏配色设置',
+    'Palette': '调色板',
+    'Theme default': '跟随主题',
+    'Custom colours': '自定义颜色',
+    'Fill': '填充',
+    'Border': '边框',
+    'Lines': '连线',
+    'Saved with the diagram': '与图表一同保存',
     'Insert a Mermaid diagram':
         '插入 Mermaid 图表',
     'Pick a type to insert its skeleton. Click anything on the right to add it.':
