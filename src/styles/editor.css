@@ -207,7 +207,7 @@ body.theme-dark .visual-table-editor .range-selected {
     right: 15px;
     top: 10px;
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary, #fff);
     padding: 6px;
     border-radius: 4px;
     cursor: pointer;
@@ -581,7 +581,7 @@ body.theme-dark .visual-table-editor .range-selected {
 
 .btn-save {
     background-color: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary, #fff);
     border: none;
     padding: 6px 16px;
     border-radius: var(--radius);
@@ -1662,7 +1662,7 @@ body.theme-solarized-light .md-view-mode-toggle {
 
 .md-view-mode-toggle:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary, #fff);
     border-color: var(--primary-color);
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 120, 212, 0.3);
@@ -2370,7 +2370,7 @@ body.theme-solarized-light .md-view-mode-toggle {
     transition: opacity .12s, background .12s, border-color .12s;
 }
 .cm-toolbar-btn:hover { opacity: 1; border-color: var(--primary-color); }
-.cm-toolbar-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); opacity: 1; }
+.cm-toolbar-btn.active { background: var(--primary-color); color: var(--text-on-primary, #fff); border-color: var(--primary-color); opacity: 1; }
 .cm-tb-icon { flex-shrink: 0; opacity: 0.9; }
 .cm-toolbar-btn.active .cm-tb-icon { opacity: 1; }
 /* Vim badge uses a monospace face for its mode text but shares the button look. */

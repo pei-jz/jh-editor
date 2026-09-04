@@ -284,7 +284,7 @@ to ensure it spans full height of children
 
 .tree-node.selected {
     background-color: var(--primary-color) !important;
-    color: white;
+    color: var(--text-on-primary, #fff);
     border-color: var(--primary-color);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
