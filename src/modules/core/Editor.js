@@ -1756,6 +1756,8 @@ export function splitEditor(options = {}) {
     applySplitOrientation(direction);
 
     if (EL.editorContainerRight) EL.editorContainerRight.style.display = 'flex';
+    // The active-pane stripe only means something once there are two panes.
+    if (EL.editorWrapper) EL.editorWrapper.classList.add('is-split');
     if (EL.editorSplitResizer) EL.editorSplitResizer.style.display = 'block';
 
     if (reorienting) {
@@ -1824,6 +1826,7 @@ function teardownSplit() {
 
     if (EL.editorContainerRight) {
         EL.editorContainerRight.style.display = 'none';
+        if (EL.editorWrapper) EL.editorWrapper.classList.remove('is-split');
         EL.editorContainerRight.classList.remove('active');
     }
     if (EL.editorSplitResizer) EL.editorSplitResizer.style.display = 'none';

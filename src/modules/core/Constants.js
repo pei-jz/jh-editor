@@ -8,6 +8,7 @@ export const EL = {
     
     // Right Pane Elements
     editorContainerRight: document.getElementById('editor-container-right'),
+    editorWrapper: document.getElementById('editor-wrapper'),
     editorContentRight: document.getElementById('editor-content-right'),
     tabsContainerRight: document.getElementById('tabs-container-right'),
     newTabBtnRight: document.getElementById('new-tab-btn-right'),
