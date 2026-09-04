@@ -475,3 +475,66 @@ describe('the terminal palette', () => {
             .not.toMatch(/classList\.contains\('theme-\w+'\)/);
     });
 });
+
+describe('the accent colour', () => {
+    const css = read('src/styles/themes.css');
+
+    /** Last declaration of `prop` inside a theme's own block. */
+    const tokenFor = (theme, prop) => {
+        const sel = theme === 'light' ? ':root' : `body.theme-${theme}`;
+        const start = css.indexOf(`${sel} {`);
+        if (start === -1) return null;
+        const blk = css.slice(start, css.indexOf('\n}', start));
+        const hits = [...blk.matchAll(new RegExp(`--${prop}:\\s*(#[0-9a-f]{3,6})`, 'gi'))];
+        return hits.length ? hits[hits.length - 1][1] : null;
+    };
+
+    // Where the accent is a fill, something is written on top of it — 20 rules
+    // do exactly that. White was hardcoded in all of them, which is fine on a
+    // deep blue and unreadable on a pale cyan: Nord and Bamboo were at 2.0:1,
+    // Latte at 2.6:1. The colour on the accent is its own decision now.
+    it('carries readable text wherever it is used as a fill', () => {
+        const bad = [];
+        for (const th of THEMES) {
+            const accent = tokenFor(th.id, 'primary-color');
+            if (!accent) continue;
+            const onAccent = tokenFor(th.id, 'text-on-primary') || '#ffffff';
+            const ratio = contrast(accent, onAccent);
+            if (ratio < 4.5) {
+                bad.push(`${th.id}: ${onAccent} on ${accent} = ${ratio.toFixed(2)}`);
+            }
+        }
+        expect(bad, bad.join('\n')).toEqual([]);
+    });
+
+    // An accent nobody can pick out is not an accent. Latte's was 2.34:1
+    // against its own page.
+    it('is visible against the page it sits on', () => {
+        const bad = [];
+        for (const th of THEMES) {
+            const accent = tokenFor(th.id, 'primary-color');
+            if (!accent || !th.bootBg) continue;
+            const ratio = contrast(accent, th.bootBg);
+            if (ratio < 3) bad.push(`${th.id}: ${accent} on ${th.bootBg} = ${ratio.toFixed(2)}`);
+        }
+        expect(bad, bad.join('\n')).toEqual([]);
+    });
+
+    // The light theme shipped Bootstrap's button blue at S98% while every
+    // neutral around it sat at S10-17%. It read as shouting rather than as
+    // emphasis, across the 130 rules that reference it.
+    it('is not louder than everything around it', () => {
+        const sat = (hex) => {
+            const n = parseInt(hex.slice(1), 16);
+            const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+            if (mx === mn) return 0;
+            return l > 0.5 ? (mx - mn) / (2 - mx - mn) : (mx - mn) / (mx + mn);
+        };
+        for (const id of ['light', 'dark']) {
+            const accent = tokenFor(id, 'primary-color');
+            expect(sat(accent), `${id} accent ${accent} is near-maximum saturation`)
+                .toBeLessThan(0.8);
+        }
+    });
+});

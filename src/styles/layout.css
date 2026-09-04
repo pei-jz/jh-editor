@@ -360,7 +360,7 @@
 }
 .search-opt-btn.active {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary, #fff);
     border-color: var(--primary-color);
 }
 .search-replace-btn {
@@ -688,7 +688,7 @@ th {
     padding: 12px 24px;
     font-size: 1rem;
     background-color: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary, #fff);
     border: none;
     border-radius: var(--radius);
     cursor: pointer;

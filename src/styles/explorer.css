@@ -699,7 +699,7 @@ body.theme-solarized-dark .tree-icon {
 
 .git-modal-btns .primary-btn {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary, #fff);
     border: none;
 }
 
@@ -1007,7 +1007,7 @@ body.theme-solarized-dark .tree-icon {
 
 .projects-action-btn.primary-action {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--text-on-primary, #fff);
     box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.25);
 }
 

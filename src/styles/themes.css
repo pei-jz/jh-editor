@@ -6,9 +6,16 @@
     --header-bg: #f1f3f5;
     --border-color: rgba(0, 0, 0, 0.09);
     --text-color: #343a40;
-    --primary-color: #0d6efd;
+    /* Calmer than the Bootstrap blue this used to be (#0d6efd, S98%).
+       Everything around it sits at S10-17%, so an accent at near-maximum
+       saturation reads as shouting rather than as emphasis — and 130 rules
+       reference it. At S55% it is still unmistakably the accent, and it gained
+       contrast on the way: 4.27 -> 5.51 against the page, 4.50 -> 5.81 for the
+       white text that sits on it. */
+    --primary-color: #3067a6;
+    --text-on-primary: #ffffff;
     --active-tab-bg: #fff;
-    --active-tab-border: #0d6efd;
+    --active-tab-border: #3067a6;
     --hover-color: #f1f3f5;
     /* Lighter hover (Gray 100) */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -117,9 +124,14 @@ body.theme-dark {
     --border-color: rgba(255, 255, 255, 0.09);
     --text-color: #d4d4d4;
     /* VS Code default - softer than pure white, reduces haloing */
-    --primary-color: #3794ff;
+    /* Was #3794ff at S100%. Two problems, not one: it shouted, and white
+       text on it came to 3.07 — under AA — wherever the accent is used as a
+       fill. One colour cannot both stand out against a dark page and be dark
+       enough to carry white text, so the text on it becomes its own token. */
+    --primary-color: #5b96d6;
+    --text-on-primary: #0d1b2a;
     --active-tab-bg: #1e1e1e;
-    --active-tab-border: #3794ff;
+    --active-tab-border: #5b96d6;
     --hover-color: #2a2d2e;
     --bg-color-secondary: #252526;
     --bg-active: #37373d;
@@ -180,6 +192,9 @@ body.theme-midnight {
     --text-color: #c5cbe0;
     /* Brighter text for Midnight */
     --primary-color: #c792ea;
+    /* White on this accent came to 2.41:1 where the accent is used as a
+       fill. Same hue, dark enough to read: 7.37. */
+    --text-on-primary: #1c1526;
     /* Pale Purple */
     --active-tab-bg: #0f111a;
     --active-tab-border: #c792ea;
@@ -242,10 +257,14 @@ body.theme-latte {
     --header-bg: #e6e9ef;
     --border-color: rgba(0, 0, 0, 0.09);
     --text-color: #4c4f69;
-    --primary-color: #ea76cb;
+    /* Was Latte's pink (#ea76cb): 2.34:1 against the page and 2.64:1
+       under white text. That colour belongs to syntax, not to chrome.
+       Latte's mauve is the palette's own accent and carries both,
+       at 4.79 and 5.41. */
+    --primary-color: #8839ef;
     /* Pinkish */
     --active-tab-bg: #eff1f5;
-    --active-tab-border: #ea76cb;
+    --active-tab-border: #8839ef;
     --hover-color: #dce0e8;
     --bg-color-secondary: #dce0e8;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -283,6 +302,9 @@ body.theme-solarized-dark {
     --text-color: #b0bec5;
     /* Brighter than base1 for clear readability */
     --primary-color: #268bd2;
+    /* White on this accent came to 3.68:1 where the accent is used as a
+       fill. Same hue, dark enough to read: 4.56. */
+    --text-on-primary: #00212b;
     --active-tab-bg: #002b36;
     --active-tab-border: #268bd2;
     --hover-color: #073642;
@@ -348,6 +370,9 @@ body.theme-solarized-light {
     --border-color: rgba(0, 0, 0, 0.09);
     --text-color: #657b83;
     --primary-color: #268bd2;
+    /* White on this came to 3.68:1 where the accent is used as a
+       fill. The palette already has a darkest ink; use that. */
+    --text-on-primary: #00212b;
     --active-tab-bg: #fdf6e3;
     --active-tab-border: #268bd2;
     --hover-color: #eee8d5;
@@ -662,7 +687,10 @@ body.theme-bamboo-ancient {
     --header-bg: #2f2518;
     --border-color: #6b5a3c;        /* old bamboo, darkened */
     --text-color: #e8e0cc;          /* faint ivory ink */
-    --primary-color: #7fc4b8;       /* 銅青 — the patina of unearthed bronzes */
+    --primary-color: #7fc4b8;
+    /* White on this accent came to 2.00:1 where the accent is used as a
+       fill. Same hue, dark enough to read: 8.08. */
+    --text-on-primary: #12241f;       /* 銅青 — the patina of unearthed bronzes */
     --active-tab-bg: #3a2e1e;
     --active-tab-border: #7fc4b8;
     --hover-color: rgba(92, 76, 50, 0.45);
@@ -1011,7 +1039,10 @@ body.theme-nord {
     --header-bg: #343b49;
     --border-color: #434c5e;        /* nord2 */
     --text-color: #eceff4;          /* nord6 */
-    --primary-color: #88c0d0;       /* nord8 — frost */
+    --primary-color: #88c0d0;
+    /* White on this accent came to 2.00:1 where the accent is used as a
+       fill. Same hue, dark enough to read: 7.95. */
+    --text-on-primary: #16242a;       /* nord8 — frost */
     --active-tab-bg: #2e3440;
     --active-tab-border: #88c0d0;
     --hover-color: #3b4252;
@@ -1432,8 +1463,13 @@ body.theme-nord {
     /* A raised surface on a dark theme should lift more than a light one
        drops; the same 6% mix reads as almost nothing against dark ink. */
     --surface-raised: color-mix(in srgb, var(--bg-color-secondary, var(--bg-color)) 90%, #fff);
-    --text-on-primary: #fff;
 }
+
+/* --text-on-primary is deliberately NOT set above. That block is about
+   surfaces, and listing five themes there gave it the same specificity as any
+   single theme's own block while sitting later in the file — so a theme could
+   not override it. The base value on `body` covers every theme that wants
+   white; a theme whose accent is too light for white text sets its own. */
 
 /* 言語別の字形。<html lang> は I18n.applyDocumentLanguage が設定する。
    漢字を共有する言語同士でスタックを分けないと、どれか一つが必ず他の

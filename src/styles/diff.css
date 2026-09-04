@@ -52,7 +52,7 @@
     align-items: center;
     gap: 6px;
     background-color: var(--primary-color);
-    color: #ffffff;
+    color: var(--text-on-primary, #fff);
     border: 1px solid transparent;
     padding: 6px 14px;
     border-radius: 4px;
@@ -491,7 +491,7 @@ span.diff-focus-active {
 
 .compare-btn-primary {
     background-color: var(--primary-color);
-    color: #ffffff;
+    color: var(--text-on-primary, #fff);
     border-color: transparent;
     font-weight: 600;
 }

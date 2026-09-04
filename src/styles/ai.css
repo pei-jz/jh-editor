@@ -388,7 +388,7 @@
 
 .tnp-submit-btn {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-primary, #fff);
     border: none;
     border-radius: var(--radius, 6px);
     padding: 5px 12px;
