@@ -880,3 +880,71 @@
     opacity: 0.5;
     user-select: none;
 }
+
+/* Font picker. The browser's own datalist popup is drawn by the platform: it
+   ignores the theme, so a light balloon appeared over a dark settings panel and
+   nothing about it could be styled. This is the same behaviour in the app's own
+   colours. */
+.font-picker {
+    position: relative;
+    display: inline-block;
+    min-width: 240px;
+}
+
+.font-picker input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color-secondary, var(--bg-color));
+    color: var(--text-color);
+    font: inherit;
+}
+
+.font-picker input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.font-picker-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--overlay-bg, var(--bg-color));
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.font-picker-list.open { display: block; }
+
+.font-picker-list li {
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.font-picker-list li:hover,
+.font-picker-list li.cursor {
+    background: var(--primary-color);
+    color: var(--text-on-primary, #fff);
+}
+
+/* A divider after the ones worth reaching for first. */
+.font-picker-list li.group-end {
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+    padding-bottom: 8px;
+}

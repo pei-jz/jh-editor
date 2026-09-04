@@ -132,7 +132,18 @@ const jhTheme = EditorView.theme({
     },
     ".cm-content": {
         caretColor: "var(--text-color)",
-        padding: "10px 10px 500px 10px" // Extra bottom padding for scroll beyond last line
+        padding: "10px 8px 500px 8px" // Extra bottom padding for scroll beyond last line
+    },
+    // CodeMirror indents every line by 6px of its own. That inset sits between
+    // the line box and the first character, and the two are not interchangeable:
+    // a selection covering whole lines is drawn from the line box, while one
+    // that starts mid-document is drawn from the character. Selecting several
+    // lines therefore stepped 6px to the right on the first of them, and the
+    // active-line highlight began 6px left of the text it was highlighting.
+    // With the inset gone, all three start at the same place; the breathing
+    // room it provided now comes from the content's own padding.
+    ".cm-line": {
+        paddingLeft: "0"
     },
     "&.cm-focused": {
         outline: "none"
@@ -201,7 +212,7 @@ const jhTheme = EditorView.theme({
         // Right-aligned, tabular digits with breathing room. min-width reserves
         // space for 3 digits so the gutter doesn't jitter for lines 1–999; it
         // only grows at 4+ digits.
-        padding: "0 8px 0 12px",
+        padding: "0 6px 0 10px",
         minWidth: "3ch",
         boxSizing: "content-box",
         textAlign: "right",
