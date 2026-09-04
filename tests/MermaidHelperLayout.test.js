@@ -30,15 +30,21 @@ const open = (code = 'flowchart TD\n  A --> B') => {
         editor: overlay.querySelector('.mh-editor'),
         types: overlay.querySelector('.mh-types'),
         cheat: overlay.querySelector('.mh-cheat'),
-        btn: (label) => [...overlay.querySelectorAll('.mh-head-btn')]
-            .find((b) => b.title && b.title.length > 0 && b.textContent === label),
+        // By name, not by position: the header gains buttons, and an index
+        // silently starts pointing at the wrong one.
+        btn: (label) => {
+            const found = [...overlay.querySelectorAll('.mh-head-btn')]
+                .find((b) => b.textContent === label);
+            expect(found, `no header button labelled ${label}`).toBeTruthy();
+            return found;
+        },
     };
 };
 
 describe('making room in the mermaid dialog', () => {
     it('can fill the window', () => {
         const d = open();
-        const btn = [...d.overlay.querySelectorAll('.mh-head-btn')].at(-1);
+        const btn = d.btn('Full screen');
 
         expect(d.box.classList.contains('mh-max')).toBe(false);
         btn.click();
@@ -56,7 +62,7 @@ describe('making room in the mermaid dialog', () => {
         document.body.appendChild(bar);
         try {
             const d = open();
-            [...d.overlay.querySelectorAll('.mh-head-btn')].at(-1).click();
+            d.btn('Full screen').click();
 
             expect(d.overlay.classList.contains('mh-max-overlay')).toBe(true);
             expect(d.overlay.style.getPropertyValue('--mh-top')).toMatch(/^\d+px$/);
@@ -76,7 +82,7 @@ describe('making room in the mermaid dialog', () => {
     // Stacked, a wide flowchart squeezes the source and the preview alike.
     it('can put the preview beside the source', () => {
         const d = open();
-        const btn = [...d.overlay.querySelectorAll('.mh-head-btn')].at(-2);
+        const btn = d.btn('Side preview');
 
         btn.click();
         expect(d.center.classList.contains('mh-side')).toBe(true);
@@ -90,14 +96,15 @@ describe('making room in the mermaid dialog', () => {
         const d = open();
         d.editor.style.height = '300px';
 
-        [...d.overlay.querySelectorAll('.mh-head-btn')].at(-2).click();
+        d.btn('Side preview').click();
         expect(d.editor.style.height).toBe('');
         expect(d.editor.style.width).toBe('');
     });
 
     it('can fold the side columns away', () => {
         const d = open();
-        const [typesBtn, partsBtn] = d.overlay.querySelectorAll('.mh-head-btn');
+        const typesBtn = d.btn('Types');
+        const partsBtn = d.btn('Parts');
 
         typesBtn.click();
         expect(d.types.classList.contains('mh-collapsed')).toBe(true);
@@ -115,7 +122,8 @@ describe('making room in the mermaid dialog', () => {
     it('folds each splitter with its column', () => {
         const d = open();
         const splits = d.overlay.querySelectorAll('.mh-split');
-        const [typesBtn, partsBtn] = d.overlay.querySelectorAll('.mh-head-btn');
+        const typesBtn = d.btn('Types');
+        const partsBtn = d.btn('Parts');
 
         typesBtn.click();
         expect(splits[0].classList.contains('mh-collapsed')).toBe(true);
@@ -168,5 +176,92 @@ describe('the mermaid source field', () => {
 
         expect(d.editor.value).toBe(before);
         expect(ev.defaultPrevented).toBe(false);
+    });
+});
+
+describe('choosing colours', () => {
+    const directive = (el) => (el.value.match(/^%%\{init:.*?\}%%/) || [''])[0];
+    const styleSelect = (d) => d.overlay.querySelector('.mh-style select');
+    const swatch = (d, key) => d.overlay.querySelector(`input[data-key="${key}"]`);
+    const change = (el) => el.dispatchEvent(new Event('change'));
+
+    // The style is written into the diagram, not kept as an app setting, so it
+    // travels with the document and renders the same wherever it is read.
+    it('writes the palette into the diagram', () => {
+        const d = open('graph TD\n  A --> B');
+        const sel = styleSelect(d);
+
+        sel.value = 'forest';
+        change(sel);
+
+        expect(directive(d.editor)).toContain('"theme":"forest"');
+        expect(d.editor.value, 'the diagram itself must survive').toContain('A --> B');
+    });
+
+    // Only `base` reads themeVariables; under a named palette the swatches
+    // would sit there doing nothing.
+    it('offers the swatches only where they apply', () => {
+        const d = open();
+        const sel = styleSelect(d);
+        const wrap = swatch(d, 'primaryColor').parentElement.parentElement;
+
+        sel.value = 'neutral';
+        change(sel);
+        expect(wrap.style.display).toBe('none');
+
+        sel.value = 'base';
+        change(sel);
+        expect(wrap.style.display).toBe('flex');
+    });
+
+    it('carries the chosen colours', () => {
+        const d = open('graph TD\n  A --> B');
+        const sel = styleSelect(d);
+        sel.value = 'base';
+        change(sel);
+
+        const fill = swatch(d, 'primaryColor');
+        fill.value = '#ffcc00';
+        fill.dispatchEvent(new Event('input'));
+
+        expect(directive(d.editor)).toContain('"primaryColor":"#ffcc00"');
+    });
+
+    // mermaid reads the first directive, so a second one is dead weight that
+    // silently wins or loses depending on order.
+    it('replaces the directive rather than piling them up', () => {
+        const d = open('graph TD\n  A --> B');
+        const sel = styleSelect(d);
+
+        for (const v of ['forest', 'dark', 'neutral']) {
+            sel.value = v;
+            change(sel);
+        }
+
+        expect((d.editor.value.match(/%%\{init:/g) || []).length).toBe(1);
+        expect(directive(d.editor)).toContain('"theme":"neutral"');
+    });
+
+    it('takes the palette back off again', () => {
+        const d = open('graph TD\n  A --> B');
+        const sel = styleSelect(d);
+
+        sel.value = 'dark';
+        change(sel);
+        sel.value = '';
+        change(sel);
+
+        expect(d.editor.value).not.toContain('%%{init:');
+        expect(d.editor.value.trim()).toBe('graph TD\n  A --> B');
+    });
+
+    // Opening the dialog on a diagram that already carries a style must not
+    // quietly reset it.
+    it('reads back a style the diagram already has', () => {
+        const d = open('%%{init: {"theme":"base","themeVariables":{"primaryColor":"#123456"}}}%%\n'
+            + 'graph TD\n  A --> B');
+
+        expect(styleSelect(d).value).toBe('base');
+        expect(swatch(d, 'primaryColor').value).toBe('#123456');
     });
 });

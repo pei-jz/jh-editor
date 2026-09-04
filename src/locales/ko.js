@@ -475,6 +475,15 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '업데이트 확인',
+    'Colours': '색상',
+    'Show or hide the colour controls': '색상 설정 표시 전환',
+    'Palette': '팔레트',
+    'Theme default': '테마 따르기',
+    'Custom colours': '색상 지정',
+    'Fill': '채우기',
+    'Border': '테두리',
+    'Lines': '선',
+    'Saved with the diagram': '다이어그램과 함께 저장됩니다',
     'Insert a Mermaid diagram':
         'Mermaid 다이어그램 삽입',
     'Pick a type to insert its skeleton. Click anything on the right to add it.':

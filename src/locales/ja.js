@@ -475,6 +475,15 @@ export default {
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
     'Check for updates': '更新を確認',
+    'Colours': '配色',
+    'Show or hide the colour controls': '配色の指定を表示・非表示',
+    'Palette': 'パレット',
+    'Theme default': 'テーマに従う',
+    'Custom colours': '色を指定',
+    'Fill': '塗り',
+    'Border': '枠線',
+    'Lines': '線',
+    'Saved with the diagram': '図と一緒に保存されます',
     'Insert a Mermaid diagram':
         'Mermaid 図を挿入',
     'Pick a type to insert its skeleton. Click anything on the right to add it.':

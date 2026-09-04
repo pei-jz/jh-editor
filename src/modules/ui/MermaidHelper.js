@@ -107,6 +107,26 @@ function _injectStyles() {
     }
     .mh-head-btn:hover { background: var(--hover-color); }
     .mh-head-btn.on { border-color: var(--primary-color); color: var(--primary-color); }
+
+    /* Colour controls. Hidden until asked for: most diagrams never need it,
+       and a row of swatches above the source is noise until it does. */
+    .mh-style {
+        display: none; align-items: center; flex-wrap: wrap; gap: 12px;
+        padding: 8px 14px; border-bottom: 1px solid var(--border-color);
+        background: var(--header-bg); font-size: 11.5px;
+    }
+    .mh-style.open { display: flex; }
+    .mh-style label { display: flex; align-items: center; gap: 5px; }
+    .mh-style select {
+        background: var(--bg-color); color: var(--text-color);
+        border: 1px solid var(--border-color); border-radius: 4px;
+        padding: 3px 6px; font-size: 11.5px;
+    }
+    .mh-style input[type="color"] {
+        width: 30px; height: 22px; padding: 0; cursor: pointer;
+        background: none; border: 1px solid var(--border-color); border-radius: 4px;
+    }
+    .mh-style .mh-style-note { opacity: 0.65; }
     /* Focused pane gets a visible ring so Alt+digit navigation is obvious. */
     .mh-pane-focus { box-shadow: inset 0 0 0 2px var(--primary-color); }
     .mh-pane-badge {
@@ -233,11 +253,12 @@ export const MermaidHelper = {
             b.title = title;
             return b;
         };
+        const styleBtn = mkHeadBtn(t('Colours'), t('Show or hide the colour controls'));
         const typesBtn = mkHeadBtn(t('Types'), t('Show or hide the diagram types'));
         const partsBtn = mkHeadBtn(t('Parts'), t('Show or hide the syntax list'));
         const sideBtn = mkHeadBtn(t('Side preview'), t('Put the preview beside the source instead of below'));
         const maxBtn = mkHeadBtn(t('Full screen'), t('Fill the window'));
-        head.append(typesBtn, partsBtn, sideBtn, maxBtn);
+        head.append(styleBtn, typesBtn, partsBtn, sideBtn, maxBtn);
 
         // ── left: diagram types ──
         const types = document.createElement('div');
@@ -300,10 +321,54 @@ export const MermaidHelper = {
         splitH.title = t('Drag to resize');
         center.insertBefore(splitH, preview);
 
+        // Colour controls. The style is written into the diagram itself as a
+        // mermaid init directive, not kept as an app setting: it travels with
+        // the document, so the diagram looks the same wherever it is rendered.
+        const styleBar = document.createElement('div');
+        styleBar.className = 'mh-style';
+        const themeSel = document.createElement('select');
+        for (const [val, label] of [
+            ['', t('Theme default')],
+            ['base', t('Custom colours')],
+            ['neutral', 'neutral'],
+            ['forest', 'forest'],
+            ['dark', 'dark'],
+        ]) {
+            const o = document.createElement('option');
+            o.value = val;
+            o.textContent = label;
+            themeSel.appendChild(o);
+        }
+        const themeLabel = document.createElement('label');
+        themeLabel.append(document.createTextNode(t('Palette')), themeSel);
+
+        const swatches = {};
+        const swatchWrap = document.createElement('span');
+        swatchWrap.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+        for (const [key, label, fallback] of [
+            ['primaryColor', t('Fill'), '#ececff'],
+            ['primaryBorderColor', t('Border'), '#9370db'],
+            ['primaryTextColor', t('Text'), '#131300'],
+            ['lineColor', t('Lines'), '#333333'],
+        ]) {
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = fallback;
+            input.dataset.key = key;
+            swatches[key] = input;
+            const l = document.createElement('label');
+            l.append(document.createTextNode(label), input);
+            swatchWrap.appendChild(l);
+        }
+        const styleNote = document.createElement('span');
+        styleNote.className = 'mh-style-note';
+        styleNote.textContent = t('Saved with the diagram');
+        styleBar.append(themeLabel, swatchWrap, styleNote);
+
         const body = document.createElement('div');
         body.className = 'mh-body';
         body.append(types, splitL, center, splitR, cheat);
-        box.append(head, body, foot);
+        box.append(head, styleBar, body, foot);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
@@ -369,6 +434,51 @@ export const MermaidHelper = {
         };
         _makeDragger(edgeL, 'x', (dx) => widen(-dx * 2));
         _makeDragger(edgeR, 'x', (dx) => widen(dx * 2));
+
+        // -- colours ------------------------------------------------------
+        // Only `base` takes themeVariables; the named palettes ignore them, so
+        // the swatches would sit there doing nothing.
+        const syncSwatchState = () => {
+            const custom = themeSel.value === 'base';
+            swatchWrap.style.display = custom ? 'flex' : 'none';
+            styleNote.style.display = themeSel.value ? '' : 'none';
+        };
+
+        const applyStyle = () => {
+            const theme = themeSel.value;
+            let directive = '';
+            if (theme === 'base') {
+                const vars = {};
+                for (const [key, input] of Object.entries(swatches)) vars[key] = input.value;
+                directive = _initDirective({ theme, themeVariables: vars });
+            } else if (theme) {
+                directive = _initDirective({ theme });
+            }
+            editor.value = _withDirective(editor.value, directive);
+            syncSwatchState();
+            schedulePreview();
+        };
+
+        // Prefill from whatever the diagram already carries, so opening the
+        // controls on a styled diagram does not silently reset it.
+        const existing = _readDirective(editor.value);
+        if (existing) {
+            themeSel.value = ['base', 'neutral', 'forest', 'dark'].includes(existing.theme)
+                ? existing.theme : '';
+            for (const [key, input] of Object.entries(swatches)) {
+                const v = existing.themeVariables && existing.themeVariables[key];
+                if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) input.value = v;
+            }
+        }
+        syncSwatchState();
+
+        themeSel.onchange = applyStyle;
+        for (const input of Object.values(swatches)) input.oninput = applyStyle;
+
+        styleBtn.onclick = () => {
+            const on = styleBar.classList.toggle('open');
+            syncBtn(styleBtn, on);
+        };
 
         maxBtn.onclick = () => {
             const max = box.classList.toggle('mh-max');
@@ -675,6 +785,46 @@ function _indentSelection(textarea) {
     textarea.value = value.slice(0, from) + shifted + value.slice(tail);
     textarea.selectionStart = start + INDENT.length;
     textarea.selectionEnd = end + INDENT.length * block.split('\n').length;
+}
+
+/**
+ * mermaid's leading configuration directive.
+ *
+ * The style lives in the diagram rather than in a setting, so it travels with
+ * the document: the same source renders the same way in another editor, on
+ * GitHub, anywhere.
+ *
+ * Verified against the bundled mermaid 11.12.2 that this is honoured under
+ * `securityLevel: 'strict'`, that it survives the app re-initialising mermaid
+ * with its own theme per render, and — the part that matters — that a
+ * directive canNOT put securityLevel back to 'loose'. Diagram-supplied styling
+ * therefore does not reopen the script-execution hole the strict level closes.
+ */
+const INIT_RE = /^\s*%%\{init:\s*([\s\S]*?)\}%%\s*\n?/;
+
+function _initDirective(config) {
+    return '%%{init: ' + JSON.stringify(config) + '}%%';
+}
+
+/** Read the directive a diagram already carries, if any. */
+function _readDirective(src) {
+    const m = INIT_RE.exec(src || '');
+    if (!m) return null;
+    try {
+        // `\}%%` has already consumed the wrapper's own closing brace, so the
+        // captured group is the complete config object.
+        return JSON.parse(m[1]);
+    } catch (_) {
+        // Hand-written and malformed: leave it alone rather than guess.
+        return null;
+    }
+}
+
+/** Put `directive` at the top, replacing any that is already there. */
+function _withDirective(src, directive) {
+    const body = (src || '').replace(INIT_RE, '');
+    if (!directive) return body;
+    return directive + '\n' + body;
 }
 
 /** Insert `text` at the caret, on its own line, and keep the caret after it. */
