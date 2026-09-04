@@ -227,6 +227,23 @@ const jhTheme = EditorView.theme({
         color: "var(--text-color)",
         opacity: "1"
     },
+    // The lint gutter reserves its width whether or not anything is wrong, so
+    // it costs the same on a clean file as on a broken one. @codemirror/lint
+    // sizes it exactly: a 1em marker inside .2em of padding makes 1.4em.
+    //
+    // Narrowing the column alone would clip the marker — and only once a
+    // diagnostic appeared, which is the worst time to find out. Both shrink
+    // together instead, so the fit still holds at the smaller size.
+    ".cm-gutter-lint": {
+        width: "1em",
+        "& .cm-gutterElement": {
+            padding: "0.1em"
+        }
+    },
+    ".cm-lint-marker": {
+        width: "0.8em",
+        height: "0.8em"
+    },
     ".cm-foldPlaceholder": {
         backgroundColor: "transparent",
         border: "none",
