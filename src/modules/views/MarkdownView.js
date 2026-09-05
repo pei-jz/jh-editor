@@ -162,6 +162,20 @@ export class MarkdownView extends BaseView {
         }
 
         this.container.innerHTML = '';
+
+        // Claim the element. Whoever rendered here before may still hold a
+        // ResizeObserver on it; splitting the editor resizes both panes, and a
+        // stale observer would then paint its own blocks over the file now on
+        // screen — that is how another workspace's README turned up in a
+        // freshly split pane. The observer checks this stamp and gives up.
+        //
+        // Claimed on every render, not only in book mode, so a view that took
+        // over in scroll mode also displaces the previous owner.
+        //
+        // Held weakly: a container pointing back at a view would keep the view
+        // of a closed tab alive for as long as the element lives.
+        this.container.__mdViewOwner = new WeakRef(this);
+
         this.file = file;
 
         // Markdown Mode global listeners (mirroring Editor.js)
@@ -2002,6 +2016,17 @@ export class MarkdownView extends BaseView {
         this._resizeObserver = new ResizeObserver((entries) => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
+                // Someone else renders here now, or the element is gone. Either
+                // way this observer has nothing left to do.
+                const owner = this.container.__mdViewOwner;
+                if (!this.container.isConnected || !owner || owner.deref() !== this) {
+                    if (this._resizeObserver) {
+                        this._resizeObserver.disconnect();
+                        this._resizeObserver = null;
+                    }
+                    return;
+                }
+
                 if (State.markdownViewMode === 'book' && this.file && this.file.path === this._lastFilePath) {
                     const rect = this.container.getBoundingClientRect();
                     const lw = this._lastWidth || 0;
