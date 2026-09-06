@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::Write;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use chardetng::EncodingDetector;
 use tauri::{command, State};
 use std::sync::{Arc, Mutex};
@@ -11,13 +11,46 @@ use crate::models::{FileEntry, FileContent};
 /// Mutex (not tokio) so it can be locked from the single-instance callback too.
 pub struct WorkspaceState {
     pub roots: Arc<Mutex<HashMap<String, String>>>,
+    /// Directories already handed to the asset protocol.
+    ///
+    /// `allow_directory` appends a pattern every time it is called, so granting
+    /// the same folder on each file read would grow the list for as long as the
+    /// session lasts.
+    pub asset_dirs: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Default for WorkspaceState {
     fn default() -> Self {
         Self {
             roots: Arc::new(Mutex::new(HashMap::new())),
+            asset_dirs: Arc::new(Mutex::new(HashSet::new())),
         }
+    }
+}
+
+/// Let the asset protocol read from `dir`.
+///
+/// Markdown images go through convertFileSrc(), and every such request is
+/// checked against assetProtocol.scope — which is `$HOME/**`. A document
+/// anywhere else has its images denied and shows alt text instead.
+///
+/// Granted per directory the user actually opened rather than by widening the
+/// configured scope to `**`, which would let a document name any path on the
+/// machine. Remembered so the pattern list does not grow with every read.
+fn allow_asset_dir(webview: &tauri::WebviewWindow, dir: &std::path::Path,
+                   state: &State<'_, WorkspaceState>) {
+    use tauri::Manager;
+
+    let key = dir.to_string_lossy().to_string();
+    {
+        let mut seen = state.asset_dirs.lock().unwrap();
+        if !seen.insert(key.clone()) {
+            return;
+        }
+    }
+    if let Err(e) = webview.asset_protocol_scope().allow_directory(dir, true) {
+        // Not fatal: the file still opens, its images just stay blocked.
+        log::warn!("could not allow {key} for the asset protocol: {e}");
     }
 }
 
@@ -28,6 +61,22 @@ pub fn set_workspace_root(
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let label = webview.label().to_string();
+
+    // Let the workspace's own files render.
+    //
+    // Markdown images go through convertFileSrc(), and the asset protocol
+    // checks every request against assetProtocol.scope. That scope is
+    // `$HOME/**`, so a workspace anywhere else — C:\cusor_workspace\… , a
+    // second drive, a network share — has every image denied, and the document
+    // shows nothing but alt text.
+    //
+    // Widening the configured scope to `**` would fix it by letting a document
+    // name any path on the machine, opened or not. Granting it here instead
+    // keeps it to the directory the user actually opened.
+    if !path.is_empty() {
+        allow_asset_dir(&webview, std::path::Path::new(&path), &state);
+    }
+
     let mut roots = state.roots.lock().unwrap();
     if path.is_empty() {
         roots.remove(&label);
@@ -152,8 +201,18 @@ pub fn exists(path: String) -> bool {
 }
 
 #[command]
-pub fn read_file_auto_detect(path: String) -> Result<FileContent, String> {
+pub fn read_file_auto_detect(
+    webview: tauri::WebviewWindow,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<FileContent, String> {
     let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+
+    // Opening a single file sets no workspace, so this is the only chance to
+    // let its own folder through. Relative image paths resolve against it.
+    if let Some(dir) = std::path::Path::new(&path).parent() {
+        allow_asset_dir(&webview, dir, &state);
+    }
 
     let check_len = std::cmp::min(bytes.len(), 1024);
     if bytes[0..check_len].contains(&0) {

@@ -360,3 +360,40 @@ describe('updater', () => {
         expect(settings).toContain("btn.style.display = '';");
     });
 });
+
+describe('images in a document', () => {
+    const rs = read('src-tauri/src/commands/fs.rs');
+    const conf = JSON.parse(read('src-tauri/tauri.conf.json'));
+
+    // Markdown images go through convertFileSrc(), and the asset protocol
+    // checks every request against assetProtocol.scope. That scope is
+    // `$HOME/**`, so a workspace anywhere else — another drive, a share,
+    // C:\cusor_workspace — had every image denied and showed only alt text.
+    it('is reachable from the folder the user opened', () => {
+        expect(rs).toContain('asset_protocol_scope()');
+        expect(rs).toContain('allow_directory');
+    });
+
+    // Opening a single file sets no workspace, so set_workspace_root never
+    // fires and the file's own folder would stay blocked.
+    it('works for a file opened without a workspace', () => {
+        const i = rs.indexOf('pub fn read_file_auto_detect');
+        expect(i).toBeGreaterThan(-1);
+        expect(rs.slice(i, i + 700)).toContain('allow_asset_dir');
+    });
+
+    // allow_directory appends a pattern each call, so granting the same folder
+    // on every read would grow the list for as long as the session lasts.
+    it('grants each folder once', () => {
+        expect(rs).toContain('asset_dirs');
+        expect(rs).toContain('seen.insert');
+    });
+
+    // Widening the configured scope would let a document name any path on the
+    // machine, opened or not. The grant stays with what the user opened.
+    it('does not open the whole machine to reach them', () => {
+        const scope = conf.app.security.assetProtocol?.scope || [];
+        expect(scope, 'the configured scope must not be a blanket allow')
+            .not.toContain('**');
+    });
+});
