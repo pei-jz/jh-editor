@@ -50,13 +50,15 @@ const FOREGROUNDS = [
     '--hl-number', '--hl-operator',
 ];
 
-const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord', 'kakejiku'];
+const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord', 'kakejiku',
+    'kakejiku-dark', 'sumi-e-dark', 'paper-dark', 'latte-dark'];
 
 // Which surface a foreground actually sits on. Hanging Scroll is a hybrid — a
 // light sheet inside dark indigo mounting — so its tab ink is pale ON PURPOSE
 // and must be judged against the mount, not the sheet.
 const SURFACE = {
     kakejiku: { '--tab-inactive-color': '--mount-bg-2' },
+    'kakejiku-dark': { '--tab-inactive-color': '--mount-bg-2' },
 };
 
 describe.each(PALETTE_THEMES)('theme %s', (name) => {
@@ -185,6 +187,10 @@ describe('theme labels', () => {
             ['sumi-e', 'Ink Brush'],
             ['nord', 'Nord'],
             ['kakejiku', 'Hanging Scroll'],
+            ['kakejiku-dark', 'Hanging Scroll Dark'],
+            ['sumi-e-dark', 'Ink Brush Dark'],
+            ['paper-dark', 'Paper Dark'],
+            ['latte-dark', 'Mocha'],
         ]) {
             const th = THEMES.find((t) => t.id === value);
             expect(th, value).toBeTruthy();
@@ -213,7 +219,9 @@ describe('dark-theme detection', () => {
         // ThemeInfo delegates to the registry now, so the list is asserted
         // against the registry rather than against the text of that module.
         for (const t of ['theme-dark', 'theme-midnight', 'theme-solarized-dark',
-            'theme-bamboo-ancient', 'theme-nord']) {
+            'theme-bamboo-ancient', 'theme-nord',
+            'theme-kakejiku-dark', 'theme-sumi-e-dark',
+            'theme-paper-dark', 'theme-latte-dark']) {
             expect(darkThemeClasses(), t).toContain(t);
         }
     });
