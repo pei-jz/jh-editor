@@ -129,6 +129,51 @@ export function resolveImageSrc(src, docPath) {
     }
 }
 
+/**
+ * Point raw-HTML images at the file they mean.
+ *
+ * `renderer.image` only sees marked's own `![](…)` syntax. A document that
+ * writes `<img src="docs/images/x.png">` — which README does, for the width
+ * attribute — passes through untouched, so the relative path is resolved
+ * against the app's own origin instead of the document's folder.
+ *
+ * Under `tauri dev` that happens to work: Vite serves the project directory,
+ * so `http://localhost:1425/docs/images/x.png` exists. In a packaged build the
+ * origin is the bundled dist, where it does not — the image 404s and shows alt
+ * text. Another one that only appears once the app is built.
+ *
+ * Runs on already-sanitised HTML, and only rewrites paths that are relative:
+ * anything marked-generated has been through convertFileSrc already and starts
+ * with a scheme, so it is left alone.
+ */
+export function resolveHtmlImages(html, docPath) {
+    if (!html || html.indexOf('<img') === -1 && html.indexOf('<source') === -1) {
+        return html;
+    }
+
+    const host = document.createElement('template');
+    host.innerHTML = html;
+
+    for (const img of host.content.querySelectorAll('img[src]')) {
+        const fixed = resolveImageSrc(img.getAttribute('src'), docPath);
+        if (fixed) img.setAttribute('src', fixed);
+    }
+
+    // <picture> art direction: each candidate carries its own descriptor
+    // ("x.png 2x"), so the URL is only the first token of each entry.
+    for (const source of host.content.querySelectorAll('source[srcset]')) {
+        const fixed = source.getAttribute('srcset').split(',').map((part) => {
+            const bits = part.trim().split(/\s+/);
+            if (!bits[0]) return part;
+            bits[0] = resolveImageSrc(bits[0], docPath) || bits[0];
+            return bits.join(' ');
+        }).join(', ');
+        source.setAttribute('srcset', fixed);
+    }
+
+    return host.innerHTML;
+}
+
 // ── Wiki links ───────────────────────────────────────────────────────────────
 
 // [[Note]] or [[Note|shown text]] — Obsidian-style. Escaped \[[ is ignored.

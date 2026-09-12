@@ -98,10 +98,26 @@ function _injectBlockEditStyles() {
     .mbe-left .block-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .mbe-left .block-cm .cm-editor { flex: 1; min-height: 0; max-height: none; }
 
-    .mbe-split { flex: 0 0 5px; cursor: col-resize; transition: background .12s ease; }
+    /* Smaller editor text: the modal is a fixed-size window, so a slightly
+       smaller face fits more of the document on screen. */
+    .mbe-left .block-cm .cm-scroller { font-size: 13px; }
+
+    .mbe-split {
+        flex: 0 0 5px; cursor: col-resize; transition: background .12s ease;
+        position: relative;
+    }
+    /* The source/preview boundary stays visible as an accent hairline, not
+       only while hovered/dragged. */
+    .mbe-split::after {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 2px; width: 1px;
+        background: var(--accent-color, var(--primary-color));
+    }
+    .mbe-body.mbe-vertical > .mbe-split::after {
+        top: 2px; bottom: auto; left: 0; right: 0; width: auto; height: 1px;
+    }
     .mbe-split:hover, .mbe-split.dragging { background: var(--primary-color); opacity: 0.55; }
 
-    .mbe-right { flex: 1 1 45%; min-width: 220px; display: flex; flex-direction: column; border-left: 1px solid var(--border-color); }
+    .mbe-right { flex: 1 1 45%; min-width: 220px; display: flex; flex-direction: column; border-left: 1px solid var(--accent-color, var(--primary-color)); }
     .mbe-right-head {
         padding: 6px 12px; font-size: 11px; font-weight: 600; opacity: 0.7;
         border-bottom: 1px solid var(--border-color); background: var(--bg-color-secondary, var(--bg-color));
@@ -117,8 +133,66 @@ function _injectBlockEditStyles() {
         padding: 10px 14px; border-top: 1px solid var(--border-color);
         background: var(--header-bg); flex-shrink: 0;
     }
+
+    /* Full screen. Same as the Mermaid helper: the overlay starts below the
+       title bar (measured on open, since it moves with theme and scale) so
+       Esc and the window's own buttons stay reachable. */
+    #md-block-edit-overlay.mbe-max-overlay { top: var(--mbe-top, 36px); }
+    .mbe-box.mbe-max {
+        width: 100vw; height: 100%;
+        max-width: 100vw; max-height: 100%;
+        border-radius: 0; resize: none;
+    }
+    .mbe-box.mbe-max .mbe-edge { display: none; }
+
+    /* Grips on the left and right edges, matching the Mermaid helper. CSS
+       resize:both only offers the bottom-right corner, so widening from an
+       edge otherwise dragged the height too. */
+    .mbe-edge {
+        position: absolute; top: 0; bottom: 0; width: 6px;
+        cursor: ew-resize; z-index: 2;
+    }
+    .mbe-edge-l { left: 0; }
+    .mbe-edge-r { right: 0; }
+    .mbe-edge:hover, .mbe-edge.dragging { background: var(--primary-color); opacity: 0.35; }
     `;
     document.head.appendChild(style);
+}
+
+/**
+ * Drag a resize grip. `onDeltaX` receives the pointer movement since the last
+ * event (not since the drag started), so callers can size relative to the
+ * element's current box. Pointer capture keeps the drag targeted at the grip
+ * even when the cursor leaves it.
+ */
+function _makeEdgeDragger(handle, onDeltaX) {
+    handle.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        let lastX = e.clientX;
+        handle.classList.add('dragging');
+        const prevSel = document.body.style.userSelect;
+        document.body.style.userSelect = 'none';
+        handle.setPointerCapture(e.pointerId);
+        const move = (ev) => {
+            const dx = ev.clientX - lastX;
+            lastX = ev.clientX;
+            if (dx) onDeltaX(dx);
+        };
+        const up = (ev) => {
+            handle.classList.remove('dragging');
+            document.body.style.userSelect = prevSel;
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', up);
+            handle.removeEventListener('pointercancel', up);
+            if (handle.hasPointerCapture && handle.hasPointerCapture(ev.pointerId)) {
+                handle.releasePointerCapture(ev.pointerId);
+            }
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', up);
+        handle.addEventListener('pointercancel', up);
+    });
 }
 
 export class MarkdownView extends BaseView {
@@ -1009,6 +1083,7 @@ export class MarkdownView extends BaseView {
             + `<span class="mbe-pos">${this._escapeAttr(pos)}</span>`
             + `<span class="mbe-spacer"></span>`
             + `<button type="button" class="mbe-layout-btn" title="Switch source/preview layout (Ctrl+Alt+L)"></button>`
+            + `<button type="button" class="mbe-layout-btn mbe-max-btn" title="${this._escapeAttr(t('Full screen'))}"></button>`
             + `<span class="mbe-hint">Ctrl+Enter to save · Esc to cancel</span>`;
 
         const body = document.createElement('div');
@@ -1062,6 +1137,42 @@ export class MarkdownView extends BaseView {
         const toggleLayout = () => { isVertical = !isVertical; applyLayout(isVertical); };
         if (layoutBtn) layoutBtn.onclick = toggleLayout;
         this._toggleEditLayout = toggleLayout;
+
+        // ── Full screen ─────────────────────────────────────────────
+        // Same approach as the Mermaid helper: fill the window but stay below
+        // the custom title bar (measured, since it moves with theme/scale).
+        const maxBtn = head.querySelector('.mbe-max-btn');
+        if (maxBtn) {
+            maxBtn.innerHTML = svgIcon('maximize', { size: 12 }) + `<span>${t('Full screen')}</span>`;
+            maxBtn.onclick = () => {
+                const max = box.classList.toggle('mbe-max');
+                if (max) {
+                    const bar = document.getElementById('custom-titlebar');
+                    const h = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+                    overlay.style.setProperty('--mbe-top', `${h}px`);
+                }
+                overlay.classList.toggle('mbe-max-overlay', max);
+            };
+        }
+
+        // ── Edge grips ──────────────────────────────────────────────
+        // Widen the modal from either edge, like the Mermaid helper. The box is
+        // centred, so the width moves twice the pointer delta to keep the
+        // grabbed edge under the cursor.
+        const edgeL = document.createElement('div');
+        edgeL.className = 'mbe-edge mbe-edge-l';
+        edgeL.title = t('Drag to resize');
+        const edgeR = document.createElement('div');
+        edgeR.className = 'mbe-edge mbe-edge-r';
+        edgeR.title = t('Drag to resize');
+        box.append(edgeL, edgeR);
+
+        const widen = (delta) => {
+            const w = box.getBoundingClientRect().width + delta;
+            box.style.width = `${Math.min(Math.max(640, w), window.innerWidth)}px`;
+        };
+        _makeEdgeDragger(edgeL, (dx) => widen(-dx * 2));
+        _makeEdgeDragger(edgeR, (dx) => widen(dx * 2));
 
         // Splitter: resize the source pane, preview takes the remainder.
         // Pointer capture keeps the drag (and its release) targeted at the bar
@@ -2702,7 +2813,10 @@ export class MarkdownView extends BaseView {
         // [[wiki links]] are expanded to ordinary Markdown links first, so the
         // link renderer above (and its file-open click handling) applies to them.
         const src = MdAssets.expandWikiLinks(text);
-        return sanitizeHtml(marked.parse(src, { renderer }));
+        // Every render path reaches this one line, so raw-HTML images are
+        // resolved here rather than at each of the eight call sites.
+        const html = sanitizeHtml(marked.parse(src, { renderer }));
+        return MdAssets.resolveHtmlImages(html, this.file ? this.file.path : null);
     }
 
     /**
