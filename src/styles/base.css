@@ -155,6 +155,30 @@ body.theme-kakejiku {
     --scrollbar-thumb-hover: rgba(43, 47, 54, 0.45);
 }
 
+/* 夜の掛軸 scrolls on the deep indigo sheet. */
+body.theme-kakejiku-dark {
+    --scrollbar-thumb: rgba(227, 232, 243, 0.24);
+    --scrollbar-thumb-hover: rgba(227, 232, 243, 0.40);
+}
+
+/* 月夜の墨 — night washi, moonlight thumb. */
+body.theme-sumi-e-dark {
+    --scrollbar-thumb: rgba(230, 228, 221, 0.22);
+    --scrollbar-thumb-hover: rgba(230, 228, 221, 0.38);
+}
+
+/* 夜の帳面 — night kraft paper. */
+body.theme-paper-dark {
+    --scrollbar-thumb: rgba(232, 226, 214, 0.22);
+    --scrollbar-thumb-hover: rgba(232, 226, 214, 0.38);
+}
+
+/* Mocha (Latte's dark partner). */
+body.theme-latte-dark {
+    --scrollbar-thumb: rgba(205, 214, 244, 0.24);
+    --scrollbar-thumb-hover: rgba(205, 214, 244, 0.40);
+}
+
 /* ── Git comparison result: a dense, collapsible file tree ────────────────────
    A branch comparison routinely lists hundreds of files; a flat list of them is
    a scroll hunt, so the rows are compact and every directory folds away. */

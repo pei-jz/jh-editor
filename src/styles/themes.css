@@ -1382,6 +1382,615 @@ body.theme-kakejiku option {
     color: #2b2f36;
 }
 
+/* ============================================================================
+   🌙 Kakejiku Dark — 夜の掛軸（金泥）
+   From docs/design/editor-theme-dark-proposal.html. The hanging scroll at
+   night: the honji (本紙) is deep indigo silk, the hyousou (表装) is an even
+   deeper black-indigo kinran brocade, and the damask weave is gold leaf
+   (#c9a86a) instead of silver. The vermillion seal is brightened to #d4705e
+   so it does not sink into the dark ground.
+
+   Same structural exception as the light Kakejiku — the SHEET is dark and the
+   MOUNT is a further step down, so the mount's pale ink is overridden
+   explicitly below rather than inheriting --text-color. Both surfaces are
+   dark, so this time the split is "dark sheet / darker mount", not light/dark.
+   ========================================================================== */
+body.theme-kakejiku-dark {
+    --bg-color: #232c3f;            /* honji — deep indigo silk at night */
+    --mount-bg: #0f1420;
+    --mount-bg-2: #161c2b;          /* hyousou — black-indigo kinran */
+    --mount-ink: #eef1f6;
+    --titlebar-text: var(--mount-ink);
+    --titlebar-text-dim: #aeb9d2;
+    --sidebar-bg: #1b2231;
+    --header-bg: #1e2534;
+    --border-color: #3a4660;
+    --text-color: #e3e8f3;          /* moonlight */
+    --primary-color: #d4705e;       /* the seal, brightened for the dark ground */
+    --text-on-primary: #2a0e0a;
+    --active-tab-bg: #2c3550;
+    --active-tab-border: #d4705e;
+    --hover-color: #2a3347;
+    --bg-color-secondary: #2a3347;
+    --bg-active: #2c3550;
+    --radius: 6px;
+    --table-header-bg: #2a3347;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.55);
+
+    /* Syntax — moonlight on deep indigo silk */
+    --hl-keyword: #8ab4f8;
+    --hl-control-flow: #c9a6e8;
+    --hl-built-in: #7fd4c0;
+    --hl-literal: #8ab4f8;
+    --hl-string: #e0a070;
+    --hl-comment: #94a2bd;
+    --hl-function: #d8cfa0;
+    --hl-variable: #c3cce2;
+    --hl-number: #b5cea8;
+    --hl-operator: #e3e8f3;
+
+    --gutter-color: #94a2bd;
+    --tab-inactive-color: #aab4c8;  /* pale ink on the darker mount */
+    --tree-item-color: #e3e8f3;
+    --tree-item-active-bg: rgba(212, 112, 94, 0.16);
+    --text-secondary: #aab4c8;
+
+    --code-color: #e0a070;
+    --code-bg: rgba(224, 160, 112, 0.10);
+    --code-border: rgba(224, 160, 112, 0.25);
+    --blockquote-bg: rgba(138, 180, 248, 0.08);
+
+    --selection-bg: rgba(212, 112, 94, 0.30);
+    --selection-color: #e3e8f3;
+    --cm-selection-bg: rgba(212, 112, 94, 0.26);
+
+    --git-modified-color: #e0c08a;
+    --git-staged-color: #8fc9a8;
+    --git-untracked-color: #8fc9a8;
+
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --kakejiku-chrome-font: var(--font-textbook);
+
+    /* Fine silk weave on the deep honji. */
+    --silk: repeating-linear-gradient(0deg, rgba(90,105,140,0.06) 0 1px, rgba(255,255,255,0.04) 1px 2px, transparent 2px 4px),
+            repeating-linear-gradient(90deg, rgba(90,105,140,0.06) 0 1px, rgba(255,255,255,0.04) 1px 2px, transparent 2px 4px);
+
+    /* Gold-damask brocade (金襴緞子・菱文) on the dark mount. */
+    --donsu: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='none' stroke='%23c9a86a' stroke-opacity='0.20' stroke-width='1'%3E%3Cpath d='M28 6 L50 28 L28 50 L6 28 Z'/%3E%3Cpath d='M28 16 L40 28 L28 40 L16 28 Z'/%3E%3C/g%3E%3Cg fill='%23c9a86a' fill-opacity='0.16'%3E%3Ccircle cx='28' cy='28' r='3'/%3E%3Ccircle cx='6' cy='6' r='2'/%3E%3Ccircle cx='50' cy='6' r='2'/%3E%3Ccircle cx='6' cy='50' r='2'/%3E%3Ccircle cx='50' cy='50' r='2'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* The desk: deep indigo silk with a soft sheen. */
+body.theme-kakejiku-dark {
+    background: var(--silk), var(--bg-color);
+}
+
+/* The explorer is the honji itself — the deep sheet, edged in brocade. */
+body.theme-kakejiku-dark #explorer {
+    background-color: var(--bg-color);
+    background-image: var(--silk);
+    border-right: 2px solid var(--mount-bg);
+    color: var(--text-color);
+}
+
+body.theme-kakejiku-dark .md-body,
+body.theme-kakejiku-dark .stf__page {
+    background-image: var(--silk);
+    background-position: 0 0;
+    background-size: auto;
+    background-repeat: repeat;
+    background-attachment: local;
+    background-color: var(--bg-color);
+}
+
+/* The mount (tabs / titlebar / status bar / outline header / git header). */
+body.theme-kakejiku-dark #tab-bar,
+body.theme-kakejiku-dark #tab-bar-right,
+body.theme-kakejiku-dark #custom-titlebar,
+body.theme-kakejiku-dark #status-bar,
+body.theme-kakejiku-dark .outline-header,
+body.theme-kakejiku-dark .git-v2-repo,
+body.theme-kakejiku-dark .git-v2-header {
+    background-color: var(--mount-bg-2);
+    background-image: var(--donsu);
+    color: var(--mount-ink);
+}
+
+body.theme-kakejiku-dark .tab:hover,
+body.theme-kakejiku-dark .explorer-tab:hover,
+body.theme-kakejiku-dark .tab-nav-btn:hover,
+body.theme-kakejiku-dark .titlebar-tool-btn:hover,
+body.theme-kakejiku-dark #new-tab-btn:hover {
+    background-color: #2c3550;
+    color: #ffffff;
+}
+
+body.theme-kakejiku-dark .titlebar-btn,
+body.theme-kakejiku-dark .titlebar-tool-btn,
+body.theme-kakejiku-dark #new-tab-btn {
+    color: #eef1f6;
+}
+body.theme-kakejiku-dark .titlebar-btn:hover,
+body.theme-kakejiku-dark .titlebar-tool-btn:hover,
+body.theme-kakejiku-dark #new-tab-btn:hover {
+    color: #ffffff;
+}
+body.theme-kakejiku-dark .titlebar-btn.titlebar-close:hover {
+    color: #ffffff;
+}
+
+body.theme-kakejiku-dark .tab {
+    background-color: transparent;
+    color: var(--tab-inactive-color);
+}
+body.theme-kakejiku-dark .tab:hover {
+    background-color: #2c3550;
+    color: #ffffff;
+}
+body.theme-kakejiku-dark .tab.active {
+    background-color: var(--active-tab-bg);
+    color: #ffffff;
+}
+
+body.theme-kakejiku-dark .explorer-tabs {
+    background-color: var(--mount-bg-2);
+    background-image: var(--donsu);
+}
+body.theme-kakejiku-dark .explorer-tab {
+    color: #eef1f6;
+    opacity: 0.92;
+}
+body.theme-kakejiku-dark .explorer-tab.active {
+    color: #d4705e;
+}
+
+/* The tree sits on the deep honji, so hovering paints a dark highlight. */
+body.theme-kakejiku-dark .tree-item:hover,
+body.theme-kakejiku-dark .git-file-item:hover,
+body.theme-kakejiku-dark .git-tree-item:hover,
+body.theme-kakejiku-dark .outline-item:hover,
+body.theme-kakejiku-dark .git-cmp-dir:hover,
+body.theme-kakejiku-dark .git-cmp-file:hover {
+    background-color: #2a3347;
+}
+
+body.theme-kakejiku-dark #outline-container,
+body.theme-kakejiku-dark .git-panel-v2 {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+body.theme-kakejiku-dark #explorer,
+body.theme-kakejiku-dark #tab-bar,
+body.theme-kakejiku-dark #status-bar,
+body.theme-kakejiku-dark .git-panel-v2,
+body.theme-kakejiku-dark .explorer-tab,
+body.theme-kakejiku-dark .modal-content,
+body.theme-kakejiku-dark .settings-modal-content,
+body.theme-kakejiku-dark button {
+    font-family: var(--kakejiku-chrome-font);
+    letter-spacing: 0.3px;
+}
+
+body.theme-kakejiku-dark .cm-editor,
+body.theme-kakejiku-dark .cm-content,
+body.theme-kakejiku-dark .stf__page,
+body.theme-kakejiku-dark textarea,
+body.theme-kakejiku-dark input,
+body.theme-kakejiku-dark select,
+body.theme-kakejiku-dark .block-cm,
+body.theme-kakejiku-dark .md-block pre,
+body.theme-kakejiku-dark .md-body pre,
+body.theme-kakejiku-dark code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+body.theme-kakejiku-dark #status-bar,
+body.theme-kakejiku-dark #status-bar * {
+    color: #eef1f6;
+}
+body.theme-kakejiku-dark #status-bar #status-whitespace.active,
+body.theme-kakejiku-dark #status-bar #status-vim-mode {
+    color: var(--primary-color);
+}
+
+body.theme-kakejiku-dark option {
+    background-color: #232c3f;
+    color: #e3e8f3;
+}
+
+/* Form controls — kakejiku-dark's own darks, not the generic dark-theme greys. */
+body.theme-kakejiku-dark button,
+body.theme-kakejiku-dark select,
+body.theme-kakejiku-dark input[type="text"],
+body.theme-kakejiku-dark input[type="password"] {
+    background-color: #2a3347;
+    color: #e3e8f3;
+    border: 1px solid #3a4660;
+    color-scheme: dark;
+}
+body.theme-kakejiku-dark button:hover { background-color: #2c3550; }
+body.theme-kakejiku-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+body.theme-kakejiku-dark #explorer-search {
+    background-color: #2a3347;
+    color: #e3e8f3;
+    border: 1px solid #3a4660;
+}
+body.theme-kakejiku-dark #explorer-search::placeholder { color: #94a2bd; }
+body.theme-kakejiku-dark .modal-content input,
+body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
+
+/* ============================================================================
+   🌙 Sumi-e Dark — 月夜の墨（白抜き水墨）
+   From docs/design/editor-theme-dark-proposal.html. Night washi, moonlight
+   ink. The mountains and the single stroke are inverted to light lines (the
+   same SVGs with #e6e4dd instead of sumi #1c1c1c), and the moon is a bare
+   outline. The vermillion seal is brightened to #d06a5a.
+   ========================================================================== */
+body.theme-sumi-e-dark {
+    --bg-color: #26282d;            /* night washi */
+    --sidebar-bg: #202226;
+    --header-bg: #232529;
+    --border-color: #3a3d44;
+    --text-color: #e6e4dd;          /* moonlight ink */
+    --primary-color: #d06a5a;       /* 朱, brightened for the dark ground */
+    --text-on-primary: #2a0e0a;
+    --active-tab-bg: #2e3137;
+    --active-tab-border: #d06a5a;
+    --hover-color: #2c2e34;
+    --bg-color-secondary: #2c2e34;
+    --bg-active: #2e3137;
+    --radius: 6px;
+    --table-header-bg: #2c2e34;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
+
+    --hl-keyword: #8ab4f8;
+    --hl-control-flow: #c0a8e0;
+    --hl-built-in: #7fd4c0;
+    --hl-literal: #8ab4f8;
+    --hl-string: #e0a070;
+    --hl-comment: #a0a098;
+    --hl-function: #c0a8e0;
+    --hl-variable: #d8d5cc;
+    --hl-number: #b5cea8;
+    --hl-operator: #e6e4dd;
+
+    --gutter-color: #a0a098;
+    --tab-inactive-color: #a8a6a0;
+    --tree-item-color: #e6e4dd;
+    --tree-item-active-bg: rgba(208, 106, 90, 0.14);
+    --text-secondary: #a8a6a0;
+
+    --code-color: #e0a070;
+    --code-bg: rgba(224, 160, 112, 0.10);
+    --code-border: rgba(224, 160, 112, 0.25);
+    --blockquote-bg: rgba(138, 180, 248, 0.06);
+
+    --selection-bg: rgba(208, 106, 90, 0.30);
+    --selection-color: #e6e4dd;
+    --cm-selection-bg: rgba(208, 106, 90, 0.26);
+
+    --git-modified-color: #d9a44a;
+    --git-staged-color: #8fc9a8;
+    --git-untracked-color: #8fc9a8;
+
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --sumi-chrome-font: var(--font-textbook);
+
+    /* Washi fibre, reused from the light Sumi-e. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
+
+    /* 白抜き水墨 — the mountains and stroke inverted to moonlight lines. */
+    --sumi-mount-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='40' viewBox='0 0 900 40' preserveAspectRatio='none'%3E%3Cfilter id='h2' x='-15%25' y='-60%25' width='130%25' height='240%25'%3E%3CfeGaussianBlur stdDeviation='2.2'/%3E%3C/filter%3E%3Cg fill='%23e6e4dd'%3E%3Cg opacity='0.08' filter='url(%23h2)'%3E%3Cpath d='M400 40 L448 26 Q466 17 484 25 L516 9 Q532 0 548 11 L586 31 Q604 42 621 37 L664 19 Q684 9 702 22 L744 40 Z'/%3E%3Cpath d='M762 40 L800 28 Q818 20 834 29 L862 15 Q878 7 892 18 L900 24 L900 40 Z'/%3E%3C/g%3E%3Cpath opacity='0.14' d='M596 40 L642 26 Q658 18 674 27 L700 14 Q714 6 727 16 L756 32 Q772 42 787 38 L828 24 Q846 16 862 26 L900 40 Z'/%3E%3C/g%3E%3Ccircle cx='150' cy='12' r='5.5' fill='none' stroke='%23e6e4dd' stroke-opacity='0.42' stroke-width='1'/%3E%3C/svg%3E");
+    --sumi-mount-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='22' viewBox='0 0 900 22' preserveAspectRatio='none'%3E%3Cfilter id='d2' x='-6%25' y='-70%25' width='112%25' height='240%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015 0.9' numOctaves='3' seed='23' result='t'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='t' scale='6' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3Cg fill='none' stroke='%23e6e4dd' stroke-linecap='round' filter='url(%23d2)'%3E%3Cpath opacity='0.13' stroke-width='6' d='M60 13 Q280 8 500 12 T840 9'/%3E%3Cpath opacity='0.06' stroke-width='2.5' d='M132 18 Q330 15 540 18 T812 16'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+body.theme-sumi-e-dark {
+    background: var(--grain), var(--sidebar-bg);
+}
+
+body.theme-sumi-e-dark #explorer,
+body.theme-sumi-e-dark .md-body,
+body.theme-sumi-e-dark .stf__page {
+    background-image: var(--grain);
+}
+
+body.theme-sumi-e-dark #custom-titlebar {
+    background-image: var(--sumi-mount-top), var(--grain);
+    background-repeat: no-repeat, repeat;
+    background-position: right bottom, 0 0;
+    background-size: auto 100%, auto;
+}
+
+body.theme-sumi-e-dark #status-bar {
+    background-image: var(--sumi-mount-bottom), var(--grain);
+    background-repeat: no-repeat, repeat;
+    background-position: center, 0 0;
+    background-size: 100% 100%, auto;
+}
+
+body.theme-sumi-e-dark #explorer,
+body.theme-sumi-e-dark #tab-bar,
+body.theme-sumi-e-dark #status-bar,
+body.theme-sumi-e-dark .git-panel-v2,
+body.theme-sumi-e-dark .explorer-tab,
+body.theme-sumi-e-dark .modal-content,
+body.theme-sumi-e-dark .settings-modal-content,
+body.theme-sumi-e-dark button {
+    font-family: var(--sumi-chrome-font);
+    letter-spacing: 0;
+}
+
+body.theme-sumi-e-dark .cm-editor,
+body.theme-sumi-e-dark .cm-content,
+body.theme-sumi-e-dark .stf__page,
+body.theme-sumi-e-dark textarea,
+body.theme-sumi-e-dark input,
+body.theme-sumi-e-dark select,
+body.theme-sumi-e-dark .block-cm,
+body.theme-sumi-e-dark .md-block pre,
+body.theme-sumi-e-dark .md-body pre,
+body.theme-sumi-e-dark code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+body.theme-sumi-e-dark option { background-color: #26282d; color: #e6e4dd; }
+
+body.theme-sumi-e-dark button,
+body.theme-sumi-e-dark select,
+body.theme-sumi-e-dark input[type="text"],
+body.theme-sumi-e-dark input[type="password"] {
+    background-color: #2c2e34;
+    color: #e6e4dd;
+    border: 1px solid #3a3d44;
+    color-scheme: dark;
+}
+body.theme-sumi-e-dark button:hover { background-color: #2e3137; }
+body.theme-sumi-e-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+body.theme-sumi-e-dark #explorer-search {
+    background-color: #2c2e34;
+    color: #e6e4dd;
+    border: 1px solid #3a3d44;
+}
+body.theme-sumi-e-dark #explorer-search::placeholder { color: #a0a098; }
+body.theme-sumi-e-dark .modal-content input,
+body.theme-sumi-e-dark .modal-content select { color: #e6e4dd !important; }
+
+/* ============================================================================
+   🌙 Paper Dark — 夜の帳面（白墨）
+   From docs/design/editor-theme-dark-proposal.html. A notebook at night:
+   dark kraft paper, white-chalk (moonlight) ink, and a red pen brightened to
+   #d4705e. The handwritten chrome and ruled lines are kept, re-lit for dark.
+   ========================================================================== */
+body.theme-paper-dark {
+    --bg-color: #2a2621;            /* night kraft paper */
+    --sidebar-bg: #242019;
+    --header-bg: #242019;
+    --border-color: #453e33;
+    --text-color: #e8e2d6;          /* white chalk / moonlight pen */
+    --primary-color: #d4705e;       /* red pen, brightened */
+    --text-on-primary: #2a0e0a;
+    --active-tab-bg: #2a2621;
+    --active-tab-border: #d4705e;
+    --hover-color: #332e26;
+    --bg-color-secondary: #312c25;
+    --bg-active: #332e26;
+    --radius: 6px;
+    --table-header-bg: #312c25;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
+
+    --hl-keyword: #e08a94;
+    --hl-control-flow: #d0a0d0;
+    --hl-built-in: #8fc9a8;
+    --hl-literal: #e08a94;
+    --hl-string: #9fbf8f;
+    --hl-comment: #a89f90;
+    --hl-function: #e0c08a;
+    --hl-variable: #c8bfae;
+    --hl-number: #8fb4e0;
+    --hl-operator: #e8e2d6;
+
+    --gutter-color: #a89f90;
+    --tab-inactive-color: #a89f90;
+    --tree-item-color: #e8e2d6;
+    --tree-item-active-bg: rgba(212, 112, 94, 0.14);
+    --text-secondary: #b0a89a;
+
+    --code-color: #e0a070;
+    --code-bg: rgba(224, 160, 112, 0.10);
+    --code-border: rgba(224, 160, 112, 0.25);
+    --blockquote-bg: rgba(232, 226, 214, 0.05);
+
+    --selection-bg: rgba(212, 112, 94, 0.28);
+    --selection-color: #e8e2d6;
+    --cm-selection-bg: rgba(212, 112, 94, 0.24);
+
+    --git-modified-color: #d9a44a;
+    --git-staged-color: #8fc9a8;
+    --git-untracked-color: #8fc9a8;
+
+    --font-hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
+    --paper-chrome-font: var(--font-hand);
+    --paper-rule-color: rgba(232, 226, 214, 0.10);
+    --paper-rule-size: 27px;
+    --paper-margin-color: rgba(212, 112, 94, 0.45);
+    --paper-vignette: rgba(0, 0, 0, 0.35);
+}
+
+body.theme-paper-dark {
+    background:
+        radial-gradient(140% 120% at 20% -10%, rgba(80, 72, 58, 0.4), transparent 60%),
+        radial-gradient(160% 140% at 115% 120%, var(--paper-vignette), transparent 55%),
+        var(--sidebar-bg);
+}
+
+body.theme-paper-dark #explorer,
+body.theme-paper-dark #tab-bar,
+body.theme-paper-dark #status-bar,
+body.theme-paper-dark .git-panel-v2,
+body.theme-paper-dark .explorer-tab,
+body.theme-paper-dark .modal-content,
+body.theme-paper-dark .settings-modal-content,
+body.theme-paper-dark button {
+    font-family: var(--paper-chrome-font);
+    letter-spacing: 0.2px;
+}
+
+body.theme-paper-dark .cm-editor,
+body.theme-paper-dark .cm-content,
+body.theme-paper-dark .stf__page,
+body.theme-paper-dark textarea,
+body.theme-paper-dark input,
+body.theme-paper-dark select,
+body.theme-paper-dark .block-cm,
+body.theme-paper-dark .md-block pre,
+body.theme-paper-dark .md-body pre,
+body.theme-paper-dark code {
+    font-family: var(--editor-font-family) !important;
+    letter-spacing: normal;
+}
+
+body.theme-paper-dark .md-body,
+body.theme-paper-dark .stf__page.md-body {
+    background-image:
+        repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));
+    background-attachment: local;
+}
+
+body.theme-paper-dark #explorer {
+    border-right: 2px solid var(--paper-margin-color);
+}
+
+body.theme-paper-dark .modal-content,
+body.theme-paper-dark .settings-modal-content,
+body.theme-paper-dark .git-commit-detail-panel,
+body.theme-paper-dark .search-modal {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+}
+
+body.theme-paper-dark option { background-color: #2a2621; color: #e8e2d6; }
+
+body.theme-paper-dark button,
+body.theme-paper-dark select,
+body.theme-paper-dark input[type="text"],
+body.theme-paper-dark input[type="password"] {
+    background-color: #312c25;
+    color: #e8e2d6;
+    border: 1px solid #453e33;
+    color-scheme: dark;
+}
+body.theme-paper-dark button:hover { background-color: #332e26; }
+body.theme-paper-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+body.theme-paper-dark #explorer-search {
+    background-color: #312c25;
+    color: #e8e2d6;
+    border: 1px solid #453e33;
+}
+body.theme-paper-dark #explorer-search::placeholder { color: #a89f90; }
+body.theme-paper-dark .modal-content input,
+body.theme-paper-dark .modal-content select { color: #e8e2d6 !important; }
+
+/* ============================================================================
+   ☕ Mocha — Latte のダーク版 (latte-dark)
+   From docs/design/editor-theme-dark-proposal.html. Catppuccin Mocha, the
+   natural dark partner of Latte: base #1e1e2e, surface #313244, text
+   #cdd6f4, mauve accent #cba6f7. A standard dark theme with no art.
+   ========================================================================== */
+body.theme-latte-dark {
+    --bg-color: #1e1e2e;            /* Catppuccin Mocha base */
+    --sidebar-bg: #181825;
+    --header-bg: #181825;
+    --border-color: #45475a;
+    --text-color: #cdd6f4;
+    --primary-color: #cba6f7;       /* mauve */
+    --text-on-primary: #1e1e2e;
+    --active-tab-bg: #1e1e2e;
+    --active-tab-border: #cba6f7;
+    --hover-color: #313244;
+    --bg-color-secondary: #313244;
+    --bg-active: #313244;
+    --radius: 6px;
+    --table-header-bg: #313244;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
+
+    --hl-keyword: #cba6f7;
+    --hl-control-flow: #f38ba8;
+    --hl-built-in: #94e2d5;
+    --hl-literal: #cba6f7;
+    --hl-string: #a6e3a1;
+    --hl-comment: #a6adc8;
+    --hl-function: #89b4fa;
+    --hl-variable: #cdd6f4;
+    --hl-number: #fab387;
+    --hl-operator: #cdd6f4;
+
+    --gutter-color: #a6adc8;
+    --tab-inactive-color: #a6adc8;
+    --tree-item-color: #cdd6f4;
+    --tree-item-active-bg: rgba(203, 166, 247, 0.16);
+    --text-secondary: #a6adc8;
+
+    --code-color: #f9e2af;
+    --code-bg: rgba(249, 226, 175, 0.10);
+    --code-border: rgba(249, 226, 175, 0.25);
+    --blockquote-bg: rgba(203, 166, 247, 0.08);
+
+    --selection-bg: rgba(203, 166, 247, 0.28);
+    --selection-color: #cdd6f4;
+    --cm-selection-bg: rgba(203, 166, 247, 0.24);
+
+    --git-modified-color: #f9e2af;
+    --git-staged-color: #a6e3a1;
+    --git-untracked-color: #a6e3a1;
+}
+
+body.theme-latte-dark button,
+body.theme-latte-dark select,
+body.theme-latte-dark input[type="text"],
+body.theme-latte-dark input[type="password"] {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    color-scheme: dark;
+}
+body.theme-latte-dark button:hover { background-color: #45475a; }
+body.theme-latte-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+body.theme-latte-dark #explorer-search {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+}
+body.theme-latte-dark #explorer-search::placeholder { color: #a6adc8; }
+body.theme-latte-dark .modal-content input,
+body.theme-latte-dark .modal-content select { color: #cdd6f4 !important; }
+body.theme-latte-dark option { background-color: #1e1e2e; color: #cdd6f4; }
+
 /* ═══════════════════════════════════════════════════════════════════════
    DERIVED TOKENS
    ═══════════════════════════════════════════════════════════════════════
@@ -1458,7 +2067,11 @@ body.theme-dark,
 body.theme-midnight,
 body.theme-solarized-dark,
 body.theme-bamboo-ancient,
-body.theme-nord {
+body.theme-nord,
+body.theme-kakejiku-dark,
+body.theme-sumi-e-dark,
+body.theme-paper-dark,
+body.theme-latte-dark {
     --theme-contrast: #fff;
     /* A raised surface on a dark theme should lift more than a light one
        drops; the same 6% mix reads as almost nothing against dark ink. */

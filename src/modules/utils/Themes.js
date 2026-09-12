@@ -40,16 +40,22 @@ export const THEMES = [
     { id: 'dark', label: 'Dark', dark: true, bootBg: '#1e1e22' },
     { id: 'midnight', label: 'Midnight', dark: true, bootBg: '#0f0f11' },
     { id: 'latte', label: 'Latte', dark: false, bootBg: '#f0e8d0' },
+    { id: 'latte-dark', label: 'Mocha', dark: true, bootBg: '#1e1e2e' },
     { id: 'solarized-dark', label: 'Solarized Dark', dark: true, bootBg: '#002b36' },
     { id: 'solarized-light', label: 'Solarized Light', dark: false, bootBg: '#fdf6e3' },
     { id: 'paper', label: 'Paper', dark: false, bootBg: '#e7dab9' },
+    { id: 'paper-dark', label: 'Paper Dark', dark: true, bootBg: '#2a2621' },
     { id: 'bamboo-ancient', label: 'Bamboo Slip', dark: true, bootBg: '#2f2518' },
     { id: 'sumi-e', label: 'Ink Brush', dark: false, bootBg: '#ece8df' },
+    { id: 'sumi-e-dark', label: 'Ink Brush Dark', dark: true, bootBg: '#26282d' },
     { id: 'nord', label: 'Nord', dark: true, bootBg: '#3b4252' },
     // Hanging Scroll is deliberately NOT dark: its mounting is indigo, but the
     // sheet you actually read is moon-white silk, so code, diagrams and
     // Markdown all want light palettes.
     { id: 'kakejiku', label: 'Hanging Scroll', dark: false, bootBg: '#e8edf1' },
+    // 夜の掛軸: the same hanging scroll at night — deep indigo silk with a
+    // gold-damask mount and a vermillion seal brightened for the dark ground.
+    { id: 'kakejiku-dark', label: 'Hanging Scroll Dark', dark: true, bootBg: '#232c3f' },
 ];
 
 /** Legacy class some older paths still set; treated as dark. */

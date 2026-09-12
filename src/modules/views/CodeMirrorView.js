@@ -390,7 +390,8 @@ function makeNewlinePlugin(glyph) {
  * theme defines --hl-*, but switching the older ones off oneDark / the CM
  * default would change how they look, which is not this list's job.
  */
-const PALETTE_THEMES = ['theme-bamboo-ancient', 'theme-sumi-e', 'theme-nord', 'theme-kakejiku'];
+const PALETTE_THEMES = ['theme-bamboo-ancient', 'theme-sumi-e', 'theme-nord', 'theme-kakejiku',
+    'theme-kakejiku-dark', 'theme-sumi-e-dark', 'theme-paper-dark', 'theme-latte-dark'];
 
 function themeHighlightStyle() {
     const cs = getComputedStyle(document.body);
