@@ -317,11 +317,21 @@ mod tests {
         println!("RESULT HTML: {:#?}", result);
     }
 
+    // Was a debugging aid that panicked on purpose to print its tree, which
+    // failed `cargo test` on every run and so hid every real failure after it.
     #[test]
-    fn test_xml_parsing_debug() {
+    fn test_xml_parsing() {
         let content = r#"<?xml version="1.0"?><root><item/><item/></root>"#.to_string();
         let result = parse_structured_data(content, "xml".to_string(), "test.xml".to_string()).unwrap();
-        println!("RESULT XML: {:#?}", result);
-        panic!("FORCE FAIL"); // To see the stdout
+        assert_eq!(result.node_type, "root");
+        let top = result.children.expect("root has children");
+        assert_eq!(top.len(), 2, "the declaration and the document element");
+        assert_eq!(top[0].node_type, "directive");
+        assert_eq!(top[0].key, "?xml");
+        assert_eq!(top[1].node_type, "element");
+        assert_eq!(top[1].key, "root");
+        let items = top[1].children.as_ref().expect("<root> has children");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|n| n.key == "item"), "{:#?}", items);
     }
 }

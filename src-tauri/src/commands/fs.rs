@@ -214,16 +214,23 @@ pub fn read_file_auto_detect(
         allow_asset_dir(&webview, dir, &state);
     }
 
+    decode_auto_detect(&bytes)
+}
+
+/// The decoding half of `read_file_auto_detect`: refuse binary, guess the
+/// encoding, decode. Kept apart from the command so it can be tested without a
+/// webview and workspace state, which only the asset-scope side needs.
+fn decode_auto_detect(bytes: &[u8]) -> Result<FileContent, String> {
     let check_len = std::cmp::min(bytes.len(), 1024);
     if bytes[0..check_len].contains(&0) {
         return Err("Binary file detected".to_string());
     }
 
     let mut detector = EncodingDetector::new();
-    detector.feed(&bytes, true);
+    detector.feed(bytes, true);
     let encoding = detector.guess(None, true);
 
-    let (cow, _encoding_used, _malformed) = encoding.decode(&bytes);
+    let (cow, _encoding_used, _malformed) = encoding.decode(bytes);
 
     Ok(FileContent {
         content: cow.to_string(),
@@ -388,11 +395,22 @@ mod tests {
         let bytes = read_file(path_str.clone()).unwrap();
         assert_eq!(bytes, b"Hello World");
 
-        let content = read_file_auto_detect(path_str.clone()).unwrap();
+        let content = decode_auto_detect(&read_file(path_str.clone()).unwrap()).unwrap();
         assert_eq!(content.content, "Hello World");
         assert_eq!(content.encoding, "UTF-8");
 
         fs::remove_file(&file_path).unwrap();
+    }
+
+    #[test]
+    fn test_decode_auto_detect_refuses_binary_and_reads_shift_jis() {
+        assert!(decode_auto_detect(b"PK  ").is_err());
+        assert_eq!(decode_auto_detect(b"").unwrap().content, "");
+
+        let (sjis, _, _) = encoding_rs::SHIFT_JIS.encode("これは日本語のテキストです。文字コードを判定します。");
+        let content = decode_auto_detect(&sjis).unwrap();
+        assert_eq!(content.content, "これは日本語のテキストです。文字コードを判定します。");
+        assert_eq!(content.encoding, "Shift_JIS");
     }
 
     #[test]
