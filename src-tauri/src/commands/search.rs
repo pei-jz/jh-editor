@@ -559,4 +559,22 @@ mod grep_glob_tests {
     fn invalid_glob_errors() {
         assert!(build_overrides(".", Some("[")).is_err());
     }
+
+    /// The backlink pattern is built in JS (src/modules/utils/Backlinks.js)
+    /// and compiled HERE by start_grep. This is its output for
+    /// `THIRD-PARTY-NOTICES.md`: if the two engines ever disagree on syntax,
+    /// the search fails to start rather than quietly finding nothing.
+    #[test]
+    fn backlink_pattern_compiles_and_matches() {
+        let pattern = r#"\[\[(?:[^\]|#\n]*[/\\])?THIRD-PARTY-NOTICES(?:\.md)?\s*[|#\]]|\]\(\s*<?(?:[^()\s<>]*[/\\])?THIRD-PARTY-NOTICES\.md(?:#[^()\s<>]*)?>?(?:\s|\))|^\s*\[[^\]]+\]:\s*<?(?:[^\s<>]*[/\\])?THIRD-PARTY-NOTICES\.md(?:#\S*)?>?(?:\s|$)"#;
+        let re = regex::RegexBuilder::new(pattern)
+            .case_insensitive(true)
+            .build()
+            .expect("backlink pattern must compile in the Rust engine");
+        assert!(re.is_match("一覧は [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) にあります。"));
+        assert!(re.is_match("[[docs/THIRD-PARTY-NOTICES|notices]]"));
+        assert!(re.is_match("[n]: ./THIRD-PARTY-NOTICES.md"));
+        assert!(!re.is_match("`THIRD-PARTY-NOTICES.md`"));
+        assert!(!re.is_match("[x](./MY-THIRD-PARTY-NOTICES.md)"));
+    }
 }

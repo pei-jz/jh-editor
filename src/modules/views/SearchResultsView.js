@@ -101,6 +101,7 @@ export class SearchResultsView {
         const { query, options } = this;
         if (!query) return null;
         try {
+            if (this.file.highlight) return new RegExp(this.file.highlight, 'gi');
             let src = options && options.regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             if (options && options.wholeWord) src = `\\b(?:${src})\\b`;
             return new RegExp(src, options && options.caseSensitive ? 'g' : 'gi');

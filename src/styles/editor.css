@@ -379,16 +379,25 @@ body.theme-dark .visual-table-editor .range-selected {
 
 
 /* Beautiful Rounded Table */
+/* A wide table scrolls ITSELF, sideways.
+   `overflow` does nothing on a `display: table` box, so the old
+   `overflow: hidden` never clipped anything: a table wider than the column ran
+   off the edge, and in BookMode the page cut it off with no way to reach the
+   rest. As a block it becomes its own scroll container (the rows still lay out
+   as a table inside it). `fit-content` keeps a narrow table narrow and lets a
+   long one wrap first — it only scrolls once the columns cannot shrink further. */
 .md-block table:not(.visual-table-editor) {
+    display: block;
     border-collapse: separate;
     border-spacing: 0;
-    width: auto;
+    width: fit-content;
     min-width: 200px;
     max-width: 100%;
     margin: 16px 0;
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .md-block table:not(.visual-table-editor) th,
