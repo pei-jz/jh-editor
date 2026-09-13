@@ -471,24 +471,19 @@ export function initSettingsModal() {
             </div>
 
             <div class="settings-description" style="margin-bottom:15px; padding:8px; background:rgba(0,200,150,0.05); border-left:3px solid rgba(0,200,150,0.5); font-size:12px;">
-                <strong>Auto-discovery is preferred.</strong> In J.H AI Agent → Settings → General, click <strong>Export Connection</strong>.
-                The settings below are <em>manual overrides</em> — leave them blank to use whatever JH AI Agent exported.
+                <strong>Nothing to set up.</strong> This editor asks J.H AI Agent for permission the first time it needs it; approve the request there.
+                The setting below is a <em>manual override</em> for a dev build or a second instance on another port.
             </div>
 
             <div class="settings-option">
                 <label>Agent URL (override)</label>
                 <input type="text" id="ai-agent-url" value="${localStorage.getItem('settings_aiAgentUrl') || localStorage.getItem('settings_aiExternalAgentUrl') || ''}" placeholder="http://localhost:14300" style="width:300px !important;">
             </div>
-            <div class="settings-description" style="margin-bottom:15px;">
-                Manual override for the agent URL. Leave blank to auto-discover from the standard JH config path.
-            </div>
-
-            <div class="settings-option">
-                <label>Connection Token (override)</label>
-                <input type="password" id="ai-agent-token" value="${localStorage.getItem('settings_aiAgentToken') || localStorage.getItem('settings_aiExternalAgentToken') || ''}" placeholder="(auto-discovered)" style="width:300px !important;">
-            </div>
             <div class="settings-description" style="margin-bottom:20px;">
-                Manual override for the auth token. Leave blank to auto-discover.
+                Only the PORT is read from this. Leave it blank to discover the running agent.
+                <br>There is no token to enter any more: this editor asks the agent for
+                permission and holds what it is given in memory, so nothing is stored here
+                that could be copied out of a settings file.
             </div>
 
             <div class="settings-section-title">Context Scope</div>
@@ -610,12 +605,13 @@ export function initSettingsModal() {
             localStorage.setItem('settings_aiAgentUrl', urlVal);
             localStorage.setItem('settings_aiExternalAgentUrl', urlVal); // Compatibility
         }
-        const agentToken = document.getElementById('ai-agent-token');
-        if (agentToken) {
-            const tokenVal = agentToken.value.trim();
-            localStorage.setItem('settings_aiAgentToken', tokenVal);
-            localStorage.setItem('settings_aiExternalAgentToken', tokenVal); // Compatibility
-        }
+        // The token override is gone along with the field. Clear anything an
+        // older build stored: a stale credential in localStorage is read by
+        // nothing now, which makes it pure exposure.
+        try {
+            localStorage.removeItem('settings_aiAgentToken');
+            localStorage.removeItem('settings_aiExternalAgentToken');
+        } catch (_) { /* private mode */ }
 
         // Invalidate the AI Agent connection cache so the next call re-discovers
         // settings (picks up the new override / cleared override immediately).

@@ -154,3 +154,16 @@ export function isPrivatePath(path) {
 export function isPrivateDoc(docId) {
     return isPrivatePath(docId);
 }
+
+/**
+ * The reach this scope asks the agent for (jh-ai-agent
+ * src/modules/ai/agent/RunLane.js).
+ *
+ * Only "whole workspace" gives a run the file system. The narrower scopes are
+ * all `app`: the run reaches THIS editor's MCP tools, and those tools draw the
+ * finer line — selection / active tab / open tabs — themselves, through
+ * `allows()` above. The agent does not need to know what a "tab" is.
+ */
+export function reachForScope(scope = getScope()) {
+    return scope === 'workspace' ? 'workspace' : 'app';
+}

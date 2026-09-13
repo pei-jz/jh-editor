@@ -156,11 +156,83 @@
 .ai-chat-header .close-btn { background: none; border: none; color: var(--text-secondary, #999); cursor: pointer; font-size: 16px; }
 .ai-chat-header .clear-btn { background: none; border: none; color: var(--text-secondary, #999); cursor: pointer; font-size: 12px; }
 .ai-chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.ai-chat-msg { max-width: 92%; padding: 8px 11px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.ai-chat-msg.user { align-self: flex-end; background: var(--primary-color); color: var(--text-on-primary, #fff); border-bottom-right-radius: 2px; }
-.ai-chat-msg.assistant { align-self: flex-start; background: var(--bg-color-secondary, rgba(128,128,128,0.14)); border-bottom-left-radius: 2px; }
-.ai-chat-msg.assistant pre { overflow-x: auto; padding: 8px; border-radius: 5px; background: rgba(0,0,0,0.15); margin: 6px 0; }
-.ai-chat-msg.error { align-self: stretch; background: rgba(220, 53, 69, 0.15); color: var(--error-color, #ff6b6b); }
+.ai-chat-msg { max-width: 92%; padding: 8px 11px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; word-break: break-word; }
+/* The USER turn is plain text, so its newlines have to be honoured. The
+   ASSISTANT turn is parsed Markdown — `white-space: pre-wrap` there turned
+   every newline in the generated HTML into a visible blank line, which is what
+   made a rendered answer read as a wall of gaps. It stays off below. */
+.ai-chat-msg.user { align-self: flex-end; white-space: pre-wrap; background: var(--primary-color); color: var(--text-on-primary, #fff); border-bottom-right-radius: 2px; }
+/* An answer is a document, not a speech bubble: full width, so headings, code
+   blocks and tables have somewhere to go in a 380px panel. */
+.ai-chat-msg.assistant { align-self: stretch; max-width: 100%; background: var(--bg-color-secondary, rgba(128,128,128,0.14)); border-bottom-left-radius: 2px; }
+.ai-chat-msg.error { align-self: stretch; white-space: pre-wrap; background: rgba(220, 53, 69, 0.15); color: var(--error-color, #ff6b6b); }
+
+/* ── Markdown inside an answer ───────────────────────────────────────────────
+   Without these the browser defaults applied: h1 at 2em with 0.67em margins
+   above and below, h2 at 1.5em, and a <ul> indented 40px — in a sidebar barely
+   wider than a phone. Headings step down in small increments and the vertical
+   rhythm is tightened so a structured answer stays readable at this width. */
+.ai-chat-msg-body > :first-child { margin-top: 0; }
+.ai-chat-msg-body > :last-child { margin-bottom: 0; }
+.ai-chat-msg-body h1,
+.ai-chat-msg-body h2,
+.ai-chat-msg-body h3,
+.ai-chat-msg-body h4,
+.ai-chat-msg-body h5,
+.ai-chat-msg-body h6 {
+    margin: 12px 0 5px; line-height: 1.3; font-weight: 600;
+}
+.ai-chat-msg-body h1 { font-size: 15px; }
+.ai-chat-msg-body h2 { font-size: 14px; }
+.ai-chat-msg-body h3 { font-size: 13px; }
+.ai-chat-msg-body h4,
+.ai-chat-msg-body h5,
+.ai-chat-msg-body h6 { font-size: 12.5px; opacity: 0.85; }
+.ai-chat-msg-body h1,
+.ai-chat-msg-body h2 { border-bottom: 1px solid var(--border-color); padding-bottom: 3px; }
+.ai-chat-msg-body p { margin: 6px 0; }
+.ai-chat-msg-body ul,
+.ai-chat-msg-body ol { margin: 6px 0; padding-left: 20px; }
+.ai-chat-msg-body li { margin: 2px 0; }
+.ai-chat-msg-body li > p { margin: 0; }
+.ai-chat-msg-body blockquote {
+    margin: 6px 0; padding: 2px 0 2px 9px;
+    border-left: 2px solid var(--border-color); opacity: 0.85;
+}
+.ai-chat-msg-body hr { border: none; border-top: 1px solid var(--border-color); margin: 10px 0; }
+.ai-chat-msg-body code {
+    font-family: var(--editor-font-family, ui-monospace, Consolas, monospace);
+    font-size: 11.5px; padding: 1px 4px; border-radius: 3px;
+    background: rgba(128, 128, 128, 0.18);
+}
+.ai-chat-msg-body pre {
+    overflow-x: auto; padding: 8px 9px; border-radius: 5px;
+    background: rgba(0, 0, 0, 0.22); margin: 7px 0;
+    border: 1px solid var(--border-color);
+}
+/* The <pre> already owns the background and the padding; the <code> inside it
+   must not paint a second one. */
+.ai-chat-msg-body pre code { background: none; padding: 0; font-size: 11.5px; line-height: 1.45; }
+/* A table wider than the panel scrolls itself rather than stretching the page. */
+.ai-chat-msg-body table { border-collapse: collapse; margin: 7px 0; font-size: 11.5px; display: block; overflow-x: auto; max-width: 100%; }
+.ai-chat-msg-body th,
+.ai-chat-msg-body td { border: 1px solid var(--border-color); padding: 3px 7px; text-align: left; }
+.ai-chat-msg-body th { background: rgba(128, 128, 128, 0.14); font-weight: 600; }
+.ai-chat-msg-body img { max-width: 100%; height: auto; }
+.ai-chat-msg-body a { color: var(--primary-color); }
+
+/* Waiting for the first token. */
+.ai-chat-typing { opacity: 0.55; font-style: italic; }
+
+/* Per-answer actions. "Open in editor" is the one that matters: a long answer
+   belongs in a Markdown tab, which is the thing this app is. */
+.ai-chat-msg-actions { display: flex; gap: 6px; margin-top: 7px; }
+.ai-chat-msg-actions button {
+    background: none; border: 1px solid var(--border-color); border-radius: 4px;
+    color: var(--text-secondary, #999); cursor: pointer;
+    font-size: 10.5px; padding: 2px 7px;
+}
+.ai-chat-msg-actions button:hover { color: var(--text-color); border-color: var(--primary-color); }
 .ai-chat-hint { font-size: 10.5px; opacity: 0.55; padding: 0 14px 6px; }
 .ai-chat-input-row { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--border-color); }
 .ai-chat-input {
@@ -581,3 +653,30 @@
 @media (max-width: 900px) {
     .status-commands-label { display: none; }
 }
+
+/* ── Pairing notice ──────────────────────────────────────────────────────────
+   Shown while J.H AI Agent is asking the user to approve this editor. The code
+   is here so it can be COMPARED with the one in the agent's own dialog — that
+   comparison is what stops a background process getting approved by reflex, and
+   it needs two things on screen, not one.
+
+   A corner notice rather than a modal: the action the user has to take is in
+   the other application, so stealing focus here would be working against them. */
+.jh-pairing-notice {
+    position: fixed; right: 18px; bottom: 44px; z-index: 100010;
+    width: 280px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--bg-color-secondary, var(--bg-color));
+    color: var(--text-color);
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.jh-pairing-title { font-size: 12.5px; font-weight: 600; }
+.jh-pairing-code {
+    align-self: center;
+    font-size: 26px; font-weight: 700; letter-spacing: 6px;
+    font-variant-numeric: tabular-nums;
+    color: var(--primary-color);
+}
+.jh-pairing-hint { font-size: 11px; line-height: 1.5; opacity: 0.75; }

@@ -1,80 +1,67 @@
 /**
  * ConnectionConfig.js
  *
- * Resolves how JHEditor reaches the J.H AI Agent server. Discovery order:
+ * Where JHEditor finds the J.H AI Agent, and how it is allowed to talk to it.
  *
- *   1. Standard JH config path written by JH AI Agent's "Export Connection"
- *      button (Settings → General → 📤 Export). Locations:
- *        Windows  : %APPDATA%/JH/ai-connection.json
- *        macOS    : $HOME/Library/Application Support/JH/ai-connection.json
- *        Linux    : $HOME/.config/JH/ai-connection.json
+ * ── What changed, and why ─────────────────────────────────────────────────
+ * This used to read a credential out of a file. The agent wrote its token to
+ * %APPDATA%/JH/ai-connection.json when the user clicked "Export Connection",
+ * and this module read it. That file was a full-access key to an API that can
+ * run shell commands, readable by anything running as the user, with no
+ * approval, no record of who took it, and no way to revoke one caller.
  *
- *   2. localStorage overrides (settings_aiAgentUrl + settings_aiAgentToken)
- *      set via JHEditor's SettingsModal. These are preserved for backward
- *      compatibility AND as a manual override when running against a
- *      non-standard JH AI Agent instance.
+ * It is replaced by pairing: the editor ASKS, the user approves the request in
+ * the agent's own window after comparing a six-digit code, and the token that
+ * comes back lives in memory on both sides. Nothing is written down, so closing
+ * either app ends the grant — and the editor simply asks again next time.
  *
- *   3. Fallback: http://localhost:14300 with no token.
- *
- * Why both layers?
- *   • The standard path is "zero-setup" for users who installed JH AI Agent
- *     and clicked Export. No manual URL/token entry needed.
- *   • localStorage stays around so power users / dev environments can point
- *     at a different port or remote agent without touching the standard path.
+ * ── Address and credential are different problems ─────────────────────────
+ * Finding the agent is not a secret; reaching it is. So discovery is separate
+ * and stays file-based: the agent publishes its PORT (and nothing else) to
+ * server.json in its own config directory, because 14300 is only its first
+ * choice — a second copy, or anything else holding that port, moves it. The
+ * health endpoint is the check, and it needs no credential.
  */
 
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 
-const DEFAULT_FALLBACK = { hostUrl: 'http://localhost:14300', token: '' };
+const DEFAULT_PORT = 14300;
+const AGENT_ID = 'io.github.pei-jz.jhaiagent';
 
-/** Resolve env-style placeholders (%APPDATA% / $HOME / $XDG_CONFIG_HOME) via Rust. */
+/** Resolve env-style placeholders (%APPDATA% / $HOME) via the Rust side. */
 async function expandEnvPath(path) {
-    // Try Rust-side os.env helpers first if available; otherwise do a JS-side
-    // best-effort using known env names. Tauri exposes env via Manager APIs
-    // in Rust but not directly in JS — we call a tiny helper command if the
-    // host registers one, else we fall through to the OS-specific candidates.
     try {
-        // JHEditor's Rust side may expose an `expand_path` command. If not,
-        // we just return the placeholders unexpanded; readTextFile would fail
-        // and we'd move on to the next candidate path.
         const expanded = await invoke('expand_env_path', { path });
         if (typeof expanded === 'string' && expanded.length > 0) return expanded;
-    } catch (_) { /* command not registered — fine */ }
+    } catch (_) { /* command not registered — fall through */ }
     return path;
 }
 
 /**
- * Try to load the standard JH connection config file. Returns `null` if not
- * found / unreadable / malformed — callers fall back to localStorage.
+ * The port the agent published, if it published one.
+ *
+ * server.json carries the ADDRESS only — the agent's own comment says so, and
+ * says why: a second copy of a secret should not be created to solve an
+ * addressing problem. Reading it here is therefore not reading a credential.
  */
-async function tryReadStandardConfig() {
+async function discoverPort() {
     const candidates = [
-        '%APPDATA%/JH/ai-connection.json',
-        '$HOME/Library/Application Support/JH/ai-connection.json',
-        '$XDG_CONFIG_HOME/JH/ai-connection.json',
-        '$HOME/.config/JH/ai-connection.json',
+        `%APPDATA%/${AGENT_ID}/server.json`,
+        `$HOME/Library/Application Support/${AGENT_ID}/server.json`,
+        `$XDG_CONFIG_HOME/${AGENT_ID}/server.json`,
+        `$HOME/.config/${AGENT_ID}/server.json`,
     ];
-
     for (const raw of candidates) {
         const expanded = await expandEnvPath(raw);
-        // Skip paths that still contain unexpanded placeholders — they would
-        // never resolve to a real file anyway.
+        // A path that still holds a placeholder would never resolve anyway.
         if (expanded.includes('%') || expanded.includes('$')) continue;
         try {
             const text = await readTextFile(expanded);
-            if (!text) continue;
-            const data = JSON.parse(text);
-            if (data && data.token && data.port) {
-                const host = data.host || '127.0.0.1';
-                return {
-                    hostUrl: `http://${host}:${data.port}`,
-                    token: data.token,
-                    source: expanded,
-                };
-            }
+            const data = JSON.parse(text || '{}');
+            const port = Number(data.port);
+            if (Number.isInteger(port) && port > 0) return port;
         } catch (_) {
-            // file missing or unreadable — try the next candidate
             continue;
         }
     }
@@ -82,8 +69,12 @@ async function tryReadStandardConfig() {
 }
 
 /**
- * Look up effective connection settings. Cached for the duration of the
- * session so we don't re-read the config file on every API call.
+ * Where to reach the agent. Cached for the session: the port does not move
+ * while the agent is running, and re-reading a file per API call is waste.
+ *
+ * NOTE there is no token here any more. The credential belongs to the client
+ * (@jh/ai-client), which obtains it by pairing and holds it in memory; a token
+ * passing through this module would be a token that could be logged or cached.
  */
 let _cache = null;
 let _cachePromise = null;
@@ -93,29 +84,25 @@ export async function getConnectionConfig({ force = false } = {}) {
     if (!force && _cachePromise) return _cachePromise;
 
     _cachePromise = (async () => {
-        // 1. Manual localStorage override always wins if BOTH url and token are set
-        //    (the user explicitly configured this).
-        const lsUrl = localStorage.getItem('settings_aiAgentUrl')
-            || localStorage.getItem('settings_aiExternalAgentUrl');
-        const lsToken = localStorage.getItem('settings_aiAgentToken')
-            || localStorage.getItem('settings_aiExternalAgentToken');
-        if (lsUrl && lsToken) {
-            _cache = { hostUrl: lsUrl, token: lsToken, source: 'localStorage' };
-            return _cache;
-        }
+        // A manual override stays, for a dev build or a second instance on a
+        // non-standard port. Port only — an override that carried a token would
+        // be the file all over again, in localStorage.
+        let port = null;
+        try {
+            const raw = localStorage.getItem('settings_aiAgentUrl');
+            if (raw) {
+                const parsed = parseInt(new URL(raw).port, 10);
+                if (Number.isInteger(parsed) && parsed > 0) port = parsed;
+            }
+        } catch (_) { /* not a URL — ignore it rather than fail to connect */ }
 
-        // 2. Standard JH config path
-        const std = await tryReadStandardConfig();
-        if (std) {
-            _cache = std;
-            return _cache;
-        }
+        if (!port) port = await discoverPort();
 
-        // 3. Partial localStorage (url-only or token-only) merged with fallback
         _cache = {
-            hostUrl: lsUrl || DEFAULT_FALLBACK.hostUrl,
-            token:   lsToken || DEFAULT_FALLBACK.token,
-            source:  'fallback',
+            host: '127.0.0.1',
+            port: port || DEFAULT_PORT,
+            hostUrl: `http://127.0.0.1:${port || DEFAULT_PORT}`,
+            source: port ? 'discovered' : 'default',
         };
         return _cache;
     })();
@@ -123,13 +110,19 @@ export async function getConnectionConfig({ force = false } = {}) {
     return _cachePromise;
 }
 
-/** Invalidate the cache (call after the user updates settings). */
+/** Invalidate the cache (call after the user changes the override). */
 export function refreshConnectionConfig() {
     _cache = null;
     _cachePromise = null;
 }
 
-/** Quick health probe — returns true if the resolved server responds. */
+/**
+ * Is the agent there?
+ *
+ * `/api/health` needs no credential, so this answers "is it running" without
+ * touching pairing — which matters because the answer is what decides whether
+ * putting an approval prompt in front of the user is worth doing at all.
+ */
 export async function isAgentReachable(timeoutMs = 2000) {
     const cfg = await getConnectionConfig();
     try {

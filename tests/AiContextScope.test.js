@@ -193,7 +193,7 @@ describe('the AI chat sidebar', () => {
     const panel = read('src/modules/ui/AiChatPanel.js');
     const ctx = () => {
         const i = panel.indexOf('_buildContext() {');
-        return panel.slice(i, panel.indexOf('\n    _append(', i));
+        return panel.slice(i, panel.indexOf('\n    _attachResizer(', i));
     };
 
     it('asks the scope before attaching anything', () => {
@@ -213,16 +213,210 @@ describe('the AI chat sidebar', () => {
     // A privacy setting whose effect nobody can see is not worth much.
     it('reports what it actually sent, and how long it took', () => {
         expect(ctx()).toContain('return { context, sent }');
-        const i = panel.indexOf('const startedAt = Date.now();');
-        const send = panel.slice(i, panel.indexOf('renderAll();', i));
-        expect(send).toContain('setInterval(');
-        expect(send).toContain('clearInterval(ticker)');
-        expect(send).toContain("ms < 1000 ? `${ms} ms`");
+        const i = panel.indexOf('async _send() {');
+        const send = panel.slice(i, panel.indexOf('\n    _setSendEnabled(', i));
+        expect(send).toContain('_startTicker()');
+        expect(send).toContain('_stopTicker()');
+        expect(panel).toContain("ms < 1000 ? `${ms} ms`");
         expect(send).toContain('sent: ');
     });
 
     it('states the live scope instead of a sentence that was never true', () => {
         expect(panel).not.toContain('Send Selection');
         expect(panel).toContain('Context scope: ');
+    });
+});
+
+/* The answer used to live in DOM nodes the send closure had captured. Closing
+   the panel removed them, so a reply that arrived afterwards painted into a
+   detached element and was gone; and `saveHistory` ran when the EMPTY assistant
+   bubble was appended rather than when the content arrived, so the stored
+   history held every question and no answers. Both halves are pinned here. */
+describe('an answer survives the panel being closed', () => {
+    const panel = read('src/modules/ui/AiChatPanel.js');
+
+    it('routes every content change through a method that persists it', () => {
+        const i = panel.indexOf('_update(index, patch) {');
+        const fn = panel.slice(i, panel.indexOf('\n    _list()', i));
+        expect(fn).toContain('saveHistory(this._messages)');
+        expect(fn).toContain('this._paint(index)');
+    });
+
+    it('paints by index rather than through a captured node', () => {
+        // The shape that broke: a query bound to the list the closure had.
+        expect(panel).not.toContain(".ai-chat-msg.assistant:last-child");
+        expect(panel).toContain('list.children[index]');
+        // Closed panel → state still updates, painting is simply skipped.
+        expect(panel).toMatch(/_paint\(index\) \{\s*\n\s*const list = this\._list\(\);\s*\n\s*if \(!list\) return;/);
+    });
+
+    it('keeps the in-flight request on the instance so a reopen can resume it', () => {
+        expect(panel).toContain('this._pending = { index, startedAt');
+        expect(panel).toContain('if (this._pending) this._startTicker();');
+    });
+
+    it('closing tears down the view and nothing else', () => {
+        const i = panel.indexOf('    close() {');
+        const fn = panel.slice(i);
+        expect(fn).toContain('this._stopTicker()');
+        // No abort, no message loss — the request keeps writing to state.
+        expect(fn).not.toContain('this._messages = []');
+    });
+});
+
+/* A rendered Markdown answer inside a bubble with `white-space: pre-wrap` gets a
+   visible blank line for every newline in the generated HTML, and unstyled
+   headings render at the browser default (h1 = 2em) inside a 380px sidebar. */
+describe('the chat answer reads as Markdown', () => {
+    const css = read('src/styles/features.css');
+
+    it('does not pre-wrap an assistant turn', () => {
+        const rule = css.slice(
+            css.indexOf('.ai-chat-msg.assistant {'),
+            css.indexOf('}', css.indexOf('.ai-chat-msg.assistant {')),
+        );
+        expect(rule).not.toContain('pre-wrap');
+        // The user turn is plain text and still needs it.
+        expect(css).toMatch(/\.ai-chat-msg\.user \{[^}]*white-space: pre-wrap/);
+    });
+
+    it('sizes headings for a sidebar', () => {
+        expect(css).toContain('.ai-chat-msg-body h1 { font-size: 15px; }');
+        expect(css).toContain('.ai-chat-msg-body ul,');
+    });
+
+    it('offers the answer as a Markdown draft', () => {
+        const panel = read('src/modules/ui/AiChatPanel.js');
+        // The same door SelectionActions uses: a virtual ai://….md tab that
+        // opens in MarkdownView, so the answer RENDERS at full width.
+        expect(panel).toContain('window.app.openMarkdownResult(title, doc)');
+        expect(panel).toContain('Open in editor');
+    });
+});
+
+/* A conversation served by single_shot has no memory: `invoke()` sends the one
+   prompt and nothing else, so every turn of the sidebar arrived knowing nothing
+   about the turns before it. `interaction: 'ask'` is the shape the agent already
+   has for a conversation — the real engine, with plan-first, the task_progress
+   checklist and delegation dropped, and its tools narrowed to read-only. */
+describe('the chat sidebar is an ask run, not a single shot', () => {
+    const panel = read('src/modules/ui/AiChatPanel.js');
+    const agent = read('src/modules/ai/AIAgent.js');
+    const client = read('../jh-ai-agent/packages/jh-ai-client/index.js');
+
+    it('sends the conversation through runAsk with its prior turns', () => {
+        expect(panel).toContain('AIAgent.runAsk({');
+        expect(panel).toContain('chatContext: history');
+        expect(panel).not.toContain('AIAgent.runSingleShot({');
+    });
+
+    it('accumulates the stream instead of assigning each delta', () => {
+        // `stream` events are deltas; assigning one would leave the bubble
+        // showing the last few characters of the answer.
+        expect(panel).toContain('streamed += chunk');
+    });
+
+    it('sends complete pairs only, ending on an answer', () => {
+        const i = panel.indexOf('_historyFor(index) {');
+        const fn = panel.slice(i, panel.indexOf('\n    _setSendEnabled(', i));
+        expect(fn).toContain('if (!m || m.error || !m.content) continue;');
+        expect(fn).toContain("turns[turns.length - 1].role === 'user'");
+        expect(fn).toContain('MAX_CONTEXT_TURNS');
+    });
+
+    it('marks the run as a question rather than a job', () => {
+        const i = agent.indexOf('async runAsk({');
+        const fn = agent.slice(i, agent.indexOf('Submit a lightweight single_shot', i));
+        expect(fn).toContain("shape: 'ask'");
+        expect(fn).toContain("mode: 'iterative_agent'");
+        expect(fn).toContain('const reach = reachForScope();');
+        expect(fn).toContain("mcp_servers: ['jheditor']");
+        // A system_prompt REPLACED the agent's prompt, and with it the place the
+        // selection is rendered. Instructions are appended instead.
+        expect(fn).not.toContain('behavior.system_prompt');
+        expect(fn).toContain('behavior.extra_instructions = instructions');
+    });
+
+    /* History used to be buried in `context`, which TaskBridge hands to the
+       agent as `clientContext` — a different argument from the agent's own
+       `chatContext` parameter. So it arrived as caller metadata and the run had
+       no memory of its earlier turns, with no error anywhere to say so. */
+    it('carries history in the field the whole chain is built around', () => {
+        expect(client).toContain('chat_context: Array.isArray(chatContext)');
+        expect(agent).toContain('chatContext: Array.isArray(chatContext) ? chatContext : []');
+        expect(agent).not.toContain('context.chatContext = chatContext');
+    });
+});
+
+/* jh-ai-agent Report_20260913. A "selection only" chat read the whole jh-editor
+   tree: runAsk sent the current directory whatever the scope said, and the
+   agent gave an `ask` run with a workspace every read tool. The scope now
+   decides the reach, and the agent enforces it. */
+describe('the context scope decides what an agent run may touch', async () => {
+    const { reachForScope, setScope } = await import('../src/modules/ai/ContextScope.js');
+    const agent = read('src/modules/ai/AIAgent.js');
+
+    it.each(['selection', 'active', 'open'])('%s reaches only this editor', (scope) => {
+        expect(reachForScope(scope)).toBe('app');
+    });
+
+    it('only whole workspace reaches the workspace', () => {
+        expect(reachForScope('workspace')).toBe('workspace');
+    });
+
+    it('reads the configured scope by default', () => {
+        localStorage.clear();
+        expect(reachForScope()).toBe('app');
+        setScope('workspace');
+        expect(reachForScope()).toBe('workspace');
+        localStorage.clear();
+    });
+
+    it('sends a workspace path only on the workspace reach', () => {
+        expect(agent).toContain("workspacePath: reach === 'workspace' ? (State.currentDir || null) : null");
+    });
+});
+
+/* Report_20260913 §6-2 / §6-6. InlineAI and the presets are one round trip;
+   the intents and the "freeform" agent task they ran through are gone. */
+describe('InlineAI is a transform', () => {
+    const inline = read('src/modules/ui/InlineAI.js');
+    const mcp = read('src/modules/ai/JhAiMcp.js');
+    const adapter = read('src/modules/ai/jhai-adapter.js');
+    const agent = read('src/modules/ai/AIAgent.js');
+
+    it('asks through runSingleShot', () => {
+        expect(inline).toContain('AIAgent.runSingleShot({');
+        expect(inline).not.toContain('AIAgent.run(');
+        expect(agent).not.toMatch(/\n    async run\(/);
+    });
+
+    it('no longer reaches for freeform tasks or intents', () => {
+        for (const gone of ['runJhaiFreeform', 'runJhaiIntent', 'listJhaiIntents', 'handleIntent', '_populateIntents']) {
+            expect(inline).not.toContain(gone);
+        }
+        expect(mcp).not.toContain('registerIntent');
+        expect(mcp).not.toContain('startJhaiTask');
+        expect(adapter).not.toContain('registerIntent');
+        expect(adapter).not.toContain('runIntentTask');
+    });
+
+    it('runs the presets as transforms and refuses personal notes', () => {
+        const i = mcp.indexOf('export async function runInlinePreset(');
+        const fn = mcp.slice(i, mcp.indexOf('export function listInlinePresets', i));
+        expect(fn).toContain('AIAgent.runSingleShot({');
+        expect(fn).toContain('isPrivatePath(anchor.path)');
+    });
+});
+
+/* Report_20260913 §6-3. Work is sent from J.H AI Agent, not posted from here. */
+describe('the task panel hands work over instead of starting it', () => {
+    const panel = read('src/modules/ai/TaskNotificationPanel.js');
+
+    it('opens the request in the agent', () => {
+        const i = panel.indexOf('async _submitTask() {');
+        const fn = panel.slice(i, panel.indexOf('\n    }\n', i));
+        expect(fn).toContain('AIAgent.openInAgent({');
+        expect(fn).not.toContain("method: 'POST'");
     });
 });

@@ -97,6 +97,9 @@ export default {
     'Ask a question… (Shift+Enter for a new line)': '質問を入力…（Shift+Enter で改行）',
     'Send': '送信',
     'Sending…': '送信中…',
+    'Open in editor': 'エディタで開く',
+    'Open this answer as a Markdown draft': 'この回答を Markdown の下書きとして開く',
+    'Copied': 'コピーしました',
     'Context scope: {label} — {hint}': 'コンテキスト範囲: {label} — {hint}',
     'Change it in Settings → Agent Integration.': '設定 → エージェント連携で変更できます。',
     'Select some text first.': '先にテキストを選択してください。',
@@ -138,8 +141,6 @@ export default {
     'CSV Cell Edit': 'CSV セル編集',
     'CSV Grid': 'CSV グリッド',
     'Cancel (Esc)': 'キャンセル (Esc)',
-    'Cannot reach J.H AI Agent. Please start the Agent.': 'J.H AI Agent に接続できません。エージェントを起動してください。',
-    'Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.': 'J.H AI Agent に接続できません。エージェントを起動し、設定 → 一般 → 接続情報のエクスポート を実行してください。',
     'Choice': '選択',
     'Choose Folder': 'フォルダーを選択',
     'Class definition': 'クラス定義',
@@ -514,5 +515,12 @@ export default {
     'Update Available': '更新があります',
     'Version {v} is available. Download and install it now?': 'バージョン {v} が利用できます。今すぐダウンロードしてインストールしますか？',
     'You are on the latest version.': '最新バージョンです。',
+    'J.H AI Agent is not installed': 'J.H AI Agent がインストールされていません',
+    'J.H AI Agent is not installed. Download and install it, then try again.':
+        'J.H AI Agent がインストールされていません。ダウンロードしてインストールしてから、もう一度お試しください。',
+    'Open download page': 'ダウンロードページを開く',
+    'J.H AI Agent is not running': 'J.H AI Agent が起動していません',
+    'J.H AI Agent is not running. Start it now?': 'J.H AI Agent が起動していません。今すぐ起動しますか？',
+    'Start J.H AI Agent': 'J.H AI Agent を起動',
 
 };

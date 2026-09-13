@@ -48,12 +48,24 @@ export class TaskNotificationPanel {
     }
 
     async _loadSettings() {
-        // Discovery order: standard JH config path → localStorage override → fallback.
-        // See src/modules/ai/ConnectionConfig.js for the full lookup rules.
+        // The ADDRESS is discovered (ConnectionConfig.js). The token is fetched
+        // separately and only when the panel actually needs to read tasks —
+        // never when the panel merely opens, and never at editor startup.
         const { getConnectionConfig } = await import('./ConnectionConfig.js');
         const cfg = await getConnectionConfig();
         this.hostUrl = cfg.hostUrl;
-        this.token = cfg.token;
+    }
+
+    /** Pair once and hold the token, only when tasks are actually fetched. */
+    async _ensureToken() {
+        if (this.token) return true;
+        try {
+            const { default: AIAgent } = await import('./AIAgent.js');
+            this.token = await AIAgent.getAuthToken();
+            return !!this.token;
+        } catch (_) {
+            return false;
+        }
     }
 
     _renderPanel() {
@@ -96,25 +108,31 @@ export class TaskNotificationPanel {
 
     async _checkConnection() {
         const dot = this.element.querySelector('#tnp-status-dot');
-        await this._loadSettings();
-        
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
-            const res = await fetch(`${this.hostUrl}/api/health`, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            
-            if (res.ok) {
-                dot.className = 'tnp-status-dot online';
-                dot.title = t('Connected to J.H AI Agent');
-                this.isOffline = false;
-                await this._fetchTasks();
-            } else {
+            // Deferred by design: this is the panel's first real AI use, so this
+            // is where the reachability check (and, if needed, the offer to start
+            // or download the agent) happens — not at editor startup.
+            const { ensureAgentAvailable } = await import('./AgentConnection.js');
+            const available = await ensureAgentAvailable();
+            if (!available) {
+                dot.className = 'tnp-status-dot offline';
+                dot.title = t('Agent offline');
+                this.isOffline = true;
+                this._renderTaskList();
+                return;
+            }
+            await this._loadSettings();
+            if (!(await this._ensureToken())) {
                 dot.className = 'tnp-status-dot offline';
                 dot.title = t('Agent not responding');
                 this.isOffline = true;
                 this._renderTaskList();
+                return;
             }
+            dot.className = 'tnp-status-dot online';
+            dot.title = t('Connected to J.H AI Agent');
+            this.isOffline = false;
+            await this._fetchTasks();
         } catch (e) {
             dot.className = 'tnp-status-dot offline';
             dot.title = t('Agent offline');
@@ -259,58 +277,21 @@ export class TaskNotificationPanel {
         await this._loadSettings();
 
         try {
-            const res = await fetch(`${this.hostUrl}/api/tasks`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify({
-                    prompt: prompt,
-                    workspace_path: workspaceInput?.value?.trim() || State.currentDir || null,
-                    caller: "JHEditor",
-                    // Behavior MUST be an object — the previous string form was
-                    // silently dropped by the Rust AgentBehavior deserialization.
-                    // Omitting `system_prompt` lets the agent server use its
-                    // built-in heavy prompt with all safety rules.
-                    behavior: { mode: "iterative_agent" }
-                })
+            // Work is started FROM J.H AI Agent, not from here. This used to POST
+            // a build task straight from this text box — no workspace picker, no
+            // plan approval, no diff review, all of which the agent's composer
+            // puts in front of work. The text is handed over; the user sends it
+            // there (jh-ai-agent Report_20260913 §6-3).
+            const { default: AIAgent } = await import('./AIAgent.js');
+            const ok = await AIAgent.openInAgent({
+                prompt,
+                workspace: workspaceInput?.value?.trim() || State.currentDir || null,
             });
-
-            if (!res.ok) {
-                const errText = await res.text();
-                showAlert(`Failed to create task: ${errText}`, { title: 'Task', kind: 'error' });
+            if (!ok) {
+                showAlert('J.H AI Agent did not accept the request.', { title: 'Task', kind: 'error' });
                 return;
             }
-
-            const taskData = await res.json();
-            const { task_id, ws_url } = taskData;
-            
-            // Clear input
             promptInput.value = '';
-
-            // Add task to local list
-            const newTask = {
-                id: task_id,
-                prompt: prompt,
-                status: 'running',
-                progress: 0,
-                messages: [],
-                modifiedFiles: [],
-                startedAt: new Date().toISOString(),
-                workspace_path: workspaceInput?.value?.trim() || State.currentDir || null
-            };
-            this.tasks.unshift(newTask);
-            State.agentTasks = this.tasks;
-            window.dispatchEvent(new CustomEvent('app:agent-tasks-updated', { detail: { tasks: this.tasks } }));
-
-            // Open the new task in its own dedicated editor tab
-            if (window.app && window.app.openAgentTasksTab) {
-                window.app.openAgentTasksTab(task_id);
-            }
-
-            // Re-render the form tab
-            this._renderTaskList();
 
         } catch (e) {
             showAlert(`Agent Error: ${e.message}`, { title: 'Agent', kind: 'error' });
@@ -516,9 +497,8 @@ export class TaskNotificationPanel {
                             <div style="text-align: left; background: var(--surface-sunken); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; font-size: 12px; max-width: 400px; width: 100%; box-sizing: border-box;">
                                 <strong class="jh-icon-row" style="margin-bottom: 6px;">${svgIcon('lightbulb', { size: 13 })}To reconnect:</strong>
                                 <ol style="margin: 0; padding-left: 18px; line-height: 1.6; opacity: 0.8;">
-                                    <li>Start the <strong>J.H AI Agent</strong> app.</li>
-                                    <li>In the agent, press <strong>Settings → General → Export Connection</strong>.</li>
-                                    <li>Or enter the connection details by hand in <strong>Settings → Agent</strong>.</li>
+                                    <li>Start the <strong>J.H AI Agent</strong> app, or download it if it is not installed.</li>
+                                    <li>Approve the connection request the agent shows, after checking the code matches.</li>
                                 </ol>
                             </div>
                             <button id="tnp-retry-conn-btn" class="primary-btn" style="padding: 8px 16px; font-size: 12px; margin-top: 10px; cursor: pointer;">
@@ -541,8 +521,8 @@ export class TaskNotificationPanel {
                                     <label style="font-size: 11px; opacity: 0.7; font-weight: 600;">Workspace Target Path</label>
                                     <input id="tnp-workspace-input" class="tnp-workspace" type="text" placeholder="Workspace path" value="${State.currentDir || ''}" style="width: 100%; height: 32px;" />
                                 </div>
-                                <button id="tnp-submit-btn" class="tnp-submit-btn" title="Submit Task" style="height: 32px; padding: 0 16px;">
-                                    <span>${svgIcon('play', { size: 12 })}</span> Run Agent Task
+                                <button id="tnp-submit-btn" class="tnp-submit-btn" title="Open this request in J.H AI Agent — you send it from there" style="height: 32px; padding: 0 16px;">
+                                    <span>${svgIcon('play', { size: 12 })}</span> Open in J.H AI Agent
                                 </button>
                             </div>
                         </div>

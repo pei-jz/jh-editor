@@ -1,10 +1,10 @@
 import AIAgent from '../ai/AIAgent.js';
-import { t } from '../utils/I18n.js';
+import { t, promptLanguageName } from '../utils/I18n.js';
 import { icon as svgIcon, iconEl } from './Icons.js';
 import { State } from '../core/Store.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
-import { listJhaiIntents, runJhaiIntent, hasEditorSelection, runJhaiFreeform, ensureJhaiConnected, runInlinePreset, listInlinePresets } from '../ai/JhAiMcp.js';
+import { hasEditorSelection, runInlinePreset, listInlinePresets } from '../ai/JhAiMcp.js';
 
 export class InlineAI {
     constructor(editor) {
@@ -82,16 +82,13 @@ export class InlineAI {
                     // the ink-brush and bamboo themes.
                     b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);'
                         + 'color:inherit;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px;';
-                    b.onclick = async () => {
-                        try {
-                            if (!(await ensureJhaiConnected())) {
-                                this.resultArea.style.display = 'block';
-                                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Please start the Agent.');
-                                return;
-                            }
-                            runInlinePreset(pr.id, {}).catch((e) => console.warn('preset failed:', e));
-                            this.hide(); // async → dock; keep editing while it works
-                        } catch (e) { console.warn('preset error:', e); }
+                    b.onclick = () => {
+                        // The launch/download guidance lives inside runSingleShot
+                        // (via ensureAgentAvailable); a pre-check here would only
+                        // show a bare "offline" message without the offer to
+                        // start the agent.
+                        runInlinePreset(pr.id).catch((e) => console.warn('preset failed:', e));
+                        this.hide(); // async → dock; keep editing while it works
                     };
                     presetBar.appendChild(b);
                 });
@@ -172,17 +169,11 @@ export class InlineAI {
         const prompt = this.promptInput.value.trim();
         if (!prompt) return;
 
-        // Preferred path: when JHAI's MCP (WS) is connected, run the free-text as
-        // a FREEFORM task — the LLM is given JHEditor's live tools and decides what
-        // to do. The bottom-right activity dock shows live progress / Stop / result
-        // (Markdown opens in an editor tab), so we CLOSE this popup immediately.
-        try {
-            if (await ensureJhaiConnected()) {
-                runJhaiFreeform(prompt, context).catch((e) => console.warn('JHAI freeform failed:', e));
-                this.hide();
-                return;
-            }
-        } catch (_) { /* fall through to the legacy path */ }
+        // One round trip (lane L1 — transform). This used to prefer a "freeform"
+        // task that handed the model every JHEditor tool and ran as an agent,
+        // and fall back to an agent run with no tools at all. InlineAI proposes
+        // a replacement at the cursor; the context around the cursor is already
+        // in the prompt, gated by the context scope where it was gathered.
 
         this.resultArea.style.display = 'block';
         this.resultContent.textContent = t('Thinking...');
@@ -205,12 +196,14 @@ ${context}
 """
 Instruction: "${prompt}"
 
-Please provide only the suggested replacement code block. Do NOT use tools to write files directly. Stream your code response.`;
+Reply with only the suggested replacement code in one fenced code block, unless the instruction asks for an explanation.`;
 
         try {
-            const result = await AIAgent.run(
-                agentPrompt,
-                (chunk) => {
+            const result = await AIAgent.runSingleShot({
+                prompt: agentPrompt,
+                systemPrompt: `You are a code assistant inside JHEditor. Answer in ${promptLanguageName()}.`,
+                abortSignal: this.currentAbortController.signal,
+                onUpdate: (chunk) => {
                     fullResponse += chunk;
                     // Partially render Markdown during generation
                     if (typeof marked !== 'undefined') {
@@ -241,22 +234,9 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                         this.resultContent.textContent = fullResponse;
                     }
                 },
-                (status) => {
-                    if (!fullResponse) {
-                        this.resultContent.textContent = status;
-                    }
-                },
-                async (confirmData) => {
-                    // Disallow direct writes from the agent during inline assist
-                    return false;
-                },
-                null, // editContext
-                [],   // chatContext
-                null, // onLog
-                this.currentAbortController.signal
-            );
+            });
 
-            fullResponse = result.response || fullResponse;
+            fullResponse = result || fullResponse;
 
             // Render final response just in case streaming missed it
             if (fullResponse && typeof marked !== 'undefined') {
@@ -310,7 +290,7 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
                             </p>
                             <ol style="margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--text-color); opacity: 0.8; line-height: 1.6;">
                                 <li>Check that the <strong>J.H AI Agent</strong> app is running.</li>
-                                <li>In the agent, press <strong>Settings → General → Export Connection</strong> — that writes out the details this editor reads.</li>
+                                <li>Approve the connection request the agent shows — check its six-digit code matches the one this editor displays.</li>
                                 <li>Or enter the URL and token by hand in <strong>Settings → Agent</strong>.</li>
                             </ol>
                             <div style="margin-top: 12px;">
@@ -338,158 +318,6 @@ Please provide only the suggested replacement code block. Do NOT use tools to wr
             }
         } finally {
             this.currentAbortController = null;
-        }
-    }
-
-    /**
-     * Fetch JHAI-registered intents and render a quick-action button per intent.
-     * Clicking a button runs that intent via the MCP adapter (JHEditor exposes its
-     * buffer as tools; JHAI's LLM pulls what it needs and returns a result).
-     */
-    async _populateIntents(context) {
-        let intents = [];
-        try {
-            intents = await listJhaiIntents();
-        } catch (_) {
-            return;
-        }
-        // The modal may have been closed while we awaited.
-        if (!this.element || !intents.length) return;
-        const bar = this.element.querySelector('.inline-ai-intents');
-        if (!bar) return;
-
-        // Offer selection-scoped intents when text is selected, document-scoped
-        // ones otherwise; intents without a scope are always shown.
-        const selected = hasEditorSelection();
-        const wanted = selected ? 'selection' : 'document';
-        const visible = intents.filter((it) => !it.scope || it.scope === wanted);
-        if (!visible.length) return;
-
-        bar.innerHTML = '';
-        visible.forEach((it) => {
-            const b = document.createElement('button');
-            b.className = 'inline-ai-intent-btn';
-            b.className = (b.className || '') + ' jh-icon-row';
-            b.replaceChildren(iconEl('sparkles', { size: 12 }), document.createTextNode(it.title));
-            b.title = `JHAI intent: ${it.id}`;
-            b.style.cssText = 'background:var(--primary-soft);border:1px solid var(--primary-border);color:inherit;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;';
-            b.onclick = () => this.handleIntent(it.id, context);
-            bar.appendChild(b);
-        });
-        bar.style.display = 'flex';
-    }
-
-    /** Run the free-text input as a freeform JHAI task (LLM auto-selects tools). */
-    async handleFreeform(context) {
-        const prompt = this.promptInput.value.trim();
-        if (!prompt) return;
-
-        this.resultArea.style.display = 'block';
-        this.resultContent.textContent = t('Thinking...');
-
-        const genBtn = this.element.querySelector('.inline-ai-gen-btn');
-        const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
-        const reviewBar = this.element.querySelector('.inline-ai-review-bar');
-        genBtn.style.display = 'none';
-        stopBtn.style.display = 'none';
-        reviewBar.style.display = 'none';
-
-        try {
-            const onEvent = (event, data) => this._showInlineStatus(event, data);
-            const envelope = await runJhaiFreeform(prompt, context, { onEvent });
-            const p = (envelope && envelope.payload) || {};
-            const md = p.md || p.markdown || p.text
-                || (envelope && envelope.summary) || '(no result)';
-
-            this._renderResultMarkdown(md);
-
-            const resultActions = this.element.querySelector('.result-actions');
-            resultActions.style.display = 'flex';
-            genBtn.style.display = 'inline-block';
-            genBtn.textContent = t('Retry');
-            if (this.onPreview) this.onPreview(md);
-        } catch (e) {
-            const msg = (e && e.message) || String(e);
-            this.resultContent.textContent = t('Error: ') + msg;
-            genBtn.style.display = 'inline-block';
-        }
-    }
-
-    /** Run a JHAI MCP intent and render its result envelope inline. */
-    async handleIntent(intentId, context) {
-        this.resultArea.style.display = 'block';
-        this.resultContent.textContent = t('Thinking...');
-
-        const genBtn = this.element.querySelector('.inline-ai-gen-btn');
-        const stopBtn = this.element.querySelector('.inline-ai-stop-btn');
-        const reviewBar = this.element.querySelector('.inline-ai-review-bar');
-        genBtn.style.display = 'none';
-        stopBtn.style.display = 'none'; // intents resolve as a unit (no chunk stream to abort)
-        reviewBar.style.display = 'none';
-
-        const prompt = this.promptInput.value.trim();
-        try {
-            const onEvent = (event, data) => this._showInlineStatus(event, data);
-            const envelope = await runJhaiIntent(intentId, prompt || undefined, { onEvent });
-            const p = (envelope && envelope.payload) || {};
-            const md = p.md || p.markdown || p.text
-                || (envelope && envelope.summary) || '(no result)';
-
-            this._renderResultMarkdown(md);
-
-            const resultActions = this.element.querySelector('.result-actions');
-            resultActions.style.display = 'flex';
-            genBtn.style.display = 'inline-block';
-            genBtn.textContent = t('Retry');
-            if (this.onPreview) this.onPreview(md);
-        } catch (e) {
-            const msg = (e && e.message) || String(e);
-            const low = msg.toLowerCase();
-            if (low.includes('not available') || low.includes('not reachable') || low.includes('failed to fetch')) {
-                this.resultContent.textContent = t('Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.');
-            } else {
-                this.resultContent.textContent = t('Error: ') + msg;
-            }
-            genBtn.style.display = 'inline-block';
-        }
-    }
-
-    /** Update the inline result area with a live status line while a task streams. */
-    _showInlineStatus(event, data) {
-        if (!this.resultContent) return;
-        let text = null;
-        if (event === 'status' && data.message) text = String(data.message);
-        else if (event === 'tool_call' && data.name) text = data.name;
-        else if (event === 'thought' && typeof data.text === 'string') text = data.text.replace(/\s+/g, ' ').slice(0, 100);
-        if (text) this.resultContent.textContent = `⏳ ${text}`;
-    }
-
-    /** Render markdown into the result area with code syntax highlighting. */
-    _renderResultMarkdown(text) {
-        if (text && typeof marked !== 'undefined') {
-            const renderer = new marked.Renderer();
-            renderer.code = (codeOrObj, infostring) => {
-                let code = codeOrObj;
-                let lang = infostring;
-                if (typeof codeOrObj === 'object' && codeOrObj !== null) {
-                    code = codeOrObj.text !== undefined ? codeOrObj.text : codeOrObj.code;
-                    lang = codeOrObj.lang;
-                }
-                const highlighted = (typeof SyntaxHighlighter !== 'undefined')
-                    ? SyntaxHighlighter.highlight(code, lang || 'text')
-                    : code;
-                return `<pre><code class="language-${lang} hljs">${highlighted}</code></pre>`;
-            };
-            this.resultContent.innerHTML = sanitizeHtml(marked.parse(text, { renderer }));
-            this.resultContent.style.userSelect = 'text';
-            this.resultContent.style.cursor = 'text';
-            this.resultContent.querySelectorAll('pre').forEach((pre) => {
-                pre.style.position = 'relative';
-                pre.style.userSelect = 'text';
-                pre.querySelectorAll('code').forEach((c) => { c.style.userSelect = 'text'; });
-            });
-        } else {
-            this.resultContent.textContent = text || '';
         }
     }
 
