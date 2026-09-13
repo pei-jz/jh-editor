@@ -216,7 +216,9 @@ export const GrepModal = {
             searchBtn.disabled = true;
             // Open the results tab FIRST (registers streaming listeners), then kick
             // off the async search. Results stream in live; the editor stays usable.
-            window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true });
+            // ...and wait for them to be registered: a search that finishes
+            // first has nobody to tell, and the tab never leaves "Searching…".
+            await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true });
             try {
                 await invoke('start_grep', {
                     dir: folder, term: q,

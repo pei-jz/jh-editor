@@ -1108,7 +1108,7 @@ window.app.openMarkdownResult = function (title, md) {
 
 // Open (or reuse) a tab showing workspace grep results (streaming when a
 // searchId is given — matches arrive live via grep-match/grep-done events).
-window.app.openSearchResults = function ({ query, matches, options, searchId, streaming }) {
+window.app.openSearchResults = function ({ query, matches, options, searchId, streaming, highlight }) {
     const title = String(query || '').slice(0, 30);
     // Every search opens its own tab so earlier results stay available for
     // comparison. Each needs a unique path (tabs are matched by path).
@@ -1117,6 +1117,9 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
         path: `search://results-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         type: 'search-results',
         query: query || '',
+        // Regex source to mark hits with, when the text shown as the query is
+        // not itself the pattern (backlinks show a file name).
+        highlight: highlight || null,
         matches: matches || [],
         options: options || {},
         searchId: searchId,
@@ -1134,12 +1137,19 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
     // Own the streaming listeners at the model level so results keep arriving in
     // file.matches even when this tab isn't the active view; update the live view
     // when it IS active. (The view is destroyed on tab switch — listeners aren't.)
+    //
+    // The returned promise settles once both listeners are REGISTERED, and the
+    // caller must await it before starting the grep. `listen` is a round trip to
+    // the backend; a search that finished inside that window — a Markdown-only
+    // backlink search with no hits takes a few milliseconds — emitted its
+    // grep-done to nobody, and the tab sat on "Searching…" forever.
+    let ready = Promise.resolve();
     if (streaming && searchId != null) {
         const liveView = () => {
             const v = getCurrentView();
             return (v && typeof v.appendMatches === 'function' && v.searchId === searchId) ? v : null;
         };
-        listen('grep-match', (event) => {
+        const onMatch = listen('grep-match', (event) => {
             const p = event.payload;
             if (!p || p.search_id !== searchId) return;
             if (Array.isArray(p.matches) && p.matches.length) {
@@ -1148,7 +1158,7 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
                 if (v) v.appendMatches(p.matches);
             }
         }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
-        listen('grep-done', (event) => {
+        const onDone = listen('grep-done', (event) => {
             const p = event.payload;
             if (!p || p.search_id !== searchId) return;
             file._done = true;
@@ -1158,10 +1168,12 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
             for (const un of file._grepUnlisteners) { try { un(); } catch (_) {} }
             file._grepUnlisteners = [];
         }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
+        ready = Promise.all([onMatch, onDone]).then(() => {});
     }
 
     State.openFiles.push(file);
     setActiveTab(State.openFiles.length - 1);
+    return ready;
 };
 window.app.getCurrentView = getCurrentView;
 window.app.getActiveFile = getActiveFile;

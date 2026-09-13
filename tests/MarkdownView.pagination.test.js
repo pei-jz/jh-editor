@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-// Book mode TURNS pages; it does not scroll for you. Anything past the bottom
-// of a sheet is content the reader turns straight past, so the governing
-// invariant is that a page is never deliberately overfilled. Two earlier
-// revisions broke it from opposite directions: packing a fixed NUMBER of blocks
-// per page (which stranded headings and overflowed long pages), and then
-// packing to two thirds full even when the next block would spill (which put
-// nine pages in ten over the fold, so every turn skipped a tail).
+// Book mode TURNS pages; it does not scroll for you. Anything far past the
+// bottom of a sheet is content the reader turns straight past, so the governing
+// invariant is that a page is never *largely* overfilled. Two earlier revisions
+// broke it from opposite directions: packing a fixed NUMBER of blocks per page
+// (which stranded headings and overflowed long pages), and then packing to two
+// thirds full with NO spill cap (which put nine pages in ten over the fold, so
+// every turn skipped a tail). The one deliberate exception now is a bounded
+// pull-up: an underfull page (under two thirds) pulls its next block in, but
+// only up to 25% past the bottom — a short scroll, not a skipped tail.
 
 const load = async () => {
     const { MarkdownView } = await import('../src/modules/views/MarkdownView.js');
@@ -109,7 +111,7 @@ describe('MarkdownView._splitIntoPages', () => {
 
     // THE invariant. A page that runs past the sheet hides its tail behind a
     // scroll the reader never makes, and Alt+→ skips it.
-    it('never overfills a page, except for a block nothing could fit', () => {
+    it('never overfills a page except a bounded pull-up or a block nothing could fit', () => {
         const docs = {
             prose: Array.from({ length: 40 }, (_, i) => para(3 + (i * 7) % 9)),
             sections: Array.from({ length: 24 }, (_, i) =>
@@ -129,13 +131,74 @@ describe('MarkdownView._splitIntoPages', () => {
                     // introduce it (breaking there would waste a whole page on
                     // those headings).
                     const where = `${name}: ${JSON.stringify(page.map((b) => b.index))}`;
+                    // Unavoidable: a block taller than a whole sheet, or a
+                    // last block preceded only by the headings that introduce
+                    // it. Deliberate: a page still under two thirds full pulls
+                    // its next block in, but only with a bounded spill.
                     const giant = page.some((b) => heights[b.index] > usable());
                     const leadIsHeadings = page.slice(0, -1).length > 0
                         && page.slice(0, -1).every((b) => /^#{1,6}\s/.test(blocks[b.index]));
-                    expect(giant || leadIsHeadings, where).toBe(true);
+                    const beforeLast = page.slice(0, -1)
+                        .reduce((n, b) => n + heights[b.index], 0);
+                    const pullUp = page.length >= 2
+                        && beforeLast < usable() * (2 / 3)
+                        && (fill - usable()) <= usable() * 0.25;
+                    expect(giant || leadIsHeadings || pullUp, where).toBe(true);
                 }
             }
         }
+    });
+
+    // The requested behaviour: a page left more than a third empty pulls its
+    // next block in — a small scroll the reader finishes — rather than
+    // stranding a mostly-blank sheet. The spill is capped, so a block that
+    // would overflow far past the bottom still starts the next page.
+    it('pulls the next block into a page that is under two thirds full', () => {
+        const texts = ['## 0. Overview', 'intro', 'body'];
+        const heights = [50, 100, 430];
+        view._measureBlockHeights = () => heights;
+        const pages = view._splitIntoPages(texts, PAGE_HEIGHT, PAGE_WIDTH);
+        expect(pages).toHaveLength(1);
+        expect(pages[0].map((b) => b.index)).toEqual([0, 1, 2]);
+    });
+
+    it('does not pull a block whose spill would be large', () => {
+        // An underfull page (200px) followed by a block that would spill well
+        // past the cap still breaks — the old pack-to-2/3 behaviour that
+        // silently skipped tails must not return.
+        const texts = ['intro', 'BIG'];
+        const heights = [200, Math.round(usable() * 0.96)];
+        view._measureBlockHeights = () => heights;
+        const pages = view._splitIntoPages(texts, PAGE_HEIGHT, PAGE_WIDTH);
+        expect(pages).toHaveLength(2);
+        expect(pages[0].map((b) => b.index)).toEqual([0]);
+        expect(pages[1].map((b) => b.index)).toEqual([1]);
+    });
+
+    // The same pull-up must reach a SUB-section heading's group (H3+), not
+    // just a body block — otherwise a page that ends just under the fold
+    // strands `### Sub` + its table on the next sheet while this one stays a
+    // third empty. Chapter headings (H1/H2) stay excluded: they open a new
+    // section and must not glue to the section before them.
+    it('pulls a sub-section heading group into an underfull page', () => {
+        const texts = ['intro', '### Sub', 'TABLE'];
+        const heights = [300, 40, 250];
+        view._measureBlockHeights = () => heights;
+        const pages = view._splitIntoPages(texts, PAGE_HEIGHT, PAGE_WIDTH);
+        expect(pages).toHaveLength(1);
+        expect(pages[0].map((b) => b.index)).toEqual([0, 1, 2]);
+    });
+
+    it('does not pull a chapter heading group up into an underfull page', () => {
+        const texts = ['intro', '## Chapter', 'TABLE'];
+        const heights = [300, 55, 250];
+        view._measureBlockHeights = () => heights;
+        const pages = view._splitIntoPages(texts, PAGE_HEIGHT, PAGE_WIDTH);
+        // The chapter heading moves to its own page; it is not glued to the
+        // intro paragraph before it.
+        const chapterPage = pages.findIndex((p) => p.some((b) => b.index === 1));
+        expect(chapterPage).toBeGreaterThan(0);
+        expect(pages[0].map((b) => b.index)).toEqual([0]);
     });
 
     // A page taller than the sheet scrolls, and .stf__page keeps that offset on

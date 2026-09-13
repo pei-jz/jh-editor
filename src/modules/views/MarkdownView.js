@@ -16,6 +16,7 @@ import { shortcuts } from '../core/ShortcutManager.js';
 import { SHORTCUTS } from '../core/ShortcutDefinitions.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import * as MdAssets from '../utils/MarkdownAssets.js';
+import { backlinkQuery } from '../utils/Backlinks.js';
 import { MermaidHelper } from '../ui/MermaidHelper.js';
 import { showAlert, showConfirm } from '../ui/Dialog.js';
 import { enableLightbox } from '../ui/Lightbox.js';
@@ -122,8 +123,13 @@ function _injectBlockEditStyles() {
         padding: 6px 12px; font-size: 11px; font-weight: 600; opacity: 0.7;
         border-bottom: 1px solid var(--border-color); background: var(--bg-color-secondary, var(--bg-color));
     }
-    /* The shared preview node, re-homed into the modal. */
-    .mbe-preview {
+    /* The shared preview node, re-homed into the modal.
+       Scoped to #preview-content so it beats the node's own ID rule
+       (editor.css gives #preview-content a max-height of 500px); an ID
+       selector outranks a bare class, so the modal preview used to stop
+       at 500px and leave the lower half of the right pane empty while the
+       source side filled its full height. */
+    #preview-content.mbe-preview {
         flex: 1; overflow: auto; padding: 14px 16px;
         display: block; position: static; width: auto; height: auto;
         max-width: none; max-height: none; border: none; box-shadow: none;
@@ -1992,8 +1998,8 @@ export class MarkdownView extends BaseView {
      * Pack blocks into pages by measured height instead of by block count.
      *
      * The governing constraint is that BOOK MODE TURNS PAGES — it does not
-     * scroll for you. Anything past the bottom of a sheet is content the reader
-     * turns straight past, so a page is never deliberately overfilled:
+     * scroll for you. Anything far past the bottom of a sheet is content the
+     * reader turns straight past, so a page is never *largely* overfilled:
      *
      *   - a block that does not fit starts the next page;
      *   - orphan control: a heading never ends a page — it needs room for
@@ -2013,11 +2019,13 @@ export class MarkdownView extends BaseView {
      *     its own and scrolls. A short lead-in (its heading, an intro line) is
      *     kept with it rather than left behind on a near-empty page.
      *
-     * An earlier revision packed pages up to two thirds full even when the next
-     * block would spill, on the grounds that a scroll beat a half-empty page.
-     * That put an entire reference document over the fold — nine pages in ten —
-     * and turning the page silently skipped the tail of each one. Orphan
-     * control alone gives the dense pages that were actually wanted.
+     * One deliberate exception: an underfull page (under two thirds full) pulls
+     * its next block in even when it spills, but only a LITTLE — at most 25% of
+     * the sheet — a short scroll the reader can finish, not a skipped tail. An
+     * earlier revision packed to two thirds full with NO spill cap, which put
+     * an entire reference document over the fold — nine pages in ten — and
+     * every turn silently skipped a tail. The cap is what keeps that from
+     * returning.
      */
     _splitIntoPages(blocks, pageHeight = 600, pageWidth = 0) {
         const items = blocks.map((text, idx) => ({ text, index: idx }));
@@ -2030,6 +2038,15 @@ export class MarkdownView extends BaseView {
         // A giant block keeps company this small; more than this deserves to
         // finish its own page first.
         const MAX_LEAD_IN = usable * 0.4;
+        // Underfull-page pull-up: a page whose content is still below this
+        // fraction of the sheet may pull the NEXT block in even when it spills,
+        // so a lone short paragraph does not strand a mostly-empty sheet.
+        const UNDERFULL_RATIO = 2 / 3;
+        // How far past the bottom that pull-up may go, as a fraction of the
+        // usable height. Beyond this the spill is real scrolling rather than
+        // "a little", and the block stays on the next page — this cap is what
+        // stops the old pack-to-2/3-every-page behaviour from returning.
+        const MAX_PULL_OVERFLOW = 0.25;
 
         const onlyHeadings = (p) => this._pageIsOnlyHeadings(p);
         const pages = [];
@@ -2065,12 +2082,39 @@ export class MarkdownView extends BaseView {
                 // …but not away from the headings that introduce it: a run of
                 // headings travels together, and flushing here would leave the
                 // outer one alone on a page of its own.
-                else if (used + need > usable && !onlyHeadings(page)) flush();
+                else if (used + need > usable && !onlyHeadings(page)) {
+                    // A heading travels with the block that follows it, so the
+                    // unit that must fit is the WHOLE group — the run of
+                    // headings plus its first body block. An underfull page
+                    // (under two thirds) pulls a SUB-section heading's group up
+                    // even when it spills, bounded by the same cap as a body
+                    // block. A chapter heading (H1/H2) always breaks instead:
+                    // it opens a new section, so it must not be glued to the
+                    // tail of the section before it (that is what left
+                    // `## Section` sharing a page with an unrelated paragraph
+                    // and stranded a mostly-empty sheet).
+                    const underfull = used < usable * UNDERFULL_RATIO;
+                    const overflow = used + need - usable;
+                    if (isChapter || !(underfull && overflow <= usable * MAX_PULL_OVERFLOW)) {
+                        flush();
+                    }
+                }
             } else if (used > 0 && used + h > usable && !onlyHeadings(page)) {
                 // Breaking here would leave the page holding nothing but the
                 // headings that introduce this block. Take the spill instead:
                 // it is at most the height of those headings.
-                flush();
+                //
+                // Separately, a page that is still mostly empty (under
+                // UNDERFULL_RATIO full) pulls this block in even though it
+                // spills a LITTLE past the bottom. That is a small scroll the
+                // reader can finish, not content skipped by a page turn — and
+                // the spill is capped at MAX_PULL_OVERFLOW so a genuinely tall
+                // block still starts the next page.
+                const underfull = used < usable * UNDERFULL_RATIO;
+                const overflow = used + h - usable;
+                if (!(underfull && overflow <= usable * MAX_PULL_OVERFLOW)) {
+                    flush();
+                }
             }
 
             page.push(item);
@@ -2826,7 +2870,7 @@ export class MarkdownView extends BaseView {
      * than a separate index: for a personal note tree it is fast enough, and it
      * can never go stale. The results land in the normal search-results tab.
      */
-    showBacklinks() {
+    async showBacklinks() {
         const path = this.file && this.file.path;
         if (!path) {
             if (window.showToast) window.showToast('Only available for saved files');
@@ -2836,14 +2880,16 @@ export class MarkdownView extends BaseView {
             if (window.showToast) window.showToast('Open a workspace first');
             return;
         }
-        const base = String(path).split(/[\\/]/).pop().replace(/\.md$/i, '');
-        // Matches [[Name]] and [[Name|label]] — the target sits right after `[[`.
-        const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const pattern = `\\[\\[${escaped}(\\.md)?(\\||\\])`;
+        // Wiki links AND ordinary Markdown links — see Backlinks.js.
+        const q = backlinkQuery(path);
+        if (!q) return;
 
         const searchId = Date.now() + Math.random();
-        window.app.openSearchResults({
-            query: `[[${base}]]`,
+        // The tab is titled with the real file name, extension included; the
+        // pattern itself is unreadable, so it only drives the hit marking.
+        await window.app.openSearchResults({
+            query: q.label,
+            highlight: q.pattern,
             matches: [],
             options: { regex: true, caseSensitive: false, wholeWord: false },
             searchId,
@@ -2851,12 +2897,12 @@ export class MarkdownView extends BaseView {
         });
         invoke('start_grep', {
             dir: State.currentDir,
-            term: pattern,
+            term: q.pattern,
             regex: true,
             caseSensitive: false,
             wholeWord: false,
             includeSubdirs: true,
-            globs: '*.md',
+            globs: q.globs,
             searchId,
         }).catch((e) => {
             console.error('backlink search failed', e);
