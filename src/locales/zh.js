@@ -97,6 +97,9 @@ export default {
     'Ask a question… (Shift+Enter for a new line)': '输入问题…（Shift+Enter 换行）',
     'Send': '发送',
     'Sending…': '发送中…',
+    'Open in editor': '在编辑器中打开',
+    'Open this answer as a Markdown draft': '将此回答作为 Markdown 草稿打开',
+    'Copied': '已复制',
     'Context scope: {label} — {hint}': '上下文范围: {label} — {hint}',
     'Change it in Settings → Agent Integration.': '可在 设置 → 代理集成 中更改。',
     'Select some text first.': '请先选择文本。',
@@ -138,8 +141,6 @@ export default {
     'CSV Cell Edit': 'CSV 单元格编辑',
     'CSV Grid': 'CSV 网格',
     'Cancel (Esc)': '取消 (Esc)',
-    'Cannot reach J.H AI Agent. Please start the Agent.': '无法连接到 J.H AI Agent。请先启动代理。',
-    'Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.': '无法连接到 J.H AI Agent。请启动代理，然后运行 设置 → 常规 → 导出连接。',
     'Choice': '选择',
     'Choose Folder': '选择文件夹',
     'Class definition': '类定义',
@@ -514,5 +515,12 @@ export default {
     'Update Available': '有可用更新',
     'Version {v} is available. Download and install it now?': '有可用版本 {v}。要立即下载并安装吗？',
     'You are on the latest version.': '已是最新版本。',
+    'J.H AI Agent is not installed': '未安装 J.H AI Agent',
+    'J.H AI Agent is not installed. Download and install it, then try again.':
+        '未安装 J.H AI Agent。请先下载并安装，然后重试。',
+    'Open download page': '打开下载页面',
+    'J.H AI Agent is not running': 'J.H AI Agent 未运行',
+    'J.H AI Agent is not running. Start it now?': 'J.H AI Agent 未运行。要立即启动吗？',
+    'Start J.H AI Agent': '启动 J.H AI Agent',
 
 };

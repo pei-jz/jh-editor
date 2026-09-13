@@ -1,18 +1,20 @@
 /**
  * JhAiMcp.js — JHEditor ↔ JHAI "AI Hub" integration (MCP, Part B).
  *
- * This is the REVERSE direction of AIAgent.js. AIAgent.js drives JHAI as a task
- * runner (JHEditor → JHAI → LLM, the LLM using JHAI's own tools). Here JHEditor
- * acts as an MCP **server** over an OUTBOUND WebSocket to JHAI: it exposes its
- * OWN capabilities (the live editor buffer/selection/open files) as TOOLS that
- * JHAI's LLM can call, plus named INTENTS (recipes) that return a structured
- * `result` rendered back in the editor.
+ * This is the REVERSE direction of AIAgent.js. AIAgent.js asks JHAI for answers.
+ * Here JHEditor acts as an MCP **server** over an OUTBOUND WebSocket to JHAI: it
+ * exposes its OWN capabilities (the live editor buffer/selection/open files) as
+ * TOOLS that a run on the `ask × app` lane can call — gated by the context scope.
+ *
+ * Named intents and the tasks started through this adapter were removed
+ * (jh-ai-agent docs/scratch/Report_20260913.md §6-6). The inline presets below
+ * are one-shot transforms through AIAgent.
  *
  * Wiring (see jh-ai-agent/sdk/jhai-adapter.js + the design docs):
  *   • Connection = dialing `ws://<jhai>/mcp/ws?app=jheditor&token=…` (the
  *     connection itself is the dynamic registration; no inbound listener).
- *   • Tools:   get_buffer / get_selection / list_open_files
- *   • Intent:  summarize_logs → markdown result with an "insert into doc" action.
+ *   • Tools:   get_buffer / get_selection / list_open_files / read_workspace_file /
+ *              list_workspace_files / get_diagnostics
  *
  * Non-fatal: if JHAI is unreachable, the SDK retries the WS in the background and
  * runIntent() simply rejects until a connection is up. Nothing here blocks the
@@ -21,6 +23,7 @@
 
 import { createJhaiAdapter } from './jhai-adapter.js';
 import { getConnectionConfig } from './ConnectionConfig.js';
+import AIAgent from './AIAgent.js';
 import { State } from '../core/Store.js';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -145,122 +148,7 @@ const editor = {
     },
 };
 
-// ── Task dispatch (routes through the bottom-right activity dock) ─────────────
-
 let _adapter = null;
-
-/** Map a streaming task event to a short human status line (or null to ignore). */
-function statusTextFromEvent(event, data) {
-    if (event === 'status' && data.message) return String(data.message);
-    if (event === 'tool_call' && data.name) return data.name;
-    if (event === 'thought') {
-        const t = typeof data.text === 'string' ? data.text : '';
-        if (t) return t.replace(/\s+/g, ' ').slice(0, 90);
-    }
-    return null;
-}
-
-/**
- * Start a JHAI task (registered intent) and surface it in the activity dock with
- * live status + Stop, rendering the result there. Returns the adapter handle
- * ({ taskId, completed, abort }); callers may also await handle.completed to show
- * the result inline as well.
- */
-function startJhaiTask({ intentId, prompt, context, title, onEvent, resultHandler }) {
-    const ai = _adapter;
-    if (!ai) throw new Error('JHAI MCP adapter not available.');
-    const entry = activityPanel.addTask(title || intentId || 'AI');
-    const combined = (event, data) => {
-        const s = statusTextFromEvent(event, data);
-        if (s) entry.setStatus(s);
-        if (event === 'thought' && data.text) {
-            entry._lastThought = data.text;
-        }
-        if (onEvent) { try { onEvent(event, data); } catch (_) {} }
-    };
-    const handle = ai.runIntentTask(intentId, { prompt, context, onEvent: combined });
-    entry.onAbort(() => handle.abort());
-    handle.completed
-        .then((env) => (resultHandler ? resultHandler(env, entry) : presentJhaiResult(env, entry)))
-        .catch((e) => entry.setError(e && e.message ? e.message : String(e)));
-    return handle;
-}
-
-/**
- * Present a result envelope by its `kind`:
- *   - markdown / table / file-list → open a full-size Markdown editor tab
- *   - code-edit                    → open a diff tab (DiffEditor) for review/apply
- *   - answer                       → short text inline in the dock card
- * The dock card stays compact (summary + 開く/挿入/コピー) regardless.
- */
-function presentJhaiResult(env, entry) {
-    const ai = _adapter;
-    const kind = (env && env.kind) || 'markdown';
-    const p = (env && env.payload) || {};
-    const actions = (env && env.actions) || [];
-    const onAction = (a) => { try { ai && ai.applyAction(a); } catch (_) {} };
-
-    if (kind === 'code-edit') {
-        const open = () => openCodeEditDiff(p);
-        const ok = open();
-        entry.setResult({
-            summary: ok ? 'Opened a diff tab — review, then apply' : 'code-edit: could not show the diff',
-            onOpen: ok ? open : null, actions, onAction,
-        });
-        return;
-    }
-
-    if (kind === 'answer') {
-        const text = p.text || p.answer || (env && env.summary) || '(empty answer)';
-        entry.setResult({
-            summary: text,
-            onInsert: () => editor.insertAtCursor(text),
-            copyText: text, actions, onAction,
-        });
-        return;
-    }
-
-    // markdown / table / file-list / default → full-size Markdown editor tab.
-    let md = p.md || p.markdown || (env && env.summary) || '';
-    if (!md && kind === 'file-list' && Array.isArray(p.files)) {
-        md = '## Files\n' + p.files.map((f) => `- \`${f.path || f}\``).join('\n');
-    }
-    
-    // Fallback: if md is empty or generic, but the LLM outputted a substantial thought, use the thought
-    if ((!md || md === 'Task completed successfully' || md === '(no result)') && entry._lastThought && entry._lastThought.length > 5) {
-        md = entry._lastThought;
-    }
-
-    if (!md) md = '(no result)';
-    const title = p.title || (env && env.summary ? String(env.summary).slice(0, 30) : 'AI Result');
-    const open = () => { try { window.app.openMarkdownResult(title, md); } catch (e) { console.warn(e); } };
-    open(); // auto-open in an editor tab
-    entry.setResult({
-        summary: `Opened "${title}" in an editor tab`,
-        onOpen: open,
-        onInsert: () => editor.insertAtCursor(md),
-        copyText: md, actions, onAction,
-    });
-}
-
-/** Open a code-edit envelope in JHEditor's DiffEditor. Returns true if shown. */
-function openCodeEditDiff(p) {
-    try {
-        const edits = Array.isArray(p.edits) ? p.edits : (Array.isArray(p) ? p : []);
-        const first = edits[0] || p || {};
-        const original = first.original ?? first.old ?? first.before ?? p.original ?? '';
-        const modified = first.modified ?? first.new ?? first.after ?? first.text ?? p.modified ?? '';
-        const path = first.path || first.file || p.path || 'ai-edit';
-        if (modified == null || modified === '') return false;
-        window.app.openDiffEditor(String(original), String(modified), path, (finalText) => {
-            // Apply: insert the reviewed text at the cursor (file-write is Phase 2).
-            try { editor.insertAtCursor(finalText); } catch (_) {}
-        });
-        return true;
-    } catch (_) {
-        return false;
-    }
-}
 
 // ── Public init ───────────────────────────────────────────────────────────────
 
@@ -283,7 +171,9 @@ export async function initJhEditorMcp() {
         app: 'jheditor',
         instanceId: INSTANCE_ID,
         jhaiBaseUrl: cfg.hostUrl,
-        authToken: cfg.token || '',
+        // The token the editor paired with, not one read out of a file —
+        // see AIAgent.getAuthToken for why it comes from there.
+        authToken: await AIAgent.getAuthToken(),
     });
     // Always surface connection-level logs (connect / disconnect / error) to the
     // console so a failed /mcp/ws registration is easy to spot in JHEditor's
@@ -426,118 +316,6 @@ export async function initJhEditorMcp() {
         },
     });
 
-    // 2) Intents — named AI actions. `scope` ('selection' | 'document') drives
-    //    which intents the InlineAI popup offers (selected text vs whole doc).
-    ai.registerIntent({
-        id: 'summarize_logs',
-        title: 'Summarize logs',
-        scope: 'document',
-        tier: 'fast',
-        systemPrompt:
-            'You are an assistant that summarizes logs for the currently edited document.\n' +
-            'First, use get_buffer to retrieve the content, then aggregate the count, time periods, categories, etc., ' +
-            `and summarize the results in a readable Markdown table (in ${promptLanguageName()}).\n\n` +
-            'HOW TO RETURN RESULTS (STRICTLY ENFORCED):\n' +
-            '- You MUST return the result by calling the present_result tool with kind="markdown" ' +
-            'and put the full text of your deliverable into the `markdown` argument. ' +
-            'Do not write the result in the message body.',
-        tools: ['get_buffer'],
-        resultKind: 'markdown',
-    });
-
-    ai.registerIntent({
-        id: 'explain_selection',
-        title: 'Explain selection',
-        scope: 'selection',
-        tier: 'fast',
-        systemPrompt:
-            'You are a code/text explanation assistant.\n' +
-            `First, use get_selection to get the selected text, and briefly explain in ${promptLanguageName()} what it does, ` +
-            'key points, and caveats using Markdown. If the selection is empty, use get_buffer to look at the whole document and provide an overview.\n\n' +
-            'HOW TO RETURN RESULTS (STRICTLY ENFORCED):\n' +
-            '- You MUST return the result by calling the present_result tool with kind="markdown" ' +
-            'and put the full text of your deliverable into the `markdown` argument. ' +
-            'Do not write the result in the message body.',
-        tools: ['get_selection', 'get_buffer'],
-        resultKind: 'markdown',
-    });
-
-    // Freeform — the user types ANY instruction; the LLM picks the tools itself.
-    // This is the "no fixed buttons, just free input" path: all read tools are
-    // exposed and the model decides what to fetch and do.
-    ai.registerIntent({
-        id: 'freeform',
-        title: 'Free prompt',
-        tier: 'fast',
-        systemPrompt:
-            'You are an AI assistant integrated into JHEditor.\n' +
-            'A workspace folder may be open (see context.workspaceRoot / workspaceOpen). When it is, you can ' +
-            'explore it with list_workspace_files and read files with read_workspace_file (paths are relative to the workspace root).\n' +
-            'Read the user\'s instructions and, if necessary, call get_selection / get_buffer / ' +
-            'read_workspace_file / list_workspace_files / get_diagnostics / list_open_files to retrieve information, ' +
-            'then execute the instructions.\n\n' +
-            'HOW TO RETURN RESULTS (STRICTLY ENFORCED):\n' +
-            '- You MUST return the result by calling the present_result tool. This is the ONLY way to pass the result to the app. ' +
-            'Writing text in the message body, using ``` code blocks directly, or outputting strings like "CALL: present_result" ' +
-            'will NOT deliver the result (it will be empty).\n' +
-            '- Call present_result with kind="markdown" and put the full text of your deliverable into the `markdown` argument. ' +
-            'The argument name is exactly `markdown` (do not use content, text, or md).\n' +
-            '- Code modification/generation: Put the full revised code into a single ```language fenced code block ' +
-            'and pass it in the `markdown` argument so it can be inserted (do NOT return it as body text).\n' +
-            '- Explanation/Summary/Analysis: Pass readable Markdown (in ' + promptLanguageName() + ') in the `markdown` argument.\n' +
-            '- Call present_result FIRST, and then call finish_task with a short one-line summary. ' +
-            'Do not skip present_result. Do not put the result only in the finish_task summary.\n' +
-            '- Thought notes such as OBSERVE / PLAN are for internal use and are not the deliverable itself.',
-        tools: ['get_selection', 'get_buffer', 'read_workspace_file', 'list_workspace_files', 'get_diagnostics', 'list_open_files'],
-        resultKind: 'markdown',
-    });
-
-    // 3) Live context — the target document AND the open workspace, so the agent
-    //    knows the project root and can use the workspace file tools.
-    ai.setContextProvider(() => {
-        const dir = String(State.currentDir || '').replace(/\\/g, '/');
-        const isWorkspace = /^([a-zA-Z]:\/|\/)/.test(dir); // an absolute folder is open
-        return {
-            app: 'jheditor',
-            instanceId: INSTANCE_ID,
-            // The document id is a PATH, not content — but a daily note's path
-            // is itself personal (it is a date, and it says the user keeps a
-            // journal), so it is withheld like the buffer is.
-            documentId: isPrivatePath(editor.activeDocumentId())
-                ? null : editor.activeDocumentId(),
-            workspaceRoot: isWorkspace ? collapsePath(dir) : null,
-            workspaceOpen: isWorkspace,
-        };
-    });
-
-    // 4) Apply-action handler. Results themselves are shown in the activity dock
-    //    (see startJhaiTask); this lets a present_result action insert text.
-    ai.registerActionHandler('insertMarkdown', (apply) => {
-        editor.insertAtCursor(apply.text || '');
-    });
-
-    ai.registerActionHandler('applyEdit', (apply) => {
-        const ok = openCodeEditDiff(apply);
-        if (!ok) {
-            // Fallback: If DiffEditor cannot be opened, try to insert the modified text directly
-            const modified = apply.modified ?? apply.new ?? apply.after ?? apply.text ?? '';
-            if (modified) {
-                editor.insertAtCursor(String(modified));
-            } else {
-                console.warn('[JhAiMcp] applyEdit failed: no modified text found in payload', apply);
-            }
-        }
-    });
-
-    ai.registerActionHandler('openFile', (apply) => {
-        const p = apply.file || apply.path;
-        if (p && window.app && typeof window.app.openFile === 'function') {
-            window.app.openFile(p);
-        } else {
-            console.warn('[JhAiMcp] openFile failed: invalid path or window.app.openFile not found', apply);
-        }
-    });
-
     // 5) Connect (outbound WS = registration). Non-fatal on failure.
     try {
         await ai.start();
@@ -547,56 +325,6 @@ export async function initJhEditorMcp() {
 
     _adapter = ai;
     return ai;
-}
-
-/**
- * Wait until the adapter's outbound WS is OPEN (so JHEditor is registered as an
- * MCP server on JHAI) before creating a task — otherwise the task's LLM may run
- * before get_buffer is registered and report it as "not available". Best-effort:
- * resolves true once open, or false after the timeout.
- */
-async function waitForConnection(ai, timeoutMs = 4000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        if (ai._ws && ai._ws.readyState === 1) return true;
-        await new Promise((r) => setTimeout(r, 100));
-    }
-    return !!(ai._ws && ai._ws.readyState === 1);
-}
-
-/**
- * Run a registered intent. Surfaces in the activity dock (live status + Stop +
- * result) AND resolves with the final result envelope so callers (e.g. InlineAI)
- * can render it inline too. `onEvent(event, data)` streams progress.
- */
-export async function runJhaiIntent(intentId, prompt, { onEvent } = {}) {
-    const ai = await initJhEditorMcp();
-    if (!ai) throw new Error('JHAI MCP adapter not available (no connection config).');
-    const connected = await waitForConnection(ai);
-    if (!connected) {
-        console.warn('[JhAiMcp] WS not connected — JHAI may not see the tools. Is J.H AI Agent running?');
-    }
-    const it = ai.intents.get(intentId);
-    const title = (it && (it.title || it.id)) || prompt || intentId;
-    return startJhaiTask({ intentId, prompt, title, onEvent }).completed;
-}
-
-/**
- * Freeform: run the user's natural-language instruction with all JHEditor tools
- * exposed; the LLM decides which tools to call. `contextText` (e.g. the code
- * around the cursor) is appended to the prompt. Resolves with the result envelope.
- */
-export async function runJhaiFreeform(prompt, contextText, { onEvent } = {}) {
-    const ai = await initJhEditorMcp();
-    if (!ai) throw new Error('JHAI MCP adapter not available (no connection config).');
-    const connected = await waitForConnection(ai);
-    if (!connected) {
-        console.warn('[JhAiMcp] WS not connected — JHAI may not see the tools. Is J.H AI Agent running?');
-    }
-    const userPrompt = contextText
-        ? `${prompt}\n\n${_freeformContextLabel()}\n${contextText}`
-        : prompt;
-    return startJhaiTask({ intentId: 'freeform', prompt: userPrompt, title: prompt, onEvent }).completed;
 }
 
 // ── Inline preset transforms (selection → proposal → Diff review → apply) ────
@@ -645,16 +373,16 @@ function _presetFormatRule(mode) {
     const lang = promptLanguageName();
     const rules = {
         replace: {
-            en: 'Reply by calling present_result(kind="markdown") exactly once, and put the full transformed text into the `markdown` argument as a single ```code block``` only (no explanatory text).\n\n',
-            ja: '返答は present_result(kind="markdown") を1回だけ呼び、変換後の全文を1つの ```コードブロック``` のみで `markdown` 引数に入れて返してください（説明文は不要）。\n\n',
-            zh: '请恰好调用一次 present_result(kind="markdown")，并将转换后的全文仅以一个 ```代码块``` 形式放入 `markdown` 参数（不要说明文字）。\n\n',
-            ko: 'present_result(kind="markdown")을 정확히 한 번 호출하고, 변환된 전체 텍스트를 하나의 ```코드 블록```으로만 `markdown` 인자에 넣어 반환하세요(설명 없음).\n\n',
+            en: 'Reply with the full transformed text as a single ```code block``` only — no explanation.\n\n',
+            ja: '変換後の全文を1つの ```コードブロック``` のみで返してください（説明文は不要）。\n\n',
+            zh: '请仅以一个 ```代码块``` 返回转换后的全文（不要说明文字）。\n\n',
+            ko: '변환된 전체 텍스트를 하나의 ```코드 블록```으로만 반환하세요(설명 없음).\n\n',
         },
         doc: {
-            en: 'Reply by calling present_result(kind="markdown") exactly once, and put the full explanation into the `markdown` argument. Do not call other kinds such as answer, and do not add an extra empty present_result.\n\n',
-            ja: '返答は present_result(kind="markdown") を1回だけ呼び、説明の全文を `markdown` 引数に入れて返してください。answer など他の kind や、空の present_result を追加で呼ばないでください。\n\n',
-            zh: '请恰好调用一次 present_result(kind="markdown")，并将完整说明放入 `markdown` 参数。不要调用 answer 等其他 kind，也不要额外调用空的 present_result。\n\n',
-            ko: 'present_result(kind="markdown")을 정확히 한 번 호출하고 설명 전체를 `markdown` 인자에 넣어 반환하세요. answer 등 다른 kind나 빈 present_result를 추가로 호출하지 마세요.\n\n',
+            en: 'Reply with the full explanation in Markdown.\n\n',
+            ja: '説明の全文を Markdown で返してください。\n\n',
+            zh: '请用 Markdown 返回完整说明。\n\n',
+            ko: '설명 전체를 Markdown으로 반환하세요.\n\n',
         },
     };
     return rules[mode]?.[lang] || rules[mode]?.en || '';
@@ -669,17 +397,6 @@ function _presetSelectionLabel() {
         zh: '--- 选择 ---',
         ko: '--- 선택 ---',
     }[lang] || '--- selection ---';
-}
-
-/** The "--- context around cursor ---" separator, in the configured language. */
-function _freeformContextLabel() {
-    const lang = promptLanguageName();
-    return {
-        en: '--- context around the cursor ---',
-        ja: '--- 対象/カーソル周辺のコンテキスト ---',
-        zh: '--- 光标周围的上下文 ---',
-        ko: '--- 커서 주변 컨텍스트 ---',
-    }[lang] || '--- context around the cursor ---';
 }
 
 // Apply an accepted proposal back to the file/selection it came from.
@@ -700,9 +417,8 @@ async function _applyInlineAnchor(anchor, newText) {
     }
 }
 
-function _presentPresetResult(env, entry, anchor) {
-    const p = (env && env.payload) || {};
-    let md = p.md || p.markdown || p.text || (env && env.summary) || '';
+function _presentPresetResult(text, entry, anchor) {
+    let md = String(text || '');
 
     if (anchor.mode === 'doc' || anchor.mode === 'answer') {
         // Explanation → open as a read-only Markdown tab (reference material, not
@@ -757,12 +473,9 @@ function _presentPresetResult(env, entry, anchor) {
  * to the activity dock (the editor stays usable); on completion the dock chip
  * offers a Diff to review/apply. `preset` is a key of INLINE_PRESETS.
  */
-export async function runInlinePreset(preset, { onEvent } = {}) {
+export async function runInlinePreset(preset) {
     const def = INLINE_PRESETS[preset];
     if (!def) throw new Error(`Unknown preset: ${preset}`);
-    const ai = await initJhEditorMcp();
-    if (!ai) throw new Error('JHAI MCP adapter not available (no connection config).');
-    await waitForConnection(ai);
 
     const selection = editor.getSelection();
     const view = window.app && typeof window.app.getCurrentView === 'function'
@@ -776,42 +489,42 @@ export async function runInlinePreset(preset, { onEvent } = {}) {
         mode: def.mode,
     };
 
-    let formatRule = '';
-    if (def.mode === 'replace' || def.mode === 'doc') {
-        formatRule = _presetFormatRule(def.mode);
+    const entry = activityPanel.addTask(def.title);
+    // Personal notes never travel, at any scope — the MCP tools refuse them, and
+    // a preset that pushes the selection has to refuse them too.
+    if (isPrivatePath(anchor.path)) {
+        entry.setError("That document is one of your personal notes, which are never sent to a model.");
+        return null;
     }
+
+    // One round trip (lane L1). This was a "freeform" agent task driven through
+    // the MCP adapter, which then had to be told, at length, to deliver its
+    // answer through present_result rather than as text.
     const prompt =
         `${def.instruction}\n\n` +
-        formatRule +
+        _presetFormatRule(def.mode) +
         `${_presetSelectionLabel()}\n${selection || '(選択なし)'}\n`;
 
-    return startJhaiTask({
-        intentId: 'freeform',
-        prompt,
-        title: def.title,
-        onEvent,
-        resultHandler: (env, e) => _presentPresetResult(env, e, anchor),
-    }).completed;
+    const ac = new AbortController();
+    entry.onAbort(() => ac.abort());
+    entry.setStatus('Generating…');
+    try {
+        const text = await AIAgent.runSingleShot({
+            prompt,
+            systemPrompt: `You are a code and writing assistant inside JHEditor. Answer in ${promptLanguageName()}.`,
+            abortSignal: ac.signal,
+        });
+        _presentPresetResult(text, entry, anchor);
+        return text;
+    } catch (e) {
+        if (e && e.name === 'AbortError') return null;
+        entry.setError(e && e.message ? e.message : String(e));
+        return null;
+    }
 }
 
 export function listInlinePresets() {
     return Object.keys(INLINE_PRESETS).map(k => ({ id: k, title: INLINE_PRESETS[k].title, mode: INLINE_PRESETS[k].mode }));
-}
-
-/** Ensure the adapter is initialized and its WS is open. Resolves true/false. */
-export async function ensureJhaiConnected(timeoutMs = 1500) {
-    const ai = await initJhEditorMcp();
-    if (!ai) return false;
-    return waitForConnection(ai, timeoutMs);
-}
-
-/** List registered intents as [{ id, title, scope }] (for building UI like InlineAI buttons). */
-export async function listJhaiIntents() {
-    const ai = await initJhEditorMcp();
-    if (!ai) return [];
-    return [...ai.intents.values()]
-        .filter((it) => it.id !== 'freeform') // freeform is driven by the text input, not a button
-        .map((it) => ({ id: it.id, title: it.title || it.id, scope: it.scope || null }));
 }
 
 /** Whether the active editor currently has a non-empty text selection. */

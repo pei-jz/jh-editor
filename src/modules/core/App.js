@@ -31,7 +31,6 @@ import { terminalManager } from '../ui/TerminalManager.js';
 import GitPanel from '../ui/GitPanel.js';
 import { lspClient } from '../lsp/LspClient.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
-import { initJhEditorMcp, runJhaiIntent } from '../ai/JhAiMcp.js';
 import { NotesPanel } from '../ui/NotesPanel.js';
 import { aiChatPanel } from '../ui/AiChatPanel.js';
 import { SelectionActions } from '../ui/SelectionActions.js';
@@ -263,13 +262,6 @@ async function bootstrap() {
             // renderMermaid() loads and initialises it on the first one.
             configureMarkdown();
 
-            // JHAI "AI Hub" MCP adapter — expose JHEditor's buffer/selection as
-            // tools JHAI's LLM can call, and run intents (e.g. summarize_logs).
-            // Non-fatal: connects in the background, retries if JHAI is offline.
-            initJhEditorMcp()
-                .then((ai) => { window.app.jhaiMcp = ai; })
-                .catch((e) => console.warn('JHAI MCP init failed:', e));
-            window.app.runJhaiIntent = runJhaiIntent;
         } catch (e) {
             console.error('Deferred initialization failed', e);
         }

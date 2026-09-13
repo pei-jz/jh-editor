@@ -97,6 +97,9 @@ export default {
     'Ask a question… (Shift+Enter for a new line)': '질문을 입력… (Shift+Enter로 줄 바꿈)',
     'Send': '보내기',
     'Sending…': '전송 중…',
+    'Open in editor': '편집기에서 열기',
+    'Open this answer as a Markdown draft': '이 답변을 Markdown 초안으로 열기',
+    'Copied': '복사했습니다',
     'Context scope: {label} — {hint}': '컨텍스트 범위: {label} — {hint}',
     'Change it in Settings → Agent Integration.': '설정 → 에이전트 통합에서 변경할 수 있습니다.',
     'Select some text first.': '먼저 텍스트를 선택하세요.',
@@ -138,8 +141,6 @@ export default {
     'CSV Cell Edit': 'CSV 셀 편집',
     'CSV Grid': 'CSV 그리드',
     'Cancel (Esc)': '취소 (Esc)',
-    'Cannot reach J.H AI Agent. Please start the Agent.': 'J.H AI Agent에 연결할 수 없습니다. 에이전트를 시작하세요.',
-    'Cannot reach J.H AI Agent. Start the Agent, then run Settings → General → Export Connection.': 'J.H AI Agent에 연결할 수 없습니다. 에이전트를 시작한 뒤 설정 → 일반 → 연결 정보 내보내기를 실행하세요.',
     'Choice': '선택',
     'Choose Folder': '폴더 선택',
     'Class definition': '클래스 정의',
@@ -514,5 +515,12 @@ export default {
     'Update Available': '업데이트 있음',
     'Version {v} is available. Download and install it now?': '버전 {v}을 사용할 수 있습니다. 지금 다운로드하여 설치할까요?',
     'You are on the latest version.': '최신 버전입니다.',
+    'J.H AI Agent is not installed': 'J.H AI Agent가 설치되어 있지 않습니다',
+    'J.H AI Agent is not installed. Download and install it, then try again.':
+        'J.H AI Agent가 설치되어 있지 않습니다. 다운로드하여 설치한 뒤 다시 시도하세요.',
+    'Open download page': '다운로드 페이지 열기',
+    'J.H AI Agent is not running': 'J.H AI Agent가 실행 중이 아닙니다',
+    'J.H AI Agent is not running. Start it now?': 'J.H AI Agent가 실행 중이 아닙니다. 지금 시작할까요?',
+    'Start J.H AI Agent': 'J.H AI Agent 시작',
 
 };

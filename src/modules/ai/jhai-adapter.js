@@ -50,10 +50,7 @@ class JhaiAdapter {
         this.protocolVersion = '2024-11-05';
 
         this.tools = new Map();          // name → { def, handler }
-        this.intents = new Map();        // id → intent object
         this.contextProvider = null;
-        this.resultRenderers = new Map();// kind → fn(payload, actions, envelope)
-        this.actionHandlers = new Map(); // type → fn(apply)
 
         this._ws = null;
         this._stopped = false;
@@ -79,30 +76,8 @@ class JhaiAdapter {
         return this;
     }
 
-    /** Register a named AI action. { id, title?, systemPrompt?, tools?[], resultKind? }. */
-    registerIntent(intent) {
-        if (!intent || !intent.id) throw new Error('registerIntent requires { id }');
-        this.intents.set(intent.id, intent);
-        return this;
-    }
-
     /** Provide live context (e.g. () => ({ app, windowId, documentId })). */
     setContextProvider(fn) { this.contextProvider = fn; return this; }
-
-    /** Renderer for a result kind: fn(payload, actions, envelope). */
-    onResult(kind, fn) { this.resultRenderers.set(kind, fn); return this; }
-
-    /** Handler that applies an action of `type`: fn(apply). */
-    registerActionHandler(type, fn) { this.actionHandlers.set(type, fn); return this; }
-
-    /** Apply an action object ({ label, apply:{ type, ... } }) via its handler. */
-    applyAction(action) {
-        const apply = action && action.apply ? action.apply : action;
-        const fn = apply && this.actionHandlers.get(apply.type);
-        if (fn) return fn(apply);
-        this._log(`No action handler for type "${apply && apply.type}"`);
-        return undefined;
-    }
 
     // ── Connection (MCP server role over outbound WS) ────────────────────────
 
@@ -206,137 +181,9 @@ class JhaiAdapter {
         return { content: [{ type: 'text', text }] };
     }
 
-    // ── Running tasks (intent / freeform) + result handling ──────────────────
-
-    /** Run a registered intent. Returns a promise that resolves with the result envelope (or null). */
-    async runIntent(intentId, { prompt, context } = {}) {
-        return this.runIntentTask(intentId, { prompt, context }).completed;
-    }
-
-    /** Freeform chat (no intent), still scoped to this app's tools + context. */
-    async chat(prompt, { context } = {}) {
-        return this.chatTask(prompt, { context }).completed;
-    }
-
-    /**
-     * Run a registered intent as a streaming task handle.
-     * @returns {{ taskId: Promise<string>, completed: Promise<object|null>, abort: function }}
-     *   - taskId   resolves with the server task id once created
-     *   - completed resolves with the final result envelope (or null)
-     *   - abort()  cancels the task (DELETE /api/tasks/:id) + closes the WS
-     *   onEvent(event, data) (if provided) receives EVERY task event
-     *   (status / thought / tool_call / stream / result / complete / error).
-     */
-    runIntentTask(intentId, { prompt, context, onEvent } = {}) {
-        const intent = this.intents.get(intentId);
-        if (!intent) throw new Error(`Unknown intent: ${intentId}`);
-        const inline = {
-            systemPrompt: intent.systemPrompt,
-            tools: intent.tools,
-            resultKind: intent.resultKind,
-            tier: intent.tier,
-        };
-        return this._runTask(prompt || intent.title || intentId, { intent: inline, context, onEvent });
-    }
-
-    /** Freeform task handle (no intent). Same shape as runIntentTask. */
-    chatTask(prompt, { context, onEvent } = {}) {
-        return this._runTask(prompt, { context, onEvent });
-    }
-
-    _runTask(prompt, { intent = null, context, onEvent } = {}) {
-        let abortFn = () => {};
-        let resolveTid;
-        const taskId = new Promise((r) => { resolveTid = r; });
-        const completed = (async () => {
-            const tid = await this._createTask(prompt, { intent, context });
-            resolveTid(tid);
-            const handle = this._subscribeTaskHandle(tid, onEvent);
-            abortFn = handle.abort;
-            return handle.completed;
-        })();
-        // Swallow unhandled rejection if the caller only uses the handle's completed.
-        taskId.catch(() => {});
-        return { taskId, completed, abort: () => abortFn() };
-    }
-
-    async _createTask(prompt, { intent = null, context } = {}) {
-        if (!this._fetch) throw new Error('No fetch implementation available');
-        const mcpContext = context || (this.contextProvider ? this.contextProvider() : null);
-        const behavior = { mcp_servers: [this.app] };
-        if (intent) behavior.intent = intent;
-        if (mcpContext) behavior.mcp_context = mcpContext;
-
-        const res = await this._fetch(`${this.baseUrl}/api/tasks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` },
-            body: JSON.stringify({ prompt, caller: this.app, behavior }),
-        });
-        if (!res.ok) throw new Error(`Task create failed: HTTP ${res.status}`);
-        const body = await res.json();
-        const taskId = body.task_id || body.taskId;
-        if (!taskId) throw new Error('Task create returned no task_id');
-        return taskId;
-    }
-
-    /** Cancel a running task on the server. */
-    async abortTask(taskId) {
-        if (!this._fetch || !taskId) return;
-        try {
-            await this._fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${this.token}` },
-            });
-        } catch (_) { /* best effort */ }
-    }
-
-    /**
-     * Subscribe to a task's WS. Forwards every event to onEvent, dispatches
-     * `result` to renderers, resolves on terminal event. Returns { completed, abort }.
-     */
-    _subscribeTaskHandle(taskId, onEvent) {
-        let innerAbort = () => this.abortTask(taskId);
-        const completed = new Promise((resolve, reject) => {
-            const base = httpToWs(this.baseUrl);
-            const url = `${base}/ws/tasks/${encodeURIComponent(taskId)}?token=${encodeURIComponent(this.token)}`;
-            const ws = new this._WS(url);
-            let lastEnvelope = null;
-            let settled = false;
-            const done = (fn, v) => { if (!settled) { settled = true; try { ws.close(); } catch (_) {} fn(v); } };
-
-            innerAbort = () => { this.abortTask(taskId); done(resolve, lastEnvelope); };
-
-            ws.onmessage = (ev) => {
-                let packet;
-                try { packet = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data)); } catch { return; }
-                const event = packet.event;
-                const data = packet.data || {};
-                if (onEvent) { try { onEvent(event, data); } catch (_) {} }
-                if (event === 'result' && data.envelope) {
-                    lastEnvelope = data.envelope;
-                    this._dispatchResult(data.envelope);
-                } else if (event === 'complete') {
-                    const finalEnv = lastEnvelope || { kind: 'markdown', summary: data.summary, payload: { md: data.summary || '' } };
-                    done(resolve, finalEnv);
-                } else if (event === 'error') {
-                    done(reject, new Error(data.error || 'task error'));
-                }
-            };
-            ws.onclose = () => done(resolve, lastEnvelope);
-            ws.onerror = () => { /* let onclose settle */ };
-        });
-        return { completed, abort: () => innerAbort() };
-    }
-
-    _dispatchResult(envelope) {
-        const fn = this.resultRenderers.get(envelope.kind);
-        if (fn) {
-            try { fn(envelope.payload, envelope.actions || [], envelope); }
-            catch (e) { this._log(`result renderer error: ${e && e.message}`); }
-        } else {
-            this._log(`No renderer for result kind "${envelope.kind}"`);
-        }
-    }
+    // Starting tasks (runIntent / chat) and rendering their result envelopes were
+    // removed with named intents (jh-ai-agent Report_20260913 §6-6). This copy
+    // is now only the MCP server role: JHEditor's tools, answered over the WS.
 
     _log(m) { if (this.onLog) this.onLog(`[jhai-adapter] ${m}`); }
 }

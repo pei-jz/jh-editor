@@ -285,3 +285,138 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
         Ok(())
     }
 }
+
+// ── J.H AI Agent — launch / install detection / download page ───────────────
+//
+// The editor talks to a SEPARATE desktop app (J.H AI Agent). The frontend used
+// to probe it at startup; now the probe happens on first AI use, and when the
+// agent is not there the frontend offers to start it — or, when it is not
+// installed, to open its download page. These commands are the backend half of
+// that: finding and launching an installed agent, and opening a URL in the
+// default browser.
+
+const JH_AGENT_REG_KEY: &str = r"Software\io.github.pei-jz.jhaiagent";
+
+/// Absolute path of the installed J.H AI Agent executable, if any.
+///
+/// The agent's NSIS hook records its install directory under the same key
+/// `is_installed()` reads for THIS app (jh-ai-agent/src-tauri/nsis/hooks.nsh),
+/// so this is the canonical way to find it. The binary name follows its
+/// `mainBinaryName` ("J.H AI Agent").
+#[cfg(windows)]
+fn jh_agent_exe_path() -> Option<String> {
+    use std::path::Path;
+
+    for hive in [
+        windows_registry::CURRENT_USER,
+        windows_registry::LOCAL_MACHINE,
+    ] {
+        let Ok(key) = hive.open(JH_AGENT_REG_KEY) else { continue };
+        let Ok(dir) = key.get_string("InstallLocation") else { continue };
+
+        let named = Path::new(&dir).join("J.H AI Agent.exe");
+        if named.exists() {
+            return Some(named.to_string_lossy().to_string());
+        }
+        // Fallback: any exe in the recorded install dir. The product name is
+        // stable, but this costs nothing and covers a future rename.
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.extension().and_then(|s| s.to_str()) == Some("exe") {
+                    return Some(p.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn jh_agent_exe_path() -> Option<String> {
+    let app = "/Applications/J.H AI Agent.app";
+    std::path::Path::new(app)
+        .exists()
+        .then(|| app.to_string())
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+fn jh_agent_exe_path() -> Option<String> {
+    None
+}
+
+/// Whether J.H AI Agent is installed (its install location resolves).
+#[command]
+pub fn is_jh_agent_installed() -> bool {
+    jh_agent_exe_path()
+        .map(|p| std::path::Path::new(&p).exists())
+        .unwrap_or(false)
+}
+
+/// Start J.H AI Agent. Fails when it is not installed (the frontend then
+/// points the user at the download page instead).
+#[command]
+pub fn launch_jh_agent() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let exe = jh_agent_exe_path()
+            .ok_or_else(|| "J.H AI Agent is not installed.".to_string())?;
+        std::process::Command::new(&exe)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if jh_agent_exe_path().is_none() {
+            return Err("J.H AI Agent is not installed.".to_string());
+        }
+        std::process::Command::new("open")
+            .arg("-a")
+            .arg("J.H AI Agent")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        Err("Launching J.H AI Agent is not supported on this platform.".to_string())
+    }
+}
+
+/// Open a URL in the default browser (the agent's download page).
+#[command]
+pub fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // explorer.exe hands http(s) URLs to the default browser. Passing the
+        // URL as an ARGUMENT avoids any shell interpolation (same reasoning as
+        // reveal_in_file_manager above).
+        let mut cmd = std::process::Command::new("explorer");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        cmd.arg(&url);
+        cmd.spawn().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
