@@ -30,6 +30,7 @@ clipboard. Ask for that string in every bug report.
 
 ```sh
 npm test                 # unit suite
+cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust unit tests (tauri build does not compile them)
 npm run test:coverage    # coverage gate on the logic layer
 npx playwright test      # browser-level UI wiring
 npm run tauri build      # the actual artefact

@@ -159,9 +159,17 @@ try {
     Push-Location $repo
     try {
         if (-not $SkipTests) {
-            Write-Step 'テスト'
+            Write-Step 'テスト (JS)'
             npm test
-            if ($LASTEXITCODE -ne 0) { Fail 'テストが落ちた' }
+            if ($LASTEXITCODE -ne 0) { Fail 'JS のテストが落ちた' }
+            Write-Ok '通過'
+
+            # tauri build はテストをコンパイルしない。ここで走らせないと、
+            # Rust のテストはコンパイルできなくなっても誰も気づかない
+            # (7ac1386 から 0.2.0 まで実際にそうなっていた)。
+            Write-Step 'テスト (Rust)'
+            cargo test --manifest-path src-tauri/Cargo.toml --lib
+            if ($LASTEXITCODE -ne 0) { Fail 'Rust のテストが落ちた' }
             Write-Ok '通過'
         } else {
             Write-Warn 'テストを飛ばした'

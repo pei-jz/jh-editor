@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { CodeFormatter } from '../src/modules/utils/CodeFormatter.js';
 
 describe('CodeFormatter', () => {
@@ -10,9 +10,17 @@ describe('CodeFormatter', () => {
     });
 
     it('should return original string if JSON is invalid', () => {
-        const input = '{invalid_json:]';
-        const result = CodeFormatter.format(input, 'json');
-        expect(result).toBe(input);
+        // formatJSON logs the parse error; that log is the expected path here,
+        // not a failure, so keep it out of the test output.
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const input = '{invalid_json:]';
+            const result = CodeFormatter.format(input, 'json');
+            expect(result).toBe(input);
+            expect(log).toHaveBeenCalledTimes(1);
+        } finally {
+            log.mockRestore();
+        }
     });
 
     it('should format XML correctly', () => {
