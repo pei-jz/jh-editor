@@ -106,7 +106,7 @@ describe('shiki is gone', () => {
     it('is not imported anywhere', () => {
         for (const f of [
             'src/modules/utils/SyntaxHighlighter.js',
-            'src/modules/editors/DiffEditor.js',
+            'src/modules/editors/MergeEditor.js',
             'src/modules/views/CodeMirrorView.js',
             'src/modules/views/MarkdownView.js',
             'src/modules/ui/InlineAI.js',

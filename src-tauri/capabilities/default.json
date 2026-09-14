@@ -29,6 +29,8 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-is-maximized",
+    "core:window:allow-set-background-color",
+    "core:webview:allow-set-webview-background-color",
     "fs:allow-stat",
     "updater:default",
     "process:allow-restart",

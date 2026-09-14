@@ -37,11 +37,12 @@ describe('a split shares the buffer', () => {
     // One object in two lists must be saved once, not twice — and the old
     // path-based dedup silently dropped whichever copy came second.
     it('is saved once, deduped by identity', () => {
-        const i = editor.indexOf('const seen = new Set();');
-        const block = editor.slice(i, editor.indexOf('\n        }', i));
-        expect(block).toContain('if (seen.has(file)) continue;');
-        expect(block).toContain('seen.add(file);');
-        expect(block).not.toContain('seen.has(file.path)');
+        // Close All, quit and Save All all go through saveFiles().
+        const i = editor.indexOf('export async function saveFiles(files)');
+        const block = editor.slice(i, editor.indexOf('\n}', i));
+        expect(block).toContain('[...new Set(files)]');
+        expect(block).not.toContain('.path)');
+        expect(editor).toContain('const result = await saveFiles(dirty);');
 
         const app = read('src/modules/core/App.js');
         expect(app).toContain('[...new Set([...(State.openFiles || []), ...(State.rightOpenFiles || [])])]');

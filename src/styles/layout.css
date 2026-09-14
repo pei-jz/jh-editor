@@ -160,6 +160,13 @@
     white-space: nowrap;
 }
 
+/* The unsaved marker is its own element, outside .tab-title, so the ellipsis
+   can never swallow it: with a long file name the "*" was the first thing cut. */
+.tab-dirty {
+    flex-shrink: 0;
+    margin-left: -6px; /* .tab's 8px gap is too wide for a suffix */
+}
+
 .tab-close {
     font-size: 12px;
     padding: 2px;

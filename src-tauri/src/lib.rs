@@ -117,6 +117,9 @@ pub fn run() {
         .manage(commands::large_file::LargeFileState::default())
         .manage(commands::large_file::EditableState::default())
         .manage(commands::window::PendingLaunch::default())
+        // Every webview (the main window and any opened later) learns the real
+        // paths of files dropped onto it. Idempotent across reloads.
+        .on_page_load(|webview, _payload| commands::file_drop::install(webview))
         .on_window_event(|window, event| {
             // Tear down a window's terminal and workspace entry when it closes,
             // so its shell process doesn't linger for the life of the app.

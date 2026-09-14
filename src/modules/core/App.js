@@ -3,7 +3,7 @@ import { EL } from './Constants.js';
 import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
-import { openFile, createNewFileAction, saveCurrentFile, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
+import { openFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -39,10 +39,10 @@ import { DailyNotes } from '../utils/DailyNotes.js';
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
 import { Toast } from '../ui/Toast.js';
+import { initDroppedFiles, isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
-import { setPaneActiveIndex } from './Panes.js';
 import { applyI18n, t } from '../utils/I18n.js';
 
 
@@ -176,8 +176,11 @@ async function bootstrap() {
     const _flush = () => { try { flushSession(); } catch (_) { /* ignore */ } };
     window.addEventListener('pagehide', _flush);
     window.addEventListener('beforeunload', _flush);
+    // Hidden also means "switched to another app", so only rewrite drafts that
+    // actually changed since the last write — see flushSession().
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') _flush();
+        if (document.visibilityState !== 'hidden') return;
+        try { flushSession({ onlyPending: true }); } catch (_) { /* ignore */ }
     });
 
     // 1. Custom Title Bar Controls
@@ -799,107 +802,57 @@ async function bootstrap() {
         }
     });
 
-    // Drag & Drop Listener
-    // Note: listen returns a Promise that resolves to an unlisten function.
-    // We should not await it blocking the rest of init if it takes time, but it's usually fast.
-    // However, to be safe and ensure it runs:
-    // Tauri v2 provides drop paths + position. Route by where the file was
-    // dropped: onto the tab bar → open the file(s); onto the editor → insert the
-    // (first) file's content at the caret, as before.
-    listen('tauri://drag-drop', async (event) => {
-        const paths = event.payload && event.payload.paths;
-        if (!paths || paths.length === 0) return;
+    // Files dragged in from outside the app open as tabs, wherever they land.
+    //
+    // Tauri's own drop event cannot be used: dragDropEnabled is off because its
+    // handler replaces WebView2's drop target, and the tabs and explorer need
+    // HTML5 drag-and-drop. The DOM drop carries no paths either — File.path is
+    // an Electron-only property, so the old fallback here only ever saw bare
+    // names and opened nothing — so DroppedFiles asks the host for them.
+    // Listening in the capture phase keeps CodeMirror from pasting the file's
+    // text where it was dropped instead.
+    initDroppedFiles();
 
-        // Physical → CSS pixels for elementFromPoint.
-        const dpr = window.devicePixelRatio || 1;
-        const pos = event.payload.position || { x: 0, y: 0 };
-        const el = document.elementFromPoint(pos.x / dpr, pos.y / dpr);
-        const onTabBar = !!(el && el.closest && (
-            el.closest('#tabs-container') || el.closest('#tabs-container-right') ||
-            el.closest('.tab') || el.closest('#tabs-bar') || el.closest('.tabs-bar') ||
-            el.closest('#explorer')
-        ));
-
+    const openDroppedPaths = async (paths) => {
         hideWelcomeScreen();
         const mainLayout = document.getElementById('main-layout');
         if (mainLayout) { mainLayout.style.display = 'flex'; window.dispatchEvent(new Event('resize')); }
-
-        if (onTabBar || !getCurrentView()) {
-            // Open the dropped file(s) as tabs.
-            paths.forEach(p => openFile(p));
-            return;
-        }
-
-        // Dropped on the editor: insert the first file's text at the caret.
-        const view = getCurrentView();
-        if (view && typeof view.insertTextAtCursor === 'function') {
-            try {
-                const res = await invoke('read_file_auto_detect', { path: paths[0] });
-                const content = (res && res.content) ? res.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n') : '';
-                view.insertTextAtCursor(content);
-            } catch (e) {
-                console.warn('Drop-insert failed, opening instead:', e);
-                paths.forEach(p => openFile(p));
-            }
-        } else {
-            paths.forEach(p => openFile(p));
-        }
-    }).catch(e => console.error('Failed to register drag-drop listener', e));
-
-    // With dragDropEnabled: false (required for HTML5 tab / explorer drag-and-
-    // drop on Windows), Tauri's tauri://drag-drop event no longer fires for OS
-    // file drops. Re-create the external-file-drop behaviour with plain HTML5
-    // events. WebView2 exposes the real filesystem path on File.path (non-
-    // standard but reliable there); other platforms fall back to File.name.
-    const extDropHandler = async (e) => {
-        const dt = e.dataTransfer;
-        if (!dt) return;
-        // Internal JHEditor drags (tabs / explorer rows) carry their own custom
-        // MIME types and are handled by their own drop handlers — leave them be.
-        if (dt.types && Array.from(dt.types).some(t => t.startsWith('application/x-jheditor') || t === 'application/x-editor-item')) return;
-        const files = Array.from(dt.files || []);
-        if (files.length === 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const paths = files.map(f => f.path || f.name).filter(Boolean);
-        if (paths.length === 0) return;
-        const el = e.target;
-        const onTabBar = !!(el && el.closest && (
-            el.closest('#tabs-container') || el.closest('#tabs-container-right') ||
-            el.closest('.tab') || el.closest('#tabs-bar') || el.closest('.tabs-bar') ||
-            el.closest('#explorer')
-        ));
-        hideWelcomeScreen();
-        const mainLayout = document.getElementById('main-layout');
-        if (mainLayout) { mainLayout.style.display = 'flex'; window.dispatchEvent(new Event('resize')); }
-        if (onTabBar || !getCurrentView()) {
-            paths.forEach(p => openFile(p));
-            return;
-        }
-        const view = getCurrentView();
-        if (view && typeof view.insertTextAtCursor === 'function') {
-            try {
-                const res = await invoke('read_file_auto_detect', { path: paths[0] });
-                const content = (res && res.content) ? res.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n') : '';
-                view.insertTextAtCursor(content);
-            } catch (err) {
-                console.warn('Drop-insert failed, opening instead:', err);
-                paths.forEach(p => openFile(p));
-            }
-        } else {
-            paths.forEach(p => openFile(p));
+        for (const path of paths) {
+            // A folder is not something to open in a tab.
+            let isDir = false;
+            try { isDir = await invoke('path_is_dir', { path }); } catch (_) { /* try it as a file */ }
+            if (!isDir) await openFile(path);
         }
     };
-    // Only needs to fire when actual files come in; guard on the dragenter so
-    // we don't fight the internal tab/explorer drag sources.
-    document.addEventListener('drop', extDropHandler);
-    document.addEventListener('dragover', (e) => {
+
+    // Places with their own use for a dropped file keep it: the terminal types
+    // the path, and a Markdown block editor saves an image next to the note.
+    const keepsOwnDrop = (target, files) => {
+        if (!target || typeof target.closest !== 'function') return false;
+        if (EL.terminal && EL.terminal.container && EL.terminal.container.contains(target)) return true;
+        return !!target.closest('.md-block, .block-editor')
+            && files.length > 0 && files.every((f) => /^image\//.test(f.type || ''));
+    };
+
+    window.addEventListener('dragover', (e) => {
+        if (!isExternalFileDrag(e.dataTransfer)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    }, true);
+
+    window.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
-        if (!dt) return;
-        const types = dt.types ? Array.from(dt.types) : [];
-        if (types.some(t => t.startsWith('application/x-jheditor') || t === 'application/x-editor-item')) return;
-        if (types.includes('Files') && (dt.files && dt.files.length > 0)) e.preventDefault();
-    });
+        if (!isExternalFileDrag(dt)) return;
+        const files = Array.from(dt.files || []);
+        if (!files.length || keepsOwnDrop(e.target, files)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        resolveDroppedPaths(files).then((paths) => {
+            if (paths.length) return openDroppedPaths(paths);
+            Toast.info(t('Could not open the dropped files.'));
+            return undefined;
+        });
+    }, true);
 
     // Subsequent launches (a second `JHEditor.exe <path>`) are handled entirely
     // in the backend single-instance callback: it focuses the window that owns
@@ -1010,63 +963,6 @@ async function checkLaunchArgs() {
     return false;
 }
 
-/**
- * A buffer that has never been written to disk, so saving it must ask the user
- * where to put it. Same test `saveCurrentFile()` applies before opening its
- * Save As dialog — a relative path counts as "not yet on disk".
- */
-function needsSaveLocation(file) {
-    const p = file && file.path;
-    return !(p && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/')));
-}
-
-/**
- * Save every dirty buffer, whichever pane it is in.
- *
- * Each file is made active first because saveCurrentFile() works on the active
- * tab — saving them in place would write the front file's text once per dirty
- * buffer.
- *
- * Two things make this more than a loop:
- *
- *  - Buffers that already have a path go FIRST. They save without asking
- *    anything, and the old order could reach an untitled buffer, have the user
- *    cancel its Save As, and abandon the quit with work still unwritten that
- *    needed no dialog at all.
- *  - Cancelling a Save As is reported separately from a save that FAILED.
- *    Both left the buffer dirty, so both used to come back as "Could not
- *    save" — telling the user something went wrong when they had simply
- *    changed their mind.
- *
- * Returns `{ failed, cancelled }`, both arrays of display names.
- */
-async function saveAllDirty(dirty) {
-    const ordered = [
-        ...dirty.filter((f) => !needsSaveLocation(f)),
-        ...dirty.filter((f) => needsSaveLocation(f)),
-    ];
-
-    const failed = [];
-    const cancelled = [];
-
-    for (const file of ordered) {
-        // Captured before saving: a successful Save As gives the file a path,
-        // so asking afterwards would always answer "no".
-        const willPrompt = needsSaveLocation(file);
-        const label = file.name || file.path || 'Untitled';
-        try {
-            const pane = (State.rightOpenFiles || []).includes(file) ? 'right' : 'left';
-            const index = (pane === 'right' ? State.rightOpenFiles : State.openFiles).indexOf(file);
-            if (index >= 0) setPaneActiveIndex(pane, index);
-            await saveCurrentFile();
-            if (file.isDirty) (willPrompt ? cancelled : failed).push(label);
-        } catch (e) {
-            failed.push(label);
-        }
-    }
-    return { failed, cancelled };
-}
-
 function setupCloseListener() {
     try {
         const appWindow = getCurrentWindow();
@@ -1076,7 +972,7 @@ function setupCloseListener() {
             // A buffer open in both panes is one object in two lists; the Set
             // keeps it from being listed — and saved — twice.
             const dirty = [...new Set([...(State.openFiles || []), ...(State.rightOpenFiles || [])])]
-                .filter((f) => f && f.isDirty && (!f.type || f.type === 'file'));
+                .filter((f) => f && f.isDirty && (!f.type || f.type === 'file' || f.type === 'diff'));
             if (!dirty.length) return;
 
             event.preventDefault();
@@ -1109,26 +1005,13 @@ function setupCloseListener() {
             });
 
             if (choice === 'save') {
-                const { failed, cancelled } = await saveAllDirty(dirty);
+                const result = await saveFiles(dirty);
                 // A save that did not happen must not be followed by a quit:
                 // the user was told why, and quitting now loses exactly the
                 // work they just asked to keep.
-                if (failed.length || cancelled.length) {
-                    const parts = [];
-                    if (failed.length) {
-                        parts.push(t('Could not save:') + `\n  • ${failed.join('\n  • ')}`);
-                    }
-                    if (cancelled.length) {
-                        parts.push(t('No location was chosen for:') + `\n  • ${cancelled.join('\n  • ')}`);
-                    }
-                    await showAlert(
-                        parts.join('\n\n') + '\n\n' + t('Nothing was closed.'),
-                        {
-                            title: failed.length ? t('Save Failed') : t('Save Incomplete'),
-                            // A cancelled Save As is a choice, not a fault.
-                            kind: failed.length ? 'error' : 'warning',
-                        },
-                    );
+                if (result.failed.length || result.cancelled.length) {
+                    const { message, title, kind } = unsavedReport(result);
+                    await showAlert(message, { title, kind });
                     return;
                 }
                 appWindow.destroy();

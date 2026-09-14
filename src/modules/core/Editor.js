@@ -19,8 +19,10 @@ import { CodeMirrorView } from '../views/CodeMirrorView.js';
 import { LargeFileEditView } from '../views/LargeFileEditView.js';
 import { MarkdownView } from '../views/MarkdownView.js';
 import { StructureView } from '../views/StructureView.js';
+import { markSaved, isAtSavedState } from '../utils/DirtyState.js';
 import { CsvView } from '../views/CsvView.js';
-import { DiffEditor } from '../editors/DiffEditor.js';
+import { MergeEditor } from '../editors/MergeEditor.js';
+import { makeSide, mergeDirty, sideDirty } from '../utils/MergeSides.js';
 import { CompareView } from '../editors/CompareView.js';
 import { TaskNotificationPanel } from '../ai/TaskNotificationPanel.js';
 import { SearchResultsView } from '../views/SearchResultsView.js';
@@ -120,121 +122,165 @@ export function toggleWhitespace() {
     if (indicator) indicator.classList.toggle('active', State.showWhitespace);
 }
 
-export function openDiffEditor(original, modified, filePath, onApply, onChange, onSave, diffOptions) {
-    // Normalize: null/undefined content (e.g. created-only files) would crash
-    // the DiffEditor (it calls .length on both strings).
-    original = original ?? '';
-    modified = modified ?? '';
-    const fileName = filePath ? String(filePath).split(/[\\/]/).pop() : 'temp';
-    const virtualPath = `diff://${filePath || 'temp'}`;
-    const opts = diffOptions || {};
-
-    // "Apply & Save" button: apply the result and dismiss the diff tab.
-    // The diff lives in `pane` (possibly the right split pane), so the close
-    // must target that pane's own tab list — State.activeTabIndex belongs to
-    // the OTHER pane when the right pane is active.
-    const makeApply = (fileRef) => (finalText) => {
-        fileRef.isDirty = false;
-        if (onApply) onApply(finalText);
-        const idx = openFiles.indexOf(fileRef);
-        if (idx >= 0) closeTab(idx, pane);
-        else closeTab(State.activeTabIndex, pane);
-    };
-
-    // Open in the ACTIVE pane: the diff tab must be visible where the user is
-    // looking. `State.openFiles` (left) is the fallback when no split is active.
+/**
+ * Open a comparison tab: two texts side by side, where each side says whether
+ * it can be edited and where saving it writes.
+ *
+ *   left / right: { label, text, writable?, target? }
+ *     target { kind: 'buffer', file }                  an open editor tab
+ *     target { kind: 'path', path, encoding?, eol? }   a file on disk
+ *     target { kind: 'custom', save: async (text) }    anything else
+ *   A side without a target is read-only, whatever `writable` says.
+ *
+ * `id` names the comparison: opening the same one again brings its tab to the
+ * front, and replaces the texts only when nothing in it is unsaved.
+ */
+export function openMergeTab({ id, title, path = '', left, right, nav = null }) {
     const pane = activePane();
     const openFiles = paneFiles(pane);
+    const virtualPath = `diff://${id || path || 'temp'}`;
+    const merge = { title: title || '', path: path || '', nav, left: makeSide(left), right: makeSide(right) };
 
-    // Check if diff tab for this file already exists
-    const existingIndex = openFiles.findIndex(f => f.path === virtualPath);
+    const existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
     if (existingIndex >= 0) {
-        const ex = openFiles[existingIndex];
-        ex.originalContent = original;
-        ex.modifiedContent = modified;
-        ex.isDirty = true;
-        ex.onChange = onChange;
-        ex.onSave = onSave;
-        ex.onApply = makeApply(ex);
-        if (diffOptions) ex.diffOptions = diffOptions;
+        const existing = openFiles[existingIndex];
+        const keep = mergeDirty(existing.merge);
+        if (!keep) {
+            existing.merge = merge;
+            existing.name = merge.title || existing.name;
+            existing.isDirty = false;
+        }
         setActiveTab(existingIndex, pane);
-        return;
+        if (!keep) renderEditor(pane);
+        return existing;
     }
 
     const file = {
-        name: `Diff: ${fileName}`,
+        name: merge.title || 'Diff',
         path: virtualPath,
         content: '',
         type: 'diff',
-        // Mark dirty so the tab shows a "changes to review" indicator until the
-        // diff is applied/saved back to the source file.
-        isDirty: true,
         viewMode: 'diff',
-        originalFilePath: filePath, // Store original path for saving
-
-        // Custom properties for DiffEditor
-        originalContent: original,
-        modifiedContent: modified,
-        onChange: onChange,
-        // Ctrl+S: write the merged result back to the source WITHOUT closing the
-        // diff tab (closing on save was landing users on the welcome screen).
-        onSave: onSave,
-        // Extra DiffEditor options (compareMode, leftLabel, rightLabel, onBack, etc.)
-        diffOptions: opts,
+        isDirty: false,
+        merge,
     };
-    file.onApply = makeApply(file);
-
-    // Add to open files and set active
     openFiles.push(file);
     setActiveTab(openFiles.length - 1, pane);
-}
-
-// Apply a merged diff result back to the file being edited: update the open
-// tab's content (live feedback for accept/reject) and, when saving, write it to
-// disk and clear the dirty flag — instead of prompting to save a separate file.
-async function applyDiffToSource(sourceFile, text, doSave, hasRejections) {
-    if (!sourceFile) return;
-    // Resolve the real (non-diff) tab for this file, in case a fresh object was passed.
-    const target = State.openFiles.find(f => f === sourceFile)
-        || State.openFiles.find(f => f.type !== 'diff' && f.path && sourceFile.path && f.path === sourceFile.path)
-        || sourceFile;
-
-    target.content = text;
-    // Drop any stale CM6 history snapshot so re-opening shows the new content.
-    if (target._cmStateJSON) target._cmStateJSON = null;
-
-    if (doSave && target.path) {
-        let toWrite = text;
-        if (target.eol && target.eol !== '\n') {
-            toWrite = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, target.eol);
-        }
-        try {
-            await FS.writeFile(target.path, toWrite, target.encoding);
-            target.isDirty = false;
-        } catch (e) {
-            console.error('applyDiffToSource: save failed', e);
-            if (window.showToast) window.showToast(`Save failed: ${e.message || e}`);
-        }
-    } else {
-        // Only mark dirty when there are rejected hunks — when all hunks are
-        // accepted the merged content matches the disk original, so no * marker.
-        target.isDirty = !!hasRejections;
-    }
-    // Also update the diff tab's own dirty flag to match.
-    const diffFile = State.openFiles.find(f => f.type === 'diff' && f.originalFilePath === target.path);
-    if (diffFile) {
-        diffFile.isDirty = !!hasRejections;
-    }
-    renderTabs();
-    // If the source tab happens to be the visible view, refresh it.
-    const activeFile = State.openFiles[State.activeTabIndex];
-    if (activeFile === target) renderEditor();
+    return file;
 }
 
 /**
- * Open an empty side-by-side comparison tab. The user pastes free-form text into
- * the left/right panes and presses 比較 to diff them — unlike openDiffEditor,
- * nothing is tied to a file on disk. Re-uses any existing compare tab.
+ * Save a comparison tab: every side with unsaved edits is written to its own
+ * target, and a read-only side never is. Resolves true when nothing in the tab
+ * is left unsaved.
+ */
+async function saveMergeTab(file) {
+    const merge = file && file.merge;
+    if (!merge) return false;
+    let ok = true;
+    for (const key of ['left', 'right']) {
+        const side = merge[key];
+        if (!sideDirty(side)) continue;
+        try {
+            if (await writeMergeSide(side)) side.savedText = side.text;
+            else ok = false;
+        } catch (err) {
+            console.error('Editor: saving a comparison side failed:', err);
+            showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
+            ok = false;
+        }
+    }
+    file.isDirty = mergeDirty(merge);
+    const view = viewShowing(file);
+    if (view && typeof view.refreshState === 'function') view.refreshState();
+    renderTabs();
+    return ok && !file.isDirty;
+}
+
+/** Redraw every pane whose front tab is `file`, so it shows the new text. */
+function rerenderPanesShowing(file) {
+    for (const pane of State.splitMode ? ['left', 'right'] : ['left']) {
+        if (paneFiles(pane)[paneActiveIndex(pane)] === file) renderEditor(pane);
+    }
+}
+
+/**
+ * Write one side of a comparison to its target. Resolves false when the user
+ * declined or the write did not happen (they have been told why).
+ */
+async function writeMergeSide(side) {
+    const target = side.target || {};
+    if (target.kind === 'custom') {
+        await target.save(side.text);
+        return true;
+    }
+
+    const allOpen = [...State.openFiles, ...State.rightOpenFiles];
+    let buffer = null;
+    let path = null;
+    if (target.kind === 'buffer' && target.file) {
+        if (allOpen.includes(target.file)) buffer = target.file;
+        else path = target.file.path; // its tab was closed since: write the file
+    } else if (target.kind === 'path') {
+        path = target.path;
+    }
+    // A file that is open in a tab is saved through that tab, never around it.
+    if (!buffer && path) {
+        const open = findOpenFile(String(path).replace(/\\/g, '/'));
+        if (open) buffer = open.file;
+    }
+
+    if (buffer) {
+        // The comparison took a copy. If the tab was edited since, saving would
+        // replace those edits without a word.
+        if (buffer.content !== side.savedText) {
+            const name = buffer.name || FS.getBasename(buffer.path || '') || t('Untitled');
+            const replace = await showConfirm(
+                t('{name} was edited in its own tab after this comparison was opened. Saving replaces those edits with the text shown here.', { name }),
+                { title: t('Unsaved Changes'), kind: 'warning', okLabel: t('Save'), cancelLabel: t('Cancel') },
+            );
+            if (!replace) return false;
+        }
+        buffer.content = side.text;
+        if (buffer._cmStateJSON) buffer._cmStateJSON = null;
+        // No view: the tab's own view (if showing) holds the old text and must
+        // not merge anything back in. It is redrawn once the file is written.
+        const saved = await saveFile(buffer, null);
+        rerenderPanesShowing(buffer);
+        return saved && !buffer.isDirty;
+    }
+
+    if (!path) return false;
+    const encoding = target.encoding || (target.file && target.file.encoding) || 'UTF-8';
+    const eol = target.eol || (target.file && target.file.eol) || '\n';
+
+    // Not open anywhere: write the file directly, with the encoding and line
+    // endings it was read with, and not over a version that changed on disk
+    // after the comparison read it.
+    let disk = null;
+    try {
+        disk = (await FS.readFileWithEncoding(path, encoding)).content;
+    } catch (_) {
+        try { disk = await FS.readFileText(path); } catch (__) { disk = null; }
+    }
+    if (disk !== null && disk !== undefined && FS.normalizeToLF(disk) !== side.savedText) {
+        const name = FS.getBasename(path);
+        const overwrite = await showConfirm(
+            t('{name} has changed on disk since this comparison was opened. Saving replaces that version with the text shown here.', { name }),
+            { title: t('File Changed on Disk'), kind: 'warning', okLabel: t('Overwrite'), cancelLabel: t('Cancel') },
+        );
+        if (!overwrite) return false;
+    }
+    let content = side.text;
+    if (eol !== '\n') content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, eol);
+    await FS.writeFile(path, content, encoding);
+    return true;
+}
+
+/**
+ * Open an empty side-by-side comparison tab. Text pasted or typed into either
+ * pane is compared as it changes — unlike openMergeTab, nothing is tied to a
+ * file on disk. Re-uses any existing compare tab.
  */
 export function openCompareEditor() {
     const virtualPath = 'compare://scratch';
@@ -371,22 +417,21 @@ export async function closeAllTabs(action = 'prompt') {
     const hasDirty = allFiles.some(f => f.isDirty);
     
     if (action === true || action === 'save') {
-        // One buffer open in both panes is now literally one object, so
-        // identity dedups it exactly — and there is no longer a second,
-        // divergent copy whose edits a path-based dedup could silently drop.
-        const seen = new Set();
-        for (const file of allFiles) {
-            if (!file.isDirty || !file.path) continue;
-            if (seen.has(file)) continue;
-            seen.add(file);
-            if (file.isEditing && file.editId != null) {
-                // Rope-backed huge file: write via the backend, not file.content.
-                try { await invoke('editable_save', { id: file.editId, path: file.path }); } catch (e) { console.error(e); }
-                file.isDirty = false;
-            } else if (!file.isLarge) {
-                await FS.writeFile(file.path, file.content);
-                file.isDirty = false;
-            }
+        // Through the same save as Ctrl+S, buffer by buffer. This loop used to
+        // write file.content itself: LF line endings and the default encoding
+        // over CRLF / Shift_JIS files, "diff://" tabs written as if they were
+        // paths, untitled buffers skipped and then closed unsaved, a failed
+        // rope save counted as saved, and no check for changes on disk.
+        //
+        // Comparison tabs count once a side has unsaved edits; compare-text
+        // and agent tabs have nothing on disk to lose.
+        const dirty = allFiles.filter((f) => f && f.isDirty && (!f.type || f.type === 'file' || f.type === 'diff'));
+        const result = await saveFiles(dirty);
+        if (result.failed.length || result.cancelled.length) {
+            // Closing now would lose exactly the work the user asked to keep.
+            const { message, title, kind } = unsavedReport(result);
+            await showAlert(message, { title, kind });
+            return false;
         }
     } else if (action === 'prompt' && hasDirty) {
         const proceed = await showConfirm(t('Some files have unsaved changes. Close all tabs and discard them?'), {
@@ -467,15 +512,10 @@ export function renderEditor(targetPane = null) {
 
         // Special Case: Diff View
         if (file.type === 'diff' || file.viewMode === 'diff') {
-            const extraOpts = file.diffOptions || {};
-            const view = new DiffEditor(
-                container,
-                file.originalContent,
-                file.modifiedContent,
-                file.originalFilePath,
-                file.onApply,
-                { onChange: file.onChange, ...extraOpts }
-            );
+            const view = new MergeEditor(container, file, {
+                onDirtyChange: () => renderTabs(),
+                onSave: () => saveFile(file),
+            });
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -975,6 +1015,10 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
             };
         }
 
+        // What is on disk right now. Edits are compared against it, so undoing
+        // back to this text clears the tab's "*" again.
+        if (!fileData.isLarge) markSaved(fileData);
+
         if (forcePlainText) fileData.viewMode = 'text';
 
         // Re-check after the await: the tab may have appeared meanwhile.
@@ -1062,7 +1106,7 @@ window.app.getLineCount = () => {
 };
 
 window.app.openFile = openFile;
-window.app.openDiffEditor = openDiffEditor;
+window.app.openMergeTab = openMergeTab;
 window.app.compareTwoFiles = compareTwoFiles;
 
 /** Open a folder-vs-folder comparison in its own tab. */
@@ -1271,12 +1315,14 @@ export async function closeTab(index, pane = activePane()) {
     if (index < 0 || index >= openFiles.length) return;
     const file = openFiles[index];
 
-    // Virtual tabs (diff/compare/agent) aren't real files — their dirty flag is
-    // just a review indicator, so don't nag with a discard prompt on close.
-    const isVirtualTab = file.type === 'diff' || file.type === 'compare' || file.type === 'agent';
+    // Compare-text and agent tabs hold nothing to save. A comparison tab does
+    // once a side is edited, and its "*" then means exactly that.
+    const isVirtualTab = file.type === 'compare' || file.type === 'agent';
 
     if (file.isDirty && !isVirtualTab) {
-        const displayName = file.path ? file.path.split(/[\\/]/).pop() : 'Untitled';
+        const displayName = file.type === 'diff'
+            ? file.name
+            : (file.path ? file.path.split(/[\\/]/).pop() : 'Untitled');
         // Three buttons, not two. The obvious answer to "this has unsaved
         // changes" is to save it, and offering only Discard or Cancel made the
         // destructive option the only way forward.
@@ -1292,11 +1338,10 @@ export async function closeTab(index, pane = activePane()) {
         });
         if (choice === 'cancel' || !choice) return;
         if (choice === 'save') {
-            // Bring the tab to the front first: saveCurrentFile works on the
-            // ACTIVE file, and closing a background tab must not save the one
-            // the user happens to be looking at.
-            setPaneActiveIndex(pane, index);
-            await saveCurrentFile();
+            // Save THIS tab's buffer, wherever it is. Fronting it by index
+            // first did not switch the active pane, so closing a tab in the
+            // other half of a split saved the wrong file.
+            await saveFile(file);
             // Still dirty means the save was cancelled or failed; the user has
             // already been told why, and closing now would lose the work.
             if (file.isDirty) return;
@@ -1386,8 +1431,19 @@ export function renderTabs(targetPane = null) {
             }
             const titleSpan = document.createElement('span');
             titleSpan.className = 'tab-title';
-            titleSpan.textContent = fileName + (file.isDirty ? ' *' : '');
+            titleSpan.textContent = fileName;
             tab.appendChild(titleSpan);
+            // Not part of the title: .tab-title ellipsizes, and a suffix inside
+            // it was the first thing cut off — on exactly the long names where
+            // nothing else on the tab shows whether it has unsaved changes.
+            if (file.isDirty) {
+                const dirtyMark = document.createElement('span');
+                dirtyMark.className = 'tab-dirty';
+                dirtyMark.textContent = '*';
+                tab.appendChild(dirtyMark);
+            }
+            // The name may be cut short; the full path stays one hover away.
+            tab.title = file.path && !file.path.includes('://') ? file.path : fileName;
 
             tab.onclick = () => setActiveTab(index, pane);
             tab.ondragstart = (e) => {
@@ -2237,6 +2293,12 @@ export async function saveCurrentFileAs() {
         if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
         return;
     }
+    // Same as saveCurrentFile: pull in edits a view is still holding.
+    const sourceView = getCurrentView();
+    if (sourceView && typeof sourceView.commitPendingEdits === 'function'
+        && sourceView.commitPendingEdits() === false) {
+        return;
+    }
     contentToSave = source.content ?? '';
 
     const defaultName = source.name || (source.path ? FS.getBasename(source.path) : 'Untitled.txt');
@@ -2327,118 +2389,228 @@ export async function createNewFileOfType(ext = 'txt', initialContent = '') {
 }
 
 export async function saveCurrentFile() {
-    if (State.activeTabIndex >= 0) {
-        // Ensure all code blocks are unfolded before saving to prevent data loss
-        const currentView = getCurrentView();
-        if (currentView && typeof currentView.unfoldAll === 'function') {
-            currentView.unfoldAll();
-        }
+    const file = getActiveFile();
+    if (!file) return false;
+    return saveFile(file, getCurrentView());
+}
 
-        const file = getActiveFile();
+/** The view currently showing `file`, or null when its tab is not in front. */
+function viewShowing(file) {
+    if (leftView && State.openFiles[State.activeTabIndex] === file) return leftView;
+    if (rightView && State.splitMode && State.rightOpenFiles[State.rightActiveTabIndex] === file) return rightView;
+    return null;
+}
 
-        // Virtual scratch tabs (free-form compare) have no on-disk backing.
-        if (file.type === 'compare' || file.viewMode === 'compare') return;
+/**
+ * A buffer that has never been written to disk, so saving it must ask the user
+ * where to put it. A relative path counts as "not yet on disk".
+ */
+export function needsSaveLocation(file) {
+    // A comparison saves into its sides' own targets.
+    if (file && file.type === 'diff') return false;
+    const p = file && file.path;
+    return !(p && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/')));
+}
 
-        // Diff tab: Ctrl+S writes the accept/reject result back to the source
-        // file and keeps the diff open (instead of prompting for a separate file
-        // or closing the tab, which dropped users onto the welcome screen).
-        if (file.type === 'diff' || file.viewMode === 'diff') {
-            const view = getCurrentView();
-            if (typeof file.onSave === 'function' && view && typeof view.getMergedContent === 'function') {
-                await file.onSave(view.getMergedContent());
-                file.isDirty = false;
-                renderTabs();
-            }
-            // Diffs without a source-save hook (Git view / AI proposals): Ctrl+S
-            // is a no-op. NEVER close the tab on save — closing could drop the
-            // user onto the welcome screen.
-            return;
-        }
+/**
+ * Save one buffer: the one passed in, whichever pane it is in and whether or
+ * not its tab is in front.
+ *
+ * This used to exist only as saveCurrentFile(), which saves the ACTIVE tab.
+ * Everything that saves some other buffer had to work around that. Closing a
+ * tab and quitting fronted the buffer by setting the tab index, without
+ * switching the active PANE, so in a split they wrote the other pane's file.
+ * Close All skipped this function entirely and wrote file.content raw: LF line
+ * endings and the default encoding over CRLF / Shift_JIS files.
+ *
+ * `view` is the view showing the file, if any; it may hold edits that are not
+ * in file.content yet. `refresh: false` skips the explorer / git refresh so a
+ * batch can do it once.
+ *
+ * Resolves true when the buffer is on disk as shown, false when the save was
+ * cancelled, refused or failed (the user has already been told why).
+ */
+export async function saveFile(file, view = viewShowing(file), { refresh = true } = {}) {
+    if (!file) return false;
 
-        // Huge file in rope edit mode: the content lives in Rust, not file.content.
-        // Delegate to the edit view, which commits the window and writes the rope.
-        if (file.isEditing && file.editId != null) {
-            const view = getCurrentView();
-            if (view && typeof view.save === 'function') await view.save();
-            return;
-        }
+    // Ensure all code blocks are unfolded before saving to prevent data loss
+    if (view && typeof view.unfoldAll === 'function') {
+        view.unfoldAll();
+    }
 
-        // Large files opened read-only via the mmap backend have no content in
-        // JS (file.content === ''). Saving would truncate the file — block it.
-        if (file.isLarge) {
-            if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
-            return;
-        }
+    // Views that hold edits outside file.content (the structure view's
+    // source pane) merge them now. false means the edit could not be
+    // merged, and writing the file would silently drop it — so stop.
+    if (view && typeof view.commitPendingEdits === 'function'
+        && view.commitPendingEdits() === false) {
+        return false;
+    }
 
-        // Handle Untitled/New Files
-        // Handle Untitled/New Files or relative paths that aren't yet anchored to disk
-        const isAbsolute = file.path && (file.path.match(/^[a-zA-Z]:[\\/]/) || file.path.startsWith('/'));
-        if (!isAbsolute) {
+    // Virtual scratch tabs (free-form compare) have no on-disk backing.
+    if (file.type === 'compare' || file.viewMode === 'compare') return false;
+
+    // Comparison tab: each side with unsaved edits goes to its own target.
+    if (file.type === 'diff' || file.viewMode === 'diff') {
+        return saveMergeTab(file);
+    }
+
+    // Huge file in rope edit mode: the content lives in Rust, not file.content.
+    // The edit view commits its window and writes the rope. A tab that is not
+    // in front has no window to commit, so the backend writes it directly.
+    if (file.isEditing && file.editId != null) {
+        if (view && typeof view.save === 'function') {
+            await view.save();
+        } else {
             try {
-                const { save } = await import('@tauri-apps/plugin-dialog');
-                // Use default name if set, or Untitled
-                const defaultName = file.name || 'Untitled.txt';
-                const defaultPath = FS.joinPath(State.currentDir, defaultName);
-
-                const selectedPath = await save({
-                    defaultPath: defaultPath,
-                    filters: [{
-                        name: 'All Files',
-                        extensions: ['*']
-                    }]
-                });
-
-                if (!selectedPath) return; // User cancelled
-
-                file.path = selectedPath;
-                file.name = FS.getBasename(selectedPath);
-                // Continue to save...
-            } catch (e) {
-                console.error('Save Dialog Failed', e);
-                return;
+                await invoke('editable_save', { id: file.editId, path: file.path });
+                file.isDirty = false;
+            } catch (err) {
+                console.error('Editor: editable_save failed:', err);
+                showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
             }
         }
+        return !file.isDirty;
+    }
 
-        let contentToSave = file.content;
-        if (file.eol && file.eol !== '\n') {
-            // Normalize to LF FIRST so any stray CR/CRLF already in the buffer
-            // isn't doubled (a plain \n→\r\n on content that already has \r\n
-            // produces \r\r\n, which reloads as a blank line between every row).
-            contentToSave = contentToSave.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, file.eol);
-        }
+    // Large files opened read-only via the mmap backend have no content in
+    // JS (file.content === ''). Saving would truncate the file — block it.
+    if (file.isLarge) {
+        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        return false;
+    }
 
-        // Has the file moved under us since it was read? Without this the save
-        // simply overwrote whatever was there — a `git pull`, another editor or
-        // a formatter all lose their work silently, and the only warning was a
-        // watcher that (see syncWatchers) was not even running on this tab.
-        if (!await confirmOverwrite(file)) return;
-
+    // Untitled/new files, or relative paths not yet anchored to disk.
+    if (needsSaveLocation(file)) {
         try {
-            await FS.writeFile(file.path, contentToSave, file.encoding);
-            file.isDirty = false;
-            // The disk now holds this text — the crash-recovery draft is stale.
-            try { dropDraft(file); } catch (_) { /* non-critical */ }
-        } catch (err) {
-            console.error('Editor: Failed to save file:', err);
-            showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
-            return;
+            const { save } = await import('@tauri-apps/plugin-dialog');
+            const defaultName = file.name || 'Untitled.txt';
+            const defaultPath = FS.joinPath(State.currentDir, defaultName);
+
+            const selectedPath = await save({
+                defaultPath: defaultPath,
+                filters: [{
+                    name: 'All Files',
+                    extensions: ['*']
+                }]
+            });
+
+            if (!selectedPath) return false; // User cancelled
+
+            file.path = selectedPath;
+            file.name = FS.getBasename(selectedPath);
+        } catch (e) {
+            console.error('Save Dialog Failed', e);
+            return false;
         }
+    }
 
-        // Update stats
-        const stats = await FS.getFileStats(file.path);
-        if (stats) file.stats = stats;
+    let contentToSave = file.content;
+    if (file.eol && file.eol !== '\n') {
+        // Normalize to LF FIRST so any stray CR/CRLF already in the buffer
+        // isn't doubled (a plain \n→\r\n on content that already has \r\n
+        // produces \r\r\n, which reloads as a blank line between every row).
+        contentToSave = contentToSave.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, file.eol);
+    }
 
-        // If it was a new file, we might need to refresh explorer and update tab title
+    // Has the file moved under us since it was read? Without this the save
+    // simply overwrote whatever was there — a `git pull`, another editor or
+    // a formatter all lose their work silently, and the only warning was a
+    // watcher that (see syncWatchers) was not even running on this tab.
+    if (!await confirmOverwrite(file)) return false;
+
+    try {
+        await FS.writeFile(file.path, contentToSave, file.encoding);
+        file.isDirty = false;
+        markSaved(file);
+        // The disk now holds this text — the crash-recovery draft is stale.
+        try { dropDraft(file); } catch (_) { /* non-critical */ }
+    } catch (err) {
+        console.error('Editor: Failed to save file:', err);
+        showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
+        return false;
+    }
+
+    // Update stats
+    const stats = await FS.getFileStats(file.path);
+    if (stats) file.stats = stats;
+
+    if (refresh) {
+        // If it was a new file, the explorer needs to show it.
         await loadExplorer(true);
-
-        // Refresh git status if available
         if (window.app.gitPanel) {
             window.app.gitPanel.refresh();
         }
-
-        renderTabs();
-        updateStatusBar();
     }
+
+    renderTabs();
+    updateStatusBar();
+    return true;
+}
+
+/**
+ * Save several buffers, whichever panes they are in.
+ *
+ * Two things make this more than a loop:
+ *
+ *  - Buffers that already have a path go FIRST. They save without asking
+ *    anything, and the old order could reach an untitled buffer, have the user
+ *    cancel its Save As, and abandon the close with work still unwritten that
+ *    needed no dialog at all.
+ *  - Cancelling a Save As is reported separately from a save that FAILED.
+ *    Both leave the buffer dirty, but only one of them is a fault.
+ *
+ * Returns `{ failed, cancelled }`, both arrays of display names.
+ */
+export async function saveFiles(files) {
+    // A buffer open in both panes is one object in two lists.
+    const unique = [...new Set(files)].filter(Boolean);
+    const ordered = [
+        ...unique.filter((f) => !needsSaveLocation(f)),
+        ...unique.filter((f) => needsSaveLocation(f)),
+    ];
+
+    const failed = [];
+    const cancelled = [];
+
+    for (const file of ordered) {
+        // Captured before saving: a successful Save As gives the file a path,
+        // so asking afterwards would always answer "no".
+        const willPrompt = needsSaveLocation(file);
+        const label = file.name || file.path || t('Untitled');
+        let saved = false;
+        try {
+            saved = await saveFile(file, undefined, { refresh: false });
+        } catch (e) {
+            console.error('Editor: save failed:', e);
+        }
+        if (!saved || file.isDirty) (willPrompt ? cancelled : failed).push(label);
+    }
+
+    if (ordered.length) {
+        try { await loadExplorer(true); } catch (_) { /* non-critical */ }
+        if (window.app && window.app.gitPanel) window.app.gitPanel.refresh();
+    }
+    return { failed, cancelled };
+}
+
+/**
+ * What to tell the user after saveFiles() left something unsaved. Shared by
+ * Close All and quit, which both close nothing in that case.
+ */
+export function unsavedReport({ failed, cancelled }) {
+    const parts = [];
+    if (failed.length) {
+        parts.push(t('Could not save:') + `\n  • ${failed.join('\n  • ')}`);
+    }
+    if (cancelled.length) {
+        parts.push(t('No location was chosen for:') + `\n  • ${cancelled.join('\n  • ')}`);
+    }
+    return {
+        message: parts.join('\n\n') + '\n\n' + t('Nothing was closed.'),
+        title: failed.length ? t('Save Failed') : t('Save Incomplete'),
+        // A cancelled Save As is a choice, not a fault.
+        kind: failed.length ? 'error' : 'warning',
+    };
 }
 
 // Markdown-specific block methods (delegated to currentView)
@@ -2583,7 +2755,9 @@ export function setFileEol(eol) {
     if (file.isLarge || file.isEditing) return; // huge-file EOL is handled in Rust
     if (file.eol === eol) return;
     file.eol = eol;
-    if (!file.isDirty) { file.isDirty = true; renderTabs(); }
+    // Switching back to the line ending the file was saved with is no change.
+    const dirty = !isAtSavedState(file);
+    if (file.isDirty !== dirty) { file.isDirty = dirty; renderTabs(); }
     // Refresh the CM6 EOL whitespace marker (↓/↵/←) if shown.
     const view = getCurrentView();
     if (view && typeof view.setWhitespace === 'function') view.setWhitespace();
@@ -2820,28 +2994,26 @@ export async function compareWithDisk(file) {
             const res = await FS.readFileAutoDetect(file.path);
             savedContent = FS.normalizeToLF(res.content);
         }
-        // Diff the on-disk version (original) against the in-edit content
-        // (modified). Apply/Save writes back to THIS file; accept/reject feeds
-        // the merged result back into the editing tab live.
-        openDiffEditor(
-            savedContent,
-            file.content,
-            file.path,
-            (finalText) => applyDiffToSource(file, finalText, true),                       // Apply & Save button (apply + close)
-            (mergedText, hasRejections) => applyDiffToSource(file, mergedText, false, hasRejections), // live feedback on accept/reject
-            (mergedText) => applyDiffToSource(file, mergedText, true)                       // Ctrl+S: save to source, keep open
-        );
+        const name = FS.getBasename(file.path);
+        // Left: what is on disk, read-only — this comparison reviews the edits.
+        // Right: the tab itself; saving it writes the file.
+        openMergeTab({
+            id: `disk:${file.path}`,
+            title: t('Compare: {name}', { name }),
+            path: file.path,
+            left: { label: t('{name} (saved on disk)', { name }), text: savedContent },
+            right: {
+                label: t('{name} (open in editor)', { name }),
+                text: file.content,
+                writable: true,
+                target: { kind: 'buffer', file },
+            },
+        });
     } catch (err) {
         console.error('Failed to compare with disk version:', err);
     }
 }
 
-/**
- * Diff two files picked in the explorer against each other.
- * Read-only comparison: neither file is the "current" editing buffer, so the
- * Accept/Reject/Apply affordances are hidden (compareMode) rather than writing
- * a merge back to a file the user never opened.
- */
 /**
  * Reopen the tabs from the previous run of this workspace, and bring back any
  * unsaved edits that were still pending when the app went away.
@@ -2875,6 +3047,7 @@ export async function restoreSession() {
                 isDirty: false,
                 stats,
             };
+            markSaved(file); // the disk text, before a recovered draft replaces it
             if (entry.viewMode) file.viewMode = entry.viewMode;
 
             // Unsaved edits win over the on-disk text.
@@ -2975,17 +3148,24 @@ export async function compareTwoFiles(leftPath, rightPath) {
         ]);
         const leftName = FS.getBasename(leftPath);
         const rightName = FS.getBasename(rightPath);
-        openDiffEditor(
-            FS.normalizeToLF(leftRes.content),
-            FS.normalizeToLF(rightRes.content),
-            rightPath,           // drives syntax highlighting
-            null, null, null,
-            {
-                compareMode: true,
-                leftLabel: leftName,
-                rightLabel: rightName,
-            }
-        );
+        // Two files on disk: both sides can be edited and saved back.
+        openMergeTab({
+            id: `files:${leftPath}|${rightPath}`,
+            title: t('Compare: {name}', { name: `${leftName} ↔ ${rightName}` }),
+            path: rightPath, // drives syntax highlighting
+            left: {
+                label: String(leftPath),
+                text: leftRes.content,
+                writable: true,
+                target: { kind: 'path', path: leftPath, encoding: leftRes.encoding, eol: leftRes.eol },
+            },
+            right: {
+                label: String(rightPath),
+                text: rightRes.content,
+                writable: true,
+                target: { kind: 'path', path: rightPath, encoding: rightRes.encoding, eol: rightRes.eol },
+            },
+        });
     } catch (err) {
         console.error('Failed to compare the two selected files:', err);
         if (window.showToast) window.showToast('Failed to compare the files');
@@ -3006,14 +3186,26 @@ export async function compareWithFile(file) {
             // the current file) instead of assuming UTF-8.
             const otherRes = await FS.readFileAutoDetect(selectedPath);
             const otherContent = FS.normalizeToLF(otherRes.content);
-            openDiffEditor(
-                otherContent,
-                file.content,
-                file.path,
-                (finalText) => applyDiffToSource(file, finalText, true),
-                (mergedText, hasRejections) => applyDiffToSource(file, mergedText, false, hasRejections),
-                (mergedText) => applyDiffToSource(file, mergedText, true)
-            );
+            const name = FS.getBasename(file.path || file.name || '');
+            // Both sides can be edited: the chosen file is saved back to disk,
+            // the tab through its own save.
+            openMergeTab({
+                id: `file:${selectedPath}|${file.path || file.name}`,
+                title: t('Compare: {name}', { name }),
+                path: file.path || file.name || '',
+                left: {
+                    label: String(selectedPath),
+                    text: otherContent,
+                    writable: true,
+                    target: { kind: 'path', path: selectedPath, encoding: otherRes.encoding, eol: otherRes.eol },
+                },
+                right: {
+                    label: t('{name} (open in editor)', { name }),
+                    text: file.content,
+                    writable: true,
+                    target: { kind: 'buffer', file },
+                },
+            });
         }
     } catch (err) {
         console.error('Failed to compare file:', err);

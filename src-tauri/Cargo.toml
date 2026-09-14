@@ -56,6 +56,10 @@ ropey = "1.6"
 # する。src-tauri/nsis/hooks.nsh が書いた値を読む。
 [target.'cfg(windows)'.dependencies]
 windows-registry = "0.6"
+# Dropped-file paths from WebView2 (commands/file_drop.rs). The same versions
+# wry already uses, so nothing new is built or downloaded.
+webview2-com = "0.38"
+windows-core = "0.61"
 
 [profile.release]
 lto = true

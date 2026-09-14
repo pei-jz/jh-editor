@@ -1513,10 +1513,13 @@ class GitPanel {
     async _showCompareDiff(from, to, file) {
         const original = await this._readFileAtRev(from.rev, file);
         const modified = await this._readFileAtRev(to.rev, file);
-        window.app.openDiffEditor(original, modified, file, null, null, null, {
-            compareMode: true,
-            leftLabel: `${file} (${from.label})`,
-            rightLabel: `${file} (${to.label})`,
+        // Two revisions: history, so both sides are read-only.
+        window.app.openMergeTab({
+            id: `git:${from.rev}..${to.rev}:${file}`,
+            title: `Diff: ${String(file).split(/[\\/]/).pop()}`,
+            path: file,
+            left: { label: `${file} (${from.label})`, text: original },
+            right: { label: `${file} (${to.label})`, text: modified },
         });
     }
 
@@ -1762,10 +1765,13 @@ class GitPanel {
             // Get this commit's version
             const modified = await invoke('git_show', { path: State.gitRoot, revision: hash, file: file });
 
-            window.app.openDiffEditor(original, modified, file, null, null, null, {
-                compareMode: true,
-                leftLabel: `${file} (Before — ${hash.substring(0, 7)}^)`,
-                rightLabel: `${file} (After — ${hash.substring(0, 7)})`
+            // A commit's own change: history, so both sides are read-only.
+            window.app.openMergeTab({
+                id: `git:${hash}:${file}`,
+                title: `Diff: ${String(file).split(/[\\/]/).pop()}`,
+                path: file,
+                left: { label: `${file} (Before — ${hash.substring(0, 7)}^)`, text: original },
+                right: { label: `${file} (After — ${hash.substring(0, 7)})`, text: modified },
             });
         } catch (e) {
             console.error('Failed to show file diff:', e);
@@ -1877,7 +1883,7 @@ class GitPanel {
     }
 
     async showDiff(filePath, isStaged) {
-        if (!State.gitRoot || !window.app?.openDiffEditor) return;
+        if (!State.gitRoot || !window.app?.openMergeTab) return;
         
         try {
             // Original: Fetch from HEAD
@@ -1892,14 +1898,17 @@ class GitPanel {
                 original = ''; // new file, nothing in HEAD
             }
 
-            let modified = "";
+            let modified = '';
+            // Where saving the right-hand side writes. Only the working tree is
+            // a file; HEAD and the index are shown, never written.
+            let rightTarget = null;
             if (isStaged) {
                 // Modified: Fetch from Index
                 try {
-                    modified = await invoke('git_show', { 
-                        path: State.gitRoot, 
-                        revision: '', 
-                        file: filePath 
+                    modified = await invoke('git_show', {
+                        path: State.gitRoot,
+                        revision: '',
+                        file: filePath
                     });
                 } catch (e) {
                     modified = '';
@@ -1912,6 +1921,14 @@ class GitPanel {
                 try {
                     const fileData = await invoke('read_file_auto_detect', { path: fullPath });
                     modified = fileData ? fileData.content : '';
+                    if (fileData) {
+                        rightTarget = {
+                            kind: 'path',
+                            path: fullPath,
+                            encoding: fileData.encoding || 'UTF-8',
+                            eol: fileData.eol || (/\r\n/.test(modified) ? '\r\n' : '\n'),
+                        };
+                    }
                 } catch (e) {
                     modified = '';
                 }
@@ -1921,19 +1938,29 @@ class GitPanel {
             const fileList = this._getDiffFileList(isStaged);
             const currentIndex = fileList.findIndex(f => f.path === filePath);
 
-            // Expose navigation callbacks so DiffEditor can use Ctrl+Down/Up
-            window.app._gitDiffNav = {
+            // Ctrl+Down / Ctrl+Up inside the comparison move between files.
+            const nav = {
                 fileList,
                 currentIndex,
                 isStaged,
                 onNextFile: () => this._navigateDiffFile(fileList, currentIndex, 1, isStaged),
                 onPrevFile: () => this._navigateDiffFile(fileList, currentIndex, -1, isStaged),
             };
+            window.app._gitDiffNav = nav;
 
-            window.app.openDiffEditor(original, modified, filePath, async (editedContent) => {
-                // Option to save changes back to disk? 
-                // For now, Git Diff is mostly for viewing.
-                // But we could implement 'Apply' if needed.
+            const name = String(filePath).split(/[\\/]/).pop();
+            window.app.openMergeTab({
+                id: `git:${isStaged ? 'index' : 'worktree'}:${filePath}`,
+                title: `Diff: ${name}`,
+                path: filePath,
+                nav,
+                left: { label: `${filePath} (HEAD)`, text: original },
+                right: {
+                    label: `${filePath} (${isStaged ? 'Index' : 'Working Tree'})`,
+                    text: modified,
+                    writable: !!rightTarget,
+                    target: rightTarget,
+                },
             });
         } catch (e) {
             console.error('Failed to show diff:', e);
