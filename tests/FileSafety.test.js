@@ -223,7 +223,7 @@ describe('structural', () => {
     const app = read('src/modules/core/App.js');
 
     it('checks the disk before writing, not after', () => {
-        const i = editor.indexOf('export async function saveCurrentFile()');
+        const i = editor.indexOf('export async function saveFile(');
         const save = editor.slice(i, editor.indexOf('\n}', i));
         const guard = save.indexOf('confirmOverwrite(file)');
         const write = save.indexOf('FS.writeFile(file.path');
@@ -238,9 +238,9 @@ describe('structural', () => {
         expect(block).toContain("label: t('Save and close'), value: 'save', primary: true");
         expect(block).toContain("value: 'discard'");
         expect(block).toContain("value: 'cancel'");
-        // saveCurrentFile works on the ACTIVE file, so closing a background tab
-        // must front it first or it saves the wrong buffer.
-        expect(block).toContain('setPaneActiveIndex(pane, index);');
+        // The tab's own buffer is saved. Fronting it by index first did not
+        // switch the active pane, so in a split it saved the wrong buffer.
+        expect(block).toContain('await saveFile(file);');
         // A save that did not happen must not be followed by a close.
         expect(block).toContain('if (file.isDirty) return;');
     });
@@ -250,25 +250,26 @@ describe('structural', () => {
         const block = app.slice(i, app.indexOf('\n        });', i));
         // Labels go through t() now, so match the key rather than the literal.
         expect(block).toContain("label: t('Save all and quit'), value: 'save', primary: true");
-        expect(block).toContain('saveAllDirty(dirty)');
+        expect(block).toContain('saveFiles(dirty)');
         expect(block).toContain('State.rightOpenFiles');
         expect(block).toContain('names.slice(0, 6)');
         // Quitting after a failed save loses exactly the work the user just
         // asked to keep.
         // A cancelled Save As is reported apart from a save that FAILED —
         // both leave the buffer dirty, but only one of them is a fault.
-        expect(block).toContain('const { failed, cancelled } = await saveAllDirty(dirty)');
-        expect(block).toContain('if (failed.length || cancelled.length)');
-        expect(block).toContain('Nothing was closed.');
+        expect(block).toContain('const result = await saveFiles(dirty)');
+        expect(block).toContain('if (result.failed.length || result.cancelled.length)');
+        expect(block).toContain('unsavedReport(result)');
     });
 
-    // Saving them in place would write the front file's text once per buffer.
-    it('fronts each file before saving it', () => {
-        const i = app.indexOf('async function saveAllDirty(dirty)');
-        const fn = app.slice(i, app.indexOf('\n}', i));
-        expect(fn).toContain('setPaneActiveIndex(pane, index)');
-        expect(fn).toContain('await saveCurrentFile()');
-        expect(fn).toContain('failed.push');
+    // Each buffer is saved as itself. Fronting it by tab index did not switch
+    // the active pane, so in a split the other pane's file was written instead.
+    it('saves each buffer as itself, not whatever is in front', () => {
+        const i = editor.indexOf('export async function saveFiles(files)');
+        const fn = editor.slice(i, editor.indexOf('\n}', i));
+        expect(fn).toContain('await saveFile(file');
+        expect(fn).not.toContain('saveCurrentFile');
+        expect(fn).toContain('failed');
     });
 
     it('warns a dirty buffer what a reload costs it', () => {

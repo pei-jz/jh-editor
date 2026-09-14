@@ -1,3 +1,4 @@
+import { resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { Terminal } from '@xterm/xterm';
 import { t } from '../utils/I18n.js';
 import '@xterm/xterm/css/xterm.css';
@@ -495,15 +496,16 @@ class TerminalManager {
             if (!files.length) return;
             e.preventDefault();
             e.stopPropagation();
-            // WebView2 exposes the real path on File.path (non-standard but
-            // reliable there); elsewhere only the name is available.
-            const text = files
-                .map((f) => f.path || f.name)
-                .filter(Boolean)
-                .map(quoteForShell)
-                .join(' ');
-            if (text) this.pasteText(text);
-            this.term?.focus();
+            // The DOM drop carries names only; the host knows the full paths.
+            // A bare name is still typed where it cannot tell.
+            resolveDroppedPaths(files).then((paths) => {
+                const text = (paths.length ? paths : files.map((f) => f.name))
+                    .filter(Boolean)
+                    .map(quoteForShell)
+                    .join(' ');
+                if (text) this.pasteText(text);
+                this.term?.focus();
+            });
         });
     }
 

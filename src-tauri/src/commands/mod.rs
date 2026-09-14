@@ -7,3 +7,4 @@ pub mod lsp;
 pub mod git;
 pub mod large_file;
 pub mod window;
+pub mod file_drop;

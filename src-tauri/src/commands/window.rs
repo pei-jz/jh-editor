@@ -18,6 +18,18 @@ pub struct PendingLaunch {
 
 static WINDOW_SEQ: AtomicUsize = AtomicUsize::new(1);
 
+/// WebView2 browser arguments. Must match `additionalBrowserArgs` in
+/// tauri.conf.json exactly: webviews sharing a user data folder must be created
+/// with identical environment options, or the later window fails to open.
+///
+/// The first three are wry's defaults, which any explicit value replaces.
+/// CalculateNativeWinOcclusion is off because, with it on, a window fully
+/// covered by another app counts as hidden and its rendered frames are
+/// discarded; switching back then shows a blank window until a large document
+/// has been repainted from scratch.
+pub const WEBVIEW2_BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion";
+
 /// Case/slash-insensitive: is `file` located inside directory `dir`?
 fn is_under(dir: &str, file: &str) -> bool {
     if dir.is_empty() {
@@ -51,6 +63,7 @@ pub fn create_window(app: &AppHandle, path: &str) -> Result<String, String> {
         .inner_size(1000.0, 700.0)
         .decorations(false)
         .visible(false) // the frontend shows it after boot (matches window[0])
+        .additional_browser_args(WEBVIEW2_BROWSER_ARGS)
         .build()
         .map_err(|e| e.to_string())?;
     Ok(label)

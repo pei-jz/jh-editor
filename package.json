@@ -38,6 +38,7 @@
     "@codemirror/language": "^6.12.4",
     "@codemirror/legacy-modes": "^6.5.3",
     "@codemirror/lint": "^6.9.7",
+    "@codemirror/merge": "^6.12.2",
     "@codemirror/search": "^6.7.1",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@jh/ai-client": "file:../jh-ai-agent/packages/jh-ai-client",

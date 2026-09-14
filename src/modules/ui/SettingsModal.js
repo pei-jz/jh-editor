@@ -18,6 +18,7 @@ import {
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
 import { THEMES, themeClasses, isKnownTheme, DEFAULT_THEME } from '../utils/Themes.js';
+import { syncNativeBackground } from '../utils/NativeBackground.js';
 
 /**
  * Fill in the About block at the bottom of the General tab.
@@ -1459,6 +1460,11 @@ export function applyTheme(theme) {
     // this the open editors keep the previous theme's token colours until the
     // tab is reopened. CodeMirrorView listens and reconfigures in place.
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
+
+    // The native window shows through wherever the page has no frame yet (for
+    // example on returning to the app after another window covered it). Keep
+    // that the theme's colour instead of WebView2's default white.
+    syncNativeBackground();
     
     // Update terminal theme if initialized (with a small delay to ensure CSS classes are applied)
     setTimeout(() => {

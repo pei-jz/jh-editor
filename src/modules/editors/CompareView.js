@@ -1,165 +1,85 @@
-import { DiffEditor } from './DiffEditor.js';
-import { iconEl } from '../ui/Icons.js';
+import { MergeEditor } from './MergeEditor.js';
+import { makeSide } from '../utils/MergeSides.js';
 import { t } from '../utils/I18n.js';
 
 /**
- * CompareView — an empty, file-independent diff workspace.
+ * CompareView — a scratch comparison: two editable panes, nothing on disk.
  *
- * The user pastes arbitrary text into two full-height panes and presses 「比較」
- * to swap the whole view over to a full-height diff (rather than squeezing the
- * diff into the lower half). A 「編集に戻る」 button returns to the editable panes.
- * Left/right text lives on the tab's file object so switching tabs keeps it.
+ * It used to be two textareas and a Compare button that swapped the screen for
+ * a read-only diff, with "Back to Edit" to change anything. The comparison view
+ * edits in place now, so text is pasted straight into either side and the
+ * differences follow as you type. The text lives on the tab (compareLeft /
+ * compareRight), so switching tabs keeps it; being scratch, it is never
+ * "unsaved".
  */
 export class CompareView {
     constructor(container, options = {}) {
         this.container = container;
         this.options = options;
         this.file = null;
-        this.diffEditor = null;
+        this.editor = null;
     }
 
     render(content, file) {
         this.file = file;
-        this.container.classList.add('compare-view');
-        // Open straight into the diff if both sides already hold text (tab re-open).
-        if (file && (file.compareLeft || file.compareRight)) {
-            this.renderResultMode();
-        } else {
-            this.renderEditMode();
+        if (this.editor) {
+            this.editor.destroy();
+            this.editor = null;
         }
-    }
-
-    // ── Edit mode: two full-height editable panes + toolbar ──────────────────
-    renderEditMode() {
-        if (this.diffEditor) { this.diffEditor.destroy(); this.diffEditor = null; }
         this.container.innerHTML = '';
-        // DiffEditor sets inline layout styles on the shared container; clear them
-        // so the edit-mode layout (driven by .compare-view / .compare-root) applies.
-        this.container.removeAttribute('style');
-        this.container.classList.add('compare-view');
 
-        const root = document.createElement('div');
-        root.className = 'compare-root';
-
-        const toolbar = document.createElement('div');
-        toolbar.className = 'compare-toolbar';
-
-        const compareBtn = document.createElement('button');
-        compareBtn.className = 'compare-btn compare-btn-primary';
-        compareBtn.textContent = t('Compare (Ctrl+Enter)');
-        compareBtn.onclick = () => this.runCompare();
-
-        const swapBtn = document.createElement('button');
-        swapBtn.className = 'compare-btn';
-        swapBtn.className = (swapBtn.className || '') + ' jh-icon-row';
-        swapBtn.replaceChildren(iconEl('swap', { size: 12 }),
-            document.createTextNode(t('Swap Sides')));
-        swapBtn.onclick = () => {
-            const l = this.leftInput.value;
-            this.leftInput.value = this.rightInput.value;
-            this.rightInput.value = l;
-            this._syncToFile();
+        file.merge = {
+            title: t('Compare Scratch Text'),
+            path: '',
+            nav: null,
+            left: makeSide({
+                label: t('Left'), text: file.compareLeft || '', writable: true, live: true,
+                onLive: (value) => { file.compareLeft = value; },
+            }),
+            right: makeSide({
+                label: t('Right'), text: file.compareRight || '', writable: true, live: true,
+                onLive: (value) => { file.compareRight = value; },
+            }),
         };
 
-        const clearBtn = document.createElement('button');
-        clearBtn.className = 'compare-btn';
-        clearBtn.textContent = t('Clear');
-        clearBtn.onclick = () => {
-            this.leftInput.value = '';
-            this.rightInput.value = '';
-            this._syncToFile();
-            this.leftInput.focus();
-        };
-
-        toolbar.appendChild(compareBtn);
-        toolbar.appendChild(swapBtn);
-        toolbar.appendChild(clearBtn);
-
-        const inputPanel = document.createElement('div');
-        inputPanel.className = 'compare-input-panel';
-
-        const makeSide = (labelText, value, key) => {
-            const col = document.createElement('div');
-            col.className = 'compare-input-col';
-
-            const label = document.createElement('div');
-            label.className = 'compare-input-label';
-            label.textContent = labelText;
-
-            const ta = document.createElement('textarea');
-            ta.className = 'compare-input';
-            ta.spellcheck = false;
-            ta.value = value || '';
-            ta.placeholder = t('Paste or type text here…');
-            ta.addEventListener('input', () => { if (this.file) this.file[key] = ta.value; });
-            ta.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    this.runCompare();
-                }
-            });
-
-            col.appendChild(label);
-            col.appendChild(ta);
-            return { col, ta };
-        };
-
-        const left = makeSide('Left', this.file ? this.file.compareLeft : '', 'compareLeft');
-        const right = makeSide('Right', this.file ? this.file.compareRight : '', 'compareRight');
-        this.leftInput = left.ta;
-        this.rightInput = right.ta;
-
-        inputPanel.appendChild(left.col);
-        inputPanel.appendChild(right.col);
-
-        root.appendChild(toolbar);
-        root.appendChild(inputPanel);
-        this.container.appendChild(root);
+        this.editor = new MergeEditor(this.container, file, {
+            extraActions: [
+                {
+                    label: t('Swap Sides'),
+                    onClick: () => {
+                        const left = file.compareLeft || '';
+                        file.compareLeft = file.compareRight || '';
+                        file.compareRight = left;
+                        this.render(content, file);
+                    },
+                },
+                {
+                    label: t('Clear'),
+                    onClick: () => {
+                        file.compareLeft = '';
+                        file.compareRight = '';
+                        this.render(content, file);
+                    },
+                },
+            ],
+        });
     }
 
-    _syncToFile() {
-        if (!this.file) return;
-        this.file.compareLeft = this.leftInput ? this.leftInput.value : '';
-        this.file.compareRight = this.rightInput ? this.rightInput.value : '';
-    }
-
-    runCompare() {
-        this._syncToFile();
-        const leftText = this.file ? (this.file.compareLeft || '') : '';
-        const rightText = this.file ? (this.file.compareRight || '') : '';
-        if (leftText === '' && rightText === '') {
-            this.leftInput && this.leftInput.focus();
-            return;
-        }
-        this.renderResultMode();
-    }
-
-    // ── Result mode: full-height diff with a back-to-edit button ─────────────
-    renderResultMode() {
-        if (this.diffEditor) { this.diffEditor.destroy(); this.diffEditor = null; }
-        this.container.innerHTML = '';
-        const leftText = this.file ? (this.file.compareLeft || '') : '';
-        const rightText = this.file ? (this.file.compareRight || '') : '';
-        this.diffEditor = new DiffEditor(
-            this.container,
-            leftText,
-            rightText,
-            '',
-            null,
-            {
-                compareMode: true,
-                leftLabel: 'Left',
-                rightLabel: 'Right',
-                onBack: () => this.renderEditMode()
-            }
-        );
-    }
+    copy() { return this.editor && this.editor.copy(); }
+    cut() { return this.editor && this.editor.cut(); }
+    paste() { return this.editor && this.editor.paste(); }
+    undo() { if (this.editor) this.editor.undo(); }
+    redo() { if (this.editor) this.editor.redo(); }
+    focus() { if (this.editor) this.editor.focus(); }
+    getDiagnostics() { return []; }
 
     // Compare tabs hold no on-disk content, so there is nothing to flush here.
     applyChanges() { /* no-op */ }
 
     destroy() {
-        if (this.diffEditor) { this.diffEditor.destroy(); this.diffEditor = null; }
-        if (this.container) this.container.classList.remove('compare-view');
+        if (this.editor) {
+            this.editor.destroy();
+            this.editor = null;
+        }
     }
 }

@@ -14,6 +14,7 @@ import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { Navigation } from '../utils/Navigation.js';
 import { showAlert } from '../ui/Dialog.js';
+import { isAtSavedState } from '../utils/DirtyState.js';
 
 const debounce = (func, wait) => {
     let timeout;
@@ -200,6 +201,9 @@ export class StructureView extends BaseView {
                         }
                     },
                     (node) => {
+                        // Selecting another node replaces the source pane, so
+                        // whatever was typed into it goes into the tree first.
+                        this.commitPendingEdits();
                         this.currentSelectedNode = node;
                         this.renderRightPane(rightPaneContent);
                     },
@@ -283,6 +287,7 @@ export class StructureView extends BaseView {
                 this.cmView.destroy();
                 this.cmView = null;
             }
+            this._sourceBaseline = null;
             sourceWrapper.innerHTML = `
                 <div style="padding: 20px; color: var(--text-color); font-family: var(--font-primary); text-align: center; margin-top: 50px;">
                     <h4 style="color: var(--accent-color); margin-bottom: 10px;">⚠️ Incomplete Data</h4>
@@ -306,7 +311,12 @@ export class StructureView extends BaseView {
             isDirty: false
         };
 
-        this.cmView = new CodeMirrorView(sourceWrapper, { renderTabs: false });
+        // What the pane started from. "Pending edits" means the text differs
+        // from this — which is also what keeps the tab's "*" up while typing.
+        this._sourceBaseline = fragment;
+        // CodeMirrorView calls renderTabs after every document change. The pane
+        // edits a detached copy, so that call is the only sign of an edit.
+        this.cmView = new CodeMirrorView(sourceWrapper, { renderTabs: () => this._onSourceEdited() });
         this.cmView.render(fragment, dummyFile, this.currentType);
     }
 
@@ -324,18 +334,60 @@ export class StructureView extends BaseView {
             if (newNode) {
                 this.updateNode(this.currentSelectedNode.id, newNode);
             }
+            this._sourceBaseline = newValue;
+            return true;
         } catch (err) {
             showAlert('Invalid format: ' + err.message, { title: 'Structure', kind: 'error' });
             console.error(err);
+            return false;
+        }
+    }
+
+    /** True when the source pane holds text not yet merged into the tree. */
+    _hasPendingSourceEdits() {
+        const ev = this.cmView && this.cmView.editorView;
+        return !!(ev && this.currentSelectedNode && typeof this._sourceBaseline === 'string'
+            && ev.state.doc.toString() !== this._sourceBaseline);
+    }
+
+    _sourcePaneHasFocus() {
+        const ev = this.cmView && this.cmView.editorView;
+        return !!(ev && ev.hasFocus);
+    }
+
+    /**
+     * Merge the source pane into the tree and file.content.
+     *
+     * The pane edits a detached fragment, so until this runs the file does not
+     * contain what was typed. Saving used to write the old text: Ctrl+S is a
+     * GLOBAL shortcut bound straight to saveCurrentFile, and the one route that
+     * did merge (handleShortcut) was never reached from inside the pane.
+     *
+     * Returns false when the text does not parse; the caller must not then
+     * write the file as though the edit had been kept.
+     */
+    commitPendingEdits() {
+        if (!this._hasPendingSourceEdits()) return true;
+        return this.applyChanges(this.cmView.editorView.state.doc.toString());
+    }
+
+    /** The source pane changed: keep the tab's "*" in step with it. */
+    _onSourceEdited() {
+        const file = this.currentFile;
+        if (!file) return;
+        const dirty = this._hasPendingSourceEdits() || !isAtSavedState(file);
+        if (file.isDirty !== dirty) {
+            file.isDirty = dirty;
+            if (this.onRenderTabs) this.onRenderTabs();
         }
     }
     handleShortcut(cmd, e) {
         if (cmd === 'structure:save' || cmd === 'app:save') {
-           if (this.cmView) {
-               this.applyChanges(this.cmView.editorView.state.doc.toString());
-               window.dispatchEvent(new CustomEvent('app:save-shortcut')); 
-           }
-           return true;
+            // saveCurrentFile merges the source pane itself (commitPendingEdits),
+            // so saving from the tree and from the pane behave the same — and
+            // saving works with no node open, which it used to skip.
+            window.dispatchEvent(new CustomEvent('app:save-shortcut'));
+            return true;
         } else if (cmd === 'app:copy') {
             this.copy();
             return true;
@@ -359,7 +411,11 @@ export class StructureView extends BaseView {
 
     undo() {
         const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+        if (this._sourcePaneHasFocus()) {
+            // The source pane has its own history. Ctrl+Z there used to roll
+            // back the TREE instead of the text being typed.
+            this.cmView.undo();
+        } else if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
             document.execCommand('undo');
         } else if (this.editor && this.editor.undo) {
             if (this.editor.undo()) {
@@ -370,7 +426,9 @@ export class StructureView extends BaseView {
 
     redo() {
         const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+        if (this._sourcePaneHasFocus()) {
+            this.cmView.redo();
+        } else if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
             document.execCommand('redo');
         } else if (this.editor && this.editor.redo) {
             if (this.editor.redo()) {
@@ -456,6 +514,12 @@ export class StructureView extends BaseView {
             console.warn('StructureView: Paste failed or empty clipboard', err);
         }
         if (!text) return;
+
+        // Source pane (CodeMirror 6): paste into the text, not onto the tree node.
+        if (this._sourcePaneHasFocus()) {
+            this.cmView.replaceSelectedText(text);
+            return;
+        }
 
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
             const start = active.selectionStart;
@@ -637,6 +701,10 @@ export class StructureView extends BaseView {
             this._cleanupEvents();
             this._cleanupEvents = null;
         }
+        // Switching tabs destroys this view and the source pane with it. Merge
+        // what was typed first, so the tab keeps the edit and Save All /
+        // close-with-save still see it.
+        try { this.commitPendingEdits(); } catch (e) { console.error('StructureView: commit on destroy failed', e); }
         window.removeEventListener('shortcutTriggered', this.boundShortcutHandler);
         // Save the tree scroll position so reopening this tab restores it.
         if (this.currentFile && this.editor && this.editor.elements && this.editor.elements.viewport) {
@@ -657,6 +725,7 @@ export class StructureView extends BaseView {
         this.searchHighlightsContent = null;
         this.scrollDecorations = null;
         this.sourceTextarea = null;
+        this._sourceBaseline = null;
     }
 
     renderSearchHighlights(matches, activeIndex) {

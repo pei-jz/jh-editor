@@ -956,9 +956,10 @@ class CsvView {
 
 // --- Controller: Logic & Input ---
 class CsvController {
-    constructor(host, content, onSave) {
+    constructor(host, content, onSave, options = {}) {
         this.host = host; // Container
         this.onSave = onSave;
+        this.onLoaded = options.onLoaded;
 
         this.debouncedSave = (() => {
             let timer = null;
@@ -999,6 +1000,7 @@ class CsvController {
                 this.view.model = this.model;
                 this.view.hideLoading();
                 this.view.updateData();
+                this._notifyLoaded();
             }).catch(err => {
                 console.error('Failed to parse CSV:', err);
                 this.view.hideLoading();
@@ -1006,7 +1008,10 @@ class CsvController {
                 this.model = new CsvModel(content);
                 this.view.model = this.model;
                 this.view.updateData();
+                this._notifyLoaded();
             });
+        } else {
+            this._notifyLoaded();
         }
 
         // 3. Jump State
@@ -1066,6 +1071,17 @@ class CsvController {
                 this.viewContainer.focus();
             }
         }, 50);
+    }
+
+    /**
+     * Tell the host the document is parsed, with the text the grid will write
+     * back for it. Every edit re-serialises the whole grid (quoting, line
+     * endings, trailing newline), so this, not the original text, is what an
+     * unchanged document looks like from here on.
+     */
+    _notifyLoaded() {
+        if (typeof this.onLoaded !== 'function' || !this.model) return;
+        try { this.onLoaded(this.model.serialize()); } catch (e) { console.error('CsvEditor: onLoaded failed', e); }
     }
 
     bindEvents() {
@@ -2049,11 +2065,11 @@ class CsvController {
 export const CsvEditor = {
     activeInstance: null,
 
-    render(container, content, onSave) {
+    render(container, content, onSave, options = {}) {
         if (this.activeInstance) {
             this.activeInstance.destroy(); // Cleanup previous if same module usage
             this.activeInstance = null;
         }
-        this.activeInstance = new CsvController(container, content, onSave);
+        this.activeInstance = new CsvController(container, content, onSave, options);
     }
 };

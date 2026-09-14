@@ -110,7 +110,7 @@ describe('TaskNotificationPanel diff support', () => {
         };
         panel._processTaskLogs(task);
         const f = task.modifiedFiles[0];
-        // openDiffEditor normalizes original ?? '' downstream — verify the
+        // openMergeTab turns original ?? '' into a side downstream — verify the
         // panel passes the raw values through without throwing.
         expect(f.original).toBeNull();
         expect(f.current).toBe('new content');

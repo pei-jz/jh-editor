@@ -8,12 +8,12 @@ J.H Editor 自体のライセンスは同梱の `LICENSE`（MIT）を参照し�
 このファイルは `scripts/make-third-party-notices.mjs` で生成しています。
 依存を追加・更新したら再生成してください。手で編集しないこと。
 
-生成日時: 2026-08-29T12:49:14.930Z
+生成日時: 2026-09-14T14:52:35.883Z
 
 
 ## npm パッケージ
 
-59 件（本文 22 種）。
+60 件（本文 23 種）。
 
 ### 1. @codemirror/autocomplete ほか 20 件
 
@@ -91,13 +91,41 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 3. @jh/ai-client 0.1.0
+### 3. @codemirror/merge 6.12.2
+
+- `@codemirror/merge 6.12.2` （MIT） — https://code.haverbeke.berlin/codemirror/merge
+
+```text
+MIT License
+
+Copyright (C) 2018-2022 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### 4. @jh/ai-client 0.1.0
 
 - `@jh/ai-client 0.1.0` （MIT OR Apache-2.0）
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 4. @lezer/common ほか 7 件
+### 5. @lezer/common ほか 7 件
 
 - `@lezer/common 1.5.2` （MIT） — https://github.com/lezer-parser/common
 - `@lezer/css 1.3.4` （MIT） — https://code.haverbeke.berlin/lezer/css
@@ -132,7 +160,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 5. @lezer/cpp ほか 3 件
+### 6. @lezer/cpp ほか 3 件
 
 - `@lezer/cpp 1.1.6` （MIT） — https://code.haverbeke.berlin/lezer/cpp
 - `@lezer/java 1.1.3` （MIT） — https://github.com/lezer-parser/java
@@ -163,7 +191,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 6. @lezer/json 1.0.3
+### 7. @lezer/json 1.0.3
 
 - `@lezer/json 1.0.3` （MIT） — https://github.com/lezer-parser/json
 
@@ -191,7 +219,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7. @lezer/yaml 1.0.4
+### 8. @lezer/yaml 1.0.4
 
 - `@lezer/yaml 1.0.4` （MIT） — https://github.com/lezer-parser/yaml
 
@@ -219,7 +247,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 8. @marijn/find-cluster-break 1.0.3
+### 9. @marijn/find-cluster-break 1.0.3
 
 - `@marijn/find-cluster-break 1.0.3` （MIT） — https://code.haverbeke.berlin/marijn/find-cluster-break
 
@@ -247,7 +275,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 9. @replit/codemirror-lang-svelte 6.0.0
+### 10. @replit/codemirror-lang-svelte 6.0.0
 
 - `@replit/codemirror-lang-svelte 6.0.0` （MIT） — https://github.com/replit/codemirror-lang-svelte
 
@@ -275,7 +303,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 10. @replit/codemirror-vim 6.3.0
+### 11. @replit/codemirror-vim 6.3.0
 
 - `@replit/codemirror-vim 6.3.0` （MIT） — https://github.com/replit/codemirror-vim
 
@@ -303,13 +331,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 11. @tauri-apps/api 2.10.1
+### 12. @tauri-apps/api 2.10.1
 
 - `@tauri-apps/api 2.10.1` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/tauri#readme
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 12. @tauri-apps/plugin-clipboard-manager ほか 7 件
+### 13. @tauri-apps/plugin-clipboard-manager ほか 7 件
 
 - `@tauri-apps/plugin-clipboard-manager 2.3.2` （MIT OR Apache-2.0） — https://github.com/tauri-apps/plugins-workspace
 - `@tauri-apps/plugin-dialog 2.6.0` （MIT OR Apache-2.0） — https://github.com/tauri-apps/plugins-workspace
@@ -343,7 +371,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 13. @xterm/addon-fit 0.11.0
+### 14. @xterm/addon-fit 0.11.0
 
 - `@xterm/addon-fit 0.11.0` （MIT） — https://github.com/xtermjs/xterm.js/tree/master/addons/addon-fit
 
@@ -369,7 +397,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 14. @xterm/xterm 6.0.0
+### 15. @xterm/xterm 6.0.0
 
 - `@xterm/xterm 6.0.0` （MIT） — https://github.com/xtermjs/xterm.js
 
@@ -397,7 +425,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 15. commander 8.3.0
+### 16. commander 8.3.0
 
 - `commander 8.3.0` （MIT） — https://github.com/tj/commander.js
 
@@ -426,7 +454,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 16. crelt 1.0.7
+### 17. crelt 1.0.7
 
 - `crelt 1.0.7` （MIT） — https://code.haverbeke.berlin/marijn/crelt
 
@@ -452,7 +480,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 17. diff 9.0.0
+### 18. diff 9.0.0
 
 - `diff 9.0.0` （BSD-3-Clause） — https://github.com/kpdecker/jsdiff
 
@@ -488,7 +516,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 18. dompurify 3.4.14
+### 19. dompurify 3.4.14
 
 - `dompurify 3.4.14` （(MPL-2.0 OR Apache-2.0)） — https://github.com/cure53/DOMPurify
 
@@ -1072,7 +1100,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-### 19. katex 0.18.1
+### 20. katex 0.18.1
 
 - `katex 0.18.1` （MIT） — https://katex.org
 
@@ -1100,7 +1128,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 20. page-flip 2.0.7
+### 21. page-flip 2.0.7
 
 - `page-flip 2.0.7` （MIT） — https://nodlik.github.io/StPageFlip/
 
@@ -1128,7 +1156,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 21. style-mod 4.1.3
+### 22. style-mod 4.1.3
 
 - `style-mod 4.1.3` （MIT） — https://github.com/marijnh/style-mod
 
@@ -1154,7 +1182,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 22. w3c-keyname 2.2.8
+### 23. w3c-keyname 2.2.8
 
 - `w3c-keyname 2.2.8` （MIT） — https://github.com/marijnh/w3c-keyname#readme
 

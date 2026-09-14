@@ -789,8 +789,14 @@ export class TaskNotificationPanel {
                     let f = task.modifiedFiles[fileIdx];
                     if (typeof f === 'string') f = { path: f };
                     const openDiff = () => {
-                        if (window.app && window.app.openDiffEditor) {
-                            window.app.openDiffEditor(f.original, f.current, f.path);
+                        if (window.app && window.app.openMergeTab) {
+                            window.app.openMergeTab({
+                                id: `agent:${taskId}:${f.path}`,
+                                title: `Diff: ${String(f.path).split(/[\\/]/).pop()}`,
+                                path: f.path,
+                                left: { label: `${f.path} (before)`, text: f.original ?? '' },
+                                right: { label: `${f.path} (after)`, text: f.current ?? '' },
+                            });
                         }
                     };
                     // History tasks may have a file LIST but not the rich
@@ -811,8 +817,14 @@ export class TaskNotificationPanel {
                                     rich = detail.modified_files.find(m => m.path === f.path) || null;
                                 }
                                 if (rich) {
-                                    if (window.app && window.app.openDiffEditor) {
-                                        window.app.openDiffEditor(rich.original ?? null, rich.current ?? '', rich.path || f.path);
+                                    if (window.app && window.app.openMergeTab) {
+                                        window.app.openMergeTab({
+                                            id: `agent:${taskId}:${rich.path || f.path}`,
+                                            title: `Diff: ${String(rich.path || f.path).split(/[\\/]/).pop()}`,
+                                            path: rich.path || f.path,
+                                            left: { label: `${rich.path || f.path} (before)`, text: rich.original ?? '' },
+                                            right: { label: `${rich.path || f.path} (after)`, text: rich.current ?? '' },
+                                        });
                                     }
                                     return;
                                 }

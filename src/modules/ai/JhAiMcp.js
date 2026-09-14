@@ -453,12 +453,30 @@ function _presentPresetResult(text, entry, anchor) {
         return;
     }
     const open = () => {
-        window.app.openDiffEditor(
-            String(anchor.original || ''),
-            String(code),
-            anchor.path || 'ai-proposal',
-            (finalText) => _applyInlineAnchor(anchor, finalText) // Apply & Save → write back to source
-        );
+        const base = anchor.path ? String(anchor.path).split(/[\\/]/).pop() : 'selection';
+        // Left: the code as it is now; saving applies it to the source. Right:
+        // the suggestion, read-only. Copy blocks ← (or all of them), then save.
+        window.app.openMergeTab({
+            id: `ai:${anchor.path || 'selection'}:${anchor.from ?? ''}`,
+            title: `AI: ${base}`,
+            path: anchor.path || 'ai-proposal',
+            left: {
+                label: `${base} (current)`,
+                text: String(anchor.original || ''),
+                writable: true,
+                target: {
+                    kind: 'custom',
+                    save: async (text) => {
+                        await _applyInlineAnchor(anchor, text);
+                        // The range now holds the saved text: a second save
+                        // replaces that, not the original selection.
+                        anchor.original = text;
+                        if (anchor.from != null) anchor.to = anchor.from + text.length;
+                    },
+                },
+            },
+            right: { label: 'AI suggestion', text: String(code) },
+        });
     };
     // Don't steal focus: just surface a "レビュー" action in the dock chip.
     entry.setResult({

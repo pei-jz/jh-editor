@@ -30,6 +30,8 @@ let _draftTimer = null;
 let _sessionTimer = null;
 let _enabled = true;
 let _suspended = 0;
+// Buffer text may have changed since drafts were last written.
+let _draftsPending = false;
 
 /** Session entries are scoped per workspace so switching projects is clean. */
 function _wsKey() {
@@ -113,6 +115,7 @@ function _draftId(file) {
 
 export function saveDrafts() {
     if (!_enabled || _suspended > 0) return;
+    _draftsPending = false;
     const drafts = {};
     let total = 0;
     const collect = (files) => {
@@ -172,16 +175,24 @@ export function scheduleSessionSave() {
     clearTimeout(_sessionTimer);
     _sessionTimer = setTimeout(() => saveSession(), 400);
     clearTimeout(_draftTimer);
+    _draftsPending = true;
     _draftTimer = setTimeout(() => saveDrafts(), DRAFT_DEBOUNCE_MS);
 }
 
-/** Flush immediately (window close / before reload). */
-export function flushSession() {
+/**
+ * Flush immediately (window close / before reload).
+ *
+ * `onlyPending` skips the draft write when nothing changed since the last one.
+ * The app also flushes whenever its window is hidden, and re-serialising a
+ * large unsaved buffer into localStorage each time blocks the page right as
+ * the user switches back to it.
+ */
+export function flushSession({ onlyPending = false } = {}) {
     if (!_enabled) return;
     clearTimeout(_sessionTimer);
     clearTimeout(_draftTimer);
     saveSession();
-    saveDrafts();
+    if (!onlyPending || _draftsPending) saveDrafts();
 }
 
 /**

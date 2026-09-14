@@ -1,5 +1,9 @@
 import { BaseView } from './BaseView.js';
 import { CsvEditor } from '../editors/CsvEditor.js';
+import { isAtSavedState, rememberSavedForm } from '../utils/DirtyState.js';
+
+// Key for the grid's serialisation of the saved file (see onLoaded below).
+const CSV_FORM = 'csv-grid';
 
 export class CsvView extends BaseView {
     constructor(container, callbacks = {}) {
@@ -18,10 +22,23 @@ export class CsvView extends BaseView {
 
         CsvEditor.render(wrapper, content, (newContent) => {
             this.file.content = newContent;
-            if (!this.file.isDirty) {
-                this.file.isDirty = true;
+            // Compared, not latched: undoing back to the loaded data clears
+            // the "*" again.
+            const dirty = !isAtSavedState(this.file, CSV_FORM);
+            if (this.file.isDirty !== dirty) {
+                this.file.isDirty = dirty;
                 if (this.renderTabs) this.renderTabs();
             }
+        }, {
+            // The grid hands back its serialisation, which is what an unchanged
+            // document looks like once it is edited. It stands for the saved
+            // file only if what was loaded IS the saved file, untouched since.
+            onLoaded: (serialized) => {
+                const file = this.file;
+                if (file && file.content === content && isAtSavedState(file, CSV_FORM)) {
+                    rememberSavedForm(file, CSV_FORM, serialized);
+                }
+            },
         });
 
         this.container.appendChild(wrapper);

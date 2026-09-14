@@ -41,6 +41,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 // Existing imports for Book Mode & Others
 import { PageFlip } from 'page-flip';
 import { State } from '../core/Store.js';
+import { isAtSavedState } from '../utils/DirtyState.js';
 import * as HtmlPreview from '../ui/HtmlPreview.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
@@ -746,7 +747,9 @@ export class CodeMirrorView {
                     const newContent = update.state.doc.toString();
                     if (this.file) {
                         this.file.content = newContent;
-                        this.file.isDirty = true;
+                        // Compared, not latched: undoing back to the saved text
+                        // makes the buffer clean again.
+                        this.file.isDirty = !isAtSavedState(this.file);
                         // The other pane may be showing this same buffer. Send
                         // it the CHANGES rather than the whole text: the two
                         // documents start identical and every edit is mirrored,
@@ -2041,6 +2044,19 @@ export class CodeMirrorView {
         });
         this._resizeObserver.observe(this.container);
     }
+}
+
+/**
+ * Language support for a path: the same choice the editor tab makes, so other
+ * CodeMirror surfaces (the comparison view) highlight a file the same way.
+ */
+export function languageExtensionFor(path) {
+    return CodeMirrorView.prototype._getLanguageExtension(path);
+}
+
+/** Syntax colours for the current app theme, as the editor tab uses them. */
+export function syntaxExtensionForTheme() {
+    return CodeMirrorView.prototype._syntaxExtension.call({ _isDarkTheme: isAppThemeDark });
 }
 
 /**

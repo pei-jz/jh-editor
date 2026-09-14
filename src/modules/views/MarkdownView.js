@@ -19,6 +19,7 @@ import * as MdAssets from '../utils/MarkdownAssets.js';
 import { backlinkQuery } from '../utils/Backlinks.js';
 import { MermaidHelper } from '../ui/MermaidHelper.js';
 import { showAlert, showConfirm } from '../ui/Dialog.js';
+import { isAtSavedState, savedForm, rememberSavedForm } from '../utils/DirtyState.js';
 import { enableLightbox } from '../ui/Lightbox.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
@@ -415,6 +416,25 @@ export class MarkdownView extends BaseView {
             if (State.markdownViewMode === 'book') return;
             this._renderVisibleBlocks();
         }, 0);
+    }
+
+    /**
+     * Recompute the tab's modified mark after a block edit.
+     *
+     * The block view writes the document back as blocks joined by one blank
+     * line, so after any edit file.content is in that form even where the file
+     * on disk is not. Compared against the raw saved text it would never match
+     * again; compared against the saved text in the same form, putting a block
+     * back the way it was clears the "*".
+     */
+    _refreshDirty(file) {
+        if (!file) return;
+        const sep = (file.eol || '\n') + (file.eol || '\n');
+        const key = 'markdown-blocks:' + sep;
+        if (typeof file.savedContent === 'string' && savedForm(file, key) === undefined) {
+            rememberSavedForm(file, key, this._splitIntoBlocks(file.savedContent).join(sep));
+        }
+        file.isDirty = !isAtSavedState(file, key);
     }
 
     _splitIntoBlocks(content) {
@@ -1302,7 +1322,7 @@ export class MarkdownView extends BaseView {
         // Use consistent join logic (double newline as per _splitIntoBlocks intent)
         const eol = file.eol || '\n';
         file.content = this.blocksData.join(eol + eol);
-        file.isDirty = true;
+        this._refreshDirty(file);
 
         if (this.renderTabs) this.renderTabs();
         if (this.renderEditor) this.renderEditor();
@@ -1487,7 +1507,7 @@ export class MarkdownView extends BaseView {
         if (file) {
             const eol = file.eol || '\n';
             file.content = this.blocksData.join(eol + eol);
-            file.isDirty = true;
+            this._refreshDirty(file);
         }
 
         // Land on the block that took the deleted one's place, or the last one
@@ -1782,8 +1802,10 @@ export class MarkdownView extends BaseView {
         const file = State.openFiles[State.activeTabIndex];
         const eol = file.eol || '\n';
         file.content = blocks.join(`${eol}${eol}`);
-        file.isDirty = true;
+        this._refreshDirty(file);
 
+        // The tab's "*" follows the order: moving a block back clears it.
+        if (this.renderTabs) this.renderTabs();
         if (this.renderEditor) this.renderEditor();
         setTimeout(() => this.selectBlock(to), 50);
     }
