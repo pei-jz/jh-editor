@@ -1390,20 +1390,11 @@ export class MarkdownView extends BaseView {
 
         this._setCursor(index, { extend });
 
-        // If in book mode, determine which page contains this block index and jump to it
+        // If in book mode, turn to the spread holding this block (a no-op when
+        // the book is already there, or already on its way there).
         if (State.markdownViewMode === 'book' && this.pages && this.pageFlipInstance) {
             const pageIndex = this.pages.findIndex(page => page.some(b => b.index === index));
-            if (pageIndex !== -1) {
-                const orientation = this.pageFlipInstance.getOrientation();
-                const current = this.pageFlipInstance.getCurrentPageIndex();
-                const targetSpreadIndex = orientation === 'landscape' ? pageIndex - (pageIndex % 2) : pageIndex;
-                const currentSpreadIndex = orientation === 'landscape' ? current - (current % 2) : current;
-                
-                if (currentSpreadIndex !== targetSpreadIndex) {
-                    this.pageFlipInstance.flip(targetSpreadIndex);
-                    this.currentPageIndex = targetSpreadIndex;
-                }
-            }
+            if (pageIndex !== -1) this._flipToSpread(pageIndex);
         }
 
         const range = this.selectedRange();
@@ -1418,22 +1409,13 @@ export class MarkdownView extends BaseView {
             if (bIdx === index) {
                 b.classList.add('selected');
                 if (State.markdownViewMode === 'book') {
-                    const pageEl = b.closest('.stf__page');
-                    if (pageEl) {
-                        const blockTop = b.offsetTop;
-                        const blockBottom = blockTop + b.offsetHeight;
-                        const pageScroll = pageEl.scrollTop;
-                        const pageHeight = pageEl.clientHeight;
-
-                        if (reveal === 'center') {
-                            const middle = blockTop - (pageHeight - b.offsetHeight) / 2;
-                            pageEl.scrollTo({ top: Math.max(0, middle), behavior: 'smooth' });
-                        } else if (blockTop < pageScroll) {
-                            pageEl.scrollTo({ top: Math.max(0, blockTop - 20), behavior: 'smooth' });
-                        } else if (blockBottom > pageScroll + pageHeight) {
-                            pageEl.scrollTo({ top: blockBottom - pageHeight + 20, behavior: 'smooth' });
-                        }
-                    }
+                    // While the book is turning, the target page is folded away
+                    // (display:none) and has nothing to measure; and when the
+                    // flip lands, _resetSpreadScroll puts the spread back at its
+                    // top. Scrolling here then was lost both ways, which left a
+                    // block below the fold of an overflowing page selected but
+                    // out of sight. _settleBookSpread reveals it once it shows.
+                    if (!this._bookMoving()) this._revealInBookPage(b, reveal, 'smooth');
                 } else if (typeof b.scrollIntoView === 'function') {
                     b.scrollIntoView({ behavior: 'smooth', block: reveal });
                 }
@@ -1604,7 +1586,7 @@ export class MarkdownView extends BaseView {
         // (the old behaviour when nothing was selected) flipped the book back
         // to the very first page.
         if (!this._isSelectionOnCurrentSpread()) {
-            this._selectFirstBlockOfPage(this.pageFlipInstance.getCurrentPageIndex());
+            this._selectFirstBlockOfPage(this._bookLeftPage());
             return;
         }
         let index = State.vimState.selectedIndex;
@@ -1663,7 +1645,7 @@ export class MarkdownView extends BaseView {
         if (sel < 0) return false;
         const selPage = this.pages.findIndex((p) => p.some((b) => b && b.index === sel));
         if (selPage < 0) return false;
-        const left = this.pageFlipInstance.getCurrentPageIndex();
+        const left = this._bookLeftPage();
         return selPage === left
             || (this.pageFlipInstance.getOrientation() === 'landscape' && selPage === left + 1);
     }
@@ -1675,7 +1657,7 @@ export class MarkdownView extends BaseView {
         // cannot see — that would flip the book away from the current page.
         // Land on the visible page first; the next press moves from there.
         if (!this._isSelectionOnCurrentSpread()) {
-            this._selectFirstBlockOfPage(this.pageFlipInstance.getCurrentPageIndex());
+            this._selectFirstBlockOfPage(this._bookLeftPage());
             return;
         }
         let current = State.vimState.selectedIndex;
@@ -2406,39 +2388,15 @@ export class MarkdownView extends BaseView {
             // sync with what the library actually shows (show() snaps an odd
             // page number to its spread's left page).
             this.currentPageIndex = this.pageFlipInstance.getCurrentPageIndex();
+            this._flipTarget = null;
+            this._queuedFlip = null;
+            this._bookEls = { bookDiv, progressBar, pageInfo };
 
-            // Sync page index on flip event
-            this.pageFlipInstance.on('flip', (e) => {
-                this.currentPageIndex = e.data;
-                // Draw any diagram that could not be drawn while its page was
-                // folded away. mermaid sizes labels with getBBox, which
-                // measures nothing inside a display:none subtree, so a page
-                // has to be open before its diagrams can be laid out.
-                // renderMermaid skips whatever is already drawn.
-                Markdown.renderMermaid(bookDiv).catch((err) => {
-                    console.error('Book mode mermaid render failed', err);
-                });
-                this._resetSpreadScroll(e.data);
-                this._updateBookFooter(progressBar, pageInfo);
-                // Move the selection onto the page that is now showing, so
-                // Alt+←/→ then ↑/↓ continues from here instead of from wherever
-                // the cursor was left behind. Handled on the event (not in
-                // navigatePage) so page clicks and the progress bar behave the
-                // same way.
-                //
-                // When the flip was triggered by selectBlock() (arrow-key
-                // navigation jumping to a block on another spread), the
-                // selection already sits on a page of the newly shown spread —
-                // don't override it with the spread's left page.
-                const sel = State.vimState.selectedIndex;
-                let selOnSpread = false;
-                if (sel >= 0 && Array.isArray(this.pages)) {
-                    const selPage = this.pages.findIndex((p) => p.some((b) => b && b.index === sel));
-                    const left = e.data;
-                    selOnSpread = selPage === left || (this.pageFlipInstance.getOrientation() === 'landscape' && selPage === left + 1);
-                }
-                if (!selOnSpread) this._selectFirstBlockOfPage(e.data);
-            });
+            // A flip ends in two steps: the library shows the new spread (the
+            // `flip` event), then returns to 'read'. Everything that depends on
+            // where the book came to rest runs once, in _settleBookSpread.
+            this.pageFlipInstance.on('flip', (e) => this._onBookFlip(e.data));
+            this.pageFlipInstance.on('changeState', (e) => this._onBookStateChange(e.data));
 
         } catch (e) {
             console.error('StPageFlip initialization failed:', e);
@@ -2451,7 +2409,7 @@ export class MarkdownView extends BaseView {
             const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
             const percentage = clickX / rect.width;
             const targetPage = Math.round(percentage * (this.pages.length - 1));
-            this.pageFlipInstance.flip(targetPage);
+            this._flipToSpread(targetPage);
             // Immediately update visuals
             progressBar.style.width = `${percentage * 100}%`;
             progressThumb.style.left = `${percentage * 100}%`;
@@ -2657,12 +2615,179 @@ export class MarkdownView extends BaseView {
     }
 
     navigatePage(direction) {
+        if (!this.pageFlipInstance || !Array.isArray(this.pages)) return;
+        const step = this.pageFlipInstance.getOrientation() === 'landscape' ? 2 : 1;
+        // From the spread the book is heading to, so Alt+→ pressed twice during
+        // one animation turns two spreads rather than re-requesting the first.
+        const target = this._bookLeftPage() + (direction > 0 ? step : -step);
+        if (target < 0 || target >= this.pages.length) return;
+        this._flipToSpread(target);
+    }
+
+    // ── Turning the book ─────────────────────────────────────────────────
+    //
+    // page-flip animates a turn for `flippingTime` (800ms), and for that whole
+    // time getCurrentPageIndex() still reports the spread it is LEAVING. Every
+    // caller used to compare against that stale value, so a key pressed during
+    // a turn was judged against the wrong spread: ← straight after a → that
+    // crossed spreads found "same spread, nothing to flip", the turn then
+    // landed on the new spread, and the flip handler moved the selection to
+    // that page's top — the keypress was simply lost. A flip issued mid-turn
+    // back toward the spread being left is dropped by the library too
+    // (flipToPage compares against the index it has not updated yet).
+    //
+    // So: one path turns the book (_flipToSpread), it remembers where the book
+    // is going (_flipTarget), and a request that arrives mid-turn waits
+    // (_queuedFlip) and is issued when the book is back in 'read'.
+
+    /** The left page of `pageIndex`'s spread. */
+    _spreadLeft(pageIndex) {
+        const pf = this.pageFlipInstance;
+        return (pf && pf.getOrientation() === 'landscape') ? pageIndex - (pageIndex % 2) : pageIndex;
+    }
+
+    /** The spread the book shows — or, while turning, the one it is turning to. */
+    _bookLeftPage() {
+        const pf = this.pageFlipInstance;
+        if (!pf) return 0;
+        const page = (this._flipTarget !== null && this._flipTarget !== undefined)
+            ? this._flipTarget
+            : pf.getCurrentPageIndex();
+        return this._spreadLeft(page);
+    }
+
+    _isBookFlipping() {
+        const pf = this.pageFlipInstance;
+        return !!pf && typeof pf.getState === 'function' && pf.getState() !== 'read';
+    }
+
+    /** A turn is running or requested: page positions are not final yet. */
+    _bookMoving() {
+        return this._isBookFlipping()
+            || (this._flipTarget !== null && this._flipTarget !== undefined)
+            || (this._queuedFlip !== null && this._queuedFlip !== undefined);
+    }
+
+    /** Turn to the spread holding `pageIndex`. The only place that flips. */
+    _flipToSpread(pageIndex) {
         if (!this.pageFlipInstance) return;
-        if (direction > 0) {
-            this.pageFlipInstance.flipNext();
-        } else {
-            this.pageFlipInstance.flipPrev();
+        const left = this._spreadLeft(pageIndex);
+        if (left === this._bookLeftPage()) return;
+        this._flipTarget = left;
+        this.currentPageIndex = left;
+        if (this._isBookFlipping()) {
+            // Latest request wins; issued from _settleBookSpread.
+            this._queuedFlip = left;
+            return;
         }
+        this._startFlip(left);
+    }
+
+    _startFlip(left) {
+        const pf = this.pageFlipInstance;
+        pf.flip(left);
+        // flip() starts the turn synchronously. If the book is still in 'read'
+        // and not on the spread, the library declined — as it does for a flip
+        // issued before its first layout. Show the spread without the
+        // animation rather than leave _flipTarget naming a turn that never
+        // happens (turnToPage fires `flip`, which settles).
+        if (typeof pf.getState === 'function' && pf.getState() === 'read'
+            && this._spreadLeft(pf.getCurrentPageIndex()) !== left
+            && typeof pf.turnToPage === 'function') {
+            pf.turnToPage(left);
+        }
+    }
+
+    _onBookFlip() {
+        // The end of an animated turn fires `flip` while the state is still
+        // 'flipping'; that turn settles on the 'read' that follows. A turn
+        // without animation (turnToPage) never leaves 'read', so settle now.
+        if (this._isBookFlipping()) return;
+        this._settleBookSpread();
+    }
+
+    _onBookStateChange(state) {
+        if (state === 'read') this._settleBookSpread();
+    }
+
+    /** The book has come to rest: issue a queued turn, or finish this one. */
+    _settleBookSpread() {
+        const pf = this.pageFlipInstance;
+        if (!pf) return;
+        const shown = this._spreadLeft(pf.getCurrentPageIndex());
+        const queued = this._queuedFlip;
+        this._queuedFlip = null;
+        if (queued !== null && queued !== undefined && queued !== shown) {
+            this._flipTarget = queued;
+            this.currentPageIndex = queued;
+            this._startFlip(queued);
+            return;
+        }
+        this._flipTarget = null;
+        this.currentPageIndex = shown;
+
+        const els = this._bookEls || {};
+        // Draw any diagram that could not be drawn while its page was folded
+        // away. mermaid sizes labels with getBBox, which measures nothing
+        // inside a display:none subtree, so a page has to be open before its
+        // diagrams can be laid out. renderMermaid skips whatever is drawn.
+        if (els.bookDiv) {
+            Markdown.renderMermaid(els.bookDiv).catch((err) => {
+                console.error('Book mode mermaid render failed', err);
+            });
+        }
+        this._resetSpreadScroll(shown);
+        this._updateBookFooter(els.progressBar, els.pageInfo);
+
+        // Keep a selection the reader already moved onto this spread (arrow
+        // navigation turned the book to reach it); otherwise move it to the
+        // top of the page now showing, so ↑/↓ continues from here — page
+        // turns by Alt+←/→ and by the progress bar included.
+        const sel = State.vimState.selectedIndex;
+        let selPage = -1;
+        if (sel >= 0 && Array.isArray(this.pages)) {
+            selPage = this.pages.findIndex((p) => p.some((b) => b && b.index === sel));
+        }
+        const onSpread = selPage === shown
+            || (pf.getOrientation() === 'landscape' && selPage === shown + 1);
+        if (!onSpread) {
+            this._selectFirstBlockOfPage(shown);
+            return;
+        }
+        // _resetSpreadScroll just put the spread at its top. A selected block
+        // further down an overflowing page has to be brought back into view.
+        const el = this.container && this.container.querySelector(`.stf__page .md-block[data-index="${sel}"]`);
+        if (el) this._revealInBookPage(el, 'nearest', 'auto');
+    }
+
+    /**
+     * Scroll the book page holding `el` so the block is in view.
+     *
+     * A block taller than the page is aligned by its top — aligning its bottom
+     * (what "nearest" gives) opened the page at the END of a long table.
+     */
+    _revealInBookPage(el, reveal = 'nearest', behavior = 'smooth') {
+        const pageEl = el && el.closest ? el.closest('.stf__page') : null;
+        if (!pageEl || !pageEl.clientHeight) return;   // folded away: nothing to measure
+        // .stf__page is absolutely positioned, so it is normally the
+        // offsetParent. Fall back to the rects if something in between is not.
+        const top = el.offsetParent === pageEl
+            ? el.offsetTop
+            : el.getBoundingClientRect().top - pageEl.getBoundingClientRect().top + pageEl.scrollTop;
+        const bottom = top + el.offsetHeight;
+        const scroll = pageEl.scrollTop;
+        const height = pageEl.clientHeight;
+        let next = null;
+        if (reveal === 'center') {
+            next = Math.max(0, top - (height - el.offsetHeight) / 2);
+        } else if (top < scroll) {
+            next = Math.max(0, top - 20);
+        } else if (bottom > scroll + height) {
+            next = Math.min(Math.max(0, top - 20), bottom - height + 20);
+        }
+        if (next === null || next === scroll) return;
+        if (behavior === 'auto' || typeof pageEl.scrollTo !== 'function') pageEl.scrollTop = next;
+        else pageEl.scrollTo({ top: next, behavior });
     }
 
     /**
