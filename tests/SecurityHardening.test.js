@@ -191,7 +191,12 @@ describe('rendering diagrams more than once', () => {
         const view = read('src/modules/views/MarkdownView.js');
         const i = view.indexOf("pageFlipInstance.on('flip'");
         expect(i).toBeGreaterThan(-1);
-        expect(view.slice(i, i + 700)).toContain('Markdown.renderMermaid');
+        // The turn settles in _settleBookSpread (a queued turn may follow the
+        // first), and the flip event is routed there.
+        expect(view.slice(i, i + 300)).toContain('_onBookFlip');
+        const s = view.indexOf('    _settleBookSpread() {');
+        expect(s).toBeGreaterThan(-1);
+        expect(view.slice(s, view.indexOf('    _revealInBookPage(', s))).toContain('Markdown.renderMermaid');
     });
 
     // The error graphic counts as a rendered diagram: querySelector('svg')
