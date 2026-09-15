@@ -130,9 +130,14 @@ describe('view state is kept per pane', () => {
         expect(editor).toMatch(/new CodeMirrorView\(container, \{\s*\n\s*pane,/);
     });
 
-    it('still restores a session saved by the old single-slot build', () => {
+    // The old JSON shapes (including the single `_cmStateJSON` slot) held a
+    // full copy of the text and never matched on restore, so only the object
+    // shape is read. Losing a pre-upgrade caret position is the whole cost.
+    it('reads only the object-shaped state', () => {
         const i = cm.indexOf('function readViewState(file, pane)');
-        expect(cm.slice(i, cm.indexOf('\n}', i))).toContain('file._cmStateJSON');
+        const fn = cm.slice(i, cm.indexOf('\n}', i));
+        expect(fn).toContain('slot && slot.doc ? slot : null');
+        expect(fn).not.toContain('slot.json');
     });
 
     // ...and drops that legacy slot once a real one exists, so a stale copy

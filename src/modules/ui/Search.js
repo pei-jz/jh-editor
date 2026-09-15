@@ -1,3 +1,4 @@
+import { firstMatchAtOrAfter, searchMatchLimit } from '../utils/SearchRanges.js';
 import { EL } from '../core/Constants.js';
 import { t } from '../utils/I18n.js';
 import { State } from '../core/Store.js';
@@ -337,10 +338,13 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
         _cmView.performSearch(query, isRegex, isCaseSensitive, isWord, (n) => _setSearchingStatus(n))
             .then(() => {
                 if (State.searchMatches.length > 0) {
-                    State.currentMatchIndex = 0;
+                    State.currentMatchIndex = _matchIndexFromCursor();
                     _settle();
                 }
                 _updateMatchCount();
+                if (_cmView.lastSearchTruncated) {
+                    _showToast(`Too many matches — showing the first ${_cmView.lastSearchTruncated}. Search for a longer term to see them all.`);
+                }
                 if (!isModalOpen() && State.searchMatches.length > 0) _showStatusBar();
                 else if (State.searchMatches.length === 0) _hideStatusBar();
             })
@@ -371,7 +375,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
         }
 
         let match;
-        const MAX_MATCHES = 10000;
+        const MAX_MATCHES = searchMatchLimit(query);
         let limitReached = false;
         while ((match = regex.exec(content)) !== null) {
             State.searchMatches.push({ start: match.index, end: regex.lastIndex, text: match[0], isPlainText: true });
@@ -387,7 +391,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
             currentView.renderSearchHighlights(State.searchMatches, State.currentMatchIndex);
         }
         if (State.searchMatches.length > 0) {
-            State.currentMatchIndex = 0;
+            State.currentMatchIndex = _matchIndexFromCursor();
             _settle();
         }
         _updateMatchCount();
@@ -468,6 +472,28 @@ window.setSearchMatchIndexByOffset = (offset) => {
 };
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
+
+/**
+ * The first match at or after the cursor, so a new search lands on the next
+ * occurrence from where you are instead of jumping back to the top of the file.
+ * Falls back to the first match (wrapping) when the cursor is past them all.
+ */
+function _matchIndexFromCursor() {
+    const matches = State.searchMatches;
+    if (!matches.length || matches[0].start == null) return 0;
+    let pos = null;
+    const view = getCurrentView();
+    if (view && typeof view.getSelectionOffsets === 'function') {
+        const sel = view.getSelectionOffsets();
+        if (sel) pos = sel.from;
+    } else {
+        const { textarea } = _getActiveEditorDetails();
+        if (textarea) pos = textarea.selectionStart;
+    }
+    if (pos == null) return 0;
+    const index = firstMatchAtOrAfter(matches, pos);
+    return index === -1 ? 0 : index;
+}
 
 // Current selection range of the active editor view (CM6), or null.
 function _viewSelectionOffsets() {

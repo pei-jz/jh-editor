@@ -689,6 +689,10 @@ export function addViewUsageHint(container, file, options = {}) {
     const isTextEditor = options.isTextEditor === true;
     const cmVi = isTextEditor && localStorage.getItem('settings_editorVim') === 'true';
     const mdVi = !isTextEditor && isMd && localStorage.getItem('settings_vimMode') === 'true';
+    // The plain text editor has nothing view-specific to teach unless vi mode
+    // is on. It used to fall through to the last branch, so every text file —
+    // a .log, a .js — showed the Structure View hints.
+    if (isTextEditor && !cmVi) return;
     if (mdVi) {
         title = 'Vim (vi) Mode · Markdown';
         lines = [
@@ -2785,12 +2789,60 @@ export function bufferByteSize(file) {
     if (file.isLarge || typeof file.content !== 'string') {
         return file.stats && file.stats.size ? file.stats.size : null;
     }
-    let bytes = new TextEncoder().encode(file.content).length;
+    // The status bar asks on every keystroke and every cursor move. This used
+    // to encode the whole text into a byte array and collect every newline into
+    // another array each time — on a 100 MB file, enough to freeze the arrow
+    // keys. Counted without allocating, and remembered for the same text.
+    const cached = file._byteSize;
+    if (cached && cached.content === file.content && cached.eol === file.eol) return cached.bytes;
+    let bytes = utf8ByteLength(file.content);
     if (file.eol === '\r\n') {
         // Every newline in the buffer is written as two bytes.
-        bytes += (file.content.match(/\n/g) || []).length;
+        bytes += countNewlines(file.content);
+    }
+    file._byteSize = { content: file.content, eol: file.eol, bytes };
+    return bytes;
+}
+
+/** UTF-8 length of a string, without building the bytes (same as TextEncoder). */
+export function utf8ByteLength(text) {
+    let bytes = 0;
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c < 0x80) bytes += 1;
+        else if (c < 0x800) bytes += 2;
+        else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) {
+            const next = text.charCodeAt(i + 1);
+            if (next >= 0xdc00 && next <= 0xdfff) { bytes += 4; i++; } else bytes += 3;
+        } else bytes += 3; // BMP, or a lone surrogate (encoded as U+FFFD)
     }
     return bytes;
+}
+
+function countNewlines(text) {
+    let n = 0;
+    for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++;
+    return n;
+}
+
+// Past this many characters the size is worked out once typing pauses rather
+// than on every status-bar refresh. The previous figure stays up meanwhile.
+const SIZE_DEFER_CHARS = 1024 * 1024;
+let statusSizeTimer = null;
+
+function statusSizeText(file) {
+    const content = file && file.content;
+    const cached = file && file._byteSize;
+    const fresh = cached && cached.content === content && cached.eol === file.eol;
+    if (file.isLarge || typeof content !== 'string' || fresh || content.length < SIZE_DEFER_CHARS) {
+        return formatByteSize(bufferByteSize(file));
+    }
+    clearTimeout(statusSizeTimer);
+    statusSizeTimer = setTimeout(() => {
+        if (getActiveFile() !== file || !EL.statusSize) return;
+        EL.statusSize.textContent = formatByteSize(bufferByteSize(file));
+    }, 500);
+    return cached ? formatByteSize(cached.bytes) : '';
 }
 
 /** Bytes as B / KB / MB. */
@@ -2901,7 +2953,7 @@ export function updateStatusBar(forFile = null) {
     // placeholder, and this printed it: "0 B" beside a file with text in it, and
     // "1970/1/1 9:00:00" — the epoch, presented as a modification date. Neither
     // number was ever real. Nothing is better than something invented.
-    if (EL.statusSize) EL.statusSize.textContent = formatByteSize(bufferByteSize(file));
+    if (EL.statusSize) EL.statusSize.textContent = statusSizeText(file);
     if (EL.statusLastModified) EL.statusLastModified.textContent = formatModified(file);
     // Draw with what we have, then go and find the date if it is missing.
     refreshStats(file);

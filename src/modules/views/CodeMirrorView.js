@@ -1,3 +1,4 @@
+import { firstMatchEndingAfter, searchMatchLimit } from '../utils/SearchRanges.js';
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
 // Named `tr`, not `t`: this module already binds `t` to Lezer's highlight
 // tags (see the import below), which every style rule in the file uses.
@@ -72,9 +73,10 @@ function viewStates(file) {
 function readViewState(file, pane) {
     if (!file) return null;
     const slot = file._cmViewState && file._cmViewState[pane || 'left'];
-    // `_cmStateJSON` is the single-slot shape this replaced; a session saved by
-    // an older build still restores rather than opening at the top.
-    return (slot && slot.json) || file._cmStateJSON || null;
+    // Only the object shape counts. The old JSON shape (and the legacy
+    // `_cmStateJSON` slot) held a copy of the whole text and never matched
+    // on restore anyway.
+    return slot && slot.doc ? slot : null;
 }
 
 function readViewScroll(file, pane) {
@@ -267,19 +269,69 @@ const jhTheme = EditorView.theme({
 // paint the "all hits" highlight ourselves via this decoration field, set from
 // performSearch(). .cm-searchMatch / .cm-searchMatch-selected are styled (yellow
 // / orange) in jhTheme.
+//
+// The hits are held as the plain sorted list the search produced, and only the
+// ones inside the visible ranges become decorations (searchHighlightPlugin).
+// Building a decoration per hit on every Find Next froze large files once a
+// search found tens of thousands of hits — which is also why the search used
+// to stop at 20,000.
 const setSearchHighlights = StateEffect.define();
 
 const searchHighlightField = StateField.define({
-    create() { return Decoration.none; },
-    update(decorations, tr) {
-        decorations = decorations.map(tr.changes);
+    create() { return null; },
+    update(value, tr) {
         for (const e of tr.effects) {
-            if (e.is(setSearchHighlights)) decorations = e.value;
+            if (e.is(setSearchHighlights)) return e.value;
         }
-        return decorations;
+        // Edits since the search: remember them, so hits can be mapped to where
+        // the text now is rather than rebuilt.
+        if (value && tr.docChanged) {
+            return { ...value, changes: value.changes ? value.changes.compose(tr.changes) : tr.changes };
+        }
+        return value;
     },
-    provide: f => EditorView.decorations.from(f)
 });
+
+function buildSearchDecorations(view) {
+    const value = view.state.field(searchHighlightField, false);
+    if (!value || !value.matches || !value.matches.length) return Decoration.none;
+    const { matches, index, changes } = value;
+    const doc = view.state.doc;
+    const ranges = [];
+    for (const { from, to } of view.visibleRanges) {
+        const origFrom = changes ? changes.invertedDesc.mapPos(from, -1) : from;
+        const origTo = changes ? changes.invertedDesc.mapPos(to, 1) : to;
+        for (let i = firstMatchEndingAfter(matches, origFrom); i < matches.length && matches[i].start < origTo; i++) {
+            const m = matches[i];
+            if (m.start == null || m.end == null || m.end <= m.start) continue;
+            const start = changes ? changes.mapPos(m.start, 1) : m.start;
+            const end = changes ? changes.mapPos(m.end, -1) : m.end;
+            if (end <= start) continue;
+            const active = i === index;
+            // A pure newline hit becomes a compact ↵ chip instead of a mark that
+            // spans the '\n' and paints the whole line to the right edge.
+            if (end === start + 1 && doc.sliceString(start, end) === '\n') {
+                const cls = active ? 'cm-searchMatch-nl cm-searchMatch-selected' : 'cm-searchMatch-nl';
+                ranges.push(Decoration.widget({ widget: new SearchNlWidget(cls), side: 1 }).range(start));
+            } else {
+                const cls = active ? 'cm-searchMatch cm-searchMatch-selected' : 'cm-searchMatch';
+                ranges.push(Decoration.mark({ class: cls }).range(start, end));
+            }
+        }
+    }
+    // Decoration.set(..., true) sorts, so marks/widgets can be interleaved.
+    return Decoration.set(ranges, true);
+}
+
+const searchHighlightPlugin = ViewPlugin.fromClass(class {
+    constructor(view) { this.decorations = buildSearchDecorations(view); }
+    update(u) {
+        if (u.docChanged || u.viewportChanged
+            || u.startState.field(searchHighlightField, false) !== u.state.field(searchHighlightField, false)) {
+            this.decorations = buildSearchDecorations(u.view);
+        }
+    }
+}, { decorations: (v) => v.decorations });
 
 const fullWidthSpaceDecorator = new MatchDecorator({
     regexp: /　/g,
@@ -669,6 +721,7 @@ export class CodeMirrorView {
             indentUnit.of("\t"),
             this.whitespaceCompartment.of(this._whitespaceExtensions()),
             searchHighlightField,
+            searchHighlightPlugin,
             rectangularSelection(),
             crosshairCursor(),
             highlightActiveLine(),
@@ -796,15 +849,26 @@ export class CodeMirrorView {
         const langExt = this._getLanguageExtension(this.file?.path || this.file?.name);
         if (langExt) extensions.push(langExt);
 
-        // Restore the previous editor state (including undo/redo history and
-        // cursor) when re-opening this file, so switching tabs doesn't wipe the
-        // history. Falls back to a fresh state if the content changed externally
-        // or deserialization fails.
+        // Restore the previous editor state (undo/redo history and cursor) when
+        // re-opening this file, so switching tabs doesn't wipe the history.
+        //
+        // The document object itself is reused. This used to go through
+        // state.toJSON() / fromJSON(), which copies the whole text into an array
+        // of lines on the way out and rebuilds it on the way back — seconds for a
+        // 100 MB log on every tab switch, long enough to look like a hang — and
+        // its `doc === content` check compared that array with a string, so it
+        // never matched and the text was rebuilt from scratch every time anyway.
         let state = null;
-        const savedJSON = readViewState(this.file, this.options.pane);
-        if (savedJSON && savedJSON.doc === content) {
+        const saved = readViewState(this.file, this.options.pane);
+        let reusedSaved = false;
+        if (saved && saved.content === content) {
             try {
-                state = EditorState.fromJSON(savedJSON, { extensions }, { history: historyField });
+                state = EditorState.create({
+                    doc: saved.doc,
+                    selection: saved.selection,
+                    extensions: saved.history ? [...extensions, historyField.init(() => saved.history)] : extensions,
+                });
+                reusedSaved = true;
             } catch (e) {
                 state = null;
             }
@@ -823,13 +887,28 @@ export class CodeMirrorView {
         // same reference is a no-op in the DOM, so this cannot double-register.
         window.addEventListener('themeChanged', this._onThemeChanged);
 
-        // Restore the previous scroll position (saved in destroy()) after the
-        // editor has laid out, so returning to a tab keeps the same viewport.
-        const savedScrollTop = readViewScroll(this.file, this.options.pane);
-        if (savedScrollTop) {
-            requestAnimationFrame(() => {
-                if (this.editorView) this.editorView.scrollDOM.scrollTop = savedScrollTop;
-            });
+        // Return to the spot the user was reading.
+        //
+        // Setting scrollTop directly left a large file blank until the next
+        // click: until CodeMirror measures, the height of most lines is an
+        // estimate, so the pixel offset landed in a stretch it had not drawn,
+        // with one stray line at the bottom. A scroll snapshot names the line at
+        // the top of the view instead, and CodeMirror applies it once it has
+        // measured. It only fits the document it was taken from, so a changed
+        // buffer falls back to the pixel offset — followed by a re-measure.
+        if (reusedSaved && saved.scrollSnapshot) {
+            try {
+                this.editorView.dispatch({ effects: saved.scrollSnapshot });
+            } catch (e) { /* the view opens at the top instead */ }
+        } else {
+            const savedScrollTop = readViewScroll(this.file, this.options.pane);
+            if (savedScrollTop) {
+                requestAnimationFrame(() => {
+                    if (!this.editorView) return;
+                    this.editorView.scrollDOM.scrollTop = savedScrollTop;
+                    this.editorView.requestMeasure();
+                });
+            }
         }
 
         // Vim status badge + hint, and (when on) mode-change tracking.
@@ -1430,13 +1509,19 @@ export class CodeMirrorView {
         }
 
         const matches = [];
-        const MAX_MATCHES = 20000;
+        // Capped only for very short terms (which match nearly everywhere); a
+        // longer one collects every hit, up to a memory safety stop.
+        const MAX_MATCHES = searchMatchLimit(query);
+        this.lastSearchTruncated = 0;
         const CHUNK = 2000;
         const cursor = sq.getCursor(this.editorView.state);
         let m;
         while (!(m = cursor.next()).done) {
             matches.push({ start: m.value.from, end: m.value.to, isCodeMirror: true });
-            if (matches.length >= MAX_MATCHES) break;
+            if (matches.length >= MAX_MATCHES) {
+                this.lastSearchTruncated = MAX_MATCHES;
+                break;
+            }
             if (matches.length % CHUNK === 0) {
                 if (onProgress) onProgress(matches.length);
                 // Yield so the UI can paint; abort if superseded/destroyed.
@@ -1456,25 +1541,11 @@ export class CodeMirrorView {
     // Also called by Search.js's cleanup with an empty list to clear.
     renderSearchHighlights(matches, index) {
         if (!this.editorView) return;
-        const doc = this.editorView.state.doc;
-        const list = matches || [];
-        const ranges = [];
-        for (let i = 0; i < list.length; i++) {
-            const m = list[i];
-            if (m.start == null || m.end == null || m.end <= m.start) continue;
-            const active = i === index;
-            // A pure newline hit becomes a compact ↵ chip instead of a mark that
-            // spans the '\n' and paints the whole line to the right edge.
-            if (m.end === m.start + 1 && doc.sliceString(m.start, m.end) === '\n') {
-                const cls = active ? 'cm-searchMatch-nl cm-searchMatch-selected' : 'cm-searchMatch-nl';
-                ranges.push(Decoration.widget({ widget: new SearchNlWidget(cls), side: 1 }).range(m.start));
-            } else {
-                const cls = active ? 'cm-searchMatch cm-searchMatch-selected' : 'cm-searchMatch';
-                ranges.push(Decoration.mark({ class: cls }).range(m.start, m.end));
-            }
-        }
-        // Decoration.set(..., true) sorts, so marks/widgets can be interleaved.
-        this.editorView.dispatch({ effects: setSearchHighlights.of(Decoration.set(ranges, true)) });
+        // Hand over the list, not decorations: searchHighlightPlugin draws only
+        // the hits on screen, so this costs the same for ten hits or a million.
+        this.editorView.dispatch({
+            effects: setSearchHighlights.of({ matches: matches || [], index, changes: null }),
+        });
     }
 
     _updateSearchScrollbarMarks() {
@@ -1725,12 +1796,22 @@ export class CodeMirrorView {
             if (this._stateOwnerFile) {
                 try {
                     writeViewState(this._stateOwnerFile, this.options.pane, {
-                        json: this.editorView.state.toJSON({ history: historyField }),
+                        // Objects, not JSON: they are immutable, so keeping them
+                        // costs nothing and restoring them is instant.
+                        doc: this.editorView.state.doc,
+                        selection: this.editorView.state.selection,
+                        history: this.editorView.state.field(historyField, false),
+                        // The buffer text this doc matches. Any other string
+                        // means the file changed while the tab was away.
+                        content: this._stateOwnerFile.content,
                         // Also remember the scroll position so switching tabs
                         // and coming back keeps the same viewport (restoring
                         // the cursor alone would only scroll the caret into
                         // view, not the spot the user was reading).
                         scrollTop: this.editorView.scrollDOM.scrollTop,
+                        // The same position as "this line at the top", which
+                        // survives CodeMirror not having measured yet.
+                        scrollSnapshot: this.editorView.scrollSnapshot(),
                     });
                 } catch (e) { /* ignore serialization issues */ }
             }

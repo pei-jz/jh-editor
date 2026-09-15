@@ -103,15 +103,17 @@ export function mergeKeyAction(e, { hasFileNav = false } = {}) {
 const setFocus = StateEffect.define();
 
 /**
- * Line decorations drawing a rounded frame round `focus.from..to`, plus a mark
- * on the word-level change inside it. A side where the change has no lines
- * gets a rule where the other side's lines would go instead.
+ * A mark on the word-level change being looked at and, in the unified view
+ * only, line decorations framing the change. The side-by-side view draws its
+ * frame as an overlay instead (MergeEditor._layoutFocusFrames): a side where
+ * the change has no lines holds only the package's spacer, which a line
+ * decoration cannot reach, so that side showed nothing but a rule on top.
  */
 function focusDecorations(state, focus) {
     if (!focus) return Decoration.none;
     const { doc } = state;
     const ranges = [];
-    if (focus.to > focus.from) {
+    if (focus.lines && focus.to > focus.from) {
         const first = doc.lineAt(Math.min(focus.from, doc.length)).number;
         const last = doc.lineAt(Math.max(focus.from, Math.min(doc.length, focus.to) - 1)).number;
         for (let n = first; n <= last; n++) {
@@ -120,7 +122,7 @@ function focusDecorations(state, focus) {
             if (n === last) cls += ' cm-merge-focus-bottom';
             ranges.push(Decoration.line({ class: cls }).range(doc.line(n).from));
         }
-    } else {
+    } else if (focus.lines) {
         const pos = Math.min(focus.from, doc.length);
         const line = doc.lineAt(pos);
         const after = pos >= doc.length && line.from < pos;
@@ -129,7 +131,9 @@ function focusDecorations(state, focus) {
     }
     const inlineFrom = Math.min(focus.inlineFrom ?? 0, doc.length);
     const inlineTo = Math.min(focus.inlineTo ?? 0, doc.length);
-    if (inlineTo > inlineFrom) {
+    // Across lines (a whole inserted block) the frame already says it; a mark
+    // there would box every line separately.
+    if (inlineTo > inlineFrom && doc.lineAt(inlineFrom).number === doc.lineAt(inlineTo).number) {
         ranges.push(Decoration.mark({ class: 'cm-merge-inline-focus' }).range(inlineFrom, inlineTo));
     }
     return Decoration.set(ranges, true);
@@ -533,6 +537,15 @@ export class MergeEditor {
             dom.addEventListener('mouseleave', this._onControlsLeave);
             dom.addEventListener('scroll', () => this._updateMinimapViewport());
 
+            // The outline round the current change, one per side, drawn over
+            // the scrolled content so it moves with it.
+            this._focusFrames = ['left', 'right'].map((key) => {
+                const frame = el('div', `merge-focus-frame merge-focus-frame-${key}`);
+                frame.hidden = true;
+                dom.appendChild(frame);
+                return frame;
+            });
+
             // The package redraws its controls as chunks change or scroll into
             // view; each redraw needs our band sizing again.
             const column = dom.querySelector('.cm-merge-revert');
@@ -583,6 +596,7 @@ export class MergeEditor {
         this._lastFocused = null;
         this._inline = null;
         this._hoverChunk = null;
+        this._focusFrames = null;
     }
 
     _forEachEditor(fn) {
@@ -707,7 +721,8 @@ export class MergeEditor {
         if (key === this._appliedFocusKey) return;
         this._appliedFocusKey = key;
 
-        const sideFocus = (from, to, inlineFrom, inlineTo) => (chunk ? { from, to, inlineFrom, inlineTo } : null);
+        const lines = !this.mergeView;
+        const sideFocus = (from, to, inlineFrom, inlineTo) => (chunk ? { from, to, inlineFrom, inlineTo, lines } : null);
         if (this.mergeView) {
             this.mergeView.a.dispatch({ effects: setFocus.of(sideFocus(
                 chunk && chunk.fromA, chunk && chunk.toA, inline && inline.fromA, inline && inline.toA)) });
@@ -717,6 +732,7 @@ export class MergeEditor {
             this.unifiedView.dispatch({ effects: setFocus.of(sideFocus(
                 chunk && chunk.fromB, chunk && chunk.toB, inline && inline.fromB, inline && inline.toB)) });
         }
+        this._layoutFocusFrames();
     }
 
     _scheduleControlLayout() {
@@ -763,6 +779,39 @@ export class MergeEditor {
             box.style.height = `${Math.max(28, span.bottom - span.top)}px`;
             box.classList.toggle('is-current', index === this._focusIndex);
         }
+        this._layoutFocusFrames();
+    }
+
+    /**
+     * Frame the current change on both sides. Both frames span the change's
+     * full aligned height, so the side without lines is framed round its
+     * spacer, the same size as the other side and the copy band between them.
+     */
+    _layoutFocusFrames() {
+        const mv = this.mergeView;
+        const frames = this._focusFrames;
+        if (!mv || !frames) return;
+        const chunk = this._focusIndex >= 0 ? mv.chunks[this._focusIndex] : null;
+        if (!chunk) {
+            frames.forEach((frame) => { frame.hidden = true; });
+            return;
+        }
+        const span = this._chunkSpan(chunk);
+        const host = mv.dom.getBoundingClientRect();
+        // Both editors start at the same height inside the scrolled content.
+        const docTop = mv.a.documentTop - host.top + mv.dom.scrollTop;
+        const height = Math.max(8, span.bottom - span.top);
+        [mv.a, mv.b].forEach((ed, i) => {
+            const frame = frames[i];
+            const pane = (ed.dom.parentNode || ed.dom).getBoundingClientRect();
+            const gutters = ed.dom.querySelector('.cm-gutters');
+            const gutterWidth = gutters ? gutters.getBoundingClientRect().width : 0;
+            frame.hidden = false;
+            frame.style.top = `${docTop + span.top}px`;
+            frame.style.height = `${height}px`;
+            frame.style.left = `${pane.left - host.left + mv.dom.scrollLeft + gutterWidth}px`;
+            frame.style.width = `${Math.max(0, pane.width - gutterWidth - 4)}px`;
+        });
     }
 
     // ── Navigation and copying ───────────────────────────────────────────────

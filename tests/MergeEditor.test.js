@@ -232,18 +232,37 @@ describe('MergeEditor word-level navigation', () => {
 });
 
 describe('MergeEditor current change', () => {
-    const outlined = (view) => view.dom.querySelectorAll('.cm-merge-focus').length;
+    const frames = () => [...host.querySelectorAll('.merge-focus-frame')].filter((f) => !f.hidden);
 
-    it('outlines the change under the cursor on both sides', async () => {
+    it('frames the change under the cursor on both sides', async () => {
         open(readOnly('one\ntwo\nthree\n'), writable('one\nTWO\nthree\n'));
         await tick();
-        expect(outlined(editor.mergeView.a)).toBe(0);
+        expect(frames()).toHaveLength(0);
 
         editor.navigate(1);
         await tick();
-        expect(outlined(editor.mergeView.a)).toBe(1);
-        expect(outlined(editor.mergeView.b)).toBe(1);
-        expect(editor.mergeView.b.dom.querySelector('.cm-merge-focus-top.cm-merge-focus-bottom')).not.toBeNull();
+        expect(frames().map((f) => f.className)).toEqual([
+            'merge-focus-frame merge-focus-frame-left',
+            'merge-focus-frame merge-focus-frame-right',
+        ]);
+        // No per-line outline pieces in the side-by-side view.
+        expect(editor.mergeView.b.dom.querySelector('.cm-merge-focus')).toBeNull();
+    });
+
+    it('frames the side with no lines too (an insertion), not just a rule on top', async () => {
+        open(readOnly('a\nc\n'), writable('a\nb1\nb2\nc\n'));
+        await tick();
+        editor.navigate(1);
+        await tick();
+        expect(frames()).toHaveLength(2);
+    });
+
+    it('does not box every line of a multi-line inserted block', async () => {
+        open(readOnly('a\nc\n'), writable('a\nb1\nb2\nc\n'));
+        await tick();
+        editor.navigateInline(1);
+        await tick();
+        expect(editor.mergeView.b.dom.querySelectorAll('.cm-merge-inline-focus')).toHaveLength(0);
     });
 
     it('marks the word being looked at', async () => {
@@ -260,9 +279,9 @@ describe('MergeEditor current change', () => {
         await tick();
         editor._setHoverChunk(1);
         expect(editor._focusIndex).toBe(1);
-        expect(outlined(editor.mergeView.b)).toBe(1);
+        expect(frames()).toHaveLength(2);
         editor._setHoverChunk(null);
-        expect(outlined(editor.mergeView.b)).toBe(0);
+        expect(frames()).toHaveLength(0);
     });
 
     it('copies the change at the cursor with the keyboard action', async () => {

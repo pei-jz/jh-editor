@@ -250,6 +250,22 @@
     flex-direction: column;
 }
 
+/* The scrolled content is the frames' positioning context, so they scroll with
+   the lines they surround. */
+.merge-body .cm-mergeView {
+    position: relative;
+}
+
+/* Outline round the current change, one per side (MergeEditor._layoutFocusFrames). */
+.merge-focus-frame {
+    position: absolute;
+    z-index: 4;
+    box-sizing: border-box;
+    border: 2px solid var(--primary-color);
+    border-radius: 6px;
+    pointer-events: none;
+}
+
 .merge-body .merge-unified .cm-editor {
     flex: 1 1 auto;
     min-height: 0;
