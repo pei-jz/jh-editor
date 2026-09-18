@@ -62,7 +62,9 @@ function _isRestorable(f) {
     if (!f || !f.path) return false;
     // Virtual tabs (diff / compare / search results / agent / ai output) have
     // no disk backing — re-opening them would be meaningless or misleading.
-    if (f.type && f.type !== 'file') return false;
+    // 'office' is the exception: it IS a file on disk, just one that is parsed
+    // on open rather than read as text, so reopening it does the right thing.
+    if (f.type && f.type !== 'file' && f.type !== 'office') return false;
     if (f.viewMode === 'diff' || f.viewMode === 'compare') return false;
     return !/^(search|ai):\/\//.test(f.path);
 }

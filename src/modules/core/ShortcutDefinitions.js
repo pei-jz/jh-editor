@@ -146,21 +146,26 @@ export const SHORTCUTS = {
         { key: 'Delete', cmd: 'csv:nav', description: 'Clear Selected Cells' },
         { key: 'Backspace', cmd: 'csv:nav', description: 'Clear Selected Cells' },
         { key: 'F2', cmd: 'csv:nav', description: 'Edit Cell' },
-        // Row/Col Operations
-        { key: ';', alt: true, cmd: 'csv:nav', description: 'Add Row' },
-        { key: '+', alt: true, cmd: 'csv:nav' },
-        { key: '-', alt: true, cmd: 'csv:nav', description: 'Delete Row' },
-        { key: '=', alt: true, cmd: 'csv:nav' },
-        { key: ';', alt: true, shift: true, cmd: 'csv:nav', description: 'Add Column' },
-        { key: '+', alt: true, shift: true, cmd: 'csv:nav' },
-        { key: '-', alt: true, shift: true, cmd: 'csv:nav', description: 'Delete Column' },
-        { key: '=', alt: true, shift: true, cmd: 'csv:nav', description: 'Delete Column' },
-        // Insert row / copied rows — Ctrl+Shift+; (Excel-style). Shift+; yields
-        // '+' on a JIS keyboard and ':' on US, so match every variant.
-        { key: ';', ctrl: true, shift: true, cmd: 'csv:insert-copied-rows', description: 'Insert Row / Copied Rows' },
-        { key: '+', ctrl: true, shift: true, cmd: 'csv:insert-copied-rows' },
-        { key: ':', ctrl: true, shift: true, cmd: 'csv:insert-copied-rows' },
-        // Insert copied columns
+        // Row/Col Operations — Excel's own keys, because this is a grid and
+        // everyone arriving at it already knows Excel's. Ctrl+Shift++ inserts,
+        // Ctrl+- deletes, and WHICH of a row or a column is decided the way
+        // Excel decides it: from the shape of the selection. Select a whole
+        // column first (Ctrl+Space) and you get a column; anything else is a
+        // row. They used to be Alt+; / Alt+- with Shift for columns, which is
+        // four combinations to remember and none of them from anywhere else.
+        //
+        // The key arrives under several names. Shift+= is '+' on a US layout
+        // and Shift+; is '+' on a JIS one; some layouts report ':' or the
+        // unshifted '='. The numeric keypad sends a bare '+' and '-'. Match all
+        // of them rather than asking the user to own a particular keyboard.
+        { key: '+', ctrl: true, shift: true, cmd: 'csv:insert', description: 'Insert Row / Column' },
+        { key: ';', ctrl: true, shift: true, cmd: 'csv:insert' },
+        { key: ':', ctrl: true, shift: true, cmd: 'csv:insert' },
+        { key: '=', ctrl: true, shift: true, cmd: 'csv:insert' },
+        { key: '+', ctrl: true, cmd: 'csv:insert' },              // keypad +
+        { key: '-', ctrl: true, cmd: 'csv:delete', description: 'Delete Row / Column' },
+        // Insert copied columns. Kept as its own key because a cell selection
+        // cannot say "as columns" — Ctrl+Shift++ on one reads as a row.
         { key: 'v', ctrl: true, alt: true, cmd: 'csv:insert-copied-cols', description: 'Insert Copied Columns' }
     ],
 
@@ -203,9 +208,13 @@ export const SHORTCUTS = {
         { key: 'j', ctrl: true, shift: true, cmd: 'md:format', description: 'Code Block' },
         { key: '-', ctrl: true, shift: true, cmd: 'md:format', description: 'Horizontal Rule' },
         { key: 'e', ctrl: true, shift: true, cmd: 'app:toggle-view-mode', description: 'Toggle View Mode' },
-        // Documentation-only (no cmd): holding Alt reveals a letter/number hint
-        // on every toolbar button; pressing it applies that format.
-        { key: 'Alt', description: 'Show toolbar format hints (hold)' }
+        // Documentation-only (no cmd): the edit modal handles these itself, on
+        // its own overlay, so they work whichever pane has the focus.
+        { key: 'f', ctrl: true, alt: true, description: 'Full screen (and back)' },
+        { key: 'l', ctrl: true, alt: true, description: 'Side by side / Stacked' },
+        // Tapping Alt — pressed and released on its own — reveals a letter or
+        // number on every toolbar button; pressing it applies that format.
+        { key: 'Alt', description: 'Show toolbar format hints (tap Alt)' }
     ],
 
     MARKDOWN_TABLE: [

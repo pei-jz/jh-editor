@@ -41,7 +41,7 @@ export function showHints() {
         '.file-item',
         '.tab',
         '.md-block', // Allow jumping to blocks
-        '.edit-icon' // Explicit edit buttons
+        '.md-block-tool' // A block's own copy / edit buttons
     ];
 
     const elements = Array.from(document.querySelectorAll(selectors.join(',')))

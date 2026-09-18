@@ -201,24 +201,52 @@ body.theme-dark .visual-table-editor .range-selected {
     color: var(--primary-color);
 }
 
-/* User Request: Edit Icon Fixed Right */
-.edit-icon {
+/* Per-block tools, top-right on hover: copy, then edit.
+   ------------------------------------------------------------
+   One row rather than two absolutely-positioned buttons, so adding a third
+   later does not mean recalculating anyone's `right`. A heading is a single
+   line and the buttons are taller than it, so the row is pulled up against the
+   block's top edge and allowed to overhang — centring it would push it through
+   the text. */
+.md-block-tools {
     position: absolute;
-    right: 15px;
-    top: 10px;
+    right: 12px;
+    top: 4px;
+    display: none;
+    gap: 4px;
+    z-index: 50;
+}
+
+.md-block:hover .md-block-tools {
+    display: flex;
+}
+
+.md-block-tool {
     background: var(--primary-color);
     color: var(--text-on-primary, #fff);
     padding: 6px;
     border-radius: 4px;
     cursor: pointer;
     box-shadow: var(--shadow-sm);
-    display: none;
-    z-index: 50;
     line-height: 1;
+    opacity: 0.85;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
 }
 
-.md-block:hover .edit-icon {
-    display: block;
+.md-block-tool:hover {
+    opacity: 1;
+}
+
+/* Copied: the button answers where the click was. A toast in the far corner
+   for something this small is a notification about a non-event. */
+.md-block-tool.copied {
+    background: var(--git-staged-color, #2ea043);
+    opacity: 1;
+}
+
+/* A block being edited is a form, not a page: its tools belong to the modal. */
+.md-block.editing .md-block-tools {
+    display: none;
 }
 
 /* Preview Modal while Editing */
@@ -2597,4 +2625,98 @@ body.theme-solarized-light .md-view-mode-toggle {
     background: color-mix(in srgb, var(--primary-color) 16%, transparent);
     color: var(--primary-color);
     border-color: var(--primary-color);
+}
+
+/* ============================================================
+   File loading panel — "this is taking a moment"
+   ------------------------------------------------------------
+   Opening a few hundred megabytes takes seconds, and the editor used to spend
+   all of them showing the PREVIOUS file, unchanged: no caret, no movement, no
+   sign anything was happening, then the new text all at once. That reads as a
+   hang. See ui/LoadingOverlay.js for why the bar is indeterminate rather than a
+   percentage.
+
+   Top-centre of the pane, under its tab bar (the exact offset is measured in
+   JS, since the two panes' tab bars are declared in different places). The two
+   other floating panels live in the corners — .cm-view-toolbar top-right,
+   .view-usage-hint bottom-right — so nothing here can land on top of them.
+   pointer-events stay off: this reports, it does not intercept.
+   ============================================================ */
+.file-loading {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -6px);
+    z-index: 70;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.file-loading.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    visibility: visible;
+}
+
+.file-loading-card {
+    min-width: 260px;
+    max-width: 460px;
+    padding: 10px 16px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color-secondary);
+    box-shadow: var(--shadow-lg);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.file-loading-title {
+    color: var(--text-color);
+    font-weight: 600;
+    /* A long name must not stretch the card across the pane. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-loading-detail {
+    margin-top: 1px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    min-height: 1.45em;   /* reserved, so the card does not resize per phase */
+}
+
+.file-loading-bar {
+    margin-top: 9px;
+    height: 3px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text-color) 12%, transparent);
+    overflow: hidden;
+}
+
+/* Indeterminate: a segment that sweeps, because there is no honest percentage
+   to show (LoadingOverlay.js explains what the time is actually spent on). */
+.file-loading-fill {
+    width: 36%;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--primary-color);
+    animation: file-loading-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes file-loading-sweep {
+    0%   { transform: translateX(-105%); }
+    100% { transform: translateX(383%); }
+}
+
+/* A system-level request for less motion is honoured: the bar stops sweeping
+   and just sits there, still saying "busy" without the movement. */
+@media (prefers-reduced-motion: reduce) {
+    .file-loading { transition: none; }
+    .file-loading-fill {
+        animation: none;
+        width: 100%;
+        opacity: 0.5;
+    }
 }

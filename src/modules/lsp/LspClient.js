@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { State } from '../core/Store.js';
+import { pathToUri } from './Uri.js';
 
 // Per-window diagnostics event so a window only gets its own LSP diagnostics
 // (Tauri v2 global `listen` receives events regardless of emit target).
@@ -282,7 +283,7 @@ class LspClient {
         if (!language) return [];
 
         const serverLang = language === 'javascript' ? 'typescript' : language;
-        const uri = `file:///${filePath.replace(/\\/g, '/').replace(/^\//, '')}`;
+        const uri = pathToUri(filePath);
 
         try {
             const result = await invoke('lsp_request', {
@@ -314,7 +315,7 @@ class LspClient {
         if (!language) return null;
 
         const serverLang = language === 'javascript' ? 'typescript' : language;
-        const uri = `file:///${filePath.replace(/\\/g, '/').replace(/^\//, '')}`;
+        const uri = pathToUri(filePath);
 
         try {
             const result = await invoke('lsp_request', {
@@ -345,7 +346,7 @@ class LspClient {
         if (!language) return null;
 
         const serverLang = language === 'javascript' ? 'typescript' : language;
-        const uri = `file:///${filePath.replace(/\\/g, '/').replace(/^\//, '')}`;
+        const uri = pathToUri(filePath);
 
         try {
             const result = await invoke('lsp_request', {
@@ -374,7 +375,7 @@ class LspClient {
         if (!language) return [];
 
         const serverLang = language === 'javascript' ? 'typescript' : language;
-        const uri = `file:///${filePath.replace(/\\/g, '/').replace(/^\//, '')}`;
+        const uri = pathToUri(filePath);
 
         try {
             const result = await invoke('lsp_request', {

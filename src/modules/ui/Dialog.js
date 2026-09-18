@@ -28,8 +28,15 @@ function _injectStyles() {
     const style = document.createElement('style');
     style.id = 'app-dialog-styles';
     style.textContent = `
+    /* Above EVERYTHING. A dialog is asked from inside whatever is already on
+       screen — the notes browser, the command palette, the AI panel — and it is
+       the thing that owns the keyboard while it is up (ShortcutManager returns
+       early for exactly this overlay). At 100000 it sat UNDER the notes browser
+       at 100005 and the palette at 100010: "Delete this note?" appeared behind
+       the list it was asked from, with no way to answer it. Anything new that
+       wants to be on top has to be below this. */
     .app-dialog-overlay {
-        position: fixed; inset: 0; z-index: 100000;
+        position: fixed; inset: 0; z-index: 2147483000;
         display: flex; align-items: center; justify-content: center;
         background: rgba(0, 0, 0, 0.42);
         backdrop-filter: blur(1.5px);

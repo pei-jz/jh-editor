@@ -105,6 +105,10 @@ const STROKE = {
     // are in — a button labelled with the current state reads as a status line.
     'layout-columns': '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/>',
     'layout-rows': '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/>',
+    // Two sheets, one behind the other — the copy mark everyone already reads.
+    // 'copy-table' below is the same idea with a table drawn on it, and is
+    // wrong anywhere the thing being copied is not a table.
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/>',
     'copy-table': '<rect x="8" y="3" width="13" height="13" rx="2"/><line x1="8" y1="8" x2="21" y2="8"/><line x1="14" y1="8" x2="14" y2="16"/><path d="M16 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"/>',
 };
 
@@ -209,7 +213,10 @@ export function iconForFile(name, isDirectory = false, expanded = false) {
         case 'rs': case 'go': case 'java': case 'c': case 'cpp': case 'h':
             return 'file-code';
         case 'py': case 'rb': case 'sh': case 'ps1': return 'file-code';
-        case 'csv': case 'tsv': case 'xlsx': return 'file-table';
+        case 'csv': case 'tsv':
+        case 'xlsx': case 'xlsm': case 'xls': case 'ods': return 'file-table';
+        case 'docx': return 'file-text';
+        case 'pptx': return 'file-globe';
         case 'json': case 'yaml': case 'yml': case 'toml': return 'file-binary';
         default: return 'file';
     }

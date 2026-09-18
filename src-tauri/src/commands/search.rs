@@ -33,11 +33,17 @@ fn do_list_all_files(dir: String) -> Result<Vec<FileEntry>, String> {
         .ignore(true)
         .build_parallel();
 
+    // Files this editor cannot open at all, so quick-open should not list them.
+    // The Office formats with a reader (.xlsx/.xls/.ods/.docx/.pptx) are NOT
+    // here: they open in the read-only preview, and a file that can be opened
+    // but not found by name is a feature nobody discovers. This is a different
+    // question from what GREP should read — a workbook is still binary to a
+    // content search, which skips it on its own.
     let binary_exts: std::collections::HashSet<&str> = [
         "exe", "dll", "so", "dylib", "bin", "obj", "o",
         "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "svg",
         "zip", "tar", "gz", "7z", "rar",
-        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+        "pdf", "doc", "ppt",
         "mp3", "mp4", "wav", "avi", "mov", "mkv", "flac",
         "db", "sqlite", "class", "jar", "pyc", "pdb",
         "woff", "woff2", "ttf", "eot", "otf",

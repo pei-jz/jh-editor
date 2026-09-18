@@ -139,7 +139,10 @@ describe('Navigation', () => {
             await Navigation.handleNavigation(tokenInfo);
 
             expect(lspClient.getDefinition).toHaveBeenCalled();
-            expect(mockOpenFile).toHaveBeenCalledWith('src/helper.js', 5);
+            // openFile(path, forceEncoding, gotoLine): the line goes in the
+            // THIRD slot. Passed as the second it was read as an encoding, so
+            // the jump landed at the top of the file. LSP lines are 0-based.
+            expect(mockOpenFile).toHaveBeenCalledWith('src/helper.js', false, 6);
         });
     });
 });

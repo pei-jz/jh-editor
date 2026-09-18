@@ -947,6 +947,65 @@ export function focusExplorer() {
     EL.explorerList.focus();
 }
 
+/**
+ * Is `path` somewhere the explorer could show?
+ *
+ * Compared segment by segment, not as a string prefix: "C:/project-backup" and
+ * "C:/proj" share their first seven characters and are different folders, and
+ * a plain startsWith would send the first one to a tree it is not in.
+ */
+export function isInsideWorkspace(path) {
+    const root = State.currentDir;
+    if (!root || !path) return false;
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const r = norm(root);
+    const t = norm(path);
+    return t === r || t.startsWith(r + '/');
+}
+
+/**
+ * Open the tree down to `dirPath` and put the cursor on it.
+ *
+ * Every folder between the workspace root and the target is expanded first —
+ * a row that is inside a collapsed parent is not in `flatItems` at all, so
+ * there would be nothing to focus. The refresh is awaited for the same reason:
+ * the rows do not exist until it has run.
+ *
+ * Returns false when the path is not under the current workspace, which is the
+ * caller's cue to hand it to the OS file manager instead.
+ */
+export async function revealDirectory(dirPath) {
+    if (!isInsideWorkspace(dirPath)) return false;
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const target = String(dirPath).replace(/\\/g, '/').replace(/\/+$/, '');
+    const r = norm(State.currentDir);
+    const tgt = norm(target);
+
+    // Expand from the target up to (but not including) the root: the root row
+    // is the tree itself and has no expander of its own.
+    let curr = target;
+    for (let guard = 0; guard < 64 && norm(curr) !== r; guard++) {
+        State.expandedFolders.add(curr);
+        const parent = FS.getParentDir(curr);
+        if (!parent || parent === curr) break;
+        curr = parent;
+    }
+
+    // Already true, and still true with no tree built yet: the answer is about
+    // whose path this is, not about whether the panel happens to be up.
+    if (!vExplorer) return true;
+    await vExplorer.refresh();
+    const index = vExplorer.flatItems.findIndex((x) => norm(x.path) === tgt);
+    // The root itself has no row; showing the top of the tree is the honest
+    // answer to "take me to the workspace root".
+    if (index < 0) {
+        if (tgt === r) vExplorer.container.scrollTop = 0;
+        return true;
+    }
+    vExplorer.setFocus(index);
+    return true;
+}
+
 // Search Caching
 let lastSearchTerm = '';
 let lastSearchContentFlag = false;

@@ -13,6 +13,10 @@ import { setDiagnostics, lintGutter } from '@codemirror/lint';
 import { highlightSelectionMatches, SearchQuery } from '@codemirror/search';
 import { Toast } from '../ui/Toast.js';
 import { isDarkTheme as isAppThemeDark } from '../utils/ThemeInfo.js';
+// Page Up / Page Down (CodeMirror's own land the caret in the wrong column
+// when the target line has not been rendered — see the module).
+import { pageMotionKeymap } from '../utils/CMPageMotion.js';
+import { uriToPath } from '../lsp/Uri.js';
 
 // Languages
 import { javascript } from '@codemirror/lang-javascript';
@@ -191,11 +195,14 @@ const jhTheme = EditorView.theme({
         backgroundColor: "rgba(255, 152, 0, 0.55)",
         outline: "1px solid #ff6d00"
     },
+    // Both were flat white — 5% and 10% — which is nothing at all on a light
+    // theme and barely a shade on a dark one. The tokens mix against the
+    // theme's own text colour, so the tint lands on either. (themes.css)
     ".cm-activeLine": {
-        backgroundColor: "rgba(255, 255, 255, 0.05)"
+        backgroundColor: "var(--cm-active-line-bg, rgba(127, 127, 127, 0.09))"
     },
     ".cm-selectionMatch": {
-        backgroundColor: "rgba(255, 255, 255, 0.1)"
+        backgroundColor: "var(--cm-selection-match-bg, rgba(127, 127, 127, 0.16))"
     },
     ".cm-gutters": {
         // Solid background (--gutter-bg is undefined in the themes → was
@@ -779,6 +786,8 @@ export class CodeMirrorView {
                 { key: 'Alt-a', run: sortSelectedLines },
                 { key: 'Alt-m', run: dedupeSelectedLines },
                 ...closeBracketsKeymap,
+                // Before defaultKeymap so these win its PageUp / PageDown.
+                ...pageMotionKeymap,
                 ...defaultKeymap,
                 // NOTE: searchKeymap is intentionally omitted — it opens CM6's
                 // own (2-row, cramped) search panel. The app has its own search
@@ -1416,7 +1425,7 @@ export class CodeMirrorView {
             const uri = location.uri || location.targetUri;
             const range = location.range || location.targetSelectionRange;
             if (uri && range) {
-                const path = uri.replace('file:///', '').replace('file://', '');
+                const path = uriToPath(uri);
                 if (window.app && window.app.openFile) {
                     window.app.openFile(path, false, range.start.line + 1); // LSP line is 0-based
                 }
@@ -1463,15 +1472,10 @@ export class CodeMirrorView {
         const x = coords.left;
         const y = coords.bottom + 5;
 
+        // No onApply here any more: the popup asks and closes, and the answer
+        // is applied from the dock — as a diff to review when it is a rewrite,
+        // which is also what the preset buttons have always done.
         this.inlineAI.show(x, y, context);
-
-        this.inlineAI.onApply = (newCode) => {
-            if (!this.editorView || newCode == null) return;
-            // replaceSelection handles CRLF normalization + caret placement so a
-            // manual from+length offset can't fall outside the doc (RangeError).
-            this.editorView.dispatch(this.editorView.state.replaceSelection(String(newCode)));
-            this.editorView.focus();
-        };
     }
 
     // ── Search Integration ──
@@ -1741,7 +1745,7 @@ export class CodeMirrorView {
             const range = loc.range || loc.targetSelectionRange;
             if (!uri || !range) return;
 
-            const path = uri.replace('file:///', '').replace('file://', '');
+            const path = uriToPath(uri);
             const filename = path.split('/').pop();
 
             const li = document.createElement('li');

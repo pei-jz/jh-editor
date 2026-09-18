@@ -506,6 +506,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58785077b99914cfa7aa07b7203b1d5eb91efcd7d5ffd0f51a98b95c36112ef4"
 dependencies = [
  "byteorder",
+ "chrono",
  "codepage",
  "encoding_rs",
  "log",
@@ -2308,6 +2309,7 @@ version = "0.3.1"
 dependencies = [
  "calamine",
  "chardetng",
+ "chrono",
  "clipboard-win",
  "crossbeam-channel",
  "encoding_rs",
@@ -2316,6 +2318,7 @@ dependencies = [
  "log",
  "memchr",
  "memmap2",
+ "open",
  "portable-pty",
  "quick-xml 0.31.0",
  "regex",
@@ -2338,6 +2341,7 @@ dependencies = [
  "webview2-com",
  "windows-core 0.61.2",
  "windows-registry",
+ "zip 1.1.4",
 ]
 
 [[package]]

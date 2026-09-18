@@ -115,6 +115,14 @@ body {
        the path and the filename is weight, not contrast. */
     --titlebar-text: var(--text-color);
     --titlebar-text-dim: color-mix(in srgb, var(--text-color) 88%, var(--header-bg));
+
+    /* The line the caret is on, and the other occurrences of the selected word.
+       Mixed from the theme's own ink rather than pinned, so the tint shows on a
+       light background and a dark one alike. Both used to be flat white — 5%
+       and 10% — which is nothing at all on the six light themes, and barely a
+       shade on the dark ones they were written for. */
+    --cm-active-line-bg: color-mix(in srgb, var(--text-color) 9%, transparent);
+    --cm-selection-match-bg: color-mix(in srgb, var(--text-color) 16%, transparent);
 }
 
 body.theme-dark {

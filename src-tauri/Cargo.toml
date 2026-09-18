@@ -45,7 +45,23 @@ portable-pty = "0.9.0"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.32"
 regex = "1.12.3"
-calamine = "0.25.0"
+# `dates` makes a date cell come back as a date. Without it every date in
+# every sheet reads as its Excel serial number — "46056" where the sheet
+# shows 2026/02/03. It pulls in chrono, which the tree already carries.
+calamine = { version = "0.25.0", features = ["dates"] }
+# Only to print what calamine hands back: ExcelDateTime converts to a chrono
+# NaiveDateTime, and formatting one needs chrono's `alloc`, which calamine
+# does not ask for itself. Same 0.4 the tree already builds.
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+# Hands a previewed file to whatever the OS opens it with. tauri-plugin-shell
+# has an `open` of its own, but the JS side of it is scoped to http/tel/mailto
+# and its Rust side is deprecated; this is the crate underneath it, already
+# built as one of its dependencies.
+open = "5.3"
+# .docx / .pptx previews: the OOXML parts are XML inside a zip, and
+# quick-xml above already reads the XML. Same version calamine unpacks
+# workbooks with, so nothing extra is built.
+zip = { version = "1.1", default-features = false, features = ["deflate"] }
 memmap2 = "0.9"
 memchr = "2"
 ropey = "1.6"

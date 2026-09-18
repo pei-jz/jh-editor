@@ -132,8 +132,24 @@ describe('rendered Markdown reaches the DOM sanitised', () => {
     });
 
     it('sanitises AI output too — model text lands in the same document', () => {
-        expect(read('src/modules/ui/InlineAI.js')).toMatch(/sanitizeHtml\(marked\.parse\(/);
         expect(read('src/modules/ui/AiChatPanel.js')).toMatch(/sanitizeHtml\(marked\.parse\(/);
+        // The activity dock is the other place a model's words are rendered,
+        // now that the InlineAI popup asks and closes rather than displaying
+        // an answer itself.
+        expect(read('src/modules/ai/JhAiActivityPanel.js')).toMatch(/marked\.parse\(/);
+    });
+
+    it('the InlineAI popup renders no model output at all', () => {
+        // The strongest version of the rule above: text that is never rendered
+        // cannot be rendered unsafely. The popup is a way to ASK — the answer
+        // goes to the dock or to a tab, both of which sanitise.
+        // Its own chrome is still built with innerHTML; what it must not do is
+        // put a MODEL's words on the page.
+        const inline = read('src/modules/ui/InlineAI.js');
+        expect(inline).not.toContain('marked.parse');
+        expect(inline).not.toContain('sanitizeHtml');
+        expect(inline).not.toContain('resultContent');
+        expect(inline).not.toContain('fullResponse');
     });
 });
 

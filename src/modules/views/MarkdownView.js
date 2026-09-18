@@ -1,5 +1,6 @@
 import { BaseView } from './BaseView.js';
 import { t } from '../utils/I18n.js';
+import { createModifierTap } from '../utils/ModifierTap.js';
 import { iconEl } from '../ui/Icons.js';
 import { State } from '../core/Store.js';
 import { EL } from '../core/Constants.js';
@@ -7,6 +8,7 @@ import * as Markdown from '../utils/Markdown.js';
 import { escapeForMermaid } from '../utils/Markdown.js';
 import { icon as svgIcon } from '../ui/Icons.js';
 import { Toast } from '../ui/Toast.js';
+import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { TableEditor } from '../editors/TableEditor.js';
 import { open } from '@tauri-apps/plugin-shell';
@@ -501,14 +503,31 @@ export class MarkdownView extends BaseView {
                     div.textContent = blockText;
                 }
 
+                const tools = document.createElement('div');
+                tools.className = 'md-block-tools';
+
+                // Copy first, edit second: copying is the one you reach for
+                // without meaning to change anything, so it gets the safer
+                // position away from the block's own text.
+                const copyBtn = document.createElement('div');
+                copyBtn.className = 'md-block-tool md-copy-icon';
+                copyBtn.title = t('Copy this block');
+                copyBtn.replaceChildren(iconEl('copy', { size: 12 }));
+                copyBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    this._copyBlock(index, copyBtn);
+                };
+
                 const icon = document.createElement('div');
-                icon.className = 'edit-icon';
+                icon.className = 'md-block-tool edit-icon';
+                icon.title = t('Edit this block');
                 icon.replaceChildren(iconEl('pencil', { size: 12 }));
                 icon.onclick = (e) => {
                     e.stopPropagation();
                     this.enterEditMode(div, blockText, index);
                 };
-                div.appendChild(icon);
+                tools.append(copyBtn, icon);
+                div.appendChild(tools);
                 div.ondblclick = (e) => {
                     e.stopPropagation();
                     this.enterEditMode(div, blockText, index);
@@ -992,15 +1011,20 @@ export class MarkdownView extends BaseView {
             else hideAltHints();
         };
 
+        // A TAP of Alt shows the hints, and a second tap hides them again —
+        // the menu-bar behaviour, and the only rule here that needs neither a
+        // duration nor special handling for key repeat. See utils/ModifierTap.
+        const altTap = createModifierTap({ key: 'Alt', onTap: () => toggleAltHints() });
+
         const handleKeyDown = (e) => {
-            // Alt ALONE opens the toolbar hints. It used to react to the Alt
-            // inside any combination, so pressing Ctrl+Alt+L flashed the hint
-            // overlay over the toolbar on the way to the shortcut — and left it
-            // up, because the matching keyup never came as a bare Alt.
+            altTap.keydown(e);
             if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                // Keeps the webview from treating Alt as "go to the menu bar".
                 e.preventDefault();
-                toggleAltHints();
-            } else if (e.key === 'Escape' && hintsVisible) {
+                return;
+            }
+
+            if (e.key === 'Escape' && hintsVisible) {
                 toggleAltHints(false);
             } else if (hintsVisible) {
                 const keys = '123456789abcdefghijklmnopqrstuvwxyz';
@@ -1014,7 +1038,27 @@ export class MarkdownView extends BaseView {
             }
         };
 
+        const handleKeyUp = (e) => altTap.keyup(e);
+        // Alt and then a click is a drag gesture, not a tap.
+        const handlePointerDown = () => altTap.disarm();
+
+        // The window going inactive is the Alt+Tab case itself: the release is
+        // delivered somewhere else and never comes back here.
+        const handleWindowBlur = () => {
+            altTap.disarm();
+            if (hintsVisible) toggleAltHints(false);
+        };
+
         container.addEventListener('keydown', handleKeyDown);
+        container.addEventListener('keyup', handleKeyUp);
+        container.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('blur', handleWindowBlur);
+        // The container is thrown away with the modal, but the window is not.
+        this._altHintCleanup = () => {
+            altTap.disarm();
+            window.removeEventListener('blur', handleWindowBlur);
+            this._altHintCleanup = null;
+        };
 
         // Debounced: re-parsing + re-rendering diagrams on every keystroke made
         // mermaid runs pile up on top of each other (which surfaced as spurious
@@ -1168,17 +1212,23 @@ export class MarkdownView extends BaseView {
         // Same approach as the Mermaid helper: fill the window but stay below
         // the custom title bar (measured, since it moves with theme/scale).
         const maxBtn = head.querySelector('.mbe-max-btn');
+        // Named, because the keyboard reaches it too (Ctrl+Alt+F below).
+        const setFullScreen = (max) => {
+            box.classList.toggle('mbe-max', max);
+            if (max) {
+                const bar = document.getElementById('custom-titlebar');
+                const h = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+                overlay.style.setProperty('--mbe-top', `${h}px`);
+            }
+            overlay.classList.toggle('mbe-max-overlay', max);
+            if (maxBtn) maxBtn.classList.toggle('active', max);
+        };
+        const isFullScreen = () => box.classList.contains('mbe-max');
+        const toggleFullScreen = () => setFullScreen(!isFullScreen());
         if (maxBtn) {
             maxBtn.innerHTML = svgIcon('maximize', { size: 12 }) + `<span>${t('Full screen')}</span>`;
-            maxBtn.onclick = () => {
-                const max = box.classList.toggle('mbe-max');
-                if (max) {
-                    const bar = document.getElementById('custom-titlebar');
-                    const h = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
-                    overlay.style.setProperty('--mbe-top', `${h}px`);
-                }
-                overlay.classList.toggle('mbe-max-overlay', max);
-            };
+            maxBtn.title = `${t('Fill the window')} (Ctrl+Alt+F)`;
+            maxBtn.onclick = toggleFullScreen;
         }
 
         // ── Edge grips ──────────────────────────────────────────────
@@ -1259,11 +1309,28 @@ export class MarkdownView extends BaseView {
         // keyboards) while the physical key stays KeyL. The codebase already
         // does this for Ctrl+\ — same reason.
         overlay.addEventListener('keydown', (e) => {
+            // Escape steps back OUT of full screen rather than throwing the
+            // edit away. Full screen is the one state where the dialog covers
+            // everything, so it is also the one where a reflex Escape is most
+            // likely — and losing a block you were part way through writing to
+            // a key you pressed to "get out of the big window" is not a trade
+            // anyone would choose.
+            if (e.key === 'Escape' && isFullScreen()) {
+                e.preventDefault();
+                e.stopPropagation();
+                setFullScreen(false);
+                return;
+            }
+            if (!e.altKey || !(e.ctrlKey || e.metaKey)) return;
+            // `e.code` as well as `e.key`: holding Alt changes the reported
+            // CHARACTER on several layouts while the physical key stays put.
             const isL = e.code === 'KeyL' || String(e.key).toLowerCase() === 'l';
-            if (!isL || !e.altKey || !(e.ctrlKey || e.metaKey)) return;
+            const isF = e.code === 'KeyF' || String(e.key).toLowerCase() === 'f';
+            if (!isL && !isF) return;
             e.preventDefault();
             e.stopPropagation();
-            toggleLayout();
+            if (isL) toggleLayout();
+            else toggleFullScreen();
         }, true);
 
         this._editOverlay = overlay;
@@ -1271,6 +1338,7 @@ export class MarkdownView extends BaseView {
 
     /** Tear the edit modal down and put the shared preview node back. */
     _closeEditModal() {
+        this._altHintCleanup?.();
         const home = this._previewHome;
         if (home && home.node) {
             home.node.classList.remove('mbe-preview');
@@ -1841,12 +1909,146 @@ export class MarkdownView extends BaseView {
             return cm.state.sliceDoc(sel.from, sel.to);
         }
 
-        // 2. If a block is selected but not editing -> Return whole block text
-        const index = State.vimState.selectedIndex;
-        if (index >= 0 && index < this.blocksData.length) {
-            return this.blocksData[index];
+        // 2. Dragged across some rendered text → that text, not the block it
+        //    sits in. Someone who highlighted three words means the three
+        //    words; handing them the whole paragraph's Markdown would be a
+        //    strange answer to a precise question. triggerCopy() deliberately
+        //    leaves a selection inside the editor to the view, so this is the
+        //    only place it gets looked at.
+        const dom = this._domSelectionText();
+        if (dom) return dom;
+
+        // 3. Not editing → the SELECTED BLOCKS, as Markdown source.
+        //
+        // The whole range, not the one under the cursor. Highlighting, delete
+        // and F2 all read selectedRange(); only this read selectedIndex, so a
+        // Shift-extended selection copied one block and silently dropped the
+        // rest — select a heading and the paragraph under it, copy, and the
+        // heading was gone with nothing to say so.
+        //
+        // Joined the way _editBlockRange joins a range and saveBlock writes the
+        // file: one blank line between blocks. A copy therefore pastes back as
+        // the same blocks it came from.
+        return this._sourceOfRange(this.selectedRange());
+    }
+
+    /** A live text selection inside THIS view, or '' when there is none. */
+    _domSelectionText() {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+        const node = sel.anchorNode;
+        if (!node || !this.container || !this.container.contains(node)) return '';
+        return sel.toString();
+    }
+
+    /**
+     * Ctrl+C / the context menu's Copy.
+     *
+     * Without this the app's copy command found no `copy()` on the view and
+     * fell back to the DOM text selection — and a BLOCK selection is not a DOM
+     * text selection, so selecting a heading and pressing Ctrl+C copied
+     * nothing at all. The context menu was worse: it ran
+     * `document.execCommand('copy')`, which can only ever see the DOM
+     * selection, so it did nothing for exactly the same reason.
+     */
+    async copy() {
+        const text = this.getSelectedText();
+        if (!text) return;
+        try {
+            await writeText(text);
+        } catch (e) {
+            console.warn('MarkdownView: copy failed', e);
+            Toast.show(t('Could not copy to the clipboard.'), 'error');
         }
-        return '';
+    }
+
+    /**
+     * Ctrl+X / the context menu's Cut.
+     *
+     * No confirmation, unlike Delete, because what is removed is on the
+     * clipboard — that is the whole difference between cutting and deleting.
+     */
+    async cut() {
+        const text = this.getSelectedText();
+        if (!text) return;
+        try {
+            await writeText(text);
+        } catch (e) {
+            console.warn('MarkdownView: cut failed', e);
+            Toast.show(t('Could not copy to the clipboard.'), 'error');
+            return;   // nothing was saved, so nothing may be taken away
+        }
+        this.replaceSelectedText('');
+    }
+
+    /** Ctrl+V / the context menu's Paste: over the selection, as blocks. */
+    async paste() {
+        let text = '';
+        try {
+            text = await readText();
+        } catch (e) {
+            console.warn('MarkdownView: paste failed', e);
+            return;
+        }
+        if (text) this.replaceSelectedText(String(text));
+    }
+
+    /**
+     * What the copy button on block `index` puts on the clipboard.
+     *
+     * The Markdown SOURCE, not the rendered text, because this is a Markdown
+     * editor and the source is what round-trips: paste `## Section` back and it
+     * is still a heading, where pasting "Section" has thrown the level away
+     * along with every list marker, link and emphasis in the block.
+     *
+     * A fenced code block is the exception, and the only one. Its source is the
+     * code wrapped in ``` lines, and nobody has ever wanted those — the code is
+     * going into a terminal or another file. Every renderer with a copy button
+     * on a code block does this; doing otherwise would be the surprise.
+     */
+    static sourceForCopy(blockText) {
+        const text = String(blockText || '');
+        // ```lang\n … \n``` — and only when the whole block is the fence, so a
+        // paragraph that merely mentions one is left alone.
+        const fence = /^\s*(`{3,}|~{3,})[^\n]*\n([\s\S]*?)\n?\1\s*$/.exec(text);
+        return fence ? fence[2] : text;
+    }
+
+    /** Copy one block, and say so on the button itself. */
+    async _copyBlock(index, button) {
+        const source = MarkdownView.sourceForCopy(this.blocksData[index]);
+        if (!source) return;
+        try {
+            await writeText(source);
+        } catch (e) {
+            console.warn('MarkdownView: copy failed', e);
+            Toast.show(t('Could not copy to the clipboard.'), 'error');
+            return;
+        }
+        // Answered where the click was, not in the corner of the screen. A toast
+        // for something this small is a notification about a non-event.
+        if (!button || !button.isConnected) return;
+        button.classList.add('copied');
+        button.replaceChildren(iconEl('check', { size: 12 }));
+        clearTimeout(button._revert);
+        button._revert = setTimeout(() => {
+            if (!button.isConnected) return;
+            button.classList.remove('copied');
+            button.replaceChildren(iconEl('copy', { size: 12 }));
+        }, 1200);
+    }
+
+    /** The Markdown source of a block range, or '' if there is no such range. */
+    _sourceOfRange(range) {
+        if (!range || !Array.isArray(this.blocksData) || !this.blocksData.length) return '';
+        const last = this.blocksData.length - 1;
+        const from = Math.max(0, range.from);
+        // The trailing "+ Add Block" phantom has no source behind it.
+        const to = Math.min(range.to, last);
+        if (to < from) return '';
+        const file = State.openFiles[State.activeTabIndex];
+        const eol = (file && file.eol) || '\n';
+        return this.blocksData.slice(from, to + 1).join(eol + eol);
     }
 
     replaceSelectedText(text) {
@@ -1862,11 +2064,19 @@ export class MarkdownView extends BaseView {
             return;
         }
 
-        // 2. If block selected but not editing -> Replace whole block
-        const index = State.vimState.selectedIndex;
-        if (index >= 0 && index < this.blocksData.length) {
-            this.saveBlock(index, text);
-        }
+        // 2. Not editing → replace the SELECTED BLOCKS.
+        //
+        // The same range getSelectedText() copies, so cut-and-paste over a
+        // multi-block selection is one operation and not a copy of two blocks
+        // landing on top of one. saveBlock re-splits the pasted text, so
+        // pasting three blocks over two leaves three.
+        const range = this.selectedRange();
+        if (!range || !Array.isArray(this.blocksData)) return;
+        const last = this.blocksData.length - 1;
+        const from = Math.max(0, range.from);
+        const to = Math.min(range.to, last);
+        if (to < from) return;
+        this.saveBlock(from, text, to - from + 1);
     }
 
     /** Vertical padding of .stf__page (30px top + 30px bottom, see editor.css). */

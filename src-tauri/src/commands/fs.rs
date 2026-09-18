@@ -195,6 +195,89 @@ pub fn file_stats(path: String) -> Result<FileStats, String> {
     Ok(FileStats { size: meta.len(), mtime })
 }
 
+/// One note, as the notes browser needs to draw a row for it.
+#[derive(serde::Serialize)]
+pub struct NoteEntry {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+    pub mtime: Option<f64>,
+    /// The note's first non-blank line, with any leading `#` taken off, capped
+    /// at 120 characters. A note's title is the first thing in it — asking the
+    /// frontend to read every file to find that out would be one IPC round trip
+    /// per note, so it is read here, where the directory is already open.
+    pub title: String,
+}
+
+/// List the .md files in one directory, newest first, each with its title.
+///
+/// Not recursive and not general-purpose: this is for the notes folders, which
+/// are flat by construction. A missing directory is an empty list, not an
+/// error — there are simply no notes yet.
+#[command]
+pub fn list_notes(dir: String) -> Result<Vec<NoteEntry>, String> {
+    let read = match fs::read_dir(&dir) {
+        Ok(r) => r,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut out: Vec<NoteEntry> = Vec::new();
+    for entry in read.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let is_md = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("md"))
+            .unwrap_or(false);
+        if !is_md {
+            continue;
+        }
+        let meta = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let mtime = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as f64);
+        out.push(NoteEntry {
+            title: note_title(&path),
+            path: path.to_string_lossy().replace('\\', "/"),
+            name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+            size: meta.len(),
+            mtime,
+        });
+    }
+    // Newest first: a notes list is a stack, not an alphabet.
+    out.sort_by(|a, b| b.mtime.unwrap_or(0.0).total_cmp(&a.mtime.unwrap_or(0.0)));
+    Ok(out)
+}
+
+/// First non-blank line of a note, minus its heading marks.
+fn note_title(path: &std::path::Path) -> String {
+    // Only the head of the file: a note's title cannot be on line 5000, and
+    // reading a large one in full to find that out would defeat the point.
+    let mut buf = [0u8; 4096];
+    let read = {
+        use std::io::Read;
+        match fs::File::open(path).and_then(|mut f| f.read(&mut buf)) {
+            Ok(n) => n,
+            Err(_) => 0,
+        }
+    };
+    let head = String::from_utf8_lossy(&buf[..read]);
+    for line in head.lines() {
+        let t = line.trim_start_matches(['#', ' ', '\t']).trim();
+        if !t.is_empty() {
+            return t.chars().take(120).collect();
+        }
+    }
+    String::new()
+}
+
 #[command]
 pub fn exists(path: String) -> bool {
     std::path::Path::new(&path).exists()
@@ -404,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_decode_auto_detect_refuses_binary_and_reads_shift_jis() {
-        assert!(decode_auto_detect(b"PK  ").is_err());
+        assert!(decode_auto_detect(b"PK\x03\x04\x00\x00").is_err());
         assert_eq!(decode_auto_detect(b"").unwrap().content, "");
 
         let (sjis, _, _) = encoding_rs::SHIFT_JIS.encode("これは日本語のテキストです。文字コードを判定します。");

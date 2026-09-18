@@ -32,6 +32,7 @@ import {
     MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk, getChunks, getOriginalDoc, Change,
 } from '@codemirror/merge';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
+import { pageMotionKeymap } from '../utils/CMPageMotion.js';
 import { t } from '../utils/I18n.js';
 import { languageExtensionFor, syntaxExtensionForTheme } from '../views/CodeMirrorView.js';
 import {
@@ -167,7 +168,7 @@ const mergeTheme = EditorView.theme({
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
         backgroundColor: 'var(--cm-selection-bg, rgba(51, 144, 250, 0.18))',
     },
-    '.cm-activeLine': { backgroundColor: 'rgba(127, 127, 127, 0.06)' },
+    '.cm-activeLine': { backgroundColor: 'var(--cm-active-line-bg, rgba(127, 127, 127, 0.09))' },
     '.cm-gutters': {
         backgroundColor: 'var(--bg-color)',
         color: 'var(--text-secondary)',
@@ -410,7 +411,9 @@ export class MergeEditor {
             drawSelection(),
             highlightActiveLine(),
             history(),
-            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+            // pageMotionKeymap first: it replaces defaultKeymap's PageUp / PageDown,
+            // which put the caret in the wrong column on an unrendered line.
+            keymap.of([...pageMotionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
             lang || [],
             this.syntaxCompartment.of(syntaxExtensionForTheme()),
             this.whitespaceCompartment.of(this.showWhitespace ? highlightWhitespace() : []),

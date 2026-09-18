@@ -50,7 +50,11 @@ export async function readDirectory(path) {
             'exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o',
             'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp',
             'zip', 'tar', 'gz', '7z', 'rar',
-            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+            // .xlsx/.xls/.ods/.docx/.pptx are absent on purpose: they open in
+            // the read-only Office preview (views/OfficeView.js) rather than
+            // as text, so hiding them from the tree would hide the feature.
+            // The formats with no reader — .doc, .ppt, .pdf — stay hidden.
+            'pdf', 'doc', 'ppt',
             'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv',
             'db', 'sqlite', 'class', 'jar', 'pyc'
         ]);
@@ -106,53 +110,45 @@ export async function readFile(path) {
 }
 */
 
-export async function readFileAutoDetect(path, forceEncoding = null) {
-    try {
-        if (forceEncoding) {
-            // Future: Implement forced encoding reading if needed via Rust
-            // For now, if forced is UTF-8, we can use standard readFile?
-            // Or we need a backend command that accepts encoding.
-            // Let's assume for now we just want auto-detect. 
-            // If the user explicitly re-opens with encoding, we might need a new command `read_file_with_encoding`.
-            // But let's start with auto-detect.
-        }
+/**
+ * The file's ACTUAL EOL, never the OS default when the text says otherwise.
+ * Guessing the OS here is what made an LF file save back as CRLF and double
+ * into blank rows, so both read paths ask this one question.
+ */
+function detectEol(content) {
+    if (content.indexOf('\r\n') !== -1) return '\r\n';
+    if (content.indexOf('\n') !== -1) return '\n';
+    if (content.indexOf('\r') !== -1) return '\r';
+    return getOsLineEnding();
+}
 
-        const result = await invoke('read_file_auto_detect', { path });
-        return {
-            content: result.content,
-            encoding: result.encoding,
-            // Detect EOL
-            eol: (() => {
-                if (result.content.indexOf('\r\n') !== -1) return '\r\n';
-                if (result.content.indexOf('\n') !== -1) return '\n';
-                if (result.content.indexOf('\r') !== -1) return '\r';
-                return getOsLineEnding();
-            })()
-        };
-    } catch (e) {
-        throw e;
+/**
+ * Read a file, letting the backend guess its encoding.
+ *
+ * `forceEncoding` is the "Reopen with Encoding" menu naming the encoding
+ * itself. It used to be accepted and then dropped on the floor, so reopening a
+ * mis-detected file re-ran the same detection and returned the same mojibake.
+ */
+export async function readFileAutoDetect(path, forceEncoding = null) {
+    if (forceEncoding) {
+        return await readFileWithEncoding(path, forceEncoding);
     }
+
+    const result = await invoke('read_file_auto_detect', { path });
+    return {
+        content: result.content,
+        encoding: result.encoding,
+        eol: detectEol(result.content)
+    };
 }
 
 export async function readFileWithEncoding(path, encoding) {
-    try {
-        const result = await invoke('read_file_with_encoding', { path, encoding });
-        return {
-            content: result.content,
-            encoding: result.encoding,
-            // Detect the file's ACTUAL EOL (matching readFileAutoDetect). Returning
-            // the OS default here caused an LF file reopened with a forced encoding
-            // to be saved as CRLF and then doubled into blank rows.
-            eol: (() => {
-                if (result.content.indexOf('\r\n') !== -1) return '\r\n';
-                if (result.content.indexOf('\n') !== -1) return '\n';
-                if (result.content.indexOf('\r') !== -1) return '\r';
-                return getOsLineEnding();
-            })()
-        };
-    } catch (e) {
-        throw e;
-    }
+    const result = await invoke('read_file_with_encoding', { path, encoding });
+    return {
+        content: result.content,
+        encoding: result.encoding,
+        eol: detectEol(result.content)
+    };
 }
 
 export async function writeFile(path, content, encoding = null) {

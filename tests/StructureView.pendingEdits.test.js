@@ -111,6 +111,103 @@ describe('StructureView source pane', () => {
         expect(file.content).toContain('<a>3</a>');
     });
 
+    /*
+       Half-written XML does not parse, and a tab switch destroys the pane. The
+       text used to go with it — silently, and with the tab's "*" left up, so it
+       looked like the edit was still there.
+    */
+    describe('text that does not parse yet', () => {
+        it('survives a tab switch on the tab instead of dying with the pane', () => {
+            const { view, file, pane } = openOnNodeA();
+            pane.type('<a>3');
+            view.destroy();
+
+            expect(file.content).toBe(SOURCE); // the tree is untouched, as before
+            expect(file._structPendingSource.text).toBe('<a>3');
+            // Nothing was lost, so there is nothing to interrupt the user with.
+            expect(showAlert).not.toHaveBeenCalled();
+        });
+
+        it('comes back into the pane on the same node', () => {
+            const first = openOnNodeA();
+            first.pane.type('<a>3');
+            first.view.destroy();
+
+            // A fresh view over the same tab, as renderEditor builds after a
+            // switch back: a new parse, so new node ids.
+            const second = openOnNodeA();
+            second.view.currentFile = first.file;
+            second.view.renderRightPane(document.createElement('div'));
+
+            expect(second.view.cmView.text).toBe('<a>3');
+            // Still measured against the TREE's text, so it is still an
+            // unmerged edit that has to be applied.
+            expect(second.view._hasPendingSourceEdits()).toBe(true);
+            // ...and it is not handed out twice.
+            expect(first.file._structPendingSource).toBe(null);
+        });
+
+        it('is not restored onto a node whose own text has moved on', () => {
+            const { view, file, pane } = openOnNodeA();
+            pane.type('<a>3');
+            view.destroy();
+            file._structPendingSource.baseline = '<a>99</a>';
+
+            const second = openOnNodeA();
+            second.view.currentFile = file;
+            second.view.renderRightPane(document.createElement('div'));
+            expect(second.view.cmView.text).toBe('<a>1</a>');
+        });
+
+        it('is cleared once the text parses and merges', () => {
+            const { view, file, pane } = openOnNodeA();
+            pane.type('<a>3');
+            view._commitOrStash();
+            expect(file._structPendingSource.text).toBe('<a>3');
+
+            pane.type('<a>3</a>');
+            view._commitOrStash();
+            expect(file._structPendingSource).toBe(null);
+            expect(file.content).toContain('<a>3</a>');
+        });
+
+        it('is not dropped by a successful commit on another node', () => {
+            const TWO = '<root>\n  <a>1</a>\n  <b>2</b>\n</root>';
+            const view = new StructureView(document.createElement('div'), {});
+            const model = XmlParser.parse(TWO);
+            const file = { path: 'C:/proj/two.xml', content: TWO, eol: '\n', isDirty: false };
+            markSaved(file);
+            view.currentFile = file;
+            view.currentType = 'xml';
+            view.parser = XmlParser;
+            view.editor = { model, saveState: vi.fn(), render: vi.fn() };
+
+            view.currentSelectedNode = model.children.find((c) => c.key === 'a');
+            view.renderRightPane(document.createElement('div'));
+            view.cmView.type('<a>3');
+            view._commitOrStash();
+            expect(file._structPendingSource.text).toBe('<a>3');
+
+            // Move to the sibling and finish an edit there properly.
+            view.currentSelectedNode = model.children.find((c) => c.key === 'b');
+            view.renderRightPane(document.createElement('div'));
+            view.cmView.type('<b>9</b>');
+            expect(view._commitOrStash()).toBe(true);
+
+            expect(file._structPendingSource.text).toBe('<a>3');
+        });
+
+        // Save is the caller that must still refuse and still say why: it is
+        // about to write the file, and the edit cannot go in it.
+        it('still stops a save, out loud', () => {
+            const { view, file, pane } = openOnNodeA();
+            pane.type('<a>3');
+            expect(view.commitPendingEdits()).toBe(false);
+            expect(showAlert).toHaveBeenCalled();
+            expect(file.content).toBe(SOURCE);
+        });
+    });
+
     it('Ctrl+S routes to the app save even with no node open', () => {
         const view = new StructureView(document.createElement('div'), {});
         const onSave = vi.fn();
