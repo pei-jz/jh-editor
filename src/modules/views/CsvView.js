@@ -76,17 +76,19 @@ export class CsvView extends BaseView {
     }
 
     // --- Search panel integration (grid mode only) ---
-    isCsvGridMode() {
+    // The cell-grid protocol, shared with the Office preview: the view finds
+    // its own matches and is told which one to show. See ui/Search.js.
+    isCellGrid() {
         return !!(CsvEditor.activeInstance && CsvEditor.activeInstance.mode === 'grid');
     }
 
-    collectCsvMatches(pred) {
-        if (!this.isCsvGridMode()) return [];
-        return CsvEditor.activeInstance.collectCsvMatches(pred);
+    collectCellMatches(pred) {
+        if (!this.isCellGrid()) return [];
+        return CsvEditor.activeInstance.collectCellMatches(pred);
     }
 
-    gotoCsvMatch(m) {
-        if (CsvEditor.activeInstance) CsvEditor.activeInstance.gotoCsvMatch(m);
+    gotoCellMatch(m) {
+        if (CsvEditor.activeInstance) CsvEditor.activeInstance.gotoCellMatch(m);
     }
 
     undo() {

@@ -1,79 +1,33 @@
 /**
- * DailyNotes.js — daily journal notes stored as real .md files (Phase 3).
+ * DailyNotes.js — the daily journal, one Markdown file per day.
  *
- * Unlike the quick notes (localStorage), a daily note is a normal Markdown file
- * living in the app's per-user config directory (`appConfigDir()/notes/daily/`),
- * one file per day: `YYYY-MM-DD.md`. It opens as a regular editor tab (so every
- * editing mode, preview, save, and the workspace watcher work unchanged) while
- * never touching the user's project files.
- *
- * All file IO goes through the existing Rust `write_file` / `read_file_auto_detect`
- * / `exists` commands, so no filesystem scope changes are required.
+ * The files themselves, and where they live, are Notes.js's business now: the
+ * quick notes moved into the same folder tree and the two were describing the
+ * same directory twice. What is left here is the journal's own idea — today,
+ * and opening a given day.
  */
 
-import { invoke } from '@tauri-apps/api/core';
-import { appConfigDir } from '@tauri-apps/api/path';
-import { registerPrivateDir } from '../ai/ContextScope.js';
-
-function todayId() {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
-
-function slugDate() {
-    return todayId();
-}
-
-/** Resolve the daily-note directory, creating it as needed. */
-async function dailyDir() {
-    let base;
-    try {
-        base = await appConfigDir();
-    } catch (_) {
-        base = null;
-    }
-    if (!base) {
-        // Fallback: best-effort per-OS config path via the env expander.
-        try {
-            base = await invoke('expand_env_path', { path: '%APPDATA%/JHEditor' });
-        } catch (_) {
-            base = '';
-        }
-    }
-    // The notes ROOT, not just today's folder: everything under it is personal
-    // and must stay out of reach of the AI's buffer and open-tab tools.
-    const notesRoot = `${String(base).replace(/[\\/]+$/, '')}/notes`;
-    registerPrivateDir(notesRoot);
-    const dir = `${notesRoot}/daily`;
-    try { await invoke('create_dir', { path: dir }); } catch (_) { /* already exists */ }
-    return dir;
-}
+import { dayId, dailyPath, listDaily } from './Notes.js';
 
 export const DailyNotes = {
     /** Open (or create) today's daily note as a normal editor tab. */
     async openToday() {
-        const dir = await dailyDir();
-        const path = `${dir}/${slugDate()}.md`;
-
-        let exists = false;
-        try { exists = await invoke('exists', { path }); } catch (_) { exists = false; }
-
-        if (!exists) {
-            const header = `# Daily Note — ${slugDate()}\n\n`;
-            try { await invoke('write_file', { path, content: header, encoding: 'UTF-8' }); }
-            catch (e) {
-                if (window.showToast) window.showToast(`Could not create today's note: ${e.message || e}`);
-                return;
-            }
-        }
-
-        if (window.app?.openFile) {
-            window.app.openFile(path);
-        }
+        return this.openDay(dayId());
     },
 
-    todayId,
+    /** Open (or create) the note for `YYYY-MM-DD` as a normal editor tab. */
+    async openDay(id) {
+        const path = await dailyPath(id);
+        if (!path) {
+            if (window.showToast) window.showToast(`Could not open the note for ${id}`);
+            return null;
+        }
+        if (window.app?.openFile) await window.app.openFile(path);
+        return path;
+    },
+
+    /** Every daily note on disk, newest first. */
+    list: listDaily,
+
+    todayId: dayId,
 };

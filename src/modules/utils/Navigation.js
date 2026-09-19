@@ -157,7 +157,12 @@ export const Navigation = {
                         if (uri && range) {
                             const path = decodeURIComponent(uri.replace('file:///', '').replace('file://', ''));
                             if (window.app.openFile) {
-                                await window.app.openFile(path, range.start.line);
+                                // openFile(path, forceEncoding, gotoLine): the
+                                // line belongs in the THIRD slot. Passed as the
+                                // second it was read as an encoding, so the jump
+                                // landed at the top of the file. LSP lines are
+                                // 0-based, the editor's are 1-based.
+                                await window.app.openFile(path, false, range.start.line + 1);
                                 return;
                             }
                         }

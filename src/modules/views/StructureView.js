@@ -202,8 +202,9 @@ export class StructureView extends BaseView {
                     },
                     (node) => {
                         // Selecting another node replaces the source pane, so
-                        // whatever was typed into it goes into the tree first.
-                        this.commitPendingEdits();
+                        // whatever was typed into it goes into the tree first —
+                        // or onto the tab, when it does not parse yet.
+                        this._commitOrStash();
                         this.currentSelectedNode = node;
                         this.renderRightPane(rightPaneContent);
                     },
@@ -300,6 +301,18 @@ export class StructureView extends BaseView {
 
         const fragment = this.parser.stringify(this.currentSelectedNode);
 
+        // Text a tab switch (or another node) left behind because it did not
+        // parse — see _commitOrStash. It only comes back onto the very node it
+        // was typed in, with that node's text still as it was.
+        const stash = this.currentFile && this.currentFile._structPendingSource;
+        const path = stash ? this._nodePath(this.currentSelectedNode) : null;
+        const restored = stash && path && stash.path === path.join(',')
+            && stash.baseline === fragment
+            ? stash.text
+            : null;
+        if (restored !== null) this.currentFile._structPendingSource = null;
+        const initial = restored !== null ? restored : fragment;
+
         // Instantiate CodeMirrorView
         if (this.cmView) {
             this.cmView.destroy();
@@ -307,20 +320,22 @@ export class StructureView extends BaseView {
 
         const dummyFile = {
             path: `fragment_${this.currentSelectedNode.id || 'node'}.${this.currentType || 'txt'}`,
-            content: fragment,
+            content: initial,
             isDirty: false
         };
 
         // What the pane started from. "Pending edits" means the text differs
         // from this — which is also what keeps the tab's "*" up while typing.
+        // Restored text stays measured against the TREE's version, so it is
+        // still an unmerged edit and still has to be applied.
         this._sourceBaseline = fragment;
         // CodeMirrorView calls renderTabs after every document change. The pane
         // edits a detached copy, so that call is the only sign of an edit.
         this.cmView = new CodeMirrorView(sourceWrapper, { renderTabs: () => this._onSourceEdited() });
-        this.cmView.render(fragment, dummyFile, this.currentType);
+        this.cmView.render(initial, dummyFile, this.currentType);
     }
 
-    applyChanges(newValue) {
+    applyChanges(newValue, { silent = false } = {}) {
         try {
             let newNode;
             if (this.currentType === 'json') {
@@ -337,7 +352,10 @@ export class StructureView extends BaseView {
             this._sourceBaseline = newValue;
             return true;
         } catch (err) {
-            showAlert('Invalid format: ' + err.message, { title: 'Structure', kind: 'error' });
+            // `silent` is for the callers that keep the text instead of writing
+            // it (_commitOrStash): nothing was lost, so a modal saying the JSON
+            // is invalid would only be in the way of finishing the sentence.
+            if (!silent) showAlert('Invalid format: ' + err.message, { title: 'Structure', kind: 'error' });
             console.error(err);
             return false;
         }
@@ -366,9 +384,67 @@ export class StructureView extends BaseView {
      * Returns false when the text does not parse; the caller must not then
      * write the file as though the edit had been kept.
      */
-    commitPendingEdits() {
+    commitPendingEdits(opts = {}) {
         if (!this._hasPendingSourceEdits()) return true;
-        return this.applyChanges(this.cmView.editorView.state.doc.toString());
+        return this.applyChanges(this.cmView.editorView.state.doc.toString(), opts);
+    }
+
+    /**
+     * Commit the source pane; when the text does not parse, keep it on the tab.
+     *
+     * For the two callers that are about to throw the pane away — a tab switch
+     * (destroy) and selecting another node — a false from commitPendingEdits
+     * used to mean the typing went with it. Half-finished JSON never parses, so
+     * that was most of a tab switch mid-edit, and the tab's "*" stayed up
+     * afterwards: it looked like the edit was still there.
+     *
+     * The stash is keyed by the node's PLACE in the tree and by the text that
+     * place held when the edit started, so it can only ever be restored onto the
+     * same unchanged node. Not by node id: the JS fallback parsers hand out a
+     * fresh Math.random() id on every parse, and the tree is re-parsed each time
+     * the view is built — a failed commit leaves file.content alone, so the
+     * shape (and therefore the path) is what comes back identical.
+     */
+    _commitOrStash() {
+        const file = this.currentFile;
+        const path = this._nodePath(this.currentSelectedNode);
+        const key = path ? path.join(',') : null;
+        const baseline = this._sourceBaseline;
+        const pending = this._hasPendingSourceEdits()
+            ? this.cmView.editorView.state.doc.toString()
+            : null;
+
+        const ok = this.commitPendingEdits({ silent: true });
+        if (!file) return ok;
+
+        if (!ok && pending !== null && key !== null) {
+            file._structPendingSource = { path: key, baseline, text: pending };
+        } else if (ok && file._structPendingSource && file._structPendingSource.path === key) {
+            // THIS node's text reached the tree, so the stash held for it is
+            // spent. Only its own — committing another node is no reason to
+            // drop text still waiting on the one it was typed in.
+            file._structPendingSource = null;
+        }
+        return ok;
+    }
+
+    /**
+     * Where a node sits in the tree, as the child indices leading to it from the
+     * root ([] for the root itself). Null when it is not in this tree.
+     */
+    _nodePath(target) {
+        const root = this.editor && this.editor.model;
+        if (!root || !target) return null;
+        const walk = (node, path) => {
+            if (node === target) return path;
+            const kids = node.children || [];
+            for (let i = 0; i < kids.length; i++) {
+                const found = walk(kids[i], path.concat(i));
+                if (found) return found;
+            }
+            return null;
+        };
+        return walk(root, []);
     }
 
     /** The source pane changed: keep the tab's "*" in step with it. */
@@ -670,17 +746,10 @@ export class StructureView extends BaseView {
         const x = textareaRect.left + (markerPos.left - mirrorRect.left) - textarea.scrollLeft + 20;
         const y = textareaRect.top + (markerPos.top - mirrorRect.top) - textarea.scrollTop + 20;
 
-        const selStart = textarea.selectionStart;
-        const selEnd = textarea.selectionEnd;
-
+        // No onApply here any more: the popup asks and closes, and the answer
+        // is applied from the dock — as a diff to review when it is a rewrite,
+        // which is also what the preset buttons have always done.
         this.inlineAI.show(x, y, context);
-        this.inlineAI.onApply = (newCode) => {
-            const val = textarea.value;
-            textarea.value = val.substring(0, selStart) + newCode + val.substring(selEnd);
-            textarea.selectionStart = selStart;
-            textarea.selectionEnd = selStart + newCode.length;
-            textarea.dispatchEvent(new Event('input'));
-        };
     }
 
     replaceSelectedText(text) {
@@ -703,8 +772,9 @@ export class StructureView extends BaseView {
         }
         // Switching tabs destroys this view and the source pane with it. Merge
         // what was typed first, so the tab keeps the edit and Save All /
-        // close-with-save still see it.
-        try { this.commitPendingEdits(); } catch (e) { console.error('StructureView: commit on destroy failed', e); }
+        // close-with-save still see it — and when it does not parse, keep the
+        // raw text on the tab instead of letting it die with the pane.
+        try { this._commitOrStash(); } catch (e) { console.error('StructureView: commit on destroy failed', e); }
         window.removeEventListener('shortcutTriggered', this.boundShortcutHandler);
         // Save the tree scroll position so reopening this tab restores it.
         if (this.currentFile && this.editor && this.editor.elements && this.editor.elements.viewport) {

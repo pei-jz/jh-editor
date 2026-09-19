@@ -145,3 +145,28 @@ body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .titlebar-
     background-color: #e81123 !important;
     color: #ffffff !important;
 }
+/* The title bar's directory, as crumbs.
+   ------------------------------------------------------------
+   The path was already there and already said where the file lives; it was
+   just inert. Each crumb is the folder that ends at it. Kept visually quiet
+   until hovered — this is a location, not a toolbar, and a row of buttons
+   across the title bar would read as one. */
+.file-path-display .path-crumb {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0 2px;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.file-path-display .path-crumb:hover {
+    background: color-mix(in srgb, var(--titlebar-text) 16%, transparent);
+    color: var(--titlebar-text);
+    text-decoration: underline;
+}
+
+/* Separators are punctuation, not targets. */
+.file-path-display .path-crumb-sep {
+    opacity: 0.55;
+    padding: 0 1px;
+    pointer-events: none;
+}

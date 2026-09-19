@@ -5,7 +5,8 @@ import { listen } from '@tauri-apps/api/event';
 import { State } from './Store.js';
 import * as FS from '../utils/FileSystem.js';
 import { getOsLineEnding } from '../utils/FileSystem.js';
-import { loadExplorer } from './Explorer.js';
+import { loadExplorer, revealDirectory } from './Explorer.js';
+import { setExplorerVisible } from './Layout.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { showNewFileModal, showCustomConfirm } from '../ui/Modal.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -14,6 +15,7 @@ import { CodeFormatter } from '../utils/CodeFormatter.js';
 import { formatAsync } from '../utils/AsyncFormatter.js';
 import { TabSearch } from '../ui/TabSearch.js';
 import { t } from '../utils/I18n.js';
+import { beginLoad, beginFileLoad, formatSize, nextPaint } from '../ui/LoadingOverlay.js';
 
 import { CodeMirrorView } from '../views/CodeMirrorView.js';
 import { LargeFileEditView } from '../views/LargeFileEditView.js';
@@ -27,6 +29,8 @@ import { CompareView } from '../editors/CompareView.js';
 import { TaskNotificationPanel } from '../ai/TaskNotificationPanel.js';
 import { SearchResultsView } from '../views/SearchResultsView.js';
 import { DirDiffView } from '../views/DirDiffView.js';
+import { OfficeView } from '../views/OfficeView.js';
+import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
@@ -47,6 +51,26 @@ import { largeFileThresholdBytes } from '../utils/LargeFileSetting.js';
 
 // Initialize Plugins
 initDefaultPlugins();
+
+/**
+ * Is this buffer Markdown?
+ *
+ * Decided by the NAME, never by whether the buffer has been saved yet. A draft
+ * has no path — "Untitled.txt" is `{ path: null, name: 'Untitled.txt' }` — and
+ * four places read that missing path as "so it must be Markdown", which was
+ * true back when Ctrl+N could only make one kind of file. Since the new-file
+ * picker started asking for a type it has been wrong for every .txt draft: the
+ * status bar called it Markdown, the corner panel taught it the Markdown block
+ * keys, and Ctrl+Shift+E / F2 turned it into a Markdown document.
+ *
+ * A buffer with no name at all is the one case with nothing to go on, and it
+ * keeps the old default (PluginManager.resolve agrees).
+ */
+export function isMarkdownFile(file) {
+    const name = ((file && (file.path || file.name)) || '').toLowerCase();
+    if (!name) return true;
+    return name.endsWith('.md') || name.endsWith('.markdown');
+}
 
 // Above this size, plain-text files open in the read-only virtualized
 // LargeFileView instead of the CM6-based CodeMirrorView. The user can still
@@ -353,9 +377,13 @@ const editorActions = {
         e.preventDefault();
         const file = getActiveFile();
         if (!file) return;
-        const path = file.path ? file.path.toLowerCase() : '';
+        const path = (file.path || file.name || '').toLowerCase();
         const structural = ['.csv', '.xml', '.xsd', '.wsdl', '.html', '.htm', '.jsp', '.json'];
-        const isMarkdown = path.endsWith('.md') || path.endsWith('.markdown') || !file.path;
+        const isMarkdown = isMarkdownFile(file);
+
+        // An Office tab has one view and no text behind it. Toggling would drop
+        // it into an empty CodeMirror and look like the file had vanished.
+        if (file.type === 'office') return;
 
         if (structural.some(ext => path.endsWith(ext)) || isMarkdown) {
             if (file.viewMode === 'text') {
@@ -386,8 +414,7 @@ const editorActions = {
     'md-block:edit': (e) => {
         e.preventDefault();
         const file = getActiveFile();
-        const path = (file && (file.path || file.name) || '').toLowerCase();
-        const isMarkdown = !!(file && (path.endsWith('.md') || path.endsWith('.markdown') || !file.path));
+        const isMarkdown = !!file && isMarkdownFile(file);
         // Markdown normally opens in the MarkdownView (viewMode 'structure'),
         // but if the user toggled it to plain text, F2 must switch back to the
         // block view first so the .md-block elements exist, then open the block
@@ -510,6 +537,15 @@ export function renderEditor(targetPane = null) {
             setupContextMenu(file);
         }
 
+        // The mode class decides the pane's page margin, and it is cleared HERE
+        // — before the special cases below, every one of which returns without
+        // reaching the code that used to reset it. The class therefore survived
+        // from the previous file: a diff opened after a Markdown document was
+        // inset by the Markdown page margin, and the same diff opened after a
+        // .txt was not. Same view, two layouts, decided by what you happened to
+        // be looking at before.
+        container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode');
+
         // Special Case: Diff View
         if (file.type === 'diff' || file.viewMode === 'diff') {
             const view = new MergeEditor(container, file, {
@@ -542,6 +578,20 @@ export function renderEditor(targetPane = null) {
             return;
         }
 
+        // Special Case: Office preview (.xlsx / .docx / .pptx)
+        //
+        // Ahead of every content check below, because an Office tab has no
+        // text content at all — the parsed document sits on file.office and
+        // file.content is the empty string it was opened with.
+        if (file.type === 'office') {
+            container.classList.add('plain-mode');
+            const view = new OfficeView(container, {});
+            view.render(file.content, file);
+            if (isLeft) leftView = view;
+            else rightView = view;
+            return;
+        }
+
         // Special Case: folder comparison result
         if (file.type === 'dir-diff') {
             const view = new DirDiffView(container, file);
@@ -560,7 +610,6 @@ export function renderEditor(targetPane = null) {
 
         // Huge file in edit mode (Phase 2): rope-backed sliding-window editor.
         if (file.isEditing && file.editId != null) {
-            container.classList.remove('csv-mode', 'markdown-mode');
             container.classList.add('plain-mode');
             file.viewMode = 'text';
             const view = new LargeFileEditView(container, {
@@ -581,7 +630,6 @@ export function renderEditor(targetPane = null) {
         // The escape hatch (forceFullEdit) loads the file fully and falls through.
         if (!file.forceFullEdit
             && (file.isLarge || (file.content && file.content.length > largeFileThresholdBytes()))) {
-            container.classList.remove('csv-mode', 'markdown-mode');
             container.classList.add('plain-mode');
             file.viewMode = 'text';
             const view = new LargeFileView(container, {
@@ -594,7 +642,7 @@ export function renderEditor(targetPane = null) {
         }
 
         const path = (file.path || file.name || '').toLowerCase();
-        const isMarkdown = path.endsWith('.md') || path.endsWith('.markdown') || (path === '' && !file.path);
+        const isMarkdown = isMarkdownFile(file);
         const isCsv = path.endsWith('.csv');
         const isXml = path.endsWith('.xml') || path.endsWith('.xsd') || path.endsWith('.wsdl');
         const isHtml = path.endsWith('.html') || path.endsWith('.htm') || path.endsWith('.jsp');
@@ -609,7 +657,6 @@ export function renderEditor(targetPane = null) {
             file.viewMode = (isCsv || isMarkdown) ? 'structure' : 'text';
         }
 
-        container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode');
         if (file.viewMode === 'text') {
             container.classList.add('plain-mode');
         } else if (file.viewMode === 'structure') {
@@ -648,16 +695,17 @@ export function renderEditor(targetPane = null) {
 
         // Structured views get a small, minimizable usage-hint panel in the
         // bottom-right corner (View モードの使い方 — users forget the keys).
-        if (plugin) addViewUsageHint(container, file);
-        // Plain-text (CodeMirror) views have no built-in hint panel, but when
-        // vi mode is on we still show the vi command palette in the corner.
-        // `isTextEditor` has to be told, not guessed from the extension: a .md
-        // or .csv file opened in TEXT mode is a CodeMirror editor, and inferring
-        // the model from the file name showed it the "Markdown View" / "Table
-        // View" block hints while vi was actually running.
-        else if (localStorage.getItem('settings_editorVim') === 'true') {
-            addViewUsageHint(container, file, { isTextEditor: true });
-        }
+        // Plain-text (CodeMirror) views have nothing view-specific to teach, so
+        // they get one only when vi mode is on; addViewUsageHint decides that
+        // from `isTextEditor`.
+        //
+        // Which it has to be TOLD, not left to infer: a .md or .csv file opened
+        // in TEXT mode is a CodeMirror editor, and the file name would have it
+        // showing block hints for a view that isn't mounted. "A plugin
+        // resolved" is not the answer either — the plain-text plugin's
+        // viewClass IS CodeMirrorView, so every .txt / .log / .js was going
+        // through here and sprouting a panel. Ask the view that was built.
+        addViewUsageHint(container, file, { isTextEditor: view instanceof CodeMirrorView });
 
         if (isLeft) leftView = view;
         else rightView = view;
@@ -674,7 +722,7 @@ export function addViewUsageHint(container, file, options = {}) {
     // Anchor the absolute-positioned panel to THIS container (the editor pane).
     container.style.position = 'relative';
     const ext = (file.path || file.name || '').toLowerCase();
-    const isMd = ext.endsWith('.md') || ext.endsWith('.markdown') || !file.path;
+    const isMd = isMarkdownFile(file);
     const isCsv = ext.endsWith('.csv') || ext.endsWith('.tsv');
 
     let title, lines;
@@ -734,18 +782,33 @@ export function addViewUsageHint(container, file, options = {}) {
         ];
     } else if (isMd) {
         title = 'Markdown View';
+        // Selecting a block is the thing people reach for the mouse to do, and
+        // a heading is one short line — the hardest thing on the page to drag
+        // across. The keyboard has always been able to do it exactly; this
+        // panel is where anyone would find that out, so it says so.
         lines = [
             ['↑ / ↓', 'move between blocks'],
+            ['Shift+↑ / ↓', 'select more blocks'],
+            ['Ctrl+C', 'copy selected blocks'],
             ['Enter / F2', 'edit block (modal)'],
+            ['Alt+↑ / ↓', 'move block up / down'],
+            ['Delete', 'delete selected blocks'],
             ['Ctrl+Alt+B', 'book / scroll mode'],
             ['Ctrl+Shift+E', 'switch to text']
         ];
     } else if (isCsv) {
         title = 'Table View';
+        // The insert / delete pair is Excel's, and this panel is where anyone
+        // finds that out — it is the only place the grid says what its keys are.
+        // Select first (a row or a column), then insert or delete: which one it
+        // acts on comes from the selection, exactly as in Excel.
         lines = [
             ['Arrow keys', 'move cell'],
             ['F2 / Enter', 'edit cell'],
             ['Shift+Space', 'select row'],
+            ['Ctrl+Space', 'select column'],
+            ['Ctrl+Shift++', 'insert row / column'],
+            ['Ctrl+-', 'delete row / column'],
             ['Ctrl+Shift+E', 'switch to text']
         ];
     } else {
@@ -931,6 +994,36 @@ export async function closeFileByPath(path) {
     if (idx >= 0) await closeTab(idx);
 }
 
+/**
+ * A file on disk moved; point any tab showing it at the new path.
+ *
+ * Without this a renamed file leaves its tab addressing a name that no longer
+ * exists: the title bar keeps the old one, the watcher watches nothing, and the
+ * next save writes the file back under its ORIGINAL name — undoing the rename
+ * and leaving two copies. Unsaved edits are kept; only the address changes.
+ *
+ * Returns how many tabs were retargeted.
+ */
+export function retargetOpenFile(oldPath, newPath) {
+    if (!oldPath || !newPath || oldPath === newPath) return 0;
+    const name = FS.getBasename(newPath);
+    let moved = 0;
+    for (const list of [State.openFiles, State.rightOpenFiles]) {
+        for (const file of list || []) {
+            if (!file || file.path !== oldPath) continue;
+            file.path = newPath;
+            file.name = name;
+            moved++;
+        }
+    }
+    if (moved) {
+        renderTabs();
+        updateToolbar();
+        syncWatchers();
+    }
+    return moved;
+}
+
 export async function closeFilesUnderDir(dirPath) {
     // Iterate backwards to safely handle removals
     for (let i = State.openFiles.length - 1; i >= 0; i--) {
@@ -980,14 +1073,59 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
     // Remember real files for quick re-open (command palette / recent list).
     try { RecentFiles.recordFile(resolvedPath); } catch (_) { /* non-critical */ }
 
+    // Same as a new file: the command palette opens one from the Welcome
+    // screen, and the tab would otherwise land behind it.
+    try { window.app.ensureEditorVisible?.(); } catch (_) { /* non-critical */ }
+
+    // Says so, if it takes long enough to be worth saying. A file that opens in
+    // a few milliseconds never shows anything; a large one stops looking like a
+    // hang. See ui/LoadingOverlay.js.
+    const loading = beginFileLoad(FS.getBasename(resolvedPath) || resolvedPath);
+
     try {
         const stats = await FS.getFileStats(resolvedPath);
+        // Naming the size is the part the reader can act on: "right, it's the
+        // 900 MB one" is an answer, an unlabelled spinner is not.
+        const sizeText = stats ? formatSize(stats.size) : '';
 
         let fileData = null;
 
+        // Office documents are zipped XML (or an OLE container). Read as text
+        // they are mojibake, so they never reach the encoding detector: the
+        // backend parses the parts and hands back the values and the words,
+        // which OfficeView draws read-only.
+        if (isOfficeFile(resolvedPath)) {
+            loading.update(sizeText ? t('Reading {size}…', { size: sizeText }) : t('Reading…'));
+            let office;
+            try {
+                office = await invoke('read_office_preview', { path: resolvedPath });
+            } catch (err) {
+                // A missing link is swallowed on purpose (see the catch below),
+                // but a file that IS there and will not open is a different
+                // thing: without a word, the click looks like it did nothing.
+                console.warn('Office preview failed:', resolvedPath, err);
+                if (window.showToast) {
+                    window.showToast(t('Could not read {name} — it may be password-protected or damaged.', {
+                        name: FS.getBasename(resolvedPath) || resolvedPath,
+                    }));
+                }
+                return;
+            }
+            fileData = {
+                path: resolvedPath,
+                content: '',
+                office,
+                type: 'office',
+                encoding: 'UTF-8',
+                eol: getOsLineEnding(),
+                isDirty: false,
+                stats: stats || { size: 0, mtime: 0 },
+            };
+        }
+
         // Huge files: open via the Rust mmap backend so the content is never
         // pulled into JS. The viewer fetches visible lines on demand.
-        if (stats && stats.size > largeFileThresholdBytes() && !forceEncoding) {
+        if (!fileData && stats && stats.size > largeFileThresholdBytes() && !forceEncoding) {
             try {
                 const meta = await invoke('large_file_open', { path: resolvedPath });
                 fileData = {
@@ -1008,7 +1146,20 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
         }
 
         if (!fileData) {
-            const { content, encoding, eol } = await FS.readFileAutoDetect(resolvedPath, forceEncoding);
+            loading.update(sizeText ? t('Reading {size}…', { size: sizeText }) : t('Reading…'));
+            let read;
+            try {
+                read = await FS.readFileAutoDetect(resolvedPath, forceEncoding);
+            } catch (e) {
+                // The forced encoding is the one thing here that can be a name
+                // the backend does not know — the watcher's reload passes the
+                // tab's current encoding back in. Re-reading with detection is
+                // worse than asked for; not reloading at all is worse than that.
+                if (!forceEncoding) throw e;
+                console.warn('Forced encoding rejected, falling back to detection:', forceEncoding, e);
+                read = await FS.readFileAutoDetect(resolvedPath);
+            }
+            const { content, encoding, eol } = read;
             fileData = {
                 path: resolvedPath,
                 content: FS.normalizeToLF(content),
@@ -1021,9 +1172,19 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
 
         // What is on disk right now. Edits are compared against it, so undoing
         // back to this text clears the tab's "*" again.
-        if (!fileData.isLarge) markSaved(fileData);
+        if (!fileData.isLarge && fileData.type !== 'office') markSaved(fileData);
 
         if (forcePlainText) fileData.viewMode = 'text';
+
+        // Everything below here is synchronous — the view builds the whole
+        // document in one go — so the panel's last message would never reach
+        // the screen without waiting for a frame first. Only worth the two
+        // frames when the panel is actually up, which means the open was
+        // already slow enough for 30ms not to matter.
+        if (loading.shown) {
+            loading.update(t('Opening in the editor…'));
+            await nextPaint();
+        }
 
         // Re-check after the await: the tab may have appeared meanwhile.
         const settled = findOpenFile(normalizedPath);
@@ -1050,6 +1211,7 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
         console.warn('Failed to open file (silenced):', resolvedPath);
         // User requested: リンク先がない場合はエラーダイヤログではなく、処理を握りつぶしてください
     } finally {
+        loading.done();
         pendingOpens.delete(resolvedPath);
     }
 }
@@ -2145,26 +2307,92 @@ async function watchFile(file) {
     );
 }
 
+/**
+ * Draw the title bar's directory as a row of clickable crumbs.
+ *
+ * A path was already on screen and already said where the file lives; it was
+ * simply inert. Each crumb is now the folder that ends there — inside the
+ * workspace it opens the explorer at that folder, and outside it (a daily note
+ * in the config directory, a file dragged in from anywhere) there is no tree to
+ * open, so it goes to the OS file manager instead.
+ *
+ * Built out of elements rather than a string: the separators must not be
+ * clickable, and a folder name can contain anything, including '<'.
+ */
+function renderPathCrumbs(dirWithTrailingSlash) {
+    const host = EL.fileDirectoryLabel;
+    if (!host) return;
+    host.replaceChildren();
+    const dir = String(dirWithTrailingSlash || '').replace(/[\\/]+$/, '');
+    if (!dir) return;
+
+    const parts = dir.split(/[\\/]/);
+    // A Windows drive ("C:") and a POSIX root ("") are prefixes, not folders.
+    let acc = '';
+    parts.forEach((part, i) => {
+        acc = i === 0 ? part : `${acc}/${part}`;
+        if (i > 0) {
+            const sep = document.createElement('span');
+            sep.className = 'path-crumb-sep';
+            sep.textContent = '/';
+            host.appendChild(sep);
+        }
+        if (!part) return;   // leading '' of an absolute POSIX path
+        const target = acc;
+        const crumb = document.createElement('span');
+        crumb.className = 'path-crumb';
+        crumb.textContent = part;
+        crumb.title = target;
+        crumb.onclick = () => openDirectoryFromCrumb(target);
+        host.appendChild(crumb);
+    });
+    // The trailing separator before the file name, matching what the plain
+    // text used to show.
+    const tail = document.createElement('span');
+    tail.className = 'path-crumb-sep';
+    tail.textContent = '/';
+    host.appendChild(tail);
+}
+
+/** Inside the workspace → the explorer. Outside it → the OS file manager. */
+async function openDirectoryFromCrumb(dir) {
+    try {
+        if (await revealDirectory(dir)) {
+            // Only worth showing the panel once there is something in it to see.
+            if (!State.isExplorerVisible) setExplorerVisible(true);
+            return;
+        }
+    } catch (e) {
+        console.warn('Explorer reveal failed', dir, e);
+    }
+    try {
+        await invoke('reveal_in_file_manager', { path: dir });
+    } catch (e) {
+        console.warn('reveal_in_file_manager failed', dir, e);
+        if (window.showToast) window.showToast(t('Could not open {path}', { path: dir }));
+    }
+}
+
 export function updateToolbar() {
     const current = getActiveFile();
     if (current) {
         const fullPath = current.path;
         if (!fullPath) {
-            if (EL.fileDirectoryLabel) EL.fileDirectoryLabel.textContent = '';
+            renderPathCrumbs('');
             if (EL.currentFileLabel) EL.currentFileLabel.textContent = current.name || 'Untitled';
             return;
         }
         const match = fullPath.match(/^(.*[\\/])(.+)$/);
         if (match) {
-            if (EL.fileDirectoryLabel) EL.fileDirectoryLabel.textContent = match[1];
+            renderPathCrumbs(match[1]);
             if (EL.currentFileLabel) EL.currentFileLabel.textContent = match[2];
         } else {
-            if (EL.fileDirectoryLabel) EL.fileDirectoryLabel.textContent = '';
+            renderPathCrumbs('');
             if (EL.currentFileLabel) EL.currentFileLabel.textContent = fullPath;
         }
     } else {
         if (EL.currentFileLabel) EL.currentFileLabel.textContent = t('No file selected');
-        if (EL.fileDirectoryLabel) EL.fileDirectoryLabel.textContent = '';
+        renderPathCrumbs('');
     }
 }
 
@@ -2176,22 +2404,42 @@ export function updateToolbar() {
 
 // View selection logic moved to renderEditor
 
+/**
+ * Read the tab's file again, decoding it as `encoding` this time.
+ *
+ * The re-read replaces the tab, so unsaved edits in it go — the same cost the
+ * watcher's reload prompt names, and worth naming here for the same reason.
+ * This used to be a plain openFile() call, which quietly re-ran DETECTION and
+ * handed back the same mojibake the user was trying to get away from.
+ */
+async function reopenWithEncoding(file, encoding) {
+    if (file.isDirty) {
+        const name = file.name || file.path;
+        const ok = await showConfirm(
+            `${name} has unsaved changes here.\n\n`
+            + 'Reopening it reads the file from disk again and replaces your edits.',
+            { title: 'Reopen with Encoding', kind: 'warning',
+              okLabel: 'Discard my edits and reopen', cancelLabel: 'Keep my edits' });
+        if (!ok) return;
+    }
+    await openFile(file.path, encoding);
+}
+
 function setupContextMenu(file) {
     EL.editorContent.oncontextmenu = (e) => {
         if (!file) return;
+        // The same three functions Ctrl+C / X / V run, so the menu and the keys
+        // cannot disagree about what is selected.
+        //
+        // They used to be document.execCommand('copy' | 'cut' | 'insertText'),
+        // which can only see a DOM TEXT selection. In the Markdown block view
+        // the selection is a range of blocks and there is no text selection at
+        // all, so all three silently did nothing — and would have gone on doing
+        // nothing for every view that keeps its own selection.
         const menuItems = [
-            { label: t('Copy'), action: () => document.execCommand('copy') },
-            { label: t('Cut'), action: () => document.execCommand('cut') },
-            {
-                label: t('Paste'), action: async () => {
-                    try {
-                        const text = await readText();
-                        if (text) document.execCommand('insertText', false, text);
-                    } catch (err) {
-                        console.warn('Clipboard paste failed or empty:', err);
-                    }
-                }
-            },
+            { label: t('Copy'), action: () => triggerCopy() },
+            { label: t('Cut'), action: () => triggerCut() },
+            { label: t('Paste'), action: () => triggerPaste() },
             { type: 'separator' },
             { label: t('Format Document'), action: () => formatCurrentFile() }
         ];
@@ -2224,9 +2472,9 @@ function setupContextMenu(file) {
             menuItems.push({
                 label: t('Reopen with Encoding'),
                 submenu: [
-                    { label: t('UTF-8'), action: () => openFile(file.path, 'utf-8') },
-                    { label: t('Shift-JIS'), action: () => openFile(file.path, 'shift-jis') },
-                    { label: t('EUC-JP'), action: () => openFile(file.path, 'euc-jp') }
+                    { label: t('UTF-8'), action: () => reopenWithEncoding(file, 'utf-8') },
+                    { label: t('Shift-JIS'), action: () => reopenWithEncoding(file, 'shift-jis') },
+                    { label: t('EUC-JP'), action: () => reopenWithEncoding(file, 'euc-jp') }
                 ]
             });
         }
@@ -2362,6 +2610,10 @@ export async function saveCurrentFileAs() {
 
 /** Create the in-memory draft tab for the chosen extension. */
 export async function createNewFileOfType(ext = 'txt', initialContent = '') {
+    // Ctrl+N reaches here from the Welcome screen too, and the tab it made
+    // there was made behind it — created, counted, never shown.
+    try { window.app.ensureEditorVisible?.(); } catch (_) { /* non-critical */ }
+
     // Generate a default "Untitled.txt", "Untitled-1.txt", etc.
     let count = 1;
     let filename = `Untitled.${ext}`;
@@ -2474,6 +2726,13 @@ export async function saveFile(file, view = viewShowing(file), { refresh = true 
             }
         }
         return !file.isDirty;
+    }
+
+    // An Office preview is a rendering of a file this editor cannot write.
+    // Saving would replace a workbook with an empty text file.
+    if (file.type === 'office') {
+        if (window.showToast) window.showToast(t('Preview only — this file cannot be saved from here.'));
+        return false;
     }
 
     // Large files opened read-only via the mmap backend have no content in
@@ -2917,6 +3176,23 @@ export function formatModified(file) {
     return at.toLocaleString();
 }
 
+/**
+ * What the status bar calls an Office tab.
+ *
+ * The format, not the application: a .ods is a spreadsheet that never came from
+ * Excel, and naming the app over it would be wrong in the one place a reader
+ * looks to find out what they have open. Written out as three literal t() calls
+ * because that is how the translation-coverage scan finds a key.
+ */
+function officeTypeName(path) {
+    switch (officeKind(path)) {
+        case 'sheets': return t('Spreadsheet');
+        case 'slides': return t('Presentation');
+        case 'document': return t('Document');
+        default: return null;
+    }
+}
+
 export function updateStatusBar(forFile = null) {
     const file = forFile || getActiveFile();
     if (!file) {
@@ -2930,8 +3206,12 @@ export function updateStatusBar(forFile = null) {
         return;
     }
 
-    const isMd = file.path ? file.path.toLowerCase().endsWith('.md') : true;
-    if (document.getElementById('status-file-type')) document.getElementById('status-file-type').textContent = isMd ? 'Markdown' : 'Plain Text';
+    const isMd = isMarkdownFile(file);
+    const officeLabel = file.type === 'office' ? officeTypeName(file.path || file.name) : null;
+    if (document.getElementById('status-file-type')) {
+        document.getElementById('status-file-type').textContent =
+            officeLabel || (isMd ? 'Markdown' : 'Plain Text');
+    }
 
     // Show the active view mode + the Ctrl+Shift+E hint so users discover the
     // Text ⇄ Structure / Table / Markdown toggle (previously a hidden feature).
@@ -2944,8 +3224,15 @@ export function updateStatusBar(forFile = null) {
         else if (isCsv && file.viewMode === 'structure') label = 'Table View';
         else if (file.viewMode === 'structure') label = 'Structure View';
         else label = 'Text View';
-        modeHint.textContent = `${label} · Ctrl+Shift+E`;
-        modeHint.title = 'Switch Text / Structure (Table) view — Ctrl+Shift+E';
+        // No Ctrl+Shift+E on an Office tab — there is no second view to go to,
+        // and offering the key would be advertising a dead end.
+        if (officeLabel) {
+            modeHint.textContent = t('Preview · read-only');
+            modeHint.title = t('This preview shows text and values only — no formatting, charts or images.');
+        } else {
+            modeHint.textContent = `${label} · Ctrl+Shift+E`;
+            modeHint.title = 'Switch Text / Structure (Table) view — Ctrl+Shift+E';
+        }
         modeHint.style.display = 'inline';
     }
 
@@ -3077,19 +3364,73 @@ export async function compareWithDisk(file) {
  * @returns {Promise<number>} how many tabs were restored
  */
 export async function restoreSession() {
+    // The panel is owned out here so that every way out of the restore — the
+    // early "no session", a throw part-way through the list — takes it down
+    // again. It is passed in rather than reached for, because the body is the
+    // only thing that knows which file it is on.
+    const loading = beginLoad(t('Restoring your tabs'));
+    try {
+        return await restoreSessionInto(loading);
+    } finally {
+        loading.done();
+    }
+}
+
+/** A restored Office tab: the same shape openFile() builds, re-parsed. */
+async function restoredOfficeTab(path, stats) {
+    const office = await invoke('read_office_preview', { path });
+    return {
+        path,
+        content: '',
+        office,
+        type: 'office',
+        encoding: 'UTF-8',
+        eol: getOsLineEnding(),
+        isDirty: false,
+        stats,
+    };
+}
+
+async function restoreSessionInto(loading) {
     const session = loadSession();
     if (!session || !Array.isArray(session.left) || session.left.length === 0) return 0;
 
+
     const drafts = loadDrafts();
     let restored = 0;
+
+    // Reopening a workspace reads every tab it had, one after another, and this
+    // runs at STARTUP — the moment a silent pause is least explicable. Unlike a
+    // single open there is a real count here, so the panel gets to say "3 of 7"
+    // instead of only that it is busy.
+    const total = session.left.length
+        + (session.splitMode && Array.isArray(session.right) ? session.right.length : 0);
+    let done = 0;
+    const step = (entry) => {
+        done++;
+        loading.update(t('{done} of {total} — {name}', {
+            done, total, name: FS.getBasename(entry.path) || entry.path,
+        }));
+    };
 
     for (const entry of session.left) {
         if (!entry || !entry.path) continue;
         // Skip anything already open (e.g. a file passed on the command line).
         if (State.openFiles.some(f => f.path === entry.path)) continue;
         try {
+            step(entry);
             const stats = await FS.getFileStats(entry.path);
             if (!stats) continue; // gone since last run
+
+            // An Office tab is restored the way it was opened — re-parsed, not
+            // re-read as text. It can hold no draft, so the recovery below is
+            // skipped along with it.
+            if (isOfficeFile(entry.path)) {
+                State.openFiles.push(await restoredOfficeTab(entry.path, stats));
+                restored++;
+                continue;
+            }
+
             const { content, encoding, eol } = await FS.readFileAutoDetect(entry.path);
             const file = {
                 path: entry.path,
@@ -3123,8 +3464,14 @@ export async function restoreSession() {
             if (!entry || !entry.path) continue;
             if (State.rightOpenFiles.some(f => f.path === entry.path)) continue;
             try {
+                step(entry);
                 const stats = await FS.getFileStats(entry.path);
                 if (!stats) continue;
+                if (isOfficeFile(entry.path)) {
+                    State.rightOpenFiles.push(await restoredOfficeTab(entry.path, stats));
+                    restored++;
+                    continue;
+                }
                 const { content, encoding, eol } = await FS.readFileAutoDetect(entry.path);
                 const file = {
                     path: entry.path,

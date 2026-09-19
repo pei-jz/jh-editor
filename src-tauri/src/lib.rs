@@ -17,7 +17,7 @@ pub fn run() {
                 .find(|a| !a.starts_with("--"))
                 .cloned()
                 .unwrap_or_default();
-            commands::window::route_open_in_process(app, &target);
+            commands::window::route_second_launch(app, &target);
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -37,6 +37,8 @@ pub fn run() {
             commands::fs::write_file_bytes,
             commands::fs::diff_directories,
             commands::fs::parse_excel_to_markdown,
+            commands::office::read_office_preview,
+            commands::office::open_office_file,
             commands::search::search_files,
             commands::search::list_all_files,
             commands::search::start_grep,
@@ -83,6 +85,7 @@ pub fn run() {
             commands::app::launch_jh_agent,
             commands::app::open_url,
             commands::fs::file_stats,
+            commands::fs::list_notes,
             commands::git::git_push,
             commands::git::git_upstream,
             commands::git::git_remote_url,
@@ -130,7 +133,9 @@ pub fn run() {
                     commands::pty::stop_pty_for_label(&pty, &label);
                 }
                 if let Some(ws) = app.try_state::<commands::fs::WorkspaceState>() {
-                    ws.roots.lock().unwrap().remove(&label);
+                    // This runs on the main thread inside a window procedure —
+                    // see commands::window::lock for why it must not panic.
+                    commands::window::lock(&ws.roots).remove(&label);
                 }
                 if let Some(lsp) = app.try_state::<LspState>() {
                     let servers = lsp.servers.clone();

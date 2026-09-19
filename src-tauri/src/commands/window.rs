@@ -5,12 +5,26 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
+/// Lock without the `.unwrap()`.
+///
+/// A poisoned mutex means some other thread panicked while holding it.
+/// `.unwrap()` turns that accident into a panic HERE, and every caller runs on
+/// the main thread inside a window procedure, where a panic takes the whole
+/// process down with it (see `route_second_launch`). What these locks guard are
+/// small label -> path tables; a half-written entry in one is not worth every
+/// window closing, so take the data as it stands.
+pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Path a freshly-created window should open once its frontend boots. Keyed by
-/// window label; an empty string (or missing entry) means "show Welcome".
+/// window label. An empty string means "show Welcome"; NO entry means the
+/// window was never assigned one, which is a different answer (see
+/// `take_launch_path`).
 #[derive(Default)]
 pub struct PendingLaunch {
     map: Mutex<HashMap<String, String>>,
@@ -52,7 +66,7 @@ fn is_under(dir: &str, file: &str) -> bool {
 pub fn create_window(app: &AppHandle, path: &str) -> Result<String, String> {
     let label = format!("win-{}", WINDOW_SEQ.fetch_add(1, Ordering::Relaxed));
     if let Some(pending) = app.try_state::<PendingLaunch>() {
-        pending.map.lock().unwrap().insert(label.clone(), path.to_string());
+        lock(&pending.map).insert(label.clone(), path.to_string());
     }
     // Initial OS title (taskbar) reflects the folder/file name; the frontend
     // refines it once booted.
@@ -75,10 +89,23 @@ pub fn create_app_window(app: AppHandle, path: Option<String>) -> Result<String,
 }
 
 /// Frontend calls this at startup to learn which path (if any) it should open.
+///
+/// `None` and `Some("")` are different answers and the caller depends on it:
+/// `None` means this window was never assigned anything — it is the process's
+/// first window, and the command line is that window's to read. `Some("")` is
+/// an explicit "open nothing, show Welcome".
+///
+/// Returning "" for both is what made every window opened afterwards re-open
+/// the file the process was LAUNCHED with: argv belongs to the process and is
+/// never consumed, so right-click -> new window on an app started by
+/// double-clicking a file landed on that same file, not on Welcome.
 #[tauri::command]
-pub fn take_launch_path(webview: tauri::WebviewWindow, pending: State<'_, PendingLaunch>) -> String {
+pub fn take_launch_path(
+    webview: tauri::WebviewWindow,
+    pending: State<'_, PendingLaunch>,
+) -> Option<String> {
     let label = webview.label().to_string();
-    pending.map.lock().unwrap().remove(&label).unwrap_or_default()
+    lock(&pending.map).remove(&label)
 }
 
 /// Find an existing window with no workspace (a "loose files" window). Used to
@@ -87,7 +114,7 @@ pub fn take_launch_path(webview: tauri::WebviewWindow, pending: State<'_, Pendin
 fn find_workspaceless_window(app: &AppHandle) -> Option<WebviewWindow> {
     let with_ws: HashSet<String> = app
         .try_state::<crate::commands::fs::WorkspaceState>()
-        .map(|s| s.roots.lock().unwrap().keys().cloned().collect())
+        .map(|s| lock(&s.roots).keys().cloned().collect())
         .unwrap_or_default();
     let mut candidates: Vec<WebviewWindow> = app
         .webview_windows()
@@ -102,7 +129,24 @@ fn find_workspaceless_window(app: &AppHandle) -> Option<WebviewWindow> {
 
 /// Route an externally-requested path (a second launch's argv, forwarded by the
 /// single-instance plugin) to the right window in THIS process.
-pub fn route_open_in_process(app: &AppHandle, target: &str) {
+///
+/// Called from inside a window procedure: the second process hands its argv
+/// over with a blocking `SendMessage(WM_COPYDATA)`, and the plugin runs this on
+/// the message. A panic on that stack unwinds across an `extern "system"`
+/// boundary, which Rust answers by aborting — every window of every workspace
+/// gone at once, no dialog, nothing in the log. `route_second_launch` is the
+/// entry point the plugin gets, and it exists to make sure that a failure to
+/// route one double-clicked file costs that file and nothing else.
+pub fn route_second_launch(app: &AppHandle, target: &str) {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        route_open_in_process(app, target);
+    }));
+    if result.is_err() {
+        log::error!("could not route a second launch of {target:?}; ignoring it");
+    }
+}
+
+fn route_open_in_process(app: &AppHandle, target: &str) {
     if target.is_empty() {
         // Launching the app with no path → open a NEW empty window (Welcome) so
         // the user can open another workspace, rather than focusing an existing
@@ -115,7 +159,7 @@ pub fn route_open_in_process(app: &AppHandle, target: &str) {
     if is_dir {
         // Folder: focus an existing window already rooted here, else open new.
         if let Some(state) = app.try_state::<crate::commands::fs::WorkspaceState>() {
-            let roots = state.roots.lock().unwrap();
+            let roots = lock(&state.roots);
             for (label, root) in roots.iter() {
                 if is_under(root, target) || root.eq_ignore_ascii_case(target) {
                     if let Some(w) = app.get_webview_window(label) {
@@ -133,7 +177,7 @@ pub fn route_open_in_process(app: &AppHandle, target: &str) {
     // File: hand to the window whose workspace contains it (deepest match).
     let mut best: Option<(usize, String)> = None; // (root len, label)
     if let Some(state) = app.try_state::<crate::commands::fs::WorkspaceState>() {
-        let roots = state.roots.lock().unwrap();
+        let roots = lock(&state.roots);
         for (label, root) in roots.iter() {
             if is_under(root, target) {
                 let len = root.len();

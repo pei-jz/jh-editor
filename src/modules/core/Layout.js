@@ -3,6 +3,19 @@ import { State } from './Store.js';
 import { applyTheme } from '../ui/SettingsModal.js';
 import { DEFAULT_THEME } from '../utils/Themes.js';
 
+/**
+ * Show or hide the explorer.
+ *
+ * Exported because more than the toolbar button needs it now — clicking a
+ * folder in the title bar's path has to be able to open the panel it is about
+ * to move the cursor in. Two places toggling the same class by hand is how the
+ * flag and the class drift apart.
+ */
+export function setExplorerVisible(visible) {
+    State.isExplorerVisible = !!visible;
+    if (EL.explorer) EL.explorer.classList.toggle('hidden', !State.isExplorerVisible);
+}
+
 export function setCompactMode(isCompact) {
     if (isCompact) document.body.classList.add('display-mode-compact');
     else document.body.classList.remove('display-mode-compact');
@@ -15,8 +28,7 @@ export function initLayout() {
     // Toggle Explorer
     if (EL.toggleExplorerBtn) {
         EL.toggleExplorerBtn.addEventListener('click', () => {
-            State.isExplorerVisible = !State.isExplorerVisible;
-            EL.explorer.classList.toggle('hidden', !State.isExplorerVisible);
+            setExplorerVisible(!State.isExplorerVisible);
         });
     }
 

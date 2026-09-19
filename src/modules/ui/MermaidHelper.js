@@ -257,7 +257,7 @@ export const MermaidHelper = {
         const typesBtn = mkHeadBtn(t('Types'), t('Show or hide the diagram types'));
         const partsBtn = mkHeadBtn(t('Parts'), t('Show or hide the syntax list'));
         const sideBtn = mkHeadBtn(t('Side preview'), t('Put the preview beside the source instead of below'));
-        const maxBtn = mkHeadBtn(t('Full screen'), t('Fill the window'));
+        const maxBtn = mkHeadBtn(t('Full screen'), `${t('Fill the window')} (Ctrl+Alt+F)`);
         head.append(styleBtn, typesBtn, partsBtn, sideBtn, maxBtn);
 
         // ── left: diagram types ──
@@ -480,8 +480,9 @@ export const MermaidHelper = {
             syncBtn(styleBtn, on);
         };
 
-        maxBtn.onclick = () => {
-            const max = box.classList.toggle('mh-max');
+        // Named, because the keyboard reaches it too (Ctrl+Alt+F in onKey).
+        const setMax = (max) => {
+            box.classList.toggle('mh-max', max);
             // Start below the title bar. Measured rather than assumed: the
             // height moves with the theme and the display scale, and covering
             // it takes the window's own buttons with it.
@@ -493,6 +494,8 @@ export const MermaidHelper = {
             overlay.classList.toggle('mh-max-overlay', max);
             syncBtn(maxBtn, max);
         };
+        const isMax = () => box.classList.contains('mh-max');
+        maxBtn.onclick = () => setMax(!isMax());
 
         // ── behaviour ─────────────────────────────────────────────────────────
         let selectedId = detectDiagramType(editor.value) || null;
@@ -646,7 +649,24 @@ export const MermaidHelper = {
         };
 
         const onKey = (e) => {
-            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+            // Ctrl+Alt+F matches the Markdown block editor's key for the same
+            // thing. `e.code` as well as `e.key`, because holding Alt changes
+            // the reported CHARACTER on several layouts.
+            if (e.altKey && (e.ctrlKey || e.metaKey)
+                && (e.code === 'KeyF' || String(e.key).toLowerCase() === 'f')) {
+                e.preventDefault(); e.stopPropagation();
+                setMax(!isMax());
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                // Out of full screen first. Escape closing a full-screen dialog
+                // outright throws away a diagram that is part way written, to a
+                // key most people press meaning "make this smaller again".
+                if (isMax()) setMax(false);
+                else close();
+                return;
+            }
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.stopPropagation(); insert(); return; }
 
             if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-4]$/.test(e.key)) {

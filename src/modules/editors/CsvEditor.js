@@ -65,6 +65,11 @@ export class CsvModel {
 
     setValue(r, c, val) {
         if (!this.data[r] || this.data[r][c] === val) return;
+        // A column the grid does not draw is a cell nobody can see — and this
+        // used to write there anyway, past the end of the row, where serialize()
+        // still picked it up and put it in the file. Callers that mean to widen
+        // the sheet say so (insertCol / pasteMatrix).
+        if (c < 0 || c >= this.getColCount()) return;
         this.saveState();
         this.data[r][c] = val;
     }
@@ -114,6 +119,38 @@ export class CsvModel {
         });
     }
 
+    // Write a matrix with its top-left at (r, c), growing the sheet to fit it.
+    // One undo step.
+    //
+    // Growing is the part that used to be missing. setValue writes past the end
+    // of a row happily, so a block pasted wider or lower than the sheet landed
+    // in cells the grid never drew — getColCount() reads one row's length — and
+    // serialize() then wrote those rows to the file a field longer than the
+    // rest. Invisible edits that reach disk are the worst of both.
+    //
+    // New columns rectangularize the sheet, which is what a spreadsheet does:
+    // the rows that gain empty cells gain a trailing comma in the file too.
+    pasteMatrix(r, c, matrix) {
+        if (!matrix || matrix.length === 0 || r < 0 || c < 0) return;
+        const width = matrix.reduce((m, row) => Math.max(m, row.length), 0);
+        if (width === 0) return;
+        this.saveState();
+
+        while (this.data.length < r + matrix.length) this.data.push([]);
+
+        const cols = Math.max(this.getColCount(), c + width);
+        for (const row of this.data) {
+            for (let j = row.length; j < cols; j++) row[j] = '';
+        }
+
+        for (let i = 0; i < matrix.length; i++) {
+            const src = matrix[i];
+            for (let j = 0; j < src.length; j++) {
+                this.data[r + i][c + j] = src[j] != null ? src[j] : '';
+            }
+        }
+    }
+
     deleteRow(index) {
         if (this.data.length <= 1) return;
         this.saveState();
@@ -124,6 +161,30 @@ export class CsvModel {
         if (this.getColCount() <= 1) return;
         this.saveState();
         this.data.forEach(row => row.splice(index, 1));
+    }
+
+    // Delete a RANGE of rows as one undo step. Excel's Ctrl+- removes as many
+    // rows as are selected, and doing that by calling deleteRow() in a loop
+    // would push one undo step per row — an accidental press over 200 selected
+    // rows would then take 200 undos to put back. Returns how many went.
+    deleteRows(index, count) {
+        const total = this.data.length;
+        // One has to survive: a sheet with no rows has no shape to type into.
+        const n = Math.min(count, total - 1);
+        if (n <= 0 || index < 0 || index >= total) return 0;
+        this.saveState();
+        this.data.splice(index, n);
+        return n;
+    }
+
+    // The same for columns.
+    deleteCols(index, count) {
+        const total = this.getColCount();
+        const n = Math.min(count, total - 1);
+        if (n <= 0 || index < 0 || index >= total) return 0;
+        this.saveState();
+        this.data.forEach(row => row.splice(index, n));
+        return n;
     }
 
     parse(text, enableDetection = true) {
@@ -246,7 +307,7 @@ export class CsvModel {
 }
 
 // --- View: Virtualized Renderer ---
-class CsvView {
+export class CsvView {
     constructor(container, model, inputs) {
         this.container = container;
         this.model = model;
@@ -792,6 +853,32 @@ class CsvView {
         return c >= c1 && c <= c2;
     }
 
+    /**
+     * Does the selection cover whole columns, and only whole columns? This is
+     * how Excel decides what Ctrl+Shift++ and Ctrl+- act on: select a column
+     * (Ctrl+Space) and they insert or delete a column; anything else is a row.
+     *
+     * The `!fullWidth` half is not a detail. Selecting every row of a small
+     * file — three rows of a three-row CSV, by their row headers or by Ctrl+A —
+     * covers the full height as surely as a column selection does, and without
+     * this it would read as "every column is selected" and Ctrl+- would take
+     * the file's columns out instead of its rows. Ambiguous means rows, because
+     * a row is what a CSV file is made of.
+     *
+     * A single-row file is all ambiguity and no signal, so it is rows too.
+     * Ctrl+- there has nothing left to delete and does nothing, which is a
+     * better answer than silently removing a column.
+     */
+    isWholeColumns() {
+        const { r1, r2, c1, c2 } = this.getNormalizedRange();
+        const rows = this.model ? this.model.getRowCount() : 0;
+        const cols = this.model ? this.model.getColCount() : 0;
+        if (rows <= 1) return false;
+        const fullHeight = r1 === 0 && r2 === rows - 1;
+        const fullWidth = cols > 0 && c1 === 0 && c2 === cols - 1;
+        return fullHeight && !fullWidth;
+    }
+
     refreshSelection() {
         // Full rerender is expensive? In virtual DOM it's fast enough for visible rows (e.g. 50 rows).
         // For optimal perf, we could just toggle classes.
@@ -1242,6 +1329,24 @@ class CsvController {
             this.onKeyDown(e);
             return true;
         }
+        // Excel's Ctrl+Shift++ : insert above the selection, or to its left when
+        // whole columns are selected. With rows on the clipboard it inserts
+        // those (Excel's "Insert Copied Cells"); with nothing, blank ones.
+        if (command === 'csv:insert') {
+            if (e) e.preventDefault();
+            const { r1, c1 } = this.view.getNormalizedRange();
+            if (this.view.isWholeColumns()) this.insertCopiedCols(c1);
+            else this.insertCopiedRows(r1);
+            return true;
+        }
+        // Excel's Ctrl+- : delete everything the selection covers, as rows or as
+        // columns. Excel deletes as MANY as are selected, so this does too — one
+        // undo step for the lot, not one per row.
+        if (command === 'csv:delete') {
+            if (e) e.preventDefault();
+            this.deleteSelectedLines();
+            return true;
+        }
         if (command === 'csv:insert-copied-rows') {
             if (e) e.preventDefault();
             const { r1 } = this.view.getNormalizedRange();
@@ -1512,28 +1617,12 @@ class CsvController {
             return;
         }
 
-        // 2. Row/Col Modification Shortcuts (Alt based)
-        // Alt + ; (or +) -> Insert Row Below / Col Right
-        // Alt + - (or =) -> Delete Row / Col
-        if (e.altKey) {
-            const k = e.key;
-            if (k === ';' || k === '+') {
-                e.preventDefault();
-                const { r, c } = this.view.cursor;
-                if (e.shiftKey) this.model.insertCol(c + 1);
-                else this.model.insertRow(r + 1);
-                this.view.updateData();
-                return;
-            }
-            if (k === '-' || k === '=') {
-                e.preventDefault();
-                const { r, c } = this.view.cursor;
-                if (e.shiftKey) this.model.deleteCol(c);
-                else this.model.deleteRow(r);
-                this.view.updateData();
-                return;
-            }
-        }
+        // Row and column insert / delete used to live here on Alt+; and Alt+-,
+        // with Shift switching between row and column: four combinations, none
+        // of them borrowed from anywhere the user had already been. They are
+        // Excel's keys now — Ctrl+Shift++ and Ctrl+- — and they arrive as the
+        // `csv:insert` / `csv:delete` commands rather than being sniffed out of
+        // the raw event here. See handleCommand and ShortcutDefinitions.
 
         if (e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
@@ -1797,48 +1886,19 @@ class CsvController {
         }
         if (this.isEditingField()) return;
 
-        let text = '';
-        try {
-            text = await readText();
-        } catch (err) {
-            console.warn('CsvEditor (grid) paste failed:', err);
-        }
-        if (!text) return;
+        const matrix = await this._readClipboardMatrix();
+        if (!matrix.length) return;
 
-        const rows = text.split(/\r?\n/);
-        // If single cell selected, paste relative to it.
-        // If range selected? Excel behavior: paste into range (tile) or just top-left?
-        // Simple: Paste starting at top-left of selection.
-        let startR = this.view.selection.start.r;
-        let startC = this.view.selection.start.c;
+        // A range selection says where to start, not how much to take: the
+        // clipboard's own shape decides that. (Excel tiles a block into a larger
+        // selection; that is a separate feature.)
+        const { r1, c1 } = this.view.getNormalizedRange();
 
-        // If selection is a range, we should probably stick to functionality where we paste FROM the start cell.
-        // We ignore the end of selection for paste dimension usually, unless we implement tiling.
-        // Let's use Normalized Range Start.
-        const header = this.view.getNormalizedRange();
-        startR = header.r1;
-        startC = header.c1;
+        // Grows the sheet to fit and counts as ONE undo. The loop this replaced
+        // called insertRow/setValue per cell, so every cell of the paste was its
+        // own undo step — and a 60-cell paste flushed the 50-deep history.
+        this.model.pasteMatrix(r1, c1, matrix);
 
-        for (let i = 0; i < rows.length; i++) {
-            const rowStr = rows[i];
-            if (i === rows.length - 1 && !rowStr) continue; // Skip trailing newline
-
-            const cells = rowStr.split('\t');
-            for (let j = 0; j < cells.length; j++) {
-                const val = cells[j];
-                // Expand rows
-                if (startR + i >= this.model.getRowCount()) {
-                    this.model.insertRow(this.model.getRowCount());
-                }
-                // Expand cols?
-                if (startC + j >= this.model.getColCount()) {
-                    // Model doesn't support auto-expand col easily without filling others
-                    // Let's Skip for now or try insertCol
-                    // this.model.insertCol(this.model.getColCount());
-                }
-                this.model.setValue(startR + i, startC + j, val);
-            }
-        }
         this.view.updateData();
         this.debouncedSave();
     }
@@ -1878,6 +1938,32 @@ class CsvController {
         this.debouncedSave();
     }
 
+    /**
+     * Excel's Ctrl+- : remove what the selection covers — the columns when it
+     * covers whole columns, the rows otherwise — in a single undo step.
+     */
+    deleteSelectedLines() {
+        if (this.mode === 'text' || this.isEditingField()) return;
+        const { r1, r2, c1, c2 } = this.view.getNormalizedRange();
+        const byColumn = this.view.isWholeColumns();
+        const removed = byColumn
+            ? this.model.deleteCols(c1, c2 - c1 + 1)
+            : this.model.deleteRows(r1, r2 - r1 + 1);
+        if (!removed) return;   // nothing left to take away
+
+        this.view.updateData();
+        // Land on whatever moved up (or left) into the gap, clamped to what is
+        // still there — the last row deleted has nothing below it.
+        const r = Math.min(byColumn ? r1 : r1, this.model.getRowCount() - 1);
+        const c = Math.min(c1, this.model.getColCount() - 1);
+        this.view.cursor = { r, c };
+        this.view.selection.start = { r, c };
+        this.view.selection.end = { r, c };
+        this.view.refreshSelection();
+        this.view.scrollToCell(r, c);
+        this.debouncedSave();
+    }
+
     // Excel "Insert Copied Cells" for columns: insert the clipboard columns at
     // `index`, pushing existing columns right. Empty clipboard → one blank column.
     async insertCopiedCols(index) {
@@ -1902,7 +1988,7 @@ class CsvController {
 
     // --- Grid search (used by the global Search panel) ---
     // Scan every cell with `pred(value)` and return the matching cell coords.
-    collectCsvMatches(pred) {
+    collectCellMatches(pred) {
         const matches = [];
         const data = this.model.getData();
         for (let r = 0; r < data.length; r++) {
@@ -1917,7 +2003,7 @@ class CsvController {
     }
 
     // Select + scroll to a matched cell (Excel-style Find selects the hit).
-    gotoCsvMatch(m) {
+    gotoCellMatch(m) {
         if (this.mode !== 'grid' || !m) return;
         this.view.cursor = { r: m.r, c: m.c };
         this.view.selection.start = { r: m.r, c: m.c };

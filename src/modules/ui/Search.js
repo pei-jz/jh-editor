@@ -298,10 +298,13 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
         return;
     }
 
-    // ── CSV grid mode ────────────────────────────────────────────────────────
-    // The CSV grid has no textarea; scan the model and select matching cells.
-    const _csvView = getCurrentView();
-    if (_csvView && typeof _csvView.isCsvGridMode === 'function' && _csvView.isCsvGridMode()) {
+    // ── Cell-grid mode ───────────────────────────────────────────────────────
+    // Views with no textarea behind them — the CSV grid and the Office preview
+    // — find their own matches and are told where to go. They share one
+    // protocol rather than one implementation: what a "cell" is differs, and
+    // only the view knows how to put one on screen.
+    const _gridView = getCurrentView();
+    if (_gridView && typeof _gridView.isCellGrid === 'function' && _gridView.isCellGrid()) {
         let regex;
         try {
             if (!isRegex) {
@@ -320,8 +323,8 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
         }
 
         const test = (s) => { regex.lastIndex = 0; return regex.test(s); };
-        const matches = _csvView.collectCsvMatches(test);
-        matches.forEach(mm => State.searchMatches.push({ r: mm.r, c: mm.c, isCsv: true }));
+        const matches = _gridView.collectCellMatches(test);
+        matches.forEach(mm => State.searchMatches.push({ r: mm.r, c: mm.c, isCell: true }));
 
         if (State.searchMatches.length > 0) {
             State.currentMatchIndex = 0;
@@ -563,8 +566,8 @@ function _scrollToMatch(noFocus = false) {
     const m = State.searchMatches[State.currentMatchIndex];
     if (!m) return;
     const currentView = getCurrentView();
-    if (m.isCsv) {
-        if (currentView && typeof currentView.gotoCsvMatch === 'function') currentView.gotoCsvMatch(m);
+    if (m.isCell) {
+        if (currentView && typeof currentView.gotoCellMatch === 'function') currentView.gotoCellMatch(m);
         return;
     }
     if (currentView && currentView.renderSearchHighlights) {
@@ -645,6 +648,15 @@ function _doReplace() {
     const match = State.searchMatches[State.currentMatchIndex];
     if (!match) return;
     const prevIndex = State.currentMatchIndex;
+
+    // A cell-grid match has no character offsets to splice, and the Office
+    // preview has nothing to write to at all. Left to fall through, it reached
+    // the Markdown branch below, indexed the block list with `undefined` and
+    // threw — so Replace in the CSV grid has never worked either.
+    if (match.isCell) {
+        if (window.showToast) window.showToast(t('Replace is not available here.'));
+        return;
+    }
 
     const currentView = getCurrentView();
     if (currentView && typeof currentView.isCodeMirrorMode === 'function' && currentView.isCodeMirrorMode()) {

@@ -384,8 +384,28 @@ function _presetFormatRule(mode) {
             zh: '请用 Markdown 返回完整说明。\n\n',
             ko: '설명 전체를 Markdown으로 반환하세요.\n\n',
         },
+        // A typed instruction can want either. Asking for the two shapes to be
+        // kept apart is what lets the reply itself say which one it was, in
+        // _presentPresetResult, instead of the code guessing from the wording.
+        auto: {
+            en: 'If you are proposing a rewrite, reply with the full rewritten text as a single ```code block``` and nothing else. Otherwise answer in Markdown.\n\n',
+            ja: '書き換えを提案する場合は、書き換え後の全文を1つの ```コードブロック``` のみで返してください。そうでなければ Markdown で回答してください。\n\n',
+            zh: '若要提出改写，请仅以一个 ```代码块``` 返回改写后的全文；否则请用 Markdown 回答。\n\n',
+            ko: '다시 쓰기를 제안하는 경우에는 전체 결과를 하나의 ```코드 블록```으로만 반환하세요. 그렇지 않으면 Markdown으로 답하세요.\n\n',
+        },
     };
     return rules[mode]?.[lang] || rules[mode]?.en || '';
+}
+
+/** Label for the cursor's surroundings, sent when nothing is selected. */
+function _presetContextLabel() {
+    const lang = promptLanguageName();
+    return {
+        en: '--- around the cursor ---',
+        ja: '--- カーソル周辺 ---',
+        zh: '--- 光标周围 ---',
+        ko: '--- 커서 주변 ---',
+    }[lang] || '--- around the cursor ---';
 }
 
 /** The "--- selection ---" separator in the prompt, in the configured language. */
@@ -419,6 +439,22 @@ async function _applyInlineAnchor(anchor, newText) {
 
 function _presentPresetResult(text, entry, anchor) {
     let md = String(text || '');
+
+    // A typed instruction is not declared in advance the way a preset's mode
+    // is — "explain this" and "add error handling" arrive through the same box.
+    // Guessing from the instruction would need to read it; the ANSWER says
+    // plainly which one it was. A reply that is essentially one fenced block,
+    // over a selection to put it back into, is a proposed rewrite and belongs
+    // in a diff. Anything else is prose, and prose in a diff is unreadable.
+    if (anchor.mode === 'auto') {
+        const code = _extractCodeBlock(md);
+        const hasSelection = !!String(anchor.original || '').trim();
+        // "Essentially" = the block is most of the reply. A rewrite with a
+        // sentence of preamble still counts; an explanation quoting three lines
+        // of code does not.
+        const mostlyCode = code && code.length >= String(md).trim().length * 0.6;
+        anchor = { ...anchor, mode: hasSelection && mostlyCode ? 'replace' : 'answer' };
+    }
 
     if (anchor.mode === 'doc' || anchor.mode === 'answer') {
         // Explanation → open as a read-only Markdown tab (reference material, not
@@ -494,7 +530,34 @@ function _presentPresetResult(text, entry, anchor) {
 export async function runInlinePreset(preset) {
     const def = INLINE_PRESETS[preset];
     if (!def) throw new Error(`Unknown preset: ${preset}`);
+    return runInlineTask({ title: def.title, instruction: def.instruction, mode: def.mode });
+}
 
+/**
+ * A typed instruction from the InlineAI box, run as a dock task.
+ *
+ * It used to stream into the popup, which meant the popup had to stay open and
+ * the editor had to stay still until the model finished — anchored over the
+ * very code the question was about. A preset asking the same model the same
+ * kind of question already went to the dock and left the editor alone, so the
+ * two halves of one dialog behaved differently for no reason the user could
+ * see. This is the preset path, with the instruction typed instead of chosen.
+ *
+ * `mode: 'auto'` because a typed instruction does not say in advance whether it
+ * wants a rewrite or an answer. See _presentPresetResult.
+ *
+ * @param {string} instruction  what the user typed
+ * @param {string} [context]    the text around the cursor, used when nothing is
+ *                              selected — otherwise the model has no idea what
+ *                              "this" refers to.
+ */
+export async function runInlinePrompt(instruction, context = '') {
+    const text = String(instruction || '').trim();
+    if (!text) return null;
+    return runInlineTask({ title: 'Ask AI', instruction: text, mode: 'auto', context });
+}
+
+async function runInlineTask({ title, instruction, mode, context = '' }) {
     const selection = editor.getSelection();
     const view = window.app && typeof window.app.getCurrentView === 'function'
         ? window.app.getCurrentView() : null;
@@ -504,10 +567,10 @@ export async function runInlinePreset(preset) {
         original: selection,
         from: offsets ? offsets.from : null,
         to: offsets ? offsets.to : null,
-        mode: def.mode,
+        mode,
     };
 
-    const entry = activityPanel.addTask(def.title);
+    const entry = activityPanel.addTask(title);
     // Personal notes never travel, at any scope — the MCP tools refuse them, and
     // a preset that pushes the selection has to refuse them too.
     if (isPrivatePath(anchor.path)) {
@@ -515,14 +578,24 @@ export async function runInlinePreset(preset) {
         return null;
     }
 
+    // With nothing selected the instruction is about wherever the caret is, and
+    // the model cannot see that. A preset always runs on a selection, so this
+    // only arises on the typed path.
+    const body = selection
+        ? `${_presetSelectionLabel()}\n${selection}\n`
+        : (context
+            ? `${_presetContextLabel()}\n${context}\n`
+            : `${_presetSelectionLabel()}\n(選択なし)\n`);
+
+    const prompt =
+        `${instruction}\n\n` +
+        _presetFormatRule(mode) +
+        body;
+
     // One round trip (lane L1). This was a "freeform" agent task driven through
     // the MCP adapter, which then had to be told, at length, to deliver its
     // answer through present_result rather than as text.
-    const prompt =
-        `${def.instruction}\n\n` +
-        _presetFormatRule(def.mode) +
-        `${_presetSelectionLabel()}\n${selection || '(選択なし)'}\n`;
-
+    let streamed = '';
     const ac = new AbortController();
     entry.onAbort(() => ac.abort());
     entry.setStatus('Generating…');
@@ -531,8 +604,16 @@ export async function runInlinePreset(preset) {
             prompt,
             systemPrompt: `You are a code and writing assistant inside JHEditor. Answer in ${promptLanguageName()}.`,
             abortSignal: ac.signal,
+            // The dock card says how far along it is. Without this a long
+            // answer is a chip reading "Generating…" for a minute, which is
+            // the complaint the popup's streaming existed to answer.
+            onUpdate: (chunk) => {
+                streamed += String(chunk || '');
+                const tail = streamed.replace(/\s+/g, ' ').trim().slice(-60);
+                if (tail) entry.setStatus(`… ${tail}`);
+            },
         });
-        _presentPresetResult(text, entry, anchor);
+        _presentPresetResult(text || streamed, entry, anchor);
         return text;
     } catch (e) {
         if (e && e.name === 'AbortError') return null;

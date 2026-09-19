@@ -1,5 +1,6 @@
 /* User Request: Editor View Width Full (Removing 900px limit) */
 .md-block {
+    font-family: var(--font-body);
     text-align: left;
     margin: 0;
     padding: 2px 12px;
@@ -201,24 +202,52 @@ body.theme-dark .visual-table-editor .range-selected {
     color: var(--primary-color);
 }
 
-/* User Request: Edit Icon Fixed Right */
-.edit-icon {
+/* Per-block tools, top-right on hover: copy, then edit.
+   ------------------------------------------------------------
+   One row rather than two absolutely-positioned buttons, so adding a third
+   later does not mean recalculating anyone's `right`. A heading is a single
+   line and the buttons are taller than it, so the row is pulled up against the
+   block's top edge and allowed to overhang — centring it would push it through
+   the text. */
+.md-block-tools {
     position: absolute;
-    right: 15px;
-    top: 10px;
+    right: 12px;
+    top: 4px;
+    display: none;
+    gap: 4px;
+    z-index: 50;
+}
+
+.md-block:hover .md-block-tools {
+    display: flex;
+}
+
+.md-block-tool {
     background: var(--primary-color);
     color: var(--text-on-primary, #fff);
     padding: 6px;
     border-radius: 4px;
     cursor: pointer;
     box-shadow: var(--shadow-sm);
-    display: none;
-    z-index: 50;
     line-height: 1;
+    opacity: 0.85;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
 }
 
-.md-block:hover .edit-icon {
-    display: block;
+.md-block-tool:hover {
+    opacity: 1;
+}
+
+/* Copied: the button answers where the click was. A toast in the far corner
+   for something this small is a notification about a non-event. */
+.md-block-tool.copied {
+    background: var(--git-staged-color, #2ea043);
+    opacity: 1;
+}
+
+/* A block being edited is a form, not a page: its tools belong to the modal. */
+.md-block.editing .md-block-tools {
+    display: none;
 }
 
 /* Preview Modal while Editing */
@@ -466,19 +495,6 @@ body.theme-dark .visual-table-editor .range-selected {
     font-weight: 600;
 }
 
-/* Mermaid Theme Adjustments */
-.mermaid {
-    background: transparent;
-    padding: 15px;
-    border-radius: 8px;
-    width: auto;
-    min-width: 100px;
-    max-width: 100%;
-    margin: 15px auto;
-    overflow-x: auto;
-    overflow-y: hidden;
-    display: block;
-}
 
 
 .editor-toolbar {
@@ -568,15 +584,6 @@ body.theme-dark .visual-table-editor .range-selected {
     outline: none;
 }
 
-.editor-toolbar button {
-    background: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
-    cursor: pointer;
-}
-
 .editor-toolbar button:hover {
     border-color: var(--primary-color);
     color: var(--primary-color);
@@ -611,8 +618,11 @@ body.theme-dark .visual-table-editor .range-selected {
     background-color: var(--hover-color);
 }
 
-/* User Request: Mermaid Fix - Auto-adjust width based on content */
+/* Auto-adjust width based on content. One rule: this was written twice, and
+   the first copy's border-radius and overflow-y were dead the moment the
+   second one loaded. */
 .mermaid {
+    background: transparent;
     text-align: center;
     margin: 15px auto;
     padding: 15px;
@@ -702,7 +712,6 @@ img {
 /* Plain Mode Overrides */
 /* Plain Mode Overrides */
 #editor-content.plain-mode {
-    padding: 0 !important;
     /* Wrapper handles scroll in plain mode */
     overflow: hidden !important;
 }
@@ -1116,30 +1125,45 @@ body.theme-solarized-dark {
 }
 
 /* --- Design Change: Modern Header Styling --- */
-.md-block h1,
-.md-block h2,
-.md-block h3,
-.md-block h4,
-.md-body h1,
-.md-body h2,
-.md-body h3,
-.md-body h4 {
+/* Headings are told apart by size and weight, and spaced on a scale.
+   The margins are in `em`, so they are measured in the heading's OWN size:
+   the bigger the heading, the more air above it, without six fixed numbers
+   that drift apart the next time one is touched.
+
+   h5 and h6 used to be undefined and fell through to the browser, where h6 is
+   SMALLER than body text — a level of the outline that looked like a mistake. */
+.md-block h1, .md-block h2, .md-block h3,
+.md-block h4, .md-block h5, .md-block h6,
+.md-body h1, .md-body h2, .md-body h3,
+.md-body h4, .md-body h5, .md-body h6 {
     color: var(--text-color);
     font-weight: 600;
     line-height: 1.3;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
 }
 
+/* The accents below — a coloured segment under h1, a bar beside h2 — are for
+   SCANNING, not for reading. In the scroll view you are working: hunting for
+   the block you want in a document you are part way through. A mark the eye
+   catches at speed earns its place there.
+   Book mode is the other half of that (see the .stf__page rules further down):
+   you are reading a page, the hover tools are gone and the blocks are not
+   clickable, and ornament in the margin is one more thing interrupting the
+   line. Same document, two jobs. */
 .md-block h1,
 .md-body h1 {
     font-size: 1.75em;
     font-weight: 700;
     border-bottom: 2px solid var(--border-color);
-    padding-bottom: 8px;
-    margin-top: 32px;
-    margin-bottom: 16px;
+    padding-bottom: 0.25em;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
     position: relative;
 }
 
+/* Laid exactly over the rule's own band, so it reads as the first 80px of one
+   line taking the accent — not as a second line under the first. */
 .md-block h1::after,
 .md-body h1::after {
     content: '';
@@ -1154,11 +1178,9 @@ body.theme-solarized-dark {
 .md-block h2,
 .md-body h2 {
     font-size: 1.45em;
-    font-weight: 600;
+    margin-top: 1.4em;
     position: relative;
     padding-left: 12px;
-    margin-top: 28px;
-    margin-bottom: 12px;
 }
 
 .md-block h2::before,
@@ -1176,17 +1198,27 @@ body.theme-solarized-dark {
 .md-block h3,
 .md-body h3 {
     font-size: 1.25em;
-    font-weight: 600;
-    margin-top: 24px;
-    margin-bottom: 10px;
 }
 
 .md-block h4,
 .md-body h4 {
     font-size: 1.1em;
+}
+
+.md-block h5,
+.md-body h5 {
+    font-size: 1em;
+    margin-top: 1.6em;
+}
+
+/* Sixth level: weight and colour only. Anything smaller than the body text
+   reads as a caption rather than as a heading. */
+.md-block h6,
+.md-body h6 {
+    font-size: 1em;
     font-weight: 600;
-    margin-top: 20px;
-    margin-bottom: 8px;
+    color: var(--text-secondary);
+    margin-top: 1.6em;
 }
 
 .md-block p,
@@ -1712,7 +1744,7 @@ body.theme-solarized-light .md-view-mode-toggle {
     color: var(--text-color);
     overflow-y: auto;
     padding: 30px 48px !important;
-    font-family: var(--editor-font-family);
+    font-family: var(--font-body);
     box-sizing: border-box;
     font-size: 14px;
     line-height: 1.65;
@@ -1725,7 +1757,10 @@ body.theme-solarized-light .md-view-mode-toggle {
 }
 
 /* Remove massive fixed padding for PlainText book mode, but keep a reasonable 15px margin */
+/* The plain-text book: a .log or a .txt is not prose, and the columns people
+   line up in one only line up in a fixed pitch. */
 .stf__page.plain-text-page {
+    font-family: var(--editor-font-family);
     padding: 15px 5px !important;
 }
 
@@ -1749,9 +1784,30 @@ body.theme-solarized-light .md-view-mode-toggle {
 .stf__page h1,
 .stf__page h2,
 .stf__page h3,
-.stf__page h4 {
+.stf__page h4,
+.stf__page h5,
+.stf__page h6 {
     margin-top: 10px !important;
     margin-bottom: 6px !important;
+}
+
+/* Reading, not scanning: the page keeps the hairline that separates a title
+   from its text and drops the marks that help you find one. Placed after the
+   rules that set them — the specificity is equal, so order decides. */
+.stf__page h1 {
+    border-bottom-width: 1px;
+}
+
+.stf__page h1::after {
+    display: none;
+}
+
+.stf__page h2 {
+    padding-left: 0;
+}
+
+.stf__page h2::before {
+    display: none;
 }
 
 .stf__page p,
@@ -1915,6 +1971,13 @@ body.theme-solarized-light .md-view-mode-toggle {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
+}
+
+/* The scroll-mode container. Its own rule rather than a line in the
+   user-select list above, which also covers .plain-text-page — a .log is not
+   prose and stays in a fixed pitch. */
+.md-body {
+    font-family: var(--font-body);
 }
 
 /* Prevent shadows from blocking selection or clicks */
@@ -2408,6 +2471,21 @@ body.theme-solarized-light .md-view-mode-toggle {
     right: 18px;
 }
 
+/* The page margin, and the only view that wants one.
+   Three of the four sides are doing work: the left is where the text starts
+   and the eye expects it, the top is what keeps the first line clear of the
+   floating toolbar above (which is out of flow, so nothing else does), and the
+   bottom keeps the last line off the status bar. The right was the odd one —
+   53px of empty page beside every line — and only the scrollbar needs room
+   there.
+   Both panes, because this is a property of the VIEW rather than of one
+   element: a split pane showing Markdown should not start its text somewhere
+   else. #editor-content-right never had the inset at all. */
+#editor-content.markdown-mode,
+#editor-content-right.markdown-mode {
+    padding: 40px 12px 40px 40px;
+}
+
 /* ── View usage hint (bottom-right, minimizable) ─────────────────────────── */
 /* Shown for the structured views (Markdown / CSV / Structure): a small,
    semi-transparent panel that reminds you of the view's shortcuts. Can be
@@ -2597,4 +2675,98 @@ body.theme-solarized-light .md-view-mode-toggle {
     background: color-mix(in srgb, var(--primary-color) 16%, transparent);
     color: var(--primary-color);
     border-color: var(--primary-color);
+}
+
+/* ============================================================
+   File loading panel — "this is taking a moment"
+   ------------------------------------------------------------
+   Opening a few hundred megabytes takes seconds, and the editor used to spend
+   all of them showing the PREVIOUS file, unchanged: no caret, no movement, no
+   sign anything was happening, then the new text all at once. That reads as a
+   hang. See ui/LoadingOverlay.js for why the bar is indeterminate rather than a
+   percentage.
+
+   Top-centre of the pane, under its tab bar (the exact offset is measured in
+   JS, since the two panes' tab bars are declared in different places). The two
+   other floating panels live in the corners — .cm-view-toolbar top-right,
+   .view-usage-hint bottom-right — so nothing here can land on top of them.
+   pointer-events stay off: this reports, it does not intercept.
+   ============================================================ */
+.file-loading {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -6px);
+    z-index: 70;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.file-loading.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    visibility: visible;
+}
+
+.file-loading-card {
+    min-width: 260px;
+    max-width: 460px;
+    padding: 10px 16px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color-secondary);
+    box-shadow: var(--shadow-lg);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.file-loading-title {
+    color: var(--text-color);
+    font-weight: 600;
+    /* A long name must not stretch the card across the pane. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-loading-detail {
+    margin-top: 1px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    min-height: 1.45em;   /* reserved, so the card does not resize per phase */
+}
+
+.file-loading-bar {
+    margin-top: 9px;
+    height: 3px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text-color) 12%, transparent);
+    overflow: hidden;
+}
+
+/* Indeterminate: a segment that sweeps, because there is no honest percentage
+   to show (LoadingOverlay.js explains what the time is actually spent on). */
+.file-loading-fill {
+    width: 36%;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--primary-color);
+    animation: file-loading-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes file-loading-sweep {
+    0%   { transform: translateX(-105%); }
+    100% { transform: translateX(383%); }
+}
+
+/* A system-level request for less motion is honoured: the bar stops sweeping
+   and just sits there, still saying "busy" without the movement. */
+@media (prefers-reduced-motion: reduce) {
+    .file-loading { transition: none; }
+    .file-loading-fill {
+        animation: none;
+        width: 100%;
+        opacity: 0.5;
+    }
 }

@@ -99,6 +99,46 @@ describe('addViewUsageHint — vi mode hint panel', () => {
         });
     });
 
+    /* A draft has no path yet, and "no path" used to be read as "Markdown" —
+       from when Ctrl+N could only make one kind of file. Pick Text in the
+       new-file picker and the corner taught you the Markdown block keys for a
+       plain .txt buffer. The name carries the answer; the missing path does
+       not. */
+    describe('an unsaved draft is judged by its name', () => {
+        it('shows no panel at all for a .txt draft in the text editor', () => {
+            addViewUsageHint(container, { path: null, name: 'Untitled.txt' },
+                { isTextEditor: true });
+            expect(container.querySelector('.view-usage-hint')).toBeNull();
+        });
+
+        it('does not call a .txt draft Markdown', () => {
+            addViewUsageHint(container, { path: null, name: 'Untitled.txt' });
+            const text = container.querySelector('.view-usage-hint').textContent;
+            expect(text).not.toContain('Markdown View');
+            expect(text).not.toContain('move between blocks');
+        });
+
+        it('still knows a .md draft IS Markdown', () => {
+            addViewUsageHint(container, { path: null, name: 'Untitled.md' });
+            const text = container.querySelector('.view-usage-hint').textContent;
+            expect(text).toContain('Markdown View');
+        });
+    });
+
+    /* The plain-text plugin's viewClass IS CodeMirrorView, so "a plugin
+       resolved" never meant "a structured view" — every .txt, .log and .js went
+       down the structured branch and sprouted a panel. renderEditor has to ask
+       the view it actually built. */
+    it('is told what the mounted view is, not whether a plugin resolved', async () => {
+        const { readFileSync } = await import('node:fs');
+        const { fileURLToPath } = await import('node:url');
+        const { dirname, join } = await import('node:path');
+        const here = dirname(fileURLToPath(import.meta.url));
+        const src = readFileSync(join(here, '..', 'src/modules/core/Editor.js'), 'utf8');
+        expect(src).toContain('addViewUsageHint(container, file, { isTextEditor: view instanceof CodeMirrorView })');
+        expect(src).not.toContain('if (plugin) addViewUsageHint(container, file);');
+    });
+
     it('can be closed, and the close is not persisted', () => {
         addViewUsageHint(container, mdFile);
         const panel = container.querySelector('.view-usage-hint');

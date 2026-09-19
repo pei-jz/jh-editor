@@ -296,6 +296,27 @@ async function bootstrap() {
     }
     window.app.startWorkspaceless = startWorkspaceless;
 
+    /**
+     * Put the editor on screen before something is put INTO it.
+     *
+     * Ctrl+N and the command palette both work from the Welcome screen, and
+     * what they made there was made behind it: the buffer was created, the tab
+     * was added, `#main-layout` was still `display: none` and the user was
+     * looking at the Welcome screen the whole time. From the outside the
+     * keystroke did nothing.
+     *
+     * A hidden layout means the Welcome screen, and the Welcome screen means no
+     * workspace — `switchProject` is never left without showing it. So entering
+     * the editor from here is entering it workspace-less, which is what the
+     * Welcome screen's own New File / Open File buttons do.
+     */
+    function ensureEditorVisible() {
+        const mainLayout = document.getElementById('main-layout');
+        if (mainLayout && getComputedStyle(mainLayout).display !== 'none') return;
+        startWorkspaceless();
+    }
+    window.app.ensureEditorVisible = ensureEditorVisible;
+
     // 2.2 Welcome Screen (Visible Part)
     initWelcomeScreen(
         async (path) => {
@@ -914,14 +935,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function checkLaunchArgs() {
     try {
-        // A window opened via create_app_window carries an assigned path. The
-        // first window (from tauri.conf) has none → fall back to CLI args.
+        // A window opened via create_app_window carries an assigned path, and an
+        // assigned EMPTY path is an answer too: "open nothing, show Welcome".
+        // Only a window with no assignment at all — the first one, created from
+        // tauri.conf — may read the command line.
+        //
+        // The distinction matters because argv belongs to the PROCESS and is
+        // never consumed. Treating an empty assignment as "no assignment" meant
+        // every window opened later re-read it, so on an app started by
+        // double-clicking a file, right-click -> new window opened that same
+        // file again instead of the Welcome screen.
+        let assigned = null;
+        try { assigned = await invoke('take_launch_path'); } catch (_) { /* treat as unassigned */ }
         let target = '';
-        try { target = (await invoke('take_launch_path')) || ''; } catch (_) {}
-        if (!target) {
+        if (assigned == null) {
             const args = await invoke('get_launch_args').catch(() => []);
             const paths = (Array.isArray(args) ? args : []).slice(1).filter(a => a && !a.startsWith('--'));
             target = paths[0] || '';
+        } else {
+            target = assigned;
         }
         if (!target) return false;
 

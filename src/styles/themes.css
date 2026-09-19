@@ -21,8 +21,6 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
     --radius: 6px;
 
     --bg-color-secondary: #f3f4f6;
@@ -55,6 +53,17 @@
         "Yu Gothic UI", "Meiryo", "Hiragino Sans",
         sans-serif;
     --font-mono: 'HackGen Console', 'HackGen', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Hack', 'Consolas', 'BIZ UDGothic', 'BIZ UDゴシック', monospace;
+
+    /* Prose. Not --font-main (that is the chrome) and emphatically not
+       --font-mono, which is what rendered Markdown used to inherit in book
+       mode: a document set in the code font reads as a listing of itself.
+       Latin faces first and Japanese after, because the serifs below carry no
+       kana or kanji — the Latin runs take the first stack, the Japanese runs
+       fall through to the mincho. Code keeps --font-mono: every pre and code
+       rule names it outright. */
+    --font-body: 'Charter', 'Iowan Old Style', 'Source Serif 4', 'Georgia',
+        'BIZ UDPMincho', 'BIZ UDP明朝', 'Yu Mincho', '游明朝',
+        'Hiragino Mincho ProN', 'Noto Serif JP', serif;
     --editor-font-family: var(--font-mono);
     --editor-font-size: 11.5pt;
 
@@ -68,7 +77,6 @@
     --tab-inactive-color: #6c757d;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(13, 110, 253, 0.1);
-    --text-secondary: #6c757d;
 
     /* Markdown Premium Styles */
     --code-color: #d63384;
@@ -115,6 +123,14 @@ body {
        the path and the filename is weight, not contrast. */
     --titlebar-text: var(--text-color);
     --titlebar-text-dim: color-mix(in srgb, var(--text-color) 88%, var(--header-bg));
+
+    /* The line the caret is on, and the other occurrences of the selected word.
+       Mixed from the theme's own ink rather than pinned, so the tint shows on a
+       light background and a dark one alike. Both used to be flat white — 5%
+       and 10% — which is nothing at all on the six light themes, and barely a
+       shade on the dark ones they were written for. */
+    --cm-active-line-bg: color-mix(in srgb, var(--text-color) 9%, transparent);
+    --cm-selection-match-bg: color-mix(in srgb, var(--text-color) 16%, transparent);
 }
 
 body.theme-dark {

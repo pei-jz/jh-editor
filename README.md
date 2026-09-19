@@ -59,6 +59,7 @@ switches modes; the current mode is always shown in the status bar.
 | **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
 | **Diff** | Side-by-side diff with per-hunk Accept/Reject, whitespace-ignore toggle, similarity-based line pairing, and a change minimap |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
+| **Office preview** | Read-only look inside `.xlsx` / `.xlsm` / `.xls` / `.ods` / `.docx` / `.pptx`, without waiting for Excel or Word to start |
 
 ### ✍️ Markdown
 
@@ -69,6 +70,8 @@ switches modes; the current mode is always shown in the status bar.
 - **Paste or drop an image** — it is saved next to the document and linked relatively
 - Click any diagram or image to open it full-size in a lightbox
 - Reusable document **templates**
+- Prose is set in a reading face and code stays in the editor's fixed pitch, in both the
+  scrolling and the page-turning view
 
 ### 🗂️ Files & search
 
@@ -82,7 +85,30 @@ switches modes; the current mode is always shown in the status bar.
   neither freezes the UI nor gets pulled into JS memory
 - **Encoding** — auto-detection (`chardetng`) plus manual override (UTF-8, Shift-JIS, EUC-JP, …),
   and explicit CRLF/LF control that never changes on its own
-- **Excel → Markdown** — `.xlsx` sheets are read via `calamine` and rendered as tables
+- **Office files** — `.xlsx` / `.docx` / `.pptx` open in the preview below rather than
+  being hidden as binaries; they appear in the explorer and in `Ctrl+P`
+
+### 📊 Office preview
+
+Opening a spreadsheet to check one column should not cost an Excel cold start. These
+open read-only, in milliseconds, from the file itself — `calamine` for workbooks and the
+OOXML parts for `.docx` / `.pptx`. Nothing here can write, so a preview can never be
+mistaken for an editor; the header has a button that hands the file to the real
+application when it turns out you wanted that after all.
+
+- **Spreadsheets** — sheet tabs, and the sheet's own **column widths, row heights, merged
+  cells and borders**, so a Japanese 設計書 drawn on a grid of 2.5-character columns still
+  looks like the page its author laid out. Dates are shown in the format the sheet asks
+  for, formulas as their computed value. Gridlines follow the sheet's own setting and can
+  be toggled; columns and rows can be dragged to a new size
+- **Selecting and copying** — drag across cells, `Shift`+click to extend, `Ctrl+C` to copy
+  the rectangle as TSV; it pastes straight back into Excel
+- **Presentations** — title, indented bullets and speaker notes, slide by slide
+- **Documents** — headings, paragraphs, both kinds of list, and tables
+- `Ctrl+F` searches the preview; `Ctrl+PageUp` / `Ctrl+PageDown` move between sheets
+
+Not carried over: fonts, fills, charts, images and shapes. What you get is the text and
+the numbers, which is what a "let me just check something" open is after.
 
 ### 🪟 Window & session
 
@@ -148,7 +174,7 @@ graph TB
     end
 
     subgraph Backend ["Backend — Rust / Tauri 2"]
-        FS[fs · encoding · xlsx]
+        FS[fs · encoding · office]
         Search[search · grep]
         Git[git]
         Large[large_file<br/>mmap + ropey]
@@ -279,11 +305,11 @@ jh-editor/
 │   │   ├── lsp/           # LspClient, completion / hover / diagnostics widgets
 │   │   ├── ui/            # Modals, Git panel, search, terminal, HTML preview, Mermaid helper
 │   │   ├── utils/         # Parsers, highlighters, Markdown, VirtualScroll, FileSystem
-│   │   ├── views/         # CodeMirror, Markdown, Structure, Csv, LargeFile, DirDiff
+│   │   ├── views/         # CodeMirror, Markdown, Structure, Csv, LargeFile, DirDiff, Office
 │   │   └── workers/       # CSV / parser / formatter web workers
 │   └── styles/            # Themes and component CSS
 ├── src-tauri/
-│   └── src/commands/      # fs, search, git, large_file, lsp, parser, pty, app, window
+│   └── src/commands/      # fs, search, git, large_file, office, lsp, parser, pty, app, window
 ├── docs/                  # Per-module reference docs (ja / en)
 └── tests/                 # vitest unit tests + tests/e2e (Playwright)
 ```
@@ -310,6 +336,8 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Shift+E` | Toggle view mode (Text ⇄ Structure / Table / Markdown) |
 | `Ctrl+Alt+P` | Toggle preview (Markdown / HTML) |
 | `Ctrl+Alt+B` | Book mode |
+| `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
+| `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Ctrl+\` | Split editor right |
 | `Ctrl+Shift+\` | Focus other pane |
 | `Ctrl+Shift+W` | Close split |

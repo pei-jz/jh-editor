@@ -45,12 +45,35 @@ export function otherPane(pane) {
     return pane === RIGHT ? LEFT : RIGHT;
 }
 
+/**
+ * The comparable form of a path.
+ *
+ * Windows paths are compared WITHOUT case, because Windows does not have it:
+ * `c:/dir/fs.rs` and `C:/dir/fs.rs` are one file, and something that treats
+ * them as two opens a second tab for a file already on screen — two tabs over
+ * one document, with separate undo histories, where saving the stale one
+ * silently reverts the other.
+ *
+ * That is not hypothetical. A language server answers Go to Definition with a
+ * URI of its own making, and its idea of the drive letter's case need not match
+ * the one the tab was opened under. F12 on a symbol defined in the file you
+ * were already reading opened a duplicate of it.
+ *
+ * POSIX paths keep their case, because there `a.rs` and `A.rs` really are two
+ * files. A leading drive letter is what tells the two apart.
+ */
+function comparablePath(path) {
+    const p = String(path || '').replace(/\\/g, '/');
+    return /^[a-zA-Z]:(?=\/|$)/.test(p) ? p.toLowerCase() : p;
+}
+
 /** Locate an already-open file by normalized path, across both panes. */
 export function findOpenFile(normalizedPath) {
+    const wanted = comparablePath(normalizedPath);
     for (const pane of [LEFT, RIGHT]) {
         const files = paneFiles(pane);
         const index = files.findIndex(
-            f => f && f.path && f.path.replace(/\\/g, '/') === normalizedPath
+            f => f && f.path && comparablePath(f.path) === wanted
         );
         if (index >= 0) return { pane, index, file: files[index] };
     }

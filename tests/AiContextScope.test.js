@@ -175,12 +175,15 @@ describe('registered private directories', () => {
         expect(isPriv('/home/x/.config/com.jh.editor/notes-backup/inbox.md')).toBe(false);
     });
 
+    // Moved out of DailyNotes.js when the quick notes became files too: both
+    // kinds live under the same root, and it was being described twice.
     it('is registered by whoever resolves it', () => {
-        const dn = read('src/modules/utils/DailyNotes.js');
-        expect(dn).toContain('registerPrivateDir(notesRoot)');
-        // The ROOT, not just today's folder — quick exports and future note
-        // kinds land beside it.
-        expect(dn).toMatch(/const notesRoot = .*\/notes`/);
+        const notes = read('src/modules/utils/Notes.js');
+        expect(notes).toContain('registerPrivateDir(root)');
+        // The ROOT, not just one kind's folder — daily, quick and whatever
+        // comes next all land under it.
+        expect(notes).toMatch(/const root = .*\/notes`/);
+        expect(read('src/modules/utils/DailyNotes.js')).not.toContain('appConfigDir');
     });
 });
 
@@ -386,9 +389,28 @@ describe('InlineAI is a transform', () => {
     const agent = read('src/modules/ai/AIAgent.js');
 
     it('asks through runSingleShot', () => {
-        expect(inline).toContain('AIAgent.runSingleShot({');
-        expect(inline).not.toContain('AIAgent.run(');
+        // One round trip, never an agent run with the whole tool surface. The
+        // call moved out of the popup and into runInlineTask when the typed
+        // path joined the presets in the activity dock — the popup no longer
+        // waits for anything, so it no longer holds the request either.
+        expect(inline).toContain('runInlinePrompt(');
+        expect(inline).not.toContain('AIAgent.');
+        expect(mcp).toContain('AIAgent.runSingleShot({');
+        expect(mcp).not.toContain('AIAgent.run(');
         expect(agent).not.toMatch(/\n    async run\(/);
+    });
+
+    it('the popup hands off instead of holding the answer', () => {
+        // Presets already ran as dock tasks and let go of the editor; a typed
+        // instruction streamed into the popup and pinned both. Same model,
+        // same wait, two behaviours in one dialog.
+        const fn = inline.slice(inline.indexOf('handleGenerate(context) {'));
+        const body = fn.slice(0, fn.indexOf('\n    }'));
+        expect(body).toContain('runInlinePrompt(prompt, context)');
+        expect(body).toContain('this.hide()');
+        // Not awaited: the dock task owns the request from here, including its
+        // Stop button.
+        expect(body).not.toContain('await ');
     });
 
     it('no longer reaches for freeform tasks or intents', () => {
@@ -402,7 +424,7 @@ describe('InlineAI is a transform', () => {
     });
 
     it('runs the presets as transforms and refuses personal notes', () => {
-        const i = mcp.indexOf('export async function runInlinePreset(');
+        const i = mcp.indexOf('async function runInlineTask(');
         const fn = mcp.slice(i, mcp.indexOf('export function listInlinePresets', i));
         expect(fn).toContain('AIAgent.runSingleShot({');
         expect(fn).toContain('isPrivatePath(anchor.path)');

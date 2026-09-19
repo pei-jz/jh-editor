@@ -8,3 +8,4 @@ pub mod git;
 pub mod large_file;
 pub mod window;
 pub mod file_drop;
+pub mod office;

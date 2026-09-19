@@ -542,9 +542,20 @@
     background-color: var(--hover-color);
 }
 
+/* No margin of its own. The 40px page inset that used to live here is the
+   MARKDOWN view's, and it now says so (editor.css, `.markdown-mode`).
+
+   It mattered because this element is shared by every view. Plain text and the
+   CSV grid each cancelled it with `padding: 0 !important`, but the diff, the
+   free-form compare, the agent panel, the folder comparison and the grep
+   results all return before renderEditor normalises the mode class — so they
+   inherited whichever class the PREVIOUS file had left behind. A diff opened
+   after a Markdown file was inset 40px; the same diff opened after a .txt was
+   not. Same view, two layouts, decided by what you happened to look at
+   before. */
 #editor-content {
     flex: 1;
-    padding: 40px;
+    padding: 0;
     overflow-y: auto;
     width: 100%;
 }

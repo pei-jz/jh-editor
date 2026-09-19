@@ -160,6 +160,29 @@ describe('FileSystem Utilities', () => {
             vi.mocked(invoke).mockRejectedValue(new Error('Read error'));
             await expect(FS.readFileAutoDetect('/path')).rejects.toThrow('Read error');
         });
+
+        // "Reopen with Encoding" names the encoding because detection got it
+        // wrong. The argument used to be accepted and dropped, so the menu
+        // re-ran the same detection and handed back the same mojibake.
+        it('reads with the named encoding instead of detecting', async () => {
+            vi.mocked(invoke).mockResolvedValue({
+                content: 'テキスト',
+                encoding: 'Shift_JIS'
+            });
+
+            const result = await FS.readFileAutoDetect('/path', 'shift-jis');
+            expect(invoke).toHaveBeenCalledWith('read_file_with_encoding', { path: '/path', encoding: 'shift-jis' });
+            expect(invoke).not.toHaveBeenCalledWith('read_file_auto_detect', expect.anything());
+            expect(result.encoding).toBe('Shift_JIS');
+        });
+
+        it('still detects when no encoding is named', async () => {
+            vi.mocked(invoke).mockResolvedValue({ content: 'a\nb', encoding: 'UTF-8' });
+
+            // openFile's own default for the parameter is `false`, not null.
+            await FS.readFileAutoDetect('/path', false);
+            expect(invoke).toHaveBeenCalledWith('read_file_auto_detect', { path: '/path' });
+        });
     });
 
     describe('readFileWithEncoding', () => {

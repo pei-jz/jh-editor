@@ -8,8 +8,37 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn(), open: vi.fn() }));
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn() }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn(), watch: vi.fn(async () => () => {}) }));
 
-const { bufferByteSize, formatByteSize, formatModified, needsStatsRefresh } =
+const { bufferByteSize, formatByteSize, formatModified, needsStatsRefresh, isMarkdownFile } =
     await import('../src/modules/core/Editor.js');
+
+/* Everything that asks "is this Markdown?" used to accept a missing path as a
+   yes — true back when Ctrl+N could only make Markdown. Since the picker
+   started asking for a type, choosing Text gave you a buffer the status bar
+   called "Markdown", a corner panel full of Markdown block keys, and a
+   Ctrl+Shift+E that turned it into a Markdown document. The name is what
+   decides; whether the buffer has reached disk has nothing to do with it. */
+describe('what counts as Markdown', () => {
+    it('reads the name of a draft, not its missing path', () => {
+        expect(isMarkdownFile({ path: null, name: 'Untitled.txt' })).toBe(false);
+        expect(isMarkdownFile({ path: null, name: 'Untitled.md' })).toBe(true);
+        expect(isMarkdownFile({ path: null, name: 'Untitled.markdown' })).toBe(true);
+    });
+
+    it('reads the path once the file has one', () => {
+        expect(isMarkdownFile({ path: 'C:/proj/notes.md', name: 'notes.md' })).toBe(true);
+        expect(isMarkdownFile({ path: 'C:/proj/app.js', name: 'app.js' })).toBe(false);
+        // .markdown counted everywhere else but not in the status bar, which
+        // checked only '.md' and so labelled it Plain Text.
+        expect(isMarkdownFile({ path: 'C:/proj/notes.markdown' })).toBe(true);
+    });
+
+    // A buffer with no name at all is the one case with nothing to go on, and
+    // it keeps the old default — PluginManager.resolve agrees.
+    it('falls back to Markdown only when there is no name at all', () => {
+        expect(isMarkdownFile({ path: null, name: null })).toBe(true);
+        expect(isMarkdownFile(null)).toBe(true);
+    });
+});
 
 /* The status bar was reading `file.stats`, which is what the file was when it
    was last read from disk. A buffer that has never been saved carries the

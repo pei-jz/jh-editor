@@ -131,6 +131,70 @@
     font-size: 13.5px; line-height: 1.65;
 }
 .notes-preview pre { overflow-x: auto; padding: 10px; border-radius: 5px; background: rgba(0,0,0,0.15); }
+
+/* ── Notes browser ──────────────────────────────────────────────────────────
+   The panel is a PICKER now: it lists the note files and opens the one you
+   choose as an ordinary editor tab. The editor half it used to carry — its own
+   textarea and preview — is gone, because the app already has an editor and a
+   modal was the worst place to reimplement one. */
+.notes-panel.notes-browser { height: min(560px, 82vh); width: min(620px, 92vw); }
+
+.notes-tabs { display: flex; gap: 4px; }
+.notes-tab {
+    padding: 4px 12px; font-size: 12px; cursor: pointer; border-radius: 4px;
+    background: transparent; color: var(--text-secondary, #999);
+    border: 1px solid transparent;
+}
+.notes-tab:hover { color: var(--text-color); background: var(--hover-color, rgba(128,128,128,0.12)); }
+.notes-tab.active {
+    background: var(--primary-color); color: var(--text-on-primary, #fff);
+    border-color: var(--primary-color); font-weight: 600;
+}
+
+.notes-browser-list { padding: 4px 6px; }
+.notes-browser-list .notes-item { align-items: flex-start; gap: 10px; padding: 8px 10px; }
+.notes-item-main { flex: 1; min-width: 0; }
+.notes-item-name {
+    font-size: 13px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The second line is context, not content: the date under a quick note's first
+   line, or the first line under a daily note's date. */
+.notes-item-sub {
+    font-size: 11px; opacity: 0.62; margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The focused row. `--active-tab-bg` is a BACKGROUND token and was being used
+   as the foreground here, which on a light theme puts a near-white sheet colour
+   on the accent — the row was legible only if you already knew what it said.
+   `--text-on-primary` is the token that exists for exactly this pair. */
+.notes-browser-list .notes-item.active { color: var(--text-on-primary, #fff); }
+.notes-browser-list .notes-item.active .notes-item-sub,
+.notes-browser-list .notes-item.active .notes-item-time { opacity: 0.88; }
+
+/* Hidden until the row is hovered or focused: buttons on every row of a list
+   you are scanning are accidents waiting to be clicked. */
+.notes-item-tools { display: flex; gap: 2px; flex-shrink: 0; }
+.notes-item-tool {
+    background: none; border: none; cursor: pointer; padding: 2px 4px;
+    border-radius: 4px; color: inherit; opacity: 0; line-height: 1;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+.notes-item:hover .notes-item-tool,
+.notes-item.active .notes-item-tool { opacity: 0.55; }
+.notes-item-tool:hover {
+    opacity: 1; background: color-mix(in srgb, var(--text-color) 18%, transparent);
+}
+/* Delete is the one that cannot be undone, so it is the one that turns red. */
+.notes-item-del:hover { background: color-mix(in srgb, #d9534f 26%, transparent); }
+
+.notes-browser-footer {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-top: 1px solid var(--border-color);
+    background: var(--bg-color-secondary, var(--bg-color));
+}
+.notes-browser-footer .notes-new-btn { width: auto; margin-left: auto; padding: 6px 12px; }
+
 .notes-empty { flex: 1; display: flex; align-items: center; justify-content: center; opacity: 0.5; font-size: 13px; }
 
 /* ── AI chat panel ──────────────────────────────────────────────────────── */

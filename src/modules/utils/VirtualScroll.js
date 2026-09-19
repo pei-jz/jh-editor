@@ -31,6 +31,12 @@ export class VirtualScroll {
         this.onScroll();
     }
 
+    /** Replace the size metric when a virtualised grid changes row heights. */
+    setItemHeight(itemHeightProvider) {
+        this.itemHeight = itemHeightProvider;
+        this.onResize();
+    }
+
     onResize() {
         // Estimate visible items based on average/first item height?
         // Or just trigger scroll which handles rendering

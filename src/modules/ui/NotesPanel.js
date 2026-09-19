@@ -1,122 +1,84 @@
 /**
- * NotesPanel.js — always-available quick notes (Markdown).
+ * NotesPanel.js — the way in to your notes.
  *
- * Phase 1 quick notes are persisted to localStorage (a dedicated key, separate
- * from drafts) so they are available instantly from anywhere, without touching
- * the workspace files. Notes are small Markdown documents: a title + body, with
- * a live preview powered by the global `marked`.
+ * This used to be the notes themselves: a modal with a list down one side and
+ * its own textarea and preview on the other, over notes kept in localStorage.
+ * That made the modal the ONLY place a note could be edited — no syntax
+ * highlighting, no block view, no outline, no split, no search, no save to
+ * disk. Notes are Markdown documents and the app already has a Markdown editor.
  *
- * `newNote()` creates a note and opens the panel (bound to Ctrl+Alt+M).
+ * So the notes are files now (see utils/Notes.js) and this is a browser over
+ * them: pick one and it opens as an ordinary tab, where everything works. A
+ * modal is the right shape for choosing something and the wrong shape for
+ * working in it.
  */
 
 import { iconEl } from './Icons.js';
 import { t } from '../utils/I18n.js';
-const STORAGE_KEY = 'jh_notes_v1';
-const MAX_NOTE_BYTES = 512 * 1024; // one very large note must not blow the quota
-let _saveTimer = null;
+import { showConfirm, showPrompt, showAlert } from './Dialog.js';
+import { invoke } from '@tauri-apps/api/core';
+import { listDaily, listQuick, createQuick, renameNote, migrateQuickNotes } from '../utils/Notes.js';
+import { retargetOpenFile } from '../core/Editor.js';
+import { DailyNotes } from '../utils/DailyNotes.js';
+
 let _panel = null;
-let _activeId = null;
 
-function readAll() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(parsed)) return [];
-        return parsed.filter((n) => n && n.id && typeof n.content === 'string');
-    } catch (_) {
-        return [];
-    }
-}
-
-function writeAll(list) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {
-        console.warn('[Notes] persist failed (quota?):', e && e.message);
-    }
-}
-
-function generateId() {
-    return `note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function firstLine(content) {
-    const line = String(content || '').split('\n').find((l) => l.trim()) || 'Untitled note';
-    return line.replace(/^#+\s*/, '').slice(0, 60) || 'Untitled note';
-}
-
-function fmtTime(ts) {
-    if (!ts) return '';
-    const d = new Date(ts);
+function fmtWhen(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
     const now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    if (sameDay) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
     return d.toLocaleDateString();
 }
 
-function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Open `path` as a normal editor tab and get out of the way. */
+async function openNote(path) {
+    NotesPanel.close();
+    if (window.app?.openFile) await window.app.openFile(path);
 }
 
-function renderMarkdown(md) {
-    try {
-        if (typeof marked !== 'undefined' && marked.parse) return marked.parse(md || '');
-    } catch (_) { /* fall through */ }
-    return `<pre style="white-space:pre-wrap;margin:0;">${escapeHtml(md || '')}</pre>`;
+/**
+ * Ask for a name and make a quick note with it.
+ *
+ * Cancelling the prompt cancels the note — someone who backs out of naming a
+ * thing did not ask for the thing. Leaving it EMPTY is different: that is "I
+ * don't care", and it gets the timestamp the notes used to be stuck with.
+ */
+async function newQuickNote() {
+    const name = await showPrompt(t('What is this note about?'), {
+        title: t('New Quick Note'),
+        placeholder: t('Leave blank to name it by the time'),
+        okLabel: t('Create'),
+    });
+    if (name === null) return null;       // cancelled
+    const trimmed = String(name).trim();
+    // The name is the title too, so the file opens with its heading already on.
+    return createQuick(trimmed ? `# ${trimmed}\n\n` : '', trimmed);
 }
 
 export const NotesPanel = {
-    get all() { return readAll(); },
-
-    /** Create a fresh note, save it, return it. */
-    create(content = '', { pinned = false } = {}) {
-        const now = Date.now();
-        const note = { id: generateId(), content, pinned, createdAt: now, updatedAt: now };
-        const list = readAll();
-        list.unshift(note);
-        writeAll(list);
-        return note;
-    },
-
-    update(id, patch) {
-        const list = readAll();
-        const note = list.find((n) => n.id === id);
-        if (!note) return null;
-        Object.assign(note, patch, { updatedAt: Date.now() });
-        // Trim oversized notes defensively (still keep the front of the text).
-        if (note.content && note.content.length > MAX_NOTE_BYTES) note.content = note.content.slice(0, MAX_NOTE_BYTES);
-        writeAll(list);
-        return note;
-    },
-
-    remove(id) {
-        const list = readAll();
-        const next = list.filter((n) => n.id !== id);
-        if (next.length === list.length) return false;
-        writeAll(next);
-        if (_activeId === id) _activeId = null;
-        return true;
-    },
-
-    togglePin(id) {
-        const note = readAll().find((n) => n.id === id);
-        if (!note) return null;
-        return this.update(id, { pinned: !note.pinned });
-    },
-
-    getById(id) {
-        return readAll().find((n) => n.id === id) || null;
-    },
-
-    /** Open the panel, optionally creating + selecting a new note first. */
-    open({ create = false } = {}) {
+    /** Open the browser. `create` makes a new quick note and opens it instead. */
+    async open({ create = false } = {}) {
+        // Ctrl+Alt+M goes straight to a new note; the browser is not in the way
+        // of it, and backing out of the name prompt backs out of the whole
+        // thing rather than dumping you in a list you did not ask for.
         if (create) {
-            const note = this.create();
-            _activeId = note.id;
+            const path = await newQuickNote();
+            if (path && window.app?.openFile) await window.app.openFile(path);
+            return;
+        }
+        // Anything still in localStorage from the modal days comes across the
+        // first time the browser is opened, so it is not simply missing.
+        const moved = await migrateQuickNotes();
+        if (moved > 0 && window.showToast) {
+            window.showToast(t('Moved {n} note(s) into files', { n: moved }));
         }
         showPanel();
     },
 
     close() {
-        if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
         if (_panel) { _panel.remove(); _panel = null; }
     },
 };
@@ -124,241 +86,243 @@ export const NotesPanel = {
 function showPanel() {
     if (_panel) _panel.remove();
 
+    // Quick notes are what "my notes" means, and the panel opens on them every
+    // time — not on whichever tab was left showing last. A daily note is a
+    // particular day's page and you reach it by saying so: the Daily tab, the
+    // Today's Note button, or Ctrl+Click / right-click on the notes icon.
+    //
+    // These live here rather than at module scope so the panel cannot open
+    // remembering a filter, a cursor row or a tab from an hour ago.
+    let tab = 'quick';
+    let rows = [];
+    let focused = 0;
+
     const overlay = document.createElement('div');
     overlay.className = 'notes-overlay';
     const panel = document.createElement('div');
-    panel.className = 'notes-panel';
+    panel.className = 'notes-panel notes-browser';
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
     _panel = overlay;
 
-    // Header
+    // Clicking the backdrop (not the panel) closes, like the other overlays.
+    overlay.addEventListener('mousedown', (e) => {
+        if (e.target === overlay) NotesPanel.close();
+    });
+
+    // ── Header ──────────────────────────────────────────────────────────────
     const header = document.createElement('div');
     header.className = 'notes-header';
     const title = document.createElement('span');
-    title.className = 'notes-header-title';
-    title.className = 'jh-icon-row';
-        title.replaceChildren(iconEl('note', { size: 14 }), document.createTextNode('Quick Notes'));
+    title.className = 'notes-header-title jh-icon-row';
+    title.replaceChildren(iconEl('note', { size: 14 }), document.createTextNode(t('Notes')));
+
+    const tabs = document.createElement('div');
+    tabs.className = 'notes-tabs';
+    const mkTab = (id, label) => {
+        const b = document.createElement('button');
+        b.className = 'notes-tab' + (tab === id ? ' active' : '');
+        b.dataset.tab = id;
+        b.textContent = label;
+        b.onclick = () => { tab = id; refresh(); };
+        return b;
+    };
+    // Quick first, because it is the one that opens.
+    tabs.append(mkTab('quick', t('Quick Notes')), mkTab('daily', t('Daily')));
+
     const closeBtn = document.createElement('button');
     closeBtn.className = 'close-btn';
     closeBtn.replaceChildren(iconEl('close', { size: 13 }));
     closeBtn.title = t('Close (Esc)');
     closeBtn.onclick = () => NotesPanel.close();
-    header.append(title, closeBtn);
+    header.append(title, tabs, closeBtn);
     panel.appendChild(header);
 
-    const body = document.createElement('div');
-    body.className = 'notes-body';
-    panel.appendChild(body);
-
-    // Sidebar (list + search + new)
-    const sidebar = document.createElement('div');
-    sidebar.className = 'notes-sidebar';
+    // ── Filter ──────────────────────────────────────────────────────────────
     const searchWrap = document.createElement('div');
     searchWrap.className = 'notes-search';
     const searchInput = document.createElement('input');
     searchInput.placeholder = t('Filter notes…');
     searchInput.autocomplete = 'off';
+    searchInput.oninput = () => draw();
     searchWrap.appendChild(searchInput);
-    sidebar.appendChild(searchWrap);
+    panel.appendChild(searchWrap);
+
+    // ── List ────────────────────────────────────────────────────────────────
     const list = document.createElement('div');
-    list.className = 'notes-list';
-    sidebar.appendChild(list);
+    list.className = 'notes-list notes-browser-list';
+    panel.appendChild(list);
+
+    // ── Footer ──────────────────────────────────────────────────────────────
     const footer = document.createElement('div');
-    footer.className = 'notes-sidebar-footer';
+    footer.className = 'notes-browser-footer';
+    const todayBtn = document.createElement('button');
+    todayBtn.className = 'notes-tool-btn jh-icon-row';
+    todayBtn.replaceChildren(iconEl('clock', { size: 12 }), document.createTextNode(t("Today's Note")));
+    todayBtn.onclick = async () => { NotesPanel.close(); await DailyNotes.openToday(); };
     const newBtn = document.createElement('button');
-    newBtn.className = 'notes-new-btn';
-    newBtn.className = (newBtn.className || '') + ' jh-icon-row';
-    newBtn.replaceChildren(iconEl('plus', { size: 12 }), document.createTextNode('New Note'));
-    newBtn.onclick = () => {
-        const note = NotesPanel.create();
-        _activeId = note.id;
-        renderList();
-        renderEditor(note);
+    newBtn.className = 'notes-new-btn jh-icon-row';
+    newBtn.replaceChildren(iconEl('plus', { size: 12 }), document.createTextNode(t('New Quick Note')));
+    newBtn.onclick = async () => {
+        const path = await newQuickNote();
+        if (path) await openNote(path);
     };
-    footer.appendChild(newBtn);
-    sidebar.appendChild(footer);
-    body.appendChild(sidebar);
+    footer.append(todayBtn, newBtn);
+    panel.appendChild(footer);
 
-    // Editor
-    const editor = document.createElement('div');
-    editor.className = 'notes-editor';
-    body.appendChild(editor);
+    /** Re-read the current folder from disk, then redraw. */
+    async function refresh() {
+        // Matched on the id, not on the button's own words: two tabs that ever
+        // shared a label would both light up, and a translation could make them.
+        for (const b of tabs.querySelectorAll('.notes-tab')) {
+            b.classList.toggle('active', b.dataset.tab === tab);
+        }
+        list.replaceChildren(loadingRow());
+        rows = tab === 'daily' ? await listDaily() : await listQuick();
+        focused = 0;
+        draw();
+    }
 
-    const tools = document.createElement('div');
-    tools.className = 'notes-editor-tools';
-    const titleInput = document.createElement('input');
-    titleInput.className = 'notes-title-input';
-    titleInput.placeholder = t('Note title…');
-    tools.appendChild(titleInput);
-    const pinBtn = document.createElement('button');
-    pinBtn.className = 'notes-tool-btn';
-    pinBtn.replaceChildren(iconEl('pin', { size: 13 }));
-    pinBtn.title = t('Pin note');
-    const previewBtn = document.createElement('button');
-    previewBtn.className = 'notes-tool-btn';
-    previewBtn.textContent = t('Preview');
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'notes-tool-btn';
-    deleteBtn.replaceChildren(iconEl('trash', { size: 13 }));
-    deleteBtn.title = t('Delete note');
-    tools.append(pinBtn, previewBtn, deleteBtn);
-    editor.appendChild(tools);
+    function loadingRow() {
+        const el = document.createElement('div');
+        el.className = 'notes-empty';
+        el.textContent = t('Loading…');
+        return el;
+    }
 
-    const input = document.createElement('textarea');
-    input.className = 'notes-body-input';
-    input.placeholder = '# Write in Markdown…';
-    input.spellcheck = false;
-    editor.appendChild(input);
-    const preview = document.createElement('div');
-    preview.className = 'notes-preview';
-    preview.style.display = 'none';
-    editor.appendChild(preview);
-    const empty = document.createElement('div');
-    empty.className = 'notes-empty';
-    empty.textContent = t('Select or create a note');
-    editor.appendChild(empty);
-
-    let currentNote = null;
-    let previewOn = false;
-
-    const setPreview = (on) => {
-        previewOn = on;
-        previewBtn.textContent = on ? 'Edit' : 'Preview';
-        previewBtn.classList.toggle('active', on);
-        input.style.display = on ? 'none' : 'block';
-        preview.style.display = on ? 'block' : 'none';
-        if (on && currentNote) preview.innerHTML = renderMarkdown(currentNote.content);
-    };
-
-    const persist = () => {
-        if (!currentNote) return;
-        const next = { ...currentNote, content: input.value, updatedAt: Date.now() };
-        currentNote = next;
-        clearTimeout(_saveTimer);
-        _saveTimer = setTimeout(() => {
-            NotesPanel.update(currentNote.id, { content: input.value });
-            renderList();
-        }, 400);
-    };
-
-    const renderEditor = (note) => {
-        currentNote = note;
-        _activeId = note.id;
-        // Pinned state belongs to the pin BUTTON, not to the title text. Putting
-        // it in the text meant the save path had to strip it back out again,
-        // and a note whose first line legitimately began with that character
-        // lost it.
-        titleInput.value = firstLine(note.content);
-        input.value = note.content || '';
-        pinBtn.replaceChildren(iconEl(note.pinned ? 'pin-filled' : 'pin', { size: 13 }));
-        pinBtn.classList.toggle('is-pinned', !!note.pinned);
-        pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
-        empty.style.display = 'none';
-        input.style.display = previewOn ? 'none' : 'block';
-        preview.style.display = previewOn ? 'block' : 'none';
-        if (previewOn) preview.innerHTML = renderMarkdown(note.content);
-        input.focus();
-        renderList();
-    };
-
-    const renderList = () => {
-        const q = searchInput.value.trim().toLowerCase();
-        const notes = readAll().filter((n) =>
-            !q || n.content.toLowerCase().includes(q));
-        notes.sort((a, b) => (b.pinned - a.pinned) || (b.updatedAt - a.updatedAt));
-        list.innerHTML = '';
-        if (notes.length === 0) {
-            const el = document.createElement('div');
-            el.className = 'notes-empty';
-            el.textContent = q ? 'No matching notes' : 'No notes yet';
-            list.appendChild(el);
+    /** Ask for a new name and move the file (and any tab showing it). */
+    async function doRename(row) {
+        const current = row.name.replace(/\.md$/i, '');
+        const name = await showPrompt(t('Rename this note'), {
+            title: t('Rename'), value: current, okLabel: t('Rename'),
+        });
+        if (name === null) return;
+        const result = await renameNote(row.path, name);
+        if (!result) return;                       // nothing usable typed
+        if (result.error === 'exists') {
+            await showAlert(t('A note called {name} already exists.', { name }),
+                { title: t('Rename'), kind: 'warning' });
             return;
         }
-        notes.forEach((n) => {
+        if (result.error) {
+            await showAlert(t('Could not rename {name}.', { name: row.name }),
+                { title: t('Rename'), kind: 'error' });
+            return;
+        }
+        // A tab still showing it would otherwise keep the old address, and its
+        // next save would write the note back under the name just left behind.
+        retargetOpenFile(row.path, result);
+        await refresh();
+    }
+
+    /** The rows matching the filter box. */
+    function visible() {
+        const q = searchInput.value.trim().toLowerCase();
+        if (!q) return rows;
+        return rows.filter((r) => `${r.title} ${r.name}`.toLowerCase().includes(q));
+    }
+
+    function draw() {
+        const shown = visible();
+        list.replaceChildren();
+        if (!shown.length) {
+            const empty = document.createElement('div');
+            empty.className = 'notes-empty';
+            empty.textContent = searchInput.value.trim()
+                ? t('No notes match that.')
+                : (tab === 'daily' ? t('No daily notes yet.') : t('No quick notes yet.'));
+            list.appendChild(empty);
+            return;
+        }
+        if (focused >= shown.length) focused = shown.length - 1;
+
+        shown.forEach((row, i) => {
             const item = document.createElement('div');
-            item.className = 'notes-item' + (n.id === _activeId ? ' active' : '');
-            const name = document.createElement('span');
-            name.className = 'notes-item-title';
-            name.textContent = firstLine(n.content);
-            const pin = document.createElement('span');
-            pin.className = 'notes-item-pin';
-            pin.replaceChildren();
-        if (n.pinned) pin.appendChild(iconEl('pin-filled', { size: 11 }));
-            const time = document.createElement('span');
-            time.className = 'notes-item-time';
-            time.textContent = fmtTime(n.updatedAt);
-            item.append(pin, name, time);
-            item.onclick = () => renderEditor(n);
+            item.className = 'notes-item' + (i === focused ? ' active' : '');
+            item.onclick = () => openNote(row.path);
+
+            const main = document.createElement('div');
+            main.className = 'notes-item-main';
+            const name = document.createElement('div');
+            name.className = 'notes-item-name';
+            // A daily note's name IS its date, which is the thing you are
+            // looking for; a quick note's is a timestamp nobody reads, so its
+            // first line leads instead.
+            const lead = tab === 'daily' ? row.name.replace(/\.md$/i, '') : (row.title || row.name);
+            const sub = tab === 'daily' ? row.title : row.name.replace(/\.md$/i, '');
+            name.textContent = lead;
+            main.appendChild(name);
+            if (sub) {
+                const subEl = document.createElement('div');
+                subEl.className = 'notes-item-sub';
+                subEl.textContent = sub;
+                main.appendChild(subEl);
+            }
+
+            const when = document.createElement('span');
+            when.className = 'notes-item-time';
+            when.textContent = fmtWhen(row.mtime);
+
+            // Renaming is only offered for quick notes. A daily note's name
+            // IS its date — the thing that decides which day it is and which
+            // file "today" resolves to — so renaming one would quietly detach
+            // it from the calendar it belongs to.
+            const tools = document.createElement('div');
+            tools.className = 'notes-item-tools';
+            if (tab === 'quick') {
+                const ren = document.createElement('button');
+                ren.className = 'notes-item-tool';
+                ren.title = t('Rename this note');
+                ren.replaceChildren(iconEl('pencil', { size: 12 }));
+                ren.onclick = (e) => { e.stopPropagation(); doRename(row); };
+                tools.appendChild(ren);
+            }
+
+            const del = document.createElement('button');
+            del.className = 'notes-item-tool notes-item-del';
+            del.title = t('Delete this note');
+            del.replaceChildren(iconEl('trash', { size: 12 }));
+            del.onclick = async (e) => {
+                e.stopPropagation();
+                const ok = await showConfirm(
+                    t('Delete {name}? This cannot be undone.', { name: row.name }),
+                    { title: t('Delete Note'), kind: 'warning', okLabel: t('Delete') },
+                );
+                if (!ok) return;
+                try {
+                    await invoke('remove_file', { path: row.path });
+                } catch (err) {
+                    console.warn('[Notes] delete failed', err);
+                    if (window.showToast) window.showToast(t('Could not delete {path}', { path: row.path }));
+                    return;
+                }
+                await refresh();
+            };
+
+            tools.appendChild(del);
+            item.append(main, when, tools);
             list.appendChild(item);
         });
-    };
-
-    // Events
-    input.oninput = persist;
-    titleInput.oninput = () => {
-        if (!currentNote) return;
-        const t = titleInput.value;
-        const body = currentNote.content || '';
-        const m = body.match(/^#+\s*[^\n]*/);
-        let next = body;
-        if (m) next = body.replace(m[0], `# ${t}`);
-        else next = `# ${t}\n${body}`;
-        input.value = next;
-        persist();
-    };
-    pinBtn.onclick = () => {
-        if (!currentNote) return;
-        const updated = NotesPanel.togglePin(currentNote.id);
-        if (updated) {
-            currentNote = updated;
-            pinBtn.replaceChildren(iconEl(updated.pinned ? 'pin-filled' : 'pin', { size: 13 }));
-            pinBtn.classList.toggle('is-pinned', !!updated.pinned);
-            renderList();
-        }
-    };
-    previewBtn.onclick = () => { if (currentNote) setPreview(!previewOn); };
-    deleteBtn.onclick = () => {
-        if (!currentNote) return;
-        NotesPanel.remove(currentNote.id);
-        currentNote = null;
-        _activeId = null;
-        titleInput.value = '';
-        input.value = '';
-        empty.style.display = 'flex';
-        input.style.display = 'none';
-        preview.style.display = 'none';
-        renderList();
-    };
-
-    // Keyboard
-    const onKey = (e) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            NotesPanel.close();
-        }
-    };
-    document.addEventListener('keydown', onKey, true);
-    overlay.addEventListener('mousedown', (e) => {
-        if (e.target === overlay) NotesPanel.close();
-    });
-    // Remember to remove the capture listener when the panel closes.
-    const origClose = NotesPanel.close;
-    NotesPanel.close = () => {
-        document.removeEventListener('keydown', onKey, true);
-        origClose.call(NotesPanel);
-    };
-
-    // Initial render
-    renderList();
-    if (_activeId) {
-        const note = NotesPanel.getById(_activeId);
-        if (note) renderEditor(note);
-        else { empty.style.display = 'flex'; input.style.display = 'none'; }
-    } else {
-        empty.style.display = 'flex';
-        input.style.display = 'none';
     }
-    searchInput.focus();
+
+    // Keyboard: the list is a picker, so ↑↓ and Enter, and Esc to leave.
+    overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); NotesPanel.close(); return; }
+        const shown = visible();
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focused = Math.min(shown.length - 1, focused + 1);
+            draw();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focused = Math.max(0, focused - 1);
+            draw();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (shown[focused]) openNote(shown[focused].path);
+        }
+    });
+
+    refresh();
+    setTimeout(() => searchInput.focus(), 0);
 }
