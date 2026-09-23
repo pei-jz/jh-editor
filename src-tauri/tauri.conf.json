@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "J.H Editor",
   "mainBinaryName": "J.H Editor",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "identifier": "io.github.pei-jz.jheditor",
   "build": {
     "devUrl": "http://localhost:1425",
