@@ -74,7 +74,8 @@ export class OfficeView {
     }
 
     /**
-     * Ctrl+PageUp / Ctrl+PageDown move between sheets, as they do in Excel.
+     * The keys a sheet answers: Ctrl+PageUp / Ctrl+PageDown between sheets and
+     * the arrows between cells, both as they behave in Excel.
      *
      * On the window rather than on the view, because nothing in a read-only
      * preview holds the focus: it has no text box and no caret, so a listener
@@ -88,34 +89,74 @@ export class OfficeView {
         if (this.preview.kind !== 'sheets') return;
 
         this._sheetKeyHandler = (e) => {
-            if (!e.ctrlKey && !e.metaKey) return;
-            if (e.altKey || e.shiftKey) return;
-            if (e.key !== 'PageUp' && e.key !== 'PageDown') return;
-            if (!this.container || !this.container.isConnected) return;
-
-            // Somebody is typing — a rename box in the explorer, the search
-            // field, the AI prompt.
-            const el = document.activeElement;
-            if (el && (el.isContentEditable
-                || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-
-            const pane = this.container.closest('.editor-pane');
-            if (pane && !pane.classList.contains('active')) return;
-
-            const sheets = this.preview.sheets || [];
-            const next = this.sheetIndex + (e.key === 'PageDown' ? 1 : -1);
-            // Excel stops at the ends rather than wrapping, and so does this:
-            // wrapping turns "I am at the last sheet" into a silent jump home.
-            if (next < 0 || next >= sheets.length) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-            this.sheetIndex = next;
-            this.file._officeSheet = next;
-            this._renderTabs();
-            this._renderSheet();
+            if (!this._keysAreOurs()) return;
+            if (this._sheetSwitchKey(e)) return;
+            this._cellMoveKey(e);
         };
         window.addEventListener('keydown', this._sheetKeyHandler, true);
+    }
+
+    /**
+     * Is the keyboard this view's to read?
+     *
+     * Every guard has to be asked here, because the listener is on the window
+     * and hears keys meant for the whole application. The arrows make this
+     * sharper than the sheet keys did on their own: the explorer walks its
+     * tree with the same four keys, and it is perfectly normal for a preview
+     * to be on screen while the reader is up in the file list.
+     */
+    _keysAreOurs() {
+        if (!this.container || !this.container.isConnected) return false;
+
+        const el = document.activeElement;
+        // Somebody is typing — a rename box in the explorer, the search
+        // field, the AI prompt.
+        if (el && (el.isContentEditable
+            || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return false;
+        // Nothing inside a read-only preview can take focus, so the body still
+        // holding it is the ordinary case. Anything else that has taken it is
+        // reading these keys itself.
+        if (el && el !== document.body && el !== document.documentElement
+            && !this.container.contains(el)) return false;
+
+        const pane = this.container.closest('.editor-pane');
+        return !pane || pane.classList.contains('active');
+    }
+
+    /** Ctrl+PageUp / Ctrl+PageDown. True once the key was one of them. */
+    _sheetSwitchKey(e) {
+        if (!e.ctrlKey && !e.metaKey) return false;
+        if (e.altKey || e.shiftKey) return false;
+        if (e.key !== 'PageUp' && e.key !== 'PageDown') return false;
+
+        const sheets = this.preview.sheets || [];
+        const next = this.sheetIndex + (e.key === 'PageDown' ? 1 : -1);
+        // Excel stops at the ends rather than wrapping, and so does this:
+        // wrapping turns "I am at the last sheet" into a silent jump home.
+        if (next < 0 || next >= sheets.length) return true;
+
+        e.preventDefault();
+        e.stopPropagation();
+        this.sheetIndex = next;
+        this.file._officeSheet = next;
+        this._renderTabs();
+        this._renderSheet();
+        return true;
+    }
+
+    /** The arrows walk the selected cell; Shift+arrow stretches the range. */
+    _cellMoveKey(e) {
+        const step = ARROW_STEPS[e.key];
+        if (!step) return;
+        // Ctrl+arrow is Excel's jump to the edge of the data, which this does
+        // not do. Swallowing the key to do nothing would be worse than leaving
+        // the browser to scroll with it.
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (!this.gridEl || !this.sheetRows || !this.sheetRows.length) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        this._moveSelection(step[0], step[1], e.shiftKey);
     }
 
     _unbindSheetKeys() {
@@ -937,6 +978,122 @@ export class OfficeView {
         this._selectionDragCleanup = up;
     }
 
+    /** The merged box a cell falls inside, or null. */
+    _mergeAt(r, c) {
+        for (const m of this.merges || []) {
+            if (r >= m.row && r < m.row + m.rows
+                && c >= m.col && c < m.col + m.cols) return m;
+        }
+        return null;
+    }
+
+    /**
+     * Move the selection by one cell, or stretch it when extending.
+     *
+     * With nothing selected yet the first press only lands somewhere: on the
+     * cell already at the top-left of the window, so the sheet does not jump
+     * to a row the reader was not looking at. Excel always has an active cell;
+     * this is how a preview that started without one acquires it.
+     */
+    _moveSelection(dr, dc, extend) {
+        const rows = this.sheetRows.length;
+        const cols = this.dataCols;
+        if (!rows || !cols) return;
+
+        if (!this.selection) {
+            const start = this._firstVisibleCell();
+            this.selection = { anchor: start, focus: { ...start } };
+            this._rememberSelection();
+            if (this.scroller) this.scroller.onScroll();
+            return;
+        }
+
+        const from = this.selection.focus;
+        let r = Math.min(rows - 1, Math.max(0, from.r));
+        let c = Math.min(cols - 1, Math.max(0, from.c));
+
+        // A merge is one cell to step over, not a run of them. Leaving from
+        // its far edge is what takes the reader out of a box in one press —
+        // stepping into the middle of the box they are already standing on
+        // looks exactly like the key having done nothing.
+        const box = this._mergeAt(r, c);
+        if (box) {
+            if (dr > 0) r = box.row + box.rows - 1;
+            else if (dr < 0) r = box.row;
+            if (dc > 0) c = box.col + box.cols - 1;
+            else if (dc < 0) c = box.col;
+        }
+        r = Math.min(rows - 1, Math.max(0, r + dr));
+        c = Math.min(cols - 1, Math.max(0, c + dc));
+
+        // A box is entered at its top-left, the one cell of it that carries
+        // the text, so the reader can see which box they landed in.
+        const into = this._mergeAt(r, c);
+        const focus = into ? { r: into.row, c: into.col } : { r, c };
+
+        this.selection.focus = focus;
+        if (!extend) this.selection.anchor = { ...focus };
+        this._rememberSelection();
+        this._revealCell(focus.r, focus.c);
+        if (this.scroller) this.scroller.onScroll();
+    }
+
+    /** The cell in the top-left corner of what is on screen. */
+    _firstVisibleCell() {
+        const atLeast = (offsets, edge, limit) => {
+            for (let i = 0; i < limit; i++) if (offsets[i] >= edge) return i;
+            return Math.max(0, limit - 1);
+        };
+        return {
+            r: atLeast(this.rowTops, this.gridEl ? this.gridEl.scrollTop : 0,
+                this.sheetRows.length),
+            c: atLeast(this.colOffsets, this.gridEl ? this.gridEl.scrollLeft : 0,
+                this.dataCols),
+        };
+    }
+
+    /**
+     * Scroll the least that brings a cell fully into view.
+     *
+     * The least, not to the middle: walking down a column with the sheet
+     * re-centring on every press makes the rows around the cell move under the
+     * eye, and reading the column is the thing the reader is doing. The search
+     * jump centres because it is a jump — the cell it lands on has no
+     * relationship to what was on screen before.
+     *
+     * The column header and the row-number gutter are sticky, so the strip of
+     * window they cover is not somewhere a cell can be read; both edges are
+     * measured against the space left over.
+     */
+    _revealCell(r, c) {
+        const grid = this.gridEl;
+        if (!grid || !this.rowTops || !this.colOffsets) return;
+
+        // A merge is revealed whole where it fits, and from its top-left where
+        // it does not — scrolling the head of a tall box off the screen to show
+        // its foot loses the text, which lives at the top.
+        const box = this._mergeAt(r, c);
+        const lastRow = box ? box.row + box.rows - 1 : r;
+        const lastCol = box ? box.col + box.cols - 1 : c;
+        const headH = this.gridHeadEl ? this.gridHeadEl.offsetHeight : 0;
+
+        const top = this.rowTops[r] || 0;
+        const bottom = this.rowTops[Math.min(lastRow + 1, this.rowTops.length - 1)] || 0;
+        const height = grid.clientHeight || 0;
+        if (top < grid.scrollTop) grid.scrollTop = top;
+        else if (headH + bottom > grid.scrollTop + height) {
+            grid.scrollTop = Math.min(top, headH + bottom - height);
+        }
+
+        const left = this.colOffsets[c] || 0;
+        const right = this.colOffsets[Math.min(lastCol + 1, this.colOffsets.length - 1)] || 0;
+        const width = grid.clientWidth || 0;
+        if (left < grid.scrollLeft) grid.scrollLeft = left;
+        else if (GUTTER_WIDTH + right > grid.scrollLeft + width) {
+            grid.scrollLeft = Math.min(left, GUTTER_WIDTH + right - width);
+        }
+    }
+
     /** Copy the selected rectangle as TSV, so it pastes directly into Excel. */
     async copy() {
         if (this.preview.kind !== 'sheets') return;
@@ -1237,6 +1394,14 @@ export class OfficeView {
 // ---------------------------------------------------------------------------
 // Drawing helpers
 // ---------------------------------------------------------------------------
+
+/** Row and column deltas for the four arrow keys. */
+const ARROW_STEPS = {
+    ArrowUp: [-1, 0],
+    ArrowDown: [1, 0],
+    ArrowLeft: [0, -1],
+    ArrowRight: [0, 1],
+};
 
 /** Width of the row-number gutter, in px. Mirrored in the stylesheet below. */
 const GUTTER_WIDTH = 52;

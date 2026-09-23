@@ -383,6 +383,207 @@ describe('the preview view', () => {
         expect(file._officeSheet).toBeUndefined();
     });
 
+    /* Walking a sheet with the arrows, and the scrolling that has to come with
+       it. A grid that moves a selection it will not scroll to is worse than one
+       that does not move at all: the reader loses the cell and has no way to
+       find it again short of dragging the bar. */
+    describe('walking the cells with the arrow keys', () => {
+        // 20 rows of 20px and 10 columns of 100px, so every offset in these
+        // tests is a number that can be checked by hand.
+        const grid = (overrides = {}) => sheetsPreview({
+            sheets: [{
+                name: 'Grid',
+                rows: Array.from({ length: 20 }, (_, r) =>
+                    Array.from({ length: 10 }, (_, c) => `r${r}c${c}`)),
+                total_rows: 20, total_cols: 10, truncated: false, error: null,
+                layout: {
+                    col_widths: Array(10).fill(100),
+                    row_heights: Array(20).fill(20),
+                    merges: [], styles: [], style_ids: [],
+                    gridlines: true, default_col_width: 64,
+                    ...overrides,
+                },
+            }],
+        });
+
+        // jsdom lays nothing out, so a viewport has to be declared for the
+        // "is it off the bottom" arithmetic to have anything to compare with.
+        const viewport = (view, { height = 100, width = 300 } = {}) => {
+            Object.defineProperty(view.gridEl, 'clientHeight', { value: height, configurable: true });
+            Object.defineProperty(view.gridEl, 'clientWidth', { value: width, configurable: true });
+        };
+
+        const press = (key, opts = {}) => {
+            const e = new KeyboardEvent('keydown',
+                { key, bubbles: true, cancelable: true, ...opts });
+            window.dispatchEvent(e);
+            return e;
+        };
+
+        it('lands on the cell already in view instead of jumping home', () => {
+            // Excel always has an active cell and this preview starts without
+            // one, so the first press has to invent it. Inventing A1 would
+            // throw a reader who had scrolled to row 400 back to the top.
+            const { view } = show(grid());
+            viewport(view);
+            view.gridEl.scrollTop = 200;
+
+            press('ArrowDown');
+            expect(view.selection.focus).toEqual({ r: 10, c: 0 });
+            expect(view.gridEl.scrollTop, 'the sheet should not have moved').toBe(200);
+            view.destroy();
+        });
+
+        it('moves one cell per press, in all four directions', () => {
+            const { view } = show(grid());
+            viewport(view);
+            press('ArrowDown');            // lands on r0c0
+            press('ArrowDown');
+            press('ArrowRight');
+            press('ArrowRight');
+            expect(view.selection.focus).toEqual({ r: 1, c: 2 });
+            press('ArrowUp');
+            press('ArrowLeft');
+            expect(view.selection.focus).toEqual({ r: 0, c: 1 });
+            // Moving collapses the range: only extending keeps the far corner.
+            expect(view.selection.anchor).toEqual({ r: 0, c: 1 });
+            view.destroy();
+        });
+
+        it('stops at the edges rather than wrapping', () => {
+            const { view } = show(grid());
+            viewport(view);
+            press('ArrowDown');
+            press('ArrowUp');
+            press('ArrowLeft');
+            expect(view.selection.focus).toEqual({ r: 0, c: 0 });
+            view.destroy();
+        });
+
+        it('stretches the range on Shift and leaves the anchor alone', () => {
+            const { view } = show(grid());
+            viewport(view);
+            press('ArrowDown');
+            press('ArrowDown', { shiftKey: true });
+            press('ArrowRight', { shiftKey: true });
+            expect(view.selection.anchor).toEqual({ r: 0, c: 0 });
+            expect(view.selection.focus).toEqual({ r: 1, c: 1 });
+            expect(container.querySelectorAll('.of-cell.of-selected')).toHaveLength(4);
+            view.destroy();
+        });
+
+        it('scrolls the least that brings the cell back into view', () => {
+            // The least, not to the middle. Re-centring on every press moves
+            // the rows around the cell under the eye, and reading down the
+            // column is what the reader is doing.
+            const { view } = show(grid());
+            viewport(view, { height: 100 });
+            press('ArrowDown');                      // r0, nothing to scroll
+            expect(view.gridEl.scrollTop).toBe(0);
+
+            for (let i = 0; i < 5; i++) press('ArrowDown');
+            // Row 5 spans 100..120; the bottom of it sits on the bottom edge.
+            expect(view.selection.focus.r).toBe(5);
+            expect(view.gridEl.scrollTop).toBe(20);
+
+            press('ArrowDown');
+            expect(view.gridEl.scrollTop).toBe(40);
+
+            // Coming back up stops as soon as the cell's top edge is on screen.
+            for (let i = 0; i < 6; i++) press('ArrowUp');
+            expect(view.selection.focus.r).toBe(0);
+            expect(view.gridEl.scrollTop).toBe(0);
+            view.destroy();
+        });
+
+        it('scrolls sideways past the sticky row numbers', () => {
+            // The gutter floats over the left edge of the window, so a column
+            // tucked underneath it is not visible however much of it is inside
+            // the scroll box.
+            const { view } = show(grid());
+            viewport(view, { width: 300 });
+            press('ArrowRight');
+            for (let i = 0; i < 3; i++) press('ArrowRight');
+            expect(view.selection.focus.c).toBe(3);
+            // Columns are 100 wide and the gutter takes 52 of the 300: column 3
+            // ends at 400, so 400 + 52 - 300 has to be scrolled away.
+            expect(view.gridEl.scrollLeft).toBe(152);
+
+            // Column 2 runs 200..300 and is already inside the window, so
+            // coming back to it costs no scroll at all.
+            press('ArrowLeft');
+            expect(view.gridEl.scrollLeft).toBe(152);
+            // Column 1 starts at 100, behind the left edge, so this one does.
+            press('ArrowLeft');
+            expect(view.gridEl.scrollLeft).toBe(100);
+            view.destroy();
+        });
+
+        it('treats a merged box as one cell to step over', () => {
+            // 設計書 sheets are mostly merges. Stepping into the middle of the
+            // box the reader is already standing on looks exactly like the key
+            // having done nothing.
+            const { view } = show(grid({
+                merges: [{ row: 2, col: 1, rows: 3, cols: 2 }],
+            }));
+            viewport(view);
+            press('ArrowDown');                       // r0c0
+            press('ArrowRight');                      // r0c1
+            press('ArrowDown');
+            press('ArrowDown');
+            // Entered at the top-left of the box, the one cell carrying text.
+            expect(view.selection.focus).toEqual({ r: 2, c: 1 });
+            press('ArrowDown');
+            expect(view.selection.focus, 'one press leaves the box').toEqual({ r: 5, c: 1 });
+            press('ArrowUp');
+            expect(view.selection.focus).toEqual({ r: 2, c: 1 });
+            press('ArrowRight');
+            expect(view.selection.focus, 'and one press crosses it').toEqual({ r: 2, c: 3 });
+            view.destroy();
+        });
+
+        it('leaves the arrows to whoever else has the focus', () => {
+            // The explorer walks its tree with the same four keys, and a
+            // preview being on screen says nothing about where the reader is.
+            const { view } = show(grid());
+            viewport(view);
+            const tree = document.createElement('div');
+            tree.tabIndex = 0;
+            document.body.appendChild(tree);
+            tree.focus();
+
+            const e = press('ArrowDown');
+            expect(view.selection).toBe(null);
+            expect(e.defaultPrevented).toBe(false);
+
+            tree.remove();
+            view.destroy();
+        });
+
+        it('leaves Ctrl+arrow to the browser rather than swallowing it', () => {
+            // Excel's jump to the edge of the data is not implemented. Taking
+            // the key to do nothing with it is worse than not taking it.
+            const { view } = show(grid());
+            viewport(view);
+            press('ArrowDown');
+            const before = { ...view.selection.focus };
+            const e = press('ArrowDown', { ctrlKey: true });
+            expect(view.selection.focus).toEqual(before);
+            expect(e.defaultPrevented).toBe(false);
+            view.destroy();
+        });
+
+        it('stops answering once the tab is gone', () => {
+            const { view } = show(grid());
+            viewport(view);
+            press('ArrowDown');
+            expect(view.selection).not.toBe(null);
+            view.destroy();
+            const e = press('ArrowDown');
+            expect(e.defaultPrevented).toBe(false);
+        });
+    });
+
     it('offers every sheet and remembers which one was being read', () => {
         const { view, file } = show(sheetsPreview());
         const tabs = [...container.querySelectorAll('.of-tab')];

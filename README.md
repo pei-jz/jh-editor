@@ -105,7 +105,9 @@ application when it turns out you wanted that after all.
   the rectangle as TSV; it pastes straight back into Excel
 - **Presentations** — title, indented bullets and speaker notes, slide by slide
 - **Documents** — headings, paragraphs, both kinds of list, and tables
-- `Ctrl+F` searches the preview; `Ctrl+PageUp` / `Ctrl+PageDown` move between sheets
+- **Moving about** — the arrow keys walk the selected cell and the sheet scrolls to
+  follow, `Shift`+arrow stretches the range, and a merged box is one step across.
+  `Ctrl+F` searches the preview; `Ctrl+PageUp` / `Ctrl+PageDown` move between sheets
 
 Not carried over: fonts, fills, charts, images and shapes. What you get is the text and
 the numbers, which is what a "let me just check something" open is after.
@@ -338,6 +340,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Alt+B` | Book mode |
 | `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
+| `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |
 | `Ctrl+\` | Split editor right |
 | `Ctrl+Shift+\` | Focus other pane |
 | `Ctrl+Shift+W` | Close split |
