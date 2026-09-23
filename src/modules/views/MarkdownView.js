@@ -213,6 +213,10 @@ export class MarkdownView extends BaseView {
         this.updateOutline = callbacks.updateOutline;
 
         this._onFontChange = () => {
+            // Closed tabs can leave callbacks behind. Only the view that still
+            // owns this pane may repaginate; focus can be in the other pane.
+            const owner = this.container.__mdViewOwner;
+            if (!this.container.isConnected || !owner || owner.deref() !== this) return;
             if (State.markdownViewMode === 'book') {
                 if (this.file) {
                     this.render(this.file.content, this.file);
@@ -3076,6 +3080,9 @@ export class MarkdownView extends BaseView {
     }
 
     destroy() {
+        if (this.container.__mdViewOwner?.deref() === this) {
+            delete this.container.__mdViewOwner;
+        }
         // Remember the reading position so switching tabs and coming back keeps
         // the same viewport (scroll mode) / page (book mode).
         if (this.file) {

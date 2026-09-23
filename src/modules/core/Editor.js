@@ -470,6 +470,14 @@ export async function closeAllTabs(action = 'prompt') {
         if (!proceed) return false;
     }
 
+    // Release listeners and observers before dropping the view references.
+    // Otherwise a closed Markdown book can redraw over the next file on zoom.
+    for (const view of [leftView, rightView]) {
+        if (view && typeof view.destroy === 'function') view.destroy();
+    }
+    leftView = null;
+    rightView = null;
+
     // Free any Rust-side handles tied to the tabs being closed. Everything is
     // going away, so the shared-handle guard is not needed here.
     for (const file of [...State.openFiles, ...State.rightOpenFiles]) {
@@ -481,8 +489,6 @@ export async function closeAllTabs(action = 'prompt') {
     State.activeTabIndex = -1;
     State.rightOpenFiles = [];
     State.rightActiveTabIndex = -1;
-    leftView = null;
-    rightView = null;
     // A split with nothing in it is just dead chrome — and leaving splitMode on
     // would keep addressing a pane that has no tabs.
     if (State.splitMode) teardownSplit();
@@ -512,6 +518,8 @@ export function renderEditor(targetPane = null) {
             else rightView = null;
         }
 
+        // Non-Markdown views and the empty pane also displace a stale owner.
+        delete container.__mdViewOwner;
         container.innerHTML = '';
         // Views style their own container, so the previous view's leftovers have
         // to go — but the pane's own layout must survive. #editor-content gets
