@@ -593,7 +593,10 @@ export function renderEditor(targetPane = null) {
         // file.content is the empty string it was opened with.
         if (file.type === 'office') {
             container.classList.add('plain-mode');
-            const view = new OfficeView(container, {});
+            const view = new OfficeView(container, {
+                // The sheet's selection is summed into the status bar.
+                updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
+            });
             view.render(file.content, file);
             if (isLeft) leftView = view;
             else rightView = view;
@@ -3236,7 +3239,7 @@ export function updateStatusBar(forFile = null) {
         // and offering the key would be advertising a dead end.
         if (officeLabel) {
             modeHint.textContent = t('Preview · read-only');
-            modeHint.title = t('This preview shows text and values only — no formatting, charts or images.');
+            modeHint.title = t('Read-only preview — the layout is approximate, and charts are not shown.');
         } else {
             modeHint.textContent = `${label} · Ctrl+Shift+E`;
             modeHint.title = 'Switch Text / Structure (Table) view — Ctrl+Shift+E';
@@ -3297,7 +3300,13 @@ export function updateStatusBar(forFile = null) {
 
     let selectionValue = 'Ln 1, Col 1';
     const cmView = getCurrentView();
-    if (!isMd && cmView && typeof cmView.getStatusInfo === 'function') {
+    if (file.type === 'office') {
+        // No caret and no line numbers in a preview. What a reader of a sheet
+        // looks to the status bar for is Excel's 平均 / データの個数 / 合計.
+        selectionValue = cmView && typeof cmView.getSelectionSummary === 'function'
+            ? cmView.getSelectionSummary()
+            : '';
+    } else if (!isMd && cmView && typeof cmView.getStatusInfo === 'function') {
         // CodeMirror view: derive Ln/Col from the editor state (no textarea).
         const info = cmView.getStatusInfo();
         if (info) {

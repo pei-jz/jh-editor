@@ -9,3 +9,4 @@ pub mod large_file;
 pub mod window;
 pub mod file_drop;
 pub mod office;
+pub mod office_shapes;

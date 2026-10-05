@@ -39,6 +39,7 @@ pub fn run() {
             commands::fs::parse_excel_to_markdown,
             commands::office::read_office_preview,
             commands::office::open_office_file,
+            commands::office::read_office_image,
             commands::search::search_files,
             commands::search::list_all_files,
             commands::search::start_grep,

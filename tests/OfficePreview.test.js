@@ -88,6 +88,18 @@ describe('the grid helpers', () => {
             await import('../src/modules/views/OfficeView.js'));
     });
 
+    it('reads a cell as a number the way the sum needs it', async () => {
+        const { cellNumber, summarizeCells } = await import('../src/modules/views/OfficeView.js');
+        expect(cellNumber('1,200')).toBe(1200);
+        expect(cellNumber('-3.5')).toBe(-3.5);
+        expect(cellNumber('25%')).toBe(0.25);
+        expect(cellNumber('SO-2026-0001')).toBe(null);
+        // Float noise is trimmed: 0.1 + 0.2 is not 0.30000000000000004.
+        expect(summarizeCells(['0.1', '0.2'])).toContain('0.3');
+        expect(summarizeCells(['0.1', '0.2'])).not.toContain('0.30000');
+        expect(summarizeCells(['only one'])).toBe('');
+    });
+
     it('labels columns the way a spreadsheet does', () => {
         expect(columnName(0)).toBe('A');
         expect(columnName(25)).toBe('Z');
@@ -778,6 +790,330 @@ describe('the preview view', () => {
         const second = [...rows[1].querySelectorAll('.of-cell')];
         expect(second[0].style.clipPath).toBe('');
         expect(second[1].style.clipPath).toBe('inset(0 -120px 0 0)');
+
+        // The clip-path is only half of it. .of-cell is overflow:hidden, which
+        // cuts the text at the cell's own edge before clip-path is consulted —
+        // the spill was computed and never seen. The cell has to let go too.
+        expect(first[0].classList.contains('spill')).toBe(true);
+        expect(second[0].classList.contains('spill')).toBe(false);
+        expect(read('src/modules/views/OfficeView.js')).toMatch(/\.of-cell\.spill \{ overflow: visible; \}/);
+    });
+
+    it('shades a cell in its own colour, toned to the editor theme', async () => {
+        /* The hue is the workbook's — red still means red — but how strongly
+           it is laid on depends on the theme, because the text is the
+           editor's colour, not the one Excel drew on that fill. */
+        const { fillMix } = await import('../src/modules/views/OfficeView.js');
+        // Light theme: a pale fill as it is, a navy header lightened.
+        expect(fillMix('#dae3f3', false)).toBe(100);
+        expect(fillMix('#1f3864', false)).toBeLessThan(100);
+        // Dark theme: every fill sunk toward the surface, pale ones most.
+        expect(fillMix('#ffff00', true)).toBeLessThan(fillMix('#1f3864', true));
+
+        const plain = { top: '', right: '', bottom: '', left: '', wrap: false, halign: '', valign: '', fill: '' };
+        show(sheetsPreview({
+            sheets: [{
+                name: 'Shade',
+                rows: [['受注番号', '顧客名'], ['SO-1', 'A']],
+                total_rows: 2, total_cols: 2, truncated: false, error: null,
+                layout: {
+                    col_widths: [80, 80], row_heights: [20, 20],
+                    merges: [{ row: 1, col: 0, rows: 1, cols: 2 }],
+                    styles: [plain, { ...plain, fill: '#dae3f3' }, { ...plain, fill: '#ffff00' }],
+                    style_ids: [[1, 1], [2, 0]],
+                },
+            }],
+        }));
+        const head = [...container.querySelectorAll('.of-row')][0].querySelectorAll('.of-cell');
+        expect(head[0].classList.contains('filled')).toBe(true);
+        expect(head[0].style.getPropertyValue('--of-fill')).toBe('#dae3f3');
+        expect(head[0].style.getPropertyValue('--of-fill-mix')).toBe('100%');
+        // A merged box takes the colour of the cell it is anchored on.
+        const box = container.querySelector('.of-merge');
+        expect(box.style.getPropertyValue('--of-fill')).toBe('#ffff00');
+        // An unshaded cell is left to the theme.
+        const second = [...container.querySelectorAll('.of-row')][1].querySelectorAll('.of-cell');
+        expect(second[1].classList.contains('filled')).toBe(false);
+    });
+
+    it('fetches a picture only once it is on screen, and only once', async () => {
+        /* The grid has to appear at once, so pictures arrive as positions and
+           their bytes are asked for as each scrolls into view. A picture far
+           down the sheet is not fetched until someone scrolls to it. */
+        const { invoke } = await import('@tauri-apps/api/core');
+        invoke.mockClear();
+        const originalCreate = URL.createObjectURL;
+        const originalRevoke = URL.revokeObjectURL;
+        URL.createObjectURL = vi.fn(() => 'blob:pic');
+        URL.revokeObjectURL = vi.fn();
+        invoke.mockResolvedValue(new ArrayBuffer(4));
+
+        const rows = Array.from({ length: 400 }, (_, i) => [String(i), '', '']);
+        const image = (part, row, extra = {}) => ({
+            part, supported: true, row, col: 0, row_off: 0, col_off: 0,
+            to_row: row + 3, to_col: 2, to_row_off: 0, to_col_off: 0, width: 0, height: 0, ...extra,
+        });
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Shots', rows, total_rows: 400, total_cols: 3, truncated: false, error: null,
+                layout: {
+                    col_widths: [50, 50, 50], row_heights: [], merges: [], styles: [], style_ids: [],
+                    images: [
+                        image('xl/media/image1.png', 1),
+                        image('xl/media/image2.emf', 2, { supported: false }),
+                        image('xl/media/image3.png', 390),
+                    ],
+                },
+            }],
+        }));
+        await new Promise((r) => setTimeout(r, 0));
+
+        // On screen: the PNG (fetched) and the EMF (marked, never fetched).
+        const calls = invoke.mock.calls.filter(([cmd]) => cmd === 'read_office_image');
+        expect(calls).toEqual([['read_office_image', { path: 'C:/work/book.xlsx', part: 'xl/media/image1.png' }]]);
+        const nodes = [...container.querySelectorAll('.of-image')];
+        expect(nodes.length).toBe(2);
+        // Placed over its cells: B2..C5 is col 0 to col 2, rows 1 to 4.
+        expect(nodes[0].style.left).toBe('52px');
+        expect(nodes[0].style.top).toBe('24px');
+        expect(nodes[0].style.width).toBe('100px');
+        expect(nodes[0].style.height).toBe('72px');
+        expect(nodes[0].querySelector('img').getAttribute('src')).toBe('blob:pic');
+        expect(nodes[1].classList.contains('of-image-unsupported')).toBe(true);
+
+        // A repaint keeps the node and does not fetch again.
+        view.scroller.onScroll();
+        expect(container.querySelector('.of-image')).toBe(nodes[0]);
+        expect(invoke.mock.calls.filter(([cmd]) => cmd === 'read_office_image').length).toBe(1);
+
+        view.destroy();
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:pic');
+        URL.createObjectURL = originalCreate;
+        URL.revokeObjectURL = originalRevoke;
+        invoke.mockResolvedValue(undefined);
+    });
+
+    it('shows Word and PowerPoint pictures, fetched only as they come near', async () => {
+        /* The same arrangement as a sheet: sizes with the outline, bytes on
+           demand. A document of fifty screenshots asks for the ones near the
+           window, not all fifty. */
+        const { invoke } = await import('@tauri-apps/api/core');
+        invoke.mockClear();
+        const originalCreate = URL.createObjectURL;
+        const originalRevoke = URL.revokeObjectURL;
+        const originalIO = global.IntersectionObserver;
+        URL.createObjectURL = vi.fn(() => 'blob:pic');
+        URL.revokeObjectURL = vi.fn();
+        invoke.mockResolvedValue(new ArrayBuffer(4));
+        let observer;
+        global.IntersectionObserver = class {
+            constructor(cb) { this.cb = cb; this.seen = []; observer = this; }
+            observe(el) { this.seen.push(el); }
+            unobserve() {}
+            disconnect() {}
+        };
+        const fetched = () => invoke.mock.calls.filter(([c]) => c === 'read_office_image').map(([, a]) => a.part);
+
+        const pic = (part, extra = {}) => ({ part, supported: true, width: 200, height: 100, ...extra });
+        const doc = show({
+            kind: 'document', sheets: [], slides: [],
+            blocks: [
+                { kind: 'paragraph', level: 0, text: '画面イメージ', rows: [], image: null },
+                { kind: 'image', level: 0, text: '', rows: [], image: pic('word/media/image1.png') },
+                { kind: 'image', level: 0, text: '', rows: [], image: pic('word/media/image2.emf', { supported: false }) },
+            ],
+        }, 'C:/work/spec.docx');
+        const frames = [...container.querySelectorAll('.of-pic')];
+        expect(frames.length).toBe(2);
+        // Drawn at its own size, and shaped before it loads.
+        expect(frames[0].style.width).toBe('200px');
+        expect(frames[0].style.aspectRatio).toBe('200 / 100');
+        expect(frames[1].classList.contains('of-image-unsupported')).toBe(true);
+        // A picture counts as no paragraph.
+        expect(container.querySelector('.of-note').textContent).toContain('1');
+        // Not fetched until it comes near.
+        expect(fetched()).toEqual([]);
+        observer.cb([{ isIntersecting: true, target: frames[0] }]);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(fetched()).toEqual(['word/media/image1.png']);
+        expect(frames[0].querySelector('img').getAttribute('src')).toBe('blob:pic');
+        doc.view.destroy();
+
+        invoke.mockClear();
+        const deck = show({
+            kind: 'slides', sheets: [], blocks: [],
+            slides: [{
+                number: 1, title: '構成図', bullets: [], notes: '', pictures: 1,
+                images: [pic('ppt/media/image1.png', { width: 640, height: 360 })], slide_width: 1280,
+            }],
+        }, 'C:/work/deck.pptx');
+        const slidePic = container.querySelector('.of-slide .of-pic');
+        // Half the slide's width is half the card's.
+        expect(slidePic.style.width).toBe('50%');
+        observer.cb([{ isIntersecting: true, target: slidePic }]);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(fetched()).toEqual(['ppt/media/image1.png']);
+        deck.view.destroy();
+
+        URL.createObjectURL = originalCreate;
+        URL.revokeObjectURL = originalRevoke;
+        global.IntersectionObserver = originalIO;
+        invoke.mockResolvedValue(undefined);
+    });
+
+    it('draws a sheet\'s shapes over its cells, and takes them off on request', () => {
+        /* A flowchart is placed like a picture — anchored to cells — and
+           drawn as SVG with its text as HTML. The Shapes button is for when
+           the approximation gets in the way of reading the cells under it. */
+        const shape = (extra) => ({
+            row: 1, col: 0, row_off: 0, col_off: 0, to_row: 3, to_col: 2, to_row_off: 0, to_col_off: 0,
+            width: 0, height: 0, frac: [0, 0, 1, 1], order: 0,
+            geom: 'flowChartDecision', path: '', adj: {}, connector: false,
+            fill: '#4472c4', line: '#2f528f', line_width: 1, dash: '', head: '', tail: '',
+            rot: 0, flip_h: false, flip_v: false,
+            text: 'OK?', text_color: '#ffffff', font_size: 14.67, bold: false, halign: 'center', valign: 'center',
+            ...extra,
+        });
+        const { view, file } = show(sheetsPreview({
+            sheets: [{
+                name: 'Flow', rows: [['a', 'b', 'c'], ['', '', ''], ['', '', ''], ['', '', '']],
+                total_rows: 4, total_cols: 3, truncated: false, error: null,
+                layout: {
+                    col_widths: [50, 50, 50], row_heights: [], merges: [], styles: [], style_ids: [],
+                    images: [],
+                    shapes: [
+                        shape(),
+                        // A member of a group: the right half of the same box.
+                        shape({ order: 1, frac: [0.5, 0, 0.5, 1], geom: 'straightConnector1', connector: true,
+                            fill: '', text: '', tail: 'triangle' }),
+                    ],
+                },
+            }],
+        }));
+        const nodes = [...container.querySelectorAll('.of-shape')];
+        expect(nodes.length).toBe(2);
+        expect(nodes[0].style.left).toBe('52px');
+        expect(nodes[0].style.top).toBe('24px');
+        expect(nodes[0].style.width).toBe('100px');
+        expect(nodes[0].style.height).toBe('48px');
+        expect(nodes[0].querySelector('svg path').getAttribute('d')).toBe('M50 0 L100 24 L50 48 L0 24 Z');
+        expect(nodes[0].querySelector('.of-shape-text').textContent).toBe('OK?');
+        // Later in the drawing is on top.
+        expect(Number(nodes[1].style.zIndex)).toBeGreaterThan(Number(nodes[0].style.zIndex));
+        expect(nodes[1].style.left).toBe('102px');
+        expect(nodes[1].style.width).toBe('50px');
+        expect(nodes[1].querySelector('marker')).not.toBe(null);
+
+        // The text is the file's own, and goes in as text.
+        expect(nodes[0].querySelector('.of-shape-text > div').children.length).toBe(0);
+
+        const btn = [...container.querySelectorAll('.of-btn')].find((b) => /Shapes|図形/.test(b.textContent));
+        expect(btn).toBeTruthy();
+        btn.click();
+        expect(container.querySelector('.of-grid').classList.contains('no-shapes')).toBe(true);
+        expect(file._officeHideShapes).toBe(true);
+        view.destroy();
+    });
+
+    it('keeps merged boxes, drawings and the selection out from under the row numbers', () => {
+        /* The row numbers are sticky inside the rows; everything drawn over
+           the cells is a layer above them, and a sideways scroll used to carry
+           a merged heading or a flowchart across the numbers. The layers are
+           cut at whatever the sticky strips cover. */
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'S', rows: [['title', '', ''], ['a', 'b', 'c']],
+                total_rows: 2, total_cols: 3, truncated: false, error: null,
+                layout: { col_widths: [80, 80, 80], row_heights: [], merges: [{ row: 0, col: 0, rows: 1, cols: 3 }],
+                    styles: [], style_ids: [], images: [], shapes: [] },
+            }],
+        }));
+        view._beginSelection(1, 0, new MouseEvent('pointerdown', { button: 0 }));
+        const grid = container.querySelector('.of-grid');
+        grid.scrollLeft = 100;
+        grid.scrollTop = 30;
+        grid.dispatchEvent(new Event('scroll'));
+        expect(container.querySelector('.of-merges').style.clipPath).toBe('inset(30px 0px 0px 152px)');
+        expect(container.querySelector('.of-images').style.clipPath).toBe('inset(30px 0px 0px 152px)');
+        // The selection starts at 52px, 24px: cut by the difference.
+        expect(container.querySelector('.of-selection').style.clipPath).toBe('inset(6px 0px 0px 100px)');
+
+        grid.scrollLeft = 0;
+        grid.scrollTop = 0;
+        grid.dispatchEvent(new Event('scroll'));
+        expect(container.querySelector('.of-selection').style.clipPath).toBe('');
+        view.destroy();
+
+        // The frozen strips themselves must be opaque. They were dimmed with
+        // opacity, which dims the background too, and the cells scrolled
+        // under the row numbers read straight through them.
+        const css = read('src/modules/views/OfficeView.js');
+        const rule = (sel) => css.slice(css.indexOf(`    ${sel} {`), css.indexOf('}', css.indexOf(`    ${sel} {`)));
+        expect(rule('.of-gutter')).not.toMatch(/opacity/);
+        expect(rule('.of-col')).not.toMatch(/opacity/);
+    });
+
+    it('does not spill a number, or text that is not flush left', () => {
+        /* Excel never runs a number into the next cell, and right-aligned or
+           centred text grows the other way. Letting either run right would
+           push it across a neighbour it does not overlap in Excel. */
+        show(sheetsPreview({
+            sheets: [{
+                name: 'Spill',
+                rows: [['12,345,678', '', 'right aligned text', '', 'left aligned', '']],
+                total_rows: 1, total_cols: 6, truncated: false, error: null,
+                layout: {
+                    col_widths: [40, 40, 40, 40, 40, 40], row_heights: [20], merges: [],
+                    styles: [
+                        { top: '', right: '', bottom: '', left: '', wrap: false, halign: 'right', valign: '' },
+                        { top: '', right: '', bottom: '', left: '', wrap: false, halign: 'left', valign: '' },
+                    ],
+                    style_ids: [[undefined, undefined, 0, undefined, 1, undefined]],
+                },
+            }],
+        }));
+        const cells = [...container.querySelectorAll('.of-row .of-cell')];
+        expect(cells[0].style.clipPath).toBe('');
+        expect(cells[2].style.clipPath).toBe('');
+        expect(cells[4].style.clipPath).toBe('inset(0 -40px 0 0)');
+    });
+
+    it('adds up the selection in the status bar the way Excel does', () => {
+        /* 平均 / データの個数 / 合計, from the payload rather than the DOM, so a
+           selection running off screen still counts every row in it. */
+        const updateStatusBar = vi.fn();
+        const view = new OfficeView(container, { updateStatusBar });
+        const file = {
+            path: 'C:/work/book.xlsx', content: '', type: 'office',
+            office: sheetsPreview({
+                sheets: [{
+                    name: 'S',
+                    rows: [['受注', '数量'], ['A', '1,200'], ['B', '30'], ['C', '']],
+                    total_rows: 4, total_cols: 2, truncated: false, error: null, layout: null,
+                }],
+            }),
+        };
+        view.render('', file);
+        updateStatusBar.mockClear();
+
+        // One cell: nothing, as in Excel.
+        view._beginSelection(1, 1, new MouseEvent('pointerdown', { button: 0 }));
+        expect(view.getSelectionSummary()).toBe('');
+        expect(updateStatusBar).toHaveBeenCalled();
+
+        // Both columns of three rows: five non-empty values, two of them numbers.
+        view.selection = { anchor: { r: 1, c: 0 }, focus: { r: 3, c: 1 } };
+        view._rememberSelection();
+        const line = view.getSelectionSummary();
+        expect(line).toContain('615');
+        expect(line).toContain('5');
+        expect(line).toContain('1,230');
+
+        // Text only: the count, and no sum of nothing.
+        view.selection = { anchor: { r: 0, c: 0 }, focus: { r: 3, c: 0 } };
+        expect(view.getSelectionSummary()).toMatch(/4/);
+        expect(view.getSelectionSummary()).not.toMatch(/Sum|合計/);
+        view.destroy();
     });
 
     it('starts with the grid the sheet asked for, and lets it be turned back on', () => {

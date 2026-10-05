@@ -18,6 +18,8 @@ use quick_xml::reader::Reader;
 use serde::Serialize;
 use tauri::command;
 
+use super::office_shapes::{read_drawing, ShapeSpec};
+
 /// Rows kept per sheet. A preview that has to page through 200k rows is no
 /// longer a preview, and the whole payload crosses IPC as one message.
 const MAX_ROWS: usize = 5_000;
@@ -112,14 +114,117 @@ pub struct SheetLayout {
     /// cell is plain — which is most spreadsheets, and the whole grid would
     /// otherwise be a second copy of the sheet made of zeroes.
     pub style_ids: Vec<Vec<usize>>,
+    /// Pictures pasted onto the sheet: where they sit, never their bytes.
+    /// A 設計書 can carry dozens of screenshots and tens of megabytes of them;
+    /// the view asks for each one (read_office_image) as it scrolls into view,
+    /// so the grid still appears at once.
+    pub images: Vec<SheetImage>,
+    /// Shapes, connectors and text boxes — a flowchart, usually — placed the
+    /// same way. Drawn by the view as SVG; see office_shapes.rs.
+    pub shapes: Vec<SheetShape>,
 }
+
+/// Where a picture or a shape sits on the grid shown.
+///
+/// Zero-based against `rows`, offsets in px from the anchor cell's top-left.
+/// `to_*` is the cell the far corner sits in, when the file says: placing
+/// both corners against the view's own column widths keeps the drawing over
+/// the cells it covers in Excel, whatever the widths turned out to be. With
+/// no far corner, `width` and `height` are the size it was drawn at.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct DrawingAnchor {
+    pub row: usize,
+    pub col: usize,
+    pub row_off: f64,
+    pub col_off: f64,
+    pub to_row: Option<usize>,
+    pub to_col: Option<usize>,
+    pub to_row_off: f64,
+    pub to_col_off: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Where in the anchor's box this one sits, as fractions (x, y, w, h):
+    /// a member of a group shares the group's anchor.
+    pub frac: [f64; 4],
+    /// Position in the drawing's stacking order; higher is on top.
+    pub order: usize,
+}
+
+/// One shape on a sheet.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct SheetShape {
+    #[serde(flatten)]
+    pub at: DrawingAnchor,
+    #[serde(flatten)]
+    pub spec: ShapeSpec,
+}
+
+/// One picture on a sheet.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct SheetImage {
+    /// The package part holding it, e.g. "xl/media/image1.png".
+    pub part: String,
+    /// False for EMF/WMF and the like, which a WebView cannot draw. The view
+    /// marks the place instead, so the reader knows something is there.
+    pub supported: bool,
+    #[serde(flatten)]
+    pub at: DrawingAnchor,
+}
+
+/// A picture or a shape as the drawing part writes it: 0-based cells,
+/// offsets in EMU. `part` is empty for a shape.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RawImage {
+    part: String,
+    from: (usize, usize, i64, i64),
+    to: Option<(usize, usize, i64, i64)>,
+    /// cx, cy in EMU.
+    ext: (i64, i64),
+    shape: Option<ShapeSpec>,
+    frac: [f64; 4],
+}
+
+impl RawImage {
+    /// The last row the drawing covers, 0-based. From its far corner when it
+    /// has one; otherwise estimated from its height at Excel's default row of
+    /// 20px — a one-cell anchor says how big it is, not where it ends.
+    fn last_row(&self) -> usize {
+        match self.to {
+            Some(t) => t.0.max(self.from.0),
+            None => {
+                let px = (self.ext.1 as f64 / EMU_PER_PX).max(0.0);
+                self.from.0 + (px / 20.0).ceil() as usize
+            }
+        }
+    }
+
+    /// The last column, the same way, at Excel's default column of 64px.
+    fn last_col(&self) -> usize {
+        match self.to {
+            Some(t) => t.1.max(self.from.1),
+            None => {
+                let px = (self.ext.0 as f64 / EMU_PER_PX).max(0.0);
+                self.from.1 + (px / 64.0).ceil() as usize
+            }
+        }
+    }
+}
+
+/// 914400 EMU to the inch at 96 dpi.
+const EMU_PER_PX: f64 = 9525.0;
+/// Pictures and shapes per sheet. Past this a sheet is a drawing program's
+/// file, and the preview stops before it becomes a slow one.
+const MAX_DRAWINGS: usize = 2000;
+/// The largest single picture handed to the view, in bytes.
+const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// As much of a cell's format as a read-only preview can honestly show.
 ///
-/// Not the font, the fill or the colour of anything: those decide how a
-/// document LOOKS, and a preview that half-applies them looks broken rather
-/// than plain. These three decide how it READS — where the boxes are, whether
-/// a paragraph wraps, and where the text sits in its cell.
+/// Not the font or the colour of the text: those decide how a document LOOKS,
+/// and a preview that half-applies them looks broken rather than plain. These
+/// decide how it READS — where the boxes are, whether a paragraph wraps, where
+/// the text sits in its cell, and which cells were shaded to set them apart
+/// (a table's header row, the boxes of a form that are to be filled in).
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct CellStyle {
     /// "", "thin", "thick", "double", "dashed" or "dotted", per edge.
@@ -132,6 +237,9 @@ pub struct CellStyle {
     pub halign: String,
     /// "", "top", "center" or "bottom".
     pub valign: String,
+    /// The cell's background as "#rrggbb", resolved from theme colours and
+    /// tints here, or "" for none. The view tones it to the editor's theme.
+    pub fill: String,
 }
 
 impl CellStyle {
@@ -160,6 +268,43 @@ pub struct SlidePreview {
     /// no text at all, which is not a failure — but the view has to be able to
     /// say why it is empty instead of showing a blank card.
     pub pictures: usize,
+    /// The slide's own pictures, in the order they are drawn: names and sizes
+    /// only, fetched by the view as each card scrolls into view.
+    pub images: Vec<Picture>,
+    /// The deck's slide width in px, so a picture can be drawn at the share of
+    /// the card it takes of the slide.
+    pub slide_width: f64,
+}
+
+/// A picture in a document or on a slide: where its bytes are, and how big it
+/// was drawn. The bytes come later, through read_office_image.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Picture {
+    /// The package part holding it, e.g. "word/media/image1.png".
+    pub part: String,
+    /// False for EMF/WMF and the like, which a WebView cannot draw.
+    pub supported: bool,
+    /// The size it was drawn at, in px. 0 when the file does not say.
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Picture {
+    fn new(part: String, cx: i64, cy: i64) -> Self {
+        Self {
+            supported: is_web_image(&part),
+            part,
+            width: (cx as f64 / EMU_PER_PX).max(0.0),
+            height: (cy as f64 / EMU_PER_PX).max(0.0),
+        }
+    }
+}
+
+/// Can a WebView draw this part? By extension, which is how the package
+/// itself declares it ([Content_Types].xml maps extensions to types).
+fn is_web_image(part: &str) -> bool {
+    let ext = part.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg")
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,11 +323,13 @@ pub struct DocBlock {
     pub text: String,
     /// Populated for "table" only.
     pub rows: Vec<Vec<String>>,
+    /// Populated for "image" only.
+    pub image: Option<Picture>,
 }
 
 impl DocBlock {
     fn text_block(kind: &str, level: usize, text: String) -> Self {
-        Self { kind: kind.to_string(), level, text, rows: Vec::new() }
+        Self { kind: kind.to_string(), level, text, rows: Vec::new(), image: None }
     }
 }
 
@@ -288,8 +435,13 @@ fn read_workbook(bytes: Vec<u8>, ext: &str) -> Result<OfficePreview, String> {
 /// columns they had before.
 fn read_sheet_layouts(bytes: &[u8]) -> Option<HashMap<String, RawLayout>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).ok()?;
+    // Fills name their colours by theme slot as often as by value, so the
+    // theme is read first. A workbook without one falls back to Office's.
+    let theme = part(&mut zip, "xl/theme/theme1.xml")
+        .map(|x| read_theme_colors(&x))
+        .unwrap_or_default();
     let styles = part(&mut zip, "xl/styles.xml")
-        .map(|x| read_style_book(&x))
+        .map(|x| read_style_book(&x, &theme))
         .unwrap_or_default();
     let rels = read_rels(&mut zip, "xl/workbook.xml");
     let xml = part(&mut zip, "xl/workbook.xml")?;
@@ -322,14 +474,132 @@ fn read_sheet_layouts(bytes: &[u8]) -> Option<HashMap<String, RawLayout>> {
     let mut out = HashMap::new();
     for (index, (name, path)) in parts.into_iter().enumerate() {
         if let Some(sheet_xml) = part(&mut zip, &path) {
-            if let Some(mut layout) = read_sheet_geometry(&sheet_xml) {
+            let images = sheet_images(&mut zip, &path, &theme);
+            // A sheet that declares no geometry can still carry pictures —
+            // a page of screenshots is often nothing else.
+            let geometry = read_sheet_geometry(&sheet_xml)
+                .or_else(|| (!images.is_empty()).then(RawLayout::default));
+            if let Some(mut layout) = geometry {
                 layout.styles = styles.clone();
                 layout.print_area = print_areas.get(&index).copied();
+                layout.images = images;
                 out.insert(name, layout);
             }
         }
     }
     Some(out)
+}
+
+/// The pictures and shapes on one sheet, through its drawing part.
+///
+/// sheet -> (relationship) -> drawing -> (relationship) -> xl/media/imageN.
+/// Only positions, part names and the shapes' look are read; a picture's
+/// bytes stay in the package until the view asks for them.
+fn sheet_images(zip: &mut Archive, sheet_part: &str, theme: &[String]) -> Vec<RawImage> {
+    let mut out = Vec::new();
+    for (_, kind, drawing) in rels_of(zip, sheet_part) {
+        if !kind.ends_with("/drawing") {
+            continue;
+        }
+        let Some(xml) = part(zip, &drawing) else { continue };
+        let media = read_rels(zip, &drawing);
+        for item in read_drawing(&xml, theme) {
+            let part = match &item.embed {
+                Some(embed) => match media.get(embed) {
+                    Some(target) => target.clone(),
+                    None => continue,
+                },
+                None if item.shape.is_some() => String::new(),
+                None => continue,
+            };
+            out.push(RawImage {
+                part,
+                from: item.from,
+                to: item.to,
+                ext: item.ext,
+                shape: item.shape,
+                frac: item.frac,
+            });
+            if out.len() >= MAX_DRAWINGS {
+                return out;
+            }
+        }
+    }
+    out
+}
+
+/// A picture or a shape, placed against the grid the view draws. None when it
+/// starts outside the rows and columns kept.
+fn clip_anchor(
+    raw: &RawImage,
+    rows: usize,
+    cols: usize,
+    origin: (usize, usize),
+    order: usize,
+) -> Option<DrawingAnchor> {
+    // The drawing counts from 0, the sheet from 1.
+    let row = (raw.from.0 + 1).checked_sub(origin.0)?;
+    let col = (raw.from.1 + 1).checked_sub(origin.1)?;
+    if row >= rows || col >= cols {
+        return None;
+    }
+    let px = |emu: i64| (emu as f64 / EMU_PER_PX).max(0.0);
+    let to = raw.to.and_then(|t| {
+        let r = (t.0 + 1).checked_sub(origin.0)?;
+        let c = (t.1 + 1).checked_sub(origin.1)?;
+        Some((r, c, t.2, t.3))
+    });
+    Some(DrawingAnchor {
+        row,
+        col,
+        row_off: px(raw.from.2),
+        col_off: px(raw.from.3),
+        to_row: to.map(|t| t.0),
+        to_col: to.map(|t| t.1),
+        to_row_off: to.map(|t| px(t.2)).unwrap_or(0.0),
+        to_col_off: to.map(|t| px(t.3)).unwrap_or(0.0),
+        width: px(raw.ext.0),
+        height: px(raw.ext.1),
+        frac: raw.frac,
+        order,
+    })
+}
+
+/// The bytes of one picture inside an Office package, for the preview to
+/// show as it scrolls into view.
+///
+/// Raw bytes rather than JSON: a screenshot is a megabyte, and as a JSON array
+/// of numbers it would be four. The package is opened from the file on disk
+/// and only the one entry is inflated — the archive's directory is at the end
+/// of the file, so this does not read the rest of it.
+///
+/// Narrow on purpose: only a format the preview reads, and only an entry under
+/// a media folder, so this cannot be turned into a way to read any file, or
+/// any part, the preview has no business with.
+#[command]
+pub async fn read_office_image(path: String, part: String) -> Result<tauri::ipc::Response, String> {
+    if !is_office_path(&path) {
+        return Err(format!("Not an Office file this can preview: {}", path));
+    }
+    if !is_media_part(&part) {
+        return Err(format!("Not a picture in the package: {}", part));
+    }
+    let file = std::fs::File::open(&path).map_err(|e| format!("{}: {}", path, e))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let mut entry = zip.by_name(&part).map_err(|e| format!("{}: {}", part, e))?;
+    if entry.size() > MAX_IMAGE_BYTES {
+        return Err(format!("Picture too large to preview: {}", part));
+    }
+    let mut bytes = Vec::with_capacity(entry.size() as usize);
+    entry.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// "xl/media/image1.png" and its Word and PowerPoint equivalents, and nothing
+/// that climbs out of them.
+fn is_media_part(part: &str) -> bool {
+    ["xl/media/", "word/media/", "ppt/media/"].iter().any(|p| part.starts_with(p))
+        && !part.split('/').any(|s| s == ".." || s.is_empty())
 }
 
 /// The print area of each sheet, by its index in the workbook's sheet list.
@@ -398,17 +668,24 @@ fn parse_area_ref(text: &str) -> Option<(usize, usize, usize, usize)> {
 
 /// The workbook's cell formats: one entry per <xf> in <cellXfs>, in order,
 /// because that order is what a cell's `s` attribute indexes.
-fn read_style_book(xml: &str) -> StyleBook {
+fn read_style_book(xml: &str, theme: &[String]) -> StyleBook {
     let mut book = StyleBook::default();
 
     // Custom formats first: a cell names its format by id, and every id above
     // the built-in range is defined here.
     let mut codes: HashMap<usize, String> = HashMap::new();
     let mut borders: Vec<[String; 4]> = Vec::new();
+    // One per <fill> in <fills>, as "#rrggbb" or "". Only inside <fills>:
+    // <dxfs> holds <fill>s too, for conditional formats, and they are not
+    // what a fillId counts.
+    let mut fills: Vec<String> = Vec::new();
 
     let mut reader = Reader::from_str(xml);
     reader.trim_text(true);
 
+    let mut in_fills = false;
+    // The <patternFill> being read paints something (not "none"/"gray125").
+    let mut fill_solid = false;
     let mut in_borders = false;
     let mut in_cell_xfs = false;
     let mut edges: [String; 4] = Default::default();
@@ -425,6 +702,7 @@ fn read_style_book(xml: &str) -> StyleBook {
                 match e.name().as_ref() {
                     b"border" if in_borders => borders.push(std::mem::take(&mut edges)),
                     b"borders" => in_borders = false,
+                    b"fills" => in_fills = false,
                     b"cellXfs" => in_cell_xfs = false,
                     b"xf" => xf_open = false,
                     _ => {}
@@ -438,6 +716,23 @@ fn read_style_book(xml: &str) -> StyleBook {
             b"numFmt" => {
                 if let (Some(id), Some(code)) = (num(&e, b"numFmtId"), attr(&e, b"formatCode")) {
                     codes.insert(id as usize, code);
+                }
+            }
+            b"fills" => in_fills = true,
+            b"fill" if in_fills => fills.push(String::new()),
+            b"patternFill" if in_fills => {
+                fill_solid = !matches!(
+                    attr(&e, b"patternType").as_deref(),
+                    None | Some("none") | Some("gray125")
+                );
+            }
+            // A pattern's foreground is the colour it is painted in; for the
+            // usual solid fill that is the whole cell. Other patterns are drawn
+            // as their foreground too — a dotted shade at preview scale reads
+            // as the colour it is made of.
+            b"fgColor" if in_fills && fill_solid => {
+                if let (Some(slot), Some(color)) = (fills.last_mut(), resolve_color(&e, theme)) {
+                    *slot = color;
                 }
             }
             b"borders" => in_borders = true,
@@ -460,6 +755,7 @@ fn read_style_book(xml: &str) -> StyleBook {
             b"cellXfs" => in_cell_xfs = true,
             b"xf" if in_cell_xfs => {
                 let border_id = num(&e, b"borderId").unwrap_or(0.0) as usize;
+                let fill_id = num(&e, b"fillId").unwrap_or(0.0) as usize;
                 let fmt_id = num(&e, b"numFmtId").unwrap_or(0.0) as usize;
                 let mut style = CellStyle::default();
                 if let Some(b) = borders.get(border_id) {
@@ -467,6 +763,9 @@ fn read_style_book(xml: &str) -> StyleBook {
                     style.right = b[1].clone();
                     style.bottom = b[2].clone();
                     style.left = b[3].clone();
+                }
+                if let Some(f) = fills.get(fill_id) {
+                    style.fill = f.clone();
                 }
                 book.xfs.push(style);
                 if let Some(code) = date_format_code(fmt_id, &codes) {
@@ -512,6 +811,169 @@ fn border_kind(style: &str) -> &'static str {
         // "a broken line" at the size a preview draws them.
         _ => "dashed",
     }
+}
+
+/// The theme's colour scheme as "#rrggbb", indexed the way a spreadsheet
+/// colour's `theme` attribute counts.
+///
+/// The scheme lists dk1, lt1, dk2, lt2, accent1-6, hlink, folHlink — but
+/// SpreadsheetML numbers the first four light-first: 0 is lt1, 1 is dk1, 2 is
+/// lt2, 3 is dk2. Reading them in file order puts black where white was meant.
+fn read_theme_colors(xml: &str) -> Vec<String> {
+    let mut scheme: Vec<String> = Vec::new();
+    let mut reader = Reader::from_str(xml);
+    reader.trim_text(true);
+    let mut in_scheme = false;
+    let mut depth = 0usize;
+    loop {
+        match reader.read_event() {
+            Err(_) | Ok(Event::Eof) => break,
+            Ok(Event::Start(e)) => {
+                let name = e.name();
+                if local_name(name.as_ref()) == b"clrScheme" {
+                    in_scheme = true;
+                    depth = 0;
+                } else if in_scheme {
+                    depth += 1;
+                    // A slot (<a:dk1>) opens; its colour is the child below.
+                    if depth == 1 {
+                        scheme.push(String::new());
+                    }
+                }
+            }
+            Ok(Event::Empty(e)) if in_scheme => {
+                let name = e.name();
+                let value = match local_name(name.as_ref()) {
+                    b"srgbClr" => attr(&e, b"val"),
+                    // A system colour carries what it last resolved to.
+                    b"sysClr" => attr(&e, b"lastClr"),
+                    _ => None,
+                };
+                if let (Some(slot), Some(v)) = (scheme.last_mut(), value) {
+                    if slot.is_empty() && v.len() == 6 {
+                        *slot = format!("#{}", v.to_ascii_lowercase());
+                    }
+                }
+            }
+            Ok(Event::End(e)) if in_scheme => {
+                let name = e.name();
+                if local_name(name.as_ref()) == b"clrScheme" {
+                    break;
+                }
+                depth = depth.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+    if scheme.len() >= 4 {
+        scheme.swap(0, 1);
+        scheme.swap(2, 3);
+    }
+    scheme
+}
+
+/// "a:srgbClr" -> "srgbClr".
+fn local_name(name: &[u8]) -> &[u8] {
+    match name.iter().rposition(|&b| b == b':') {
+        Some(i) => &name[i + 1..],
+        None => name,
+    }
+}
+
+/// Office's own theme, for a workbook that does not carry one, in the
+/// spreadsheet's light-first order.
+pub(crate) const DEFAULT_THEME: [&str; 12] = [
+    "#ffffff", "#000000", "#e7e6e6", "#44546a", "#4472c4", "#ed7d31",
+    "#a5a5a5", "#ffc000", "#5b9bd5", "#70ad47", "#0563c1", "#954f72",
+];
+
+/// The legacy 64-colour palette an `indexed` colour points into.
+const INDEXED_COLORS: [&str; 64] = [
+    "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+    "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+    "#800000", "#008000", "#000080", "#808000", "#800080", "#008080", "#c0c0c0", "#808080",
+    "#9999ff", "#993366", "#ffffcc", "#ccffff", "#660066", "#ff8080", "#0066cc", "#ccccff",
+    "#000080", "#ff00ff", "#ffff00", "#00ffff", "#800080", "#800000", "#008080", "#0000ff",
+    "#00ccff", "#ccffff", "#ccffcc", "#ffff99", "#99ccff", "#ff99cc", "#cc99ff", "#ffcc99",
+    "#3366ff", "#33cccc", "#99cc00", "#ffcc00", "#ff9900", "#ff6600", "#666699", "#969696",
+    "#003366", "#339966", "#003300", "#333300", "#993300", "#993366", "#333399", "#333333",
+];
+
+/// A colour element (<fgColor>, <color>) as "#rrggbb", or None for "automatic"
+/// and anything else that does not name a colour.
+fn resolve_color(e: &quick_xml::events::BytesStart, theme: &[String]) -> Option<String> {
+    let base = if let Some(rgb) = attr(e, b"rgb") {
+        // ARGB: the alpha byte in front is not something a cell shows.
+        let hex = if rgb.len() == 8 { &rgb[2..] } else { rgb.as_str() };
+        if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        format!("#{}", hex.to_ascii_lowercase())
+    } else if let Some(i) = num(e, b"theme") {
+        let i = i as usize;
+        theme
+            .get(i)
+            .filter(|c| !c.is_empty())
+            .cloned()
+            .or_else(|| DEFAULT_THEME.get(i).map(|c| c.to_string()))?
+    } else if let Some(i) = num(e, b"indexed") {
+        // 64 and 65 are "the system's foreground / background": no colour of
+        // their own, and the cell is better left to the editor's theme.
+        INDEXED_COLORS.get(i as usize)?.to_string()
+    } else {
+        return None;
+    };
+    let tint = num(e, b"tint").unwrap_or(0.0);
+    Some(if tint == 0.0 { base } else { apply_tint(&base, tint) })
+}
+
+/// Lighten (tint > 0) or darken (tint < 0) a colour the way Excel does: on its
+/// HLS luminance, leaving the hue and saturation alone. "Accent 1, lighter
+/// 80%" is the theme colour with a tint of 0.8.
+fn apply_tint(hex: &str, tint: f64) -> String {
+    let channel = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0) as f64 / 255.0;
+    let (r, g, b) = (channel(1), channel(3), channel(5));
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    let (h, s) = if d == 0.0 {
+        (0.0, 0.0)
+    } else {
+        let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+        let h = if max == r {
+            ((g - b) / d).rem_euclid(6.0)
+        } else if max == g {
+            (b - r) / d + 2.0
+        } else {
+            (r - g) / d + 4.0
+        };
+        (h / 6.0, s)
+    };
+    let l = if tint < 0.0 { l * (1.0 + tint) } else { l * (1.0 - tint) + tint };
+    let l = l.clamp(0.0, 1.0);
+
+    let (r, g, b) = if s == 0.0 {
+        (l, l, l)
+    } else {
+        let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+        let p = 2.0 * l - q;
+        let hue = |t: f64| {
+            let t = t.rem_euclid(1.0);
+            if t < 1.0 / 6.0 {
+                p + (q - p) * 6.0 * t
+            } else if t < 0.5 {
+                q
+            } else if t < 2.0 / 3.0 {
+                p + (q - p) * (2.0 / 3.0 - t) * 6.0
+            } else {
+                p
+            }
+        };
+        (hue(h + 1.0 / 3.0), hue(h), hue(h - 1.0 / 3.0))
+    };
+    let byte = |v: f64| (v * 255.0).round().clamp(0.0, 255.0) as u8;
+    format!("#{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b))
 }
 
 /// The format code for a cell that holds a date, or None when it holds
@@ -584,6 +1046,8 @@ struct RawLayout {
     print_area: Option<(usize, usize, usize, usize)>,
     /// <sheetView showGridLines="0">. True unless the sheet says otherwise.
     gridlines: bool,
+    /// Pictures from the sheet's drawing part, if it has one.
+    images: Vec<RawImage>,
 }
 
 impl Default for RawLayout {
@@ -601,6 +1065,7 @@ impl Default for RawLayout {
             // Excel's own default, and the answer for any sheet that does not
             // write a <sheetView> at all.
             gridlines: true,
+            images: Vec::new(),
         }
     }
 }
@@ -844,6 +1309,20 @@ fn clip_layout(
         style_ids.clear();
     }
 
+    let mut images = Vec::new();
+    let mut shapes = Vec::new();
+    for (order, item) in raw.images.iter().enumerate() {
+        let Some(at) = clip_anchor(item, rows, cols, origin, order) else { continue };
+        match &item.shape {
+            Some(spec) => shapes.push(SheetShape { at, spec: spec.clone() }),
+            None => images.push(SheetImage {
+                part: item.part.clone(),
+                supported: is_web_image(&item.part),
+                at,
+            }),
+        }
+    }
+
     SheetLayout {
         col_widths,
         row_heights,
@@ -852,6 +1331,8 @@ fn clip_layout(
         default_col_width: raw.default_col_px.unwrap_or(0.0),
         styles,
         style_ids,
+        images,
+        shapes,
     }
 }
 
@@ -928,6 +1409,13 @@ where
             .and_then(|r| r.print_area)
             .map(|pa| pa.2.saturating_sub(origin.0) + 1)
             .unwrap_or(0);
+        // The rows a picture covers are not blank, however empty their cells.
+        let floor = raw
+            .into_iter()
+            .flat_map(|r| r.images.iter())
+            .map(|img| img.last_row() + 2)
+            .map(|last| last.saturating_sub(origin.0).min(keep_rows))
+            .fold(floor, usize::max);
         while rows.len() > floor
             && rows.last().is_some_and(|r| r.iter().all(|c| c.is_empty()))
             && !row_is_formatted(raw, origin, rows.len() - 1, keep_cols)
@@ -1002,6 +1490,13 @@ fn sheet_extent(
         }
         for &(r1, c1, r2, c2) in &raw.merges {
             claim(r1, c1, r2, c2);
+        }
+        // A picture or a flowchart beside or below the data is still on the
+        // page, and so are the columns it reaches across: a diagram squeezed
+        // into the columns the values happened to use is not the diagram.
+        for img in &raw.images {
+            let (r, c) = (img.from.0 + 1, img.from.1 + 1);
+            claim(r, c, img.last_row() + 1, img.last_col() + 1);
         }
     }
 
@@ -1321,13 +1816,30 @@ fn read_docx(bytes: Vec<u8>) -> Result<OfficePreview, String> {
     let xml = part(&mut zip, "word/document.xml")
         .ok_or_else(|| "This .docx has no word/document.xml part.".to_string())?;
 
+    // A picture names its bytes by relationship id; the document's own
+    // relationships say which media part that is.
+    let rels = read_rels(&mut zip, "word/document.xml");
+
     let mut preview = OfficePreview::new("document");
-    preview.blocks = read_docx_body(&xml)?;
+    preview.blocks = read_docx_body(&xml, &rels)?;
     Ok(preview)
 }
 
-fn read_docx_body(xml: &str) -> Result<Vec<DocBlock>, String> {
+/// The body of a Word document as blocks: headings, paragraphs, list items,
+/// tables — and pictures, each as a block of its own after the paragraph it
+/// sits in. Only DrawingML pictures (<pic:pic>), which is what Word has written
+/// since 2007; the VML <v:imagedata> of older files, and pictures inside a
+/// table, are not shown.
+fn read_docx_body(xml: &str, rels: &HashMap<String, String>) -> Result<Vec<DocBlock>, String> {
     let mut blocks: Vec<DocBlock> = Vec::new();
+
+    // Pictures in the paragraph being read, placed after its text.
+    let mut para_images: Vec<Picture> = Vec::new();
+    // Inside a <w:drawing>: its extent, and the picture's relationship id.
+    let mut in_drawing = false;
+    let mut pic_depth = 0usize;
+    let mut extent = (0i64, 0i64);
+    let mut embed: Option<String> = None;
 
     let mut reader = Reader::from_str(xml);
     reader.trim_text(false);
@@ -1372,10 +1884,28 @@ fn read_docx_body(xml: &str) -> Result<Vec<DocBlock>, String> {
                     ilvl = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(0)
                 }
                 b"w:t" => in_text = true,
+                b"w:drawing" => {
+                    in_drawing = true;
+                    extent = (0, 0);
+                    embed = None;
+                }
+                name if in_drawing && local_name(name) == b"pic" => pic_depth += 1,
+                name if pic_depth > 0 && local_name(name) == b"blip" && embed.is_none() => {
+                    embed = attr(&e, b"r:embed");
+                }
                 _ => {}
             },
 
             Ok(Event::Empty(e)) => match e.name().as_ref() {
+                name if in_drawing && local_name(name) == b"extent" => {
+                    extent = (
+                        num(&e, b"cx").unwrap_or(0.0) as i64,
+                        num(&e, b"cy").unwrap_or(0.0) as i64,
+                    );
+                }
+                name if pic_depth > 0 && local_name(name) == b"blip" && embed.is_none() => {
+                    embed = attr(&e, b"r:embed");
+                }
                 b"w:pStyle" => style = attr(&e, b"w:val"),
                 b"w:ilvl" => {
                     ilvl = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(0)
@@ -1390,8 +1920,17 @@ fn read_docx_body(xml: &str) -> Result<Vec<DocBlock>, String> {
 
             Ok(Event::End(e)) => match e.name().as_ref() {
                 b"w:t" => in_text = false,
+                b"w:drawing" => {
+                    in_drawing = false;
+                    pic_depth = 0;
+                    if let Some(target) = embed.take().and_then(|id| rels.get(&id)) {
+                        para_images.push(Picture::new(target.clone(), extent.0, extent.1));
+                    }
+                }
+                name if pic_depth > 0 && local_name(name) == b"pic" => pic_depth -= 1,
                 b"w:p" => {
                     let text = tidy(&para);
+                    let images = std::mem::take(&mut para_images);
                     if tbl_depth > 0 {
                         if !text.is_empty() {
                             if !cell.is_empty() {
@@ -1399,8 +1938,23 @@ fn read_docx_body(xml: &str) -> Result<Vec<DocBlock>, String> {
                             }
                             cell.push_str(&text);
                         }
-                    } else if !text.is_empty() && blocks.len() < MAX_BLOCKS {
-                        blocks.push(docx_block(style.as_deref(), is_list, ilvl, text));
+                    } else {
+                        if !text.is_empty() && blocks.len() < MAX_BLOCKS {
+                            blocks.push(docx_block(style.as_deref(), is_list, ilvl, text));
+                        }
+                        // After the paragraph's text, in the order they appear.
+                        for image in images {
+                            if blocks.len() >= MAX_BLOCKS {
+                                break;
+                            }
+                            blocks.push(DocBlock {
+                                kind: "image".to_string(),
+                                level: 0,
+                                text: String::new(),
+                                rows: Vec::new(),
+                                image: Some(image),
+                            });
+                        }
                     }
                     para.clear();
                 }
@@ -1414,6 +1968,7 @@ fn read_docx_body(xml: &str) -> Result<Vec<DocBlock>, String> {
                             level: 0,
                             text: String::new(),
                             rows: std::mem::take(&mut rows),
+                            image: None,
                         });
                     }
                 }
@@ -1490,10 +2045,21 @@ fn read_pptx(bytes: Vec<u8>) -> Result<OfficePreview, String> {
     }
 
     let mut preview = OfficePreview::new("slides");
+    let slide_width = part(&mut zip, "ppt/presentation.xml")
+        .and_then(|xml| read_slide_width(&xml))
+        // 10 inches, PowerPoint's default 16:9 width.
+        .unwrap_or(12192000.0)
+        / EMU_PER_PX;
 
     for (index, slide_part) in parts.iter().enumerate() {
         let Some(xml) = part(&mut zip, slide_part) else { continue };
         let drawing = read_drawing_text(&xml)?;
+        let media = read_rels(&mut zip, slide_part);
+        let images: Vec<Picture> = drawing
+            .images
+            .iter()
+            .filter_map(|(id, cx, cy)| media.get(id).map(|t| Picture::new(t.clone(), *cx, *cy)))
+            .collect();
 
         let mut title = String::new();
         let mut bullets = Vec::new();
@@ -1537,6 +2103,8 @@ fn read_pptx(bytes: Vec<u8>) -> Result<OfficePreview, String> {
             bullets,
             notes,
             pictures: drawing.pictures,
+            images,
+            slide_width,
         });
     }
 
@@ -1666,6 +2234,21 @@ fn resolve_part(from_part: &str, target: &str) -> String {
     segments.join("/")
 }
 
+/// <p:sldSz cx="12192000" cy="6858000"/>, the width in EMU.
+fn read_slide_width(xml: &str) -> Option<f64> {
+    let mut reader = Reader::from_str(xml);
+    reader.trim_text(true);
+    loop {
+        match reader.read_event() {
+            Err(_) | Ok(Event::Eof) => return None,
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) if local_name(e.name().as_ref()) == b"sldSz" => {
+                return num(&e, b"cx").filter(|cx| *cx > 0.0);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn slide_number(name: &str, prefix: &str) -> Option<usize> {
     name.strip_prefix(prefix)?.strip_suffix(".xml")?.parse().ok()
 }
@@ -1673,6 +2256,8 @@ fn slide_number(name: &str, prefix: &str) -> Option<usize> {
 struct Drawing {
     shapes: Vec<Shape>,
     pictures: usize,
+    /// (relationship id, cx, cy) per picture, in drawing order.
+    images: Vec<(String, i64, i64)>,
 }
 
 struct Shape {
@@ -1691,6 +2276,11 @@ fn read_drawing_text(xml: &str) -> Result<Drawing, String> {
 
     let mut shapes: Vec<Shape> = Vec::new();
     let mut pictures = 0usize;
+    let mut images: Vec<(String, i64, i64)> = Vec::new();
+    // Inside a <p:pic>: its relationship id and size, once seen.
+    let mut in_pic = false;
+    let mut pic_embed: Option<String> = None;
+    let mut pic_ext = (0i64, 0i64);
     let mut current: Option<Shape> = None;
     let mut para = String::new();
     let mut level = 0usize;
@@ -1706,9 +2296,13 @@ fn read_drawing_text(xml: &str) -> Result<Drawing, String> {
                 b"p:sp" | b"p:graphicFrame" | b"p:pic" => {
                     if e.name().as_ref() == b"p:pic" {
                         pictures += 1;
+                        in_pic = true;
+                        pic_embed = None;
+                        pic_ext = (0, 0);
                     }
                     current = Some(Shape { placeholder: None, paragraphs: Vec::new() });
                 }
+                b"a:blip" if in_pic && pic_embed.is_none() => pic_embed = attr(&e, b"r:embed"),
                 b"p:ph" => {
                     if let Some(s) = current.as_mut() {
                         // No `type` means the body placeholder, which is what
@@ -1738,6 +2332,15 @@ fn read_drawing_text(xml: &str) -> Result<Drawing, String> {
                     level = attr(&e, b"lvl").and_then(|v| v.parse().ok()).unwrap_or(0)
                 }
                 b"a:br" => para.push(' '),
+                b"a:blip" if in_pic && pic_embed.is_none() => pic_embed = attr(&e, b"r:embed"),
+                // The picture's own <a:xfrm><a:ext>; an <a:ext uri> in an
+                // extension list has no cx and is passed over.
+                b"a:ext" if in_pic && pic_ext == (0, 0) && attr(&e, b"cx").is_some() => {
+                    pic_ext = (
+                        num(&e, b"cx").unwrap_or(0.0) as i64,
+                        num(&e, b"cy").unwrap_or(0.0) as i64,
+                    );
+                }
                 _ => {}
             },
 
@@ -1760,6 +2363,12 @@ fn read_drawing_text(xml: &str) -> Result<Drawing, String> {
                     para.clear();
                 }
                 b"p:sp" | b"p:graphicFrame" | b"p:pic" => {
+                    if e.name().as_ref() == b"p:pic" {
+                        in_pic = false;
+                        if let Some(id) = pic_embed.take() {
+                            images.push((id, pic_ext.0, pic_ext.1));
+                        }
+                    }
                     if let Some(s) = current.take() {
                         if !s.paragraphs.is_empty() {
                             shapes.push(s);
@@ -1781,7 +2390,7 @@ fn read_drawing_text(xml: &str) -> Result<Drawing, String> {
         }
     }
 
-    Ok(Drawing { shapes, pictures })
+    Ok(Drawing { shapes, pictures, images })
 }
 
 #[cfg(test)]
@@ -1964,6 +2573,147 @@ mod tests {
     }
 
     #[test]
+    fn a_fill_resolves_to_the_colour_the_cell_is_painted() {
+        let theme_xml = r#"<a:theme xmlns:a="x"><a:themeElements><a:clrScheme name="Office">
+<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
+<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
+<a:dk2><a:srgbClr val="44546A"/></a:dk2>
+<a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>
+<a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+</a:clrScheme></a:themeElements></a:theme>"#;
+        let theme = read_theme_colors(theme_xml);
+        // Light-first, as a spreadsheet counts them: 0 is lt1, 1 is dk1.
+        assert_eq!(&theme[..5], &["#ffffff", "#000000", "#e7e6e6", "#44546a", "#4472c4"]);
+
+        let xml = r#"<styleSheet>
+<fills count="5">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor theme="4" tint="0.79998168889431442"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor indexed="64"/></patternFill></fill>
+</fills>
+<dxfs count="1"><dxf><fill><patternFill><bgColor rgb="FFFF0000"/></patternFill></fill></dxf></dxfs>
+<cellXfs count="5">
+<xf fillId="0"/><xf fillId="1"/><xf fillId="2"/><xf fillId="3"/><xf fillId="4"/>
+</cellXfs>
+</styleSheet>"#;
+        let book = read_style_book(xml, &theme);
+        assert_eq!(book.xfs[0].fill, "");
+        // gray125 is the mandatory second entry of every workbook, not a shade.
+        assert_eq!(book.xfs[1].fill, "");
+        assert_eq!(book.xfs[2].fill, "#ffff00");
+        // Accent 1, lighter 80%: Excel shows #dae3f3.
+        assert_eq!(book.xfs[3].fill, "#dae3f3");
+        // The system colour is no colour.
+        assert_eq!(book.xfs[4].fill, "");
+        assert!(!book.xfs[2].is_plain(), "a shaded cell is formatted");
+    }
+
+    #[test]
+    fn a_drawing_is_placed_against_the_grid_shown() {
+        let raw = RawImage {
+            part: "xl/media/image1.png".into(),
+            from: (3, 1, 0, 95250),
+            to: None,
+            ext: (952500, 476250),
+            shape: None,
+            frac: [0.0, 0.0, 1.0, 1.0],
+        };
+        // B4 on a sheet starting at A1 is row 3, col 1; EMU become px.
+        let placed = clip_anchor(&raw, 50, 10, (1, 1), 7).unwrap();
+        assert_eq!((placed.row, placed.col, placed.col_off), (3, 1, 10.0));
+        assert_eq!((placed.width, placed.height), (100.0, 50.0));
+        assert_eq!(placed.order, 7);
+        // A one-cell anchor reaches as far as its size says.
+        assert_eq!((raw.last_row(), raw.last_col()), (6, 3));
+        // Outside what is drawn: nothing to place.
+        assert!(clip_anchor(&raw, 3, 10, (1, 1), 0).is_none());
+        assert!(is_web_image("xl/media/image1.png"));
+        assert!(!is_web_image("xl/media/image2.emf"));
+    }
+
+    #[test]
+    fn a_sheet_of_pictures_keeps_the_rows_they_sit_on() {
+        let bytes = package(&[
+            ("[Content_Types].xml", r#"<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#),
+            ("_rels/.rels", r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#),
+            ("xl/workbook.xml", r#"<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Shots" sheetId="1" r:id="rId1"/></sheets></workbook>"#),
+            ("xl/_rels/workbook.xml.rels", r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#),
+            ("xl/worksheets/sheet1.xml", r#"<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>画面</t></is></c></row></sheetData><drawing r:id="rId1"/></worksheet>"#),
+            ("xl/worksheets/_rels/sheet1.xml.rels", r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>"#),
+            ("xl/drawings/drawing1.xml", r#"<xdr:wsDr xmlns:xdr="x" xmlns:a="a" xmlns:r="r"><xdr:twoCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>9</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:pic><xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill></xdr:pic><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>"#),
+            ("xl/drawings/_rels/drawing1.xml.rels", r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>"#),
+            ("xl/media/image1.png", "not really a png"),
+        ]);
+        let preview = read_workbook(bytes, "xlsx").unwrap();
+        let sheet = &preview.sheets[0];
+        // One value in A1, and a picture down to row 10: the rows under the
+        // picture are kept, not trimmed as blank.
+        assert_eq!(sheet.rows.len(), 10);
+        let images = &sheet.layout.as_ref().unwrap().images;
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].part, "xl/media/image1.png");
+        assert_eq!((images[0].at.row, images[0].at.col), (2, 0));
+        assert_eq!((images[0].at.to_row, images[0].at.to_col), (Some(9), Some(3)));
+    }
+
+    #[test]
+    fn a_word_picture_follows_the_paragraph_it_sits_in() {
+        let xml = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body>
+<w:p><w:r><w:t>画面イメージ</w:t></w:r><w:r><w:drawing><wp:inline>
+  <wp:extent cx="1905000" cy="952500"/>
+  <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId7"><a:extLst/></a:blip></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+</wp:inline></w:drawing></w:r></w:p>
+<w:p><w:r><w:drawing><wp:anchor><wp:extent cx="95250" cy="95250"/>
+  <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId8"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+</wp:anchor></w:drawing></w:r></w:p>
+<w:p><w:r><w:t>after</w:t></w:r></w:p>
+</w:body></w:document>"#;
+        let mut rels = HashMap::new();
+        rels.insert("rId7".to_string(), "word/media/image1.png".to_string());
+        rels.insert("rId8".to_string(), "word/media/image2.emf".to_string());
+        let blocks = read_docx_body(xml, &rels).unwrap();
+        let kinds: Vec<&str> = blocks.iter().map(|b| b.kind.as_str()).collect();
+        assert_eq!(kinds, ["paragraph", "image", "image", "paragraph"]);
+        assert_eq!(
+            blocks[1].image,
+            Some(Picture { part: "word/media/image1.png".into(), supported: true, width: 200.0, height: 100.0 })
+        );
+        assert!(!blocks[2].image.as_ref().unwrap().supported);
+    }
+
+    #[test]
+    fn a_slide_lists_its_pictures_with_their_sizes() {
+        let xml = r#"<p:sld xmlns:p="p" xmlns:a="a" xmlns:r="r"><p:cSld><p:spTree>
+<p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>構成図</a:t></a:r></a:p></p:txBody></p:sp>
+<p:pic><p:blipFill><a:blip r:embed="rId2"><a:extLst><a:ext uri="{x}"/></a:extLst></a:blip></p:blipFill>
+  <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="6096000" cy="3429000"/></a:xfrm></p:spPr></p:pic>
+</p:spTree></p:cSld></p:sld>"#;
+        let drawing = read_drawing_text(xml).unwrap();
+        assert_eq!(drawing.pictures, 1);
+        assert_eq!(drawing.images, vec![("rId2".to_string(), 6096000, 3429000)]);
+        assert_eq!(read_slide_width(r#"<p:presentation xmlns:p="p"><p:sldSz cx="12192000" cy="6858000"/></p:presentation>"#), Some(12192000.0));
+    }
+
+    #[test]
+    fn only_a_picture_in_a_media_folder_can_be_asked_for() {
+        assert!(is_media_part("xl/media/image1.png"));
+        assert!(is_media_part("word/media/image3.jpeg"));
+        assert!(!is_media_part("xl/workbook.xml"));
+        assert!(!is_media_part("xl/media/../workbook.xml"));
+        assert!(!is_media_part("xl/media//x.png"));
+        assert!(!is_media_part("customXml/item1.xml"));
+    }
+
+    #[test]
+    fn a_tint_moves_the_lightness_and_nothing_else() {
+        assert_eq!(apply_tint("#4472c4", 0.0), "#4472c4");
+        assert_eq!(apply_tint("#4472c4", -0.25), "#2f5597");
+        assert_eq!(apply_tint("#000000", 0.5), "#808080");
+    }
+
+    #[test]
     fn the_style_table_gives_up_borders_alignment_and_wrapping() {
         let xml = r#"<?xml version="1.0"?>
 <styleSheet>
@@ -1981,7 +2731,7 @@ mod tests {
 </cellXfs>
 </styleSheet>"#;
 
-        let book = read_style_book(xml);
+        let book = read_style_book(xml, &[]);
         assert_eq!(book.xfs.len(), 4);
 
         // Index 0 is the plain one, which is what a cell saying nothing means.
@@ -2425,7 +3175,7 @@ mod tests {
   </w:tbl>
 </w:body></w:document>"#;
 
-        let blocks = read_docx_body(xml).unwrap();
+        let blocks = read_docx_body(xml, &HashMap::new()).unwrap();
         // The empty <w:p/> contributes nothing — a preview full of blank rows
         // is how a Word document with spacing paragraphs reads otherwise.
         assert_eq!(blocks.len(), 4);

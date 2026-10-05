@@ -2,14 +2,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { t } from '../utils/I18n.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
+import { isDarkTheme } from '../utils/ThemeInfo.js';
+import { shapeSvg, shapeColors, textRect } from './OfficeShapes.js';
 
 /**
  * OfficeView — a read-only look inside .xlsx / .docx / .pptx.
  *
  * The point is the wait, not the fidelity. Excel takes seconds to come up and
  * loads add-ins on the way; this draws the content that is already in the file.
- * So it shows values and text and nothing else: no cell formatting, no charts,
- * no shapes, no images. When the file turns out to be the one you wanted to
+ * So it shows what reads: values and text, borders, alignment, shading,
+ * pasted pictures (fetched as they scroll into view, so they never hold up the
+ * first paint) and, on a sheet, shapes and connectors (OfficeShapes.js). No
+ * fonts and no charts. When the file turns out to be the one you wanted to
  * work in, the header has a button that hands it to the real application.
  *
  * The parsing happens in Rust (commands/office.rs) and arrives on the tab as
@@ -173,7 +177,7 @@ export class OfficeView {
         const badge = document.createElement('span');
         badge.className = 'of-badge';
         badge.textContent = t('Preview · read-only');
-        badge.title = t('This preview shows text and values only — no formatting, charts or images.');
+        badge.title = t('Read-only preview — the layout is approximate, and charts are not shown.');
         this.headEl.appendChild(badge);
 
         // Sheet tabs sit in the header rather than at the bottom: the body is a
@@ -207,6 +211,19 @@ export class OfficeView {
                 if (this.gridEl) this.gridEl.classList.toggle('no-grid', !this.showGrid);
             };
             this.headEl.appendChild(this.gridBtn);
+
+            // Shapes are drawn as near Excel's as the preset allows, which is
+            // near, not equal. When the approximation is in the way — a
+            // diagram laid over the very cells being read — this takes it off.
+            if ((this.preview.sheets || []).some((sh) => sh.layout && sh.layout.shapes && sh.layout.shapes.length)) {
+                this.shapesBtn = document.createElement('button');
+                this.shapesBtn.className = 'of-btn';
+                this.shapesBtn.onclick = () => {
+                    this.file._officeHideShapes = !this.file._officeHideShapes;
+                    this._syncShapesButton();
+                };
+                this.headEl.appendChild(this.shapesBtn);
+            }
         }
 
         if (this.file && this.file.path) {
@@ -230,6 +247,15 @@ export class OfficeView {
 
     _setNote(text) {
         if (this.noteEl) this.noteEl.textContent = text || '';
+    }
+
+    _syncShapesButton() {
+        const hidden = !!(this.file && this.file._officeHideShapes);
+        if (this.gridEl) this.gridEl.classList.toggle('no-shapes', hidden);
+        if (!this.shapesBtn) return;
+        this.shapesBtn.textContent = t('Shapes');
+        this.shapesBtn.classList.toggle('active', !hidden);
+        this.shapesBtn.title = hidden ? t('Show shapes and connectors') : t('Hide shapes and connectors');
     }
 
     _syncGridButton() {
@@ -383,6 +409,18 @@ export class OfficeView {
         canvas.appendChild(mergesEl);
         this.gridMergesEl = mergesEl;
 
+        // Pictures sit over the cells, as in Excel, and are placed the same
+        // way the merges are. Only their positions came with the sheet; the
+        // bytes are fetched one picture at a time as each comes into view.
+        const imagesEl = document.createElement('div');
+        imagesEl.className = 'of-images';
+        canvas.appendChild(imagesEl);
+        this.gridImagesEl = imagesEl;
+        this.images = (layout && layout.images) || [];
+        this.shapes = (layout && layout.shapes) || [];
+        this.imageEls = new Map();
+        this.shapeEls = new Map();
+
         // Selection is an overlay rather than a set of DOM nodes. Rows and
         // columns are virtualised, so a DOM-only selection would disappear as
         // soon as the reader scrolls it out of the window.
@@ -400,6 +438,8 @@ export class OfficeView {
         this.gridCanvasEl = canvas;
         this.sheetRows = rows;
         this.selection = this._selectionForSheet();
+        // Another sheet, another selection: the line under it changes too.
+        this._notifyStatus();
 
         // Excel writes a fixed `ht` only for manually resized rows. A row
         // with Wrap Text and no `ht` is auto-sized when Excel opens it, so
@@ -415,6 +455,7 @@ export class OfficeView {
         // repaint even though the visible row range has not moved.
         this._lastScrollLeft = 0;
         this._onHScroll = () => {
+            this._clipOverlays();
             if (grid.scrollLeft === this._lastScrollLeft) return;
             this._lastScrollLeft = grid.scrollLeft;
             this.scroller.onScroll();
@@ -428,6 +469,7 @@ export class OfficeView {
         // which is also what makes the padding follow a window resize.
         this._fitObserver = new ResizeObserver(() => this._refitFiller());
         this._fitObserver.observe(grid);
+        this._syncShapesButton();
     }
 
     /**
@@ -668,6 +710,9 @@ export class OfficeView {
         if (!this.gridRowsEl) return;
         const cols = this._visibleCols();
         const pad = this.colOffsets[cols.start];
+        // Asked per paint, not per render: a theme switch reaches the shading
+        // with the next scroll instead of waiting for the file to reopen.
+        const dark = isDarkTheme();
 
         this.gridCanvasEl.style.height = `${totalHeight}px`;
         this.gridRowsEl.style.transform = `translateY(${offsetY}px)`;
@@ -737,13 +782,23 @@ export class OfficeView {
                 const td = cell(cls, text);
                 td.style.width = `${this.colWidths[c]}px`;
                 if (style) applyBorders(td, style, this._styleAt(r, c - 1), this._styleAt(r - 1, c));
+                if (style && style.fill) applyFill(td, style.fill, dark);
                 // Not wrapping is not the same as being cut off. Excel lets a
                 // long value run across the empty cells beside it and clips it
                 // only when it reaches one with something in it — which is why
                 // no spreadsheet has ever shown an ellipsis.
-                if (!wrap) {
+                // The clip-path alone did nothing: .of-cell is overflow:hidden,
+                // which cuts the text at the cell's edge before clip-path is
+                // ever consulted. `spill` lifts that for this one cell.
+                // Only text that starts at the left edge runs right; a number
+                // never spills in Excel, and right/centred text would run the
+                // wrong way.
+                if (!wrap && !hidden && value !== '' && spillsRight(style, value)) {
                     const room = this._spillRoom(r, row, c, cols.end);
-                    if (room > 0) td.style.clipPath = `inset(0 ${-room}px 0 0)`;
+                    if (room > 0) {
+                        td.classList.add('spill');
+                        td.style.clipPath = `inset(0 ${-room}px 0 0)`;
+                    }
                 }
                 // The tooltip still carries the whole of a value that had to be
                 // cut, and the line breaks folded out of one that did not wrap.
@@ -756,7 +811,41 @@ export class OfficeView {
         this.gridRowsEl.innerHTML = '';
         this.gridRowsEl.appendChild(frag);
         this._paintMerges(startIndex, endIndex);
+        this._paintImages(startIndex, endIndex);
         this._paintSelection();
+        this._clipOverlays();
+    }
+
+    /**
+     * Keep everything drawn over the cells out from under the frozen edges.
+     *
+     * The row numbers and the column letters are sticky, but they live in the
+     * rows and the header; the merged boxes, the pictures, the shapes and the
+     * selection are layers on the canvas above them, and a sideways scroll
+     * carried a merged heading or a flowchart straight across the row numbers.
+     * A z-index cannot settle it — the row numbers are inside the rows'
+     * own stacking context — so the layers are cut instead, at the edge the
+     * sticky strips cover right now. Cheap enough to do on every scroll.
+     */
+    _clipOverlays() {
+        const grid = this.gridEl;
+        if (!grid) return;
+        // In canvas coordinates: the gutter covers [scrollLeft, scrollLeft +
+        // gutter); the header, which sits above the canvas, covers everything
+        // above scrollTop.
+        const left = grid.scrollLeft + GUTTER_WIDTH;
+        const top = grid.scrollTop;
+        const clip = `inset(${top}px 0px 0px ${left}px)`;
+        if (this.gridMergesEl) this.gridMergesEl.style.clipPath = clip;
+        if (this.gridImagesEl) this.gridImagesEl.style.clipPath = clip;
+        // The selection is a box of its own rather than a layer, so its cut
+        // is measured from its own corner.
+        const sel = this.gridSelectionEl;
+        if (sel && sel.style.display !== 'none') {
+            const dx = Math.max(0, left - (parseFloat(sel.style.left) || 0));
+            const dy = Math.max(0, top - (parseFloat(sel.style.top) || 0));
+            sel.style.clipPath = dx || dy ? `inset(${dy}px 0px 0px ${dx}px)` : '';
+        }
     }
 
     /** The style of one cell, or null. Out-of-range asks are the normal case
@@ -793,6 +882,7 @@ export class OfficeView {
         this.gridMergesEl.innerHTML = '';
         if (!this.merges.length) return;
 
+        const dark = isDarkTheme();
         const frag = document.createDocumentFragment();
         for (const m of this.merges) {
             if (m.row > endIndex || m.row + m.rows - 1 < startIndex) continue;
@@ -828,6 +918,7 @@ export class OfficeView {
 
             const box = document.createElement('div');
             box.className = cls;
+            if (anchor && anchor.fill) applyFill(box, anchor.fill, dark);
             box.style.left = `${left}px`;
             box.style.top = `${top}px`;
             box.style.width = `${right - left}px`;
@@ -853,6 +944,277 @@ export class OfficeView {
         this.gridMergesEl.appendChild(frag);
     }
 
+    // -- pictures -----------------------------------------------------------
+
+    /** Where a picture is drawn, in canvas px, against the current widths. */
+    _imageRect(img) {
+        const lastCol = this.colOffsets.length - 1;
+        const lastRow = this.rowTops.length - 1;
+        // An offset is clamped to its cell: Excel's widths and these differ by
+        // a pixel or two, and an offset past the edge would push the picture
+        // into the next cell over.
+        // Past the last column or row drawn, the grid carries on at the
+        // default size, as Excel's would.
+        const x = (c, off) => {
+            if (c > lastCol) {
+                return GUTTER_WIDTH + this.colOffsets[lastCol] + (c - lastCol) * (this.fillWidth || DEFAULT_FILL_WIDTH) + (off || 0);
+            }
+            const w = this.colWidths[c] || 0;
+            return GUTTER_WIDTH + this.colOffsets[c] + Math.min(off || 0, w);
+        };
+        const y = (r, off) => {
+            if (r > lastRow) return this.rowTops[lastRow] + (r - lastRow) * ROW_HEIGHT + (off || 0);
+            const h = this.rowHeights ? (this.rowHeights[r] || 0) : ROW_HEIGHT;
+            return this.rowTops[r] + Math.min(off || 0, h);
+        };
+        const left = x(img.col, img.col_off);
+        const top = y(img.row, img.row_off);
+        const hasTo = img.to_row != null && img.to_col != null;
+        let right = hasTo ? x(img.to_col, img.to_col_off) : left + (img.width || 0);
+        let bottom = hasTo ? y(img.to_row, img.to_row_off) : top + (img.height || 0);
+        // A far corner that went nowhere (a writer that leaves it at the
+        // origin) falls back to the size the picture was drawn at.
+        // A line is a box with no width or no height, and that is its shape.
+        // Only a picture or an outline that collapsed falls back to its size.
+        const line = !!img.connector;
+        if (right < left || (!line && right === left)) right = left + (img.width || (line ? 0 : 64));
+        if (bottom < top || (!line && bottom === top)) bottom = top + (img.height || (line ? 0 : 64));
+        // A member of a group sits at its share of the group's box.
+        const f = Array.isArray(img.frac) && img.frac.length === 4 ? img.frac : [0, 0, 1, 1];
+        const w = right - left;
+        const h = bottom - top;
+        return { left: left + f[0] * w, top: top + f[1] * h, width: f[2] * w, height: f[3] * h };
+    }
+
+    /**
+     * Keep a node for each picture overlapping the rows on screen, and only
+     * those. Nodes are kept across paints rather than rebuilt: a scroll
+     * repaints every frame, and a picture torn down and re-made on each one
+     * flickers.
+     */
+    _paintImages(startIndex, endIndex) {
+        if (!this.gridImagesEl) return;
+        this._paintShapes(startIndex, endIndex);
+        if (!this.images || !this.images.length) return;
+        const viewTop = this.rowTops[startIndex] || 0;
+        const viewBottom = this.rowTops[Math.min(endIndex + 1, this.rowTops.length - 1)] || 0;
+
+        const keep = new Set();
+        this.images.forEach((img, i) => {
+            const rect = this._imageRect(img);
+            if (rect.top >= viewBottom || rect.top + rect.height <= viewTop) return;
+            keep.add(i);
+            let el = this.imageEls.get(i);
+            if (!el) {
+                el = this._imageNode(img);
+                // Pictures and shapes share one stacking order, the drawing's.
+                if (Number.isFinite(img.order)) el.style.zIndex = String(img.order + 1);
+                this.imageEls.set(i, el);
+                this.gridImagesEl.appendChild(el);
+            }
+            el.style.left = `${rect.left}px`;
+            el.style.top = `${rect.top}px`;
+            el.style.width = `${rect.width}px`;
+            el.style.height = `${rect.height}px`;
+        });
+        for (const [i, el] of this.imageEls) {
+            if (keep.has(i)) continue;
+            el.remove();
+            this.imageEls.delete(i);
+        }
+    }
+
+    /**
+     * Shapes overlapping the rows on screen, kept across paints like the
+     * pictures. A shape is redrawn only when its size changes or the theme
+     * flips — moving it is a matter of left and top.
+     */
+    _paintShapes(startIndex, endIndex) {
+        if (!this.shapes || !this.shapes.length) return;
+        const viewTop = this.rowTops[startIndex] || 0;
+        const viewBottom = this.rowTops[Math.min(endIndex + 1, this.rowTops.length - 1)] || 0;
+        const dark = isDarkTheme();
+
+        const keep = new Set();
+        this.shapes.forEach((shape, i) => {
+            const rect = this._imageRect(shape);
+            // A little slack: an arrowhead or a thick line reaches past the box.
+            if (rect.top - 8 >= viewBottom || rect.top + rect.height + 8 <= viewTop) return;
+            keep.add(i);
+            let el = this.shapeEls.get(i);
+            if (!el) {
+                el = document.createElement('div');
+                el.className = 'of-shape';
+                el.style.zIndex = String((shape.order || 0) + 1);
+                el._uid = `ofs${++shapeUid}`;
+                this.shapeEls.set(i, el);
+                this.gridImagesEl.appendChild(el);
+            }
+            el.style.left = `${rect.left}px`;
+            el.style.top = `${rect.top}px`;
+            el.style.width = `${rect.width}px`;
+            el.style.height = `${rect.height}px`;
+            const key = `${Math.round(rect.width * 10)}x${Math.round(rect.height * 10)}:${dark}`;
+            if (el._key !== key) {
+                el._key = key;
+                this._drawShape(el, shape, rect.width, rect.height, dark);
+            }
+        });
+        for (const [i, el] of this.shapeEls) {
+            if (keep.has(i)) continue;
+            el.remove();
+            this.shapeEls.delete(i);
+        }
+    }
+
+    _drawShape(el, shape, width, height, dark) {
+        // Rotation turns the shape and its text together, about its centre,
+        // as Excel does. Flips are inside the SVG: they mirror the outline,
+        // never the words.
+        el.style.transform = shape.rot ? `rotate(${shape.rot}deg)` : '';
+        // shapeSvg builds its markup from numbers and validated colours only;
+        // the text, which is the file's own, goes in through textContent.
+        el.innerHTML = shapeSvg(shape, width, height, el._uid, dark);
+        if (!shape.text) return;
+        const text = document.createElement('div');
+        text.className = `of-shape-text v-${shape.valign || 'top'} h-${shape.halign || 'left'}`;
+        // Inside the geometry's own text rectangle, not the whole box.
+        const [l, tp, r, b] = shape.geom === 'custom' ? [0, 0, 1, 1] : textRect(shape.geom);
+        text.style.inset = `${tp * 100}% ${(1 - r) * 100}% ${(1 - b) * 100}% ${l * 100}%`;
+        text.style.fontSize = `${shape.font_size > 0 ? shape.font_size : 14.67}px`;
+        if (shape.bold) text.style.fontWeight = '600';
+        const inner = document.createElement('div');
+        inner.textContent = shape.text;
+        text.appendChild(inner);
+        // Toned for the theme by the same rules as the outline's colours.
+        text.style.color = shapeColors(shape, dark).text;
+        el.appendChild(text);
+    }
+
+    _imageNode(img) {
+        const el = document.createElement('div');
+        el.className = 'of-image';
+        if (!img.supported) {
+            // EMF/WMF: nothing a WebView can draw. The frame says something
+            // is there, so the reader knows to open the file for it.
+            el.classList.add('of-image-unsupported');
+            el.textContent = t('Image (cannot be shown)');
+            el.title = img.part;
+            return el;
+        }
+        el.classList.add('loading');
+        const pic = document.createElement('img');
+        pic.alt = '';
+        pic.draggable = false;
+        el.appendChild(pic);
+        this._applyImageSource(el, this._imageSource(img.part, el));
+        return el;
+    }
+
+    /**
+     * A picture in a document or on a slide, sized as it was drawn and
+     * fetched only when it comes near the window.
+     *
+     * The frame takes the picture's shape before the bytes arrive, so the
+     * text below it does not jump when they do. `width` is a CSS length: px
+     * in a document, a share of the card on a slide.
+     */
+    _pictureFrame(picture, width) {
+        const el = document.createElement('div');
+        el.className = 'of-pic';
+        if (width) el.style.width = width;
+        if (picture.width > 0 && picture.height > 0) {
+            el.style.aspectRatio = `${picture.width} / ${picture.height}`;
+        }
+        if (!picture.supported) {
+            el.classList.add('of-image-unsupported');
+            el.textContent = t('Image (cannot be shown)');
+            el.title = picture.part;
+            return el;
+        }
+        el.classList.add('loading');
+        const img = document.createElement('img');
+        img.alt = '';
+        img.draggable = false;
+        el.appendChild(img);
+        el.dataset.part = picture.part;
+        this._whenNear(el);
+        return el;
+    }
+
+    /**
+     * Fetch a frame's picture once it is within a screen or so of being seen.
+     * A document of fifty screenshots asks for the two on screen, not fifty.
+     */
+    _whenNear(el) {
+        const load = () => this._applyImageSource(el, this._imageSource(el.dataset.part, el));
+        if (typeof IntersectionObserver !== 'function') {
+            load();
+            return;
+        }
+        if (!this.picObserver) {
+            this.picObserver = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (!entry.isIntersecting) continue;
+                    this.picObserver.unobserve(entry.target);
+                    entry.target._load();
+                }
+            }, { rootMargin: '600px 0px' });
+        }
+        el._load = load;
+        this.picObserver.observe(el);
+    }
+
+    /**
+     * The object URL for one picture, fetched the first time it is wanted and
+     * then kept for as long as the view is - scrolling back up, or switching
+     * sheets and back, does not fetch it again.
+     */
+    _imageSource(part, el) {
+        if (!this.imageCache) this.imageCache = new Map();
+        let entry = this.imageCache.get(part);
+        if (entry) {
+            if (!entry.url && !entry.failed) entry.targets.add(el);
+            return entry;
+        }
+        // Every frame waiting on this picture. The same screenshot can appear
+        // on several slides, and a grid node can be replaced while it loads.
+        entry = { url: null, failed: false, targets: new Set([el]) };
+        this.imageCache.set(part, entry);
+        invoke('read_office_image', { path: this.file.path, part })
+            .then((bytes) => {
+                // Closed while the picture was on its way: nothing to put it in,
+                // and an object URL made now would never be revoked.
+                if (!this.imageCache) return;
+                entry.url = URL.createObjectURL(new Blob([bytes], { type: imageMime(part) }));
+            })
+            .catch((err) => {
+                console.warn('Could not read the picture:', part, err);
+                entry.failed = true;
+            })
+            .then(() => {
+                for (const target of entry.targets) {
+                    if (target.isConnected) this._applyImageSource(target, entry);
+                }
+                entry.targets.clear();
+            });
+        return entry;
+    }
+
+    _applyImageSource(el, entry) {
+        const pic = el.querySelector('img');
+        if (!pic) return;
+        if (entry.url) {
+            if (pic.getAttribute('src') !== entry.url) pic.src = entry.url;
+            el.classList.remove('loading');
+        } else if (entry.failed) {
+            el.classList.remove('loading');
+            el.classList.add('of-image-unsupported');
+            pic.remove();
+            el.textContent = t('Image (cannot be shown)');
+        }
+    }
+
     // -- cell selection ---------------------------------------------------
 
     /** The selection belongs to the open tab, just like a dragged column. */
@@ -871,6 +1233,43 @@ export class OfficeView {
             anchor: { ...this.selection.anchor },
             focus: { ...this.selection.focus },
         };
+        this._notifyStatus();
+    }
+
+    /** Once a frame at most: a drag across a sheet changes the selection on
+     *  every pointer move, and each recount walks the whole rectangle. */
+    _notifyStatus() {
+        if (!this.options.updateStatusBar || this._statusPending) return;
+        // The flag is set before asking, not from the id returned: a frame
+        // callback that runs at once would otherwise clear it and then have
+        // the id written back over it, and nothing would ever be sent again.
+        this._statusPending = true;
+        this._statusFrame = requestAnimationFrame(() => {
+            this._statusPending = false;
+            this._statusFrame = null;
+            this.options.updateStatusBar();
+        });
+    }
+
+    /**
+     * 平均 / データの個数 / 合計 for the selected rectangle, as Excel puts them
+     * in its status bar. Empty when there is nothing worth adding up.
+     *
+     * Walks the rectangle in the payload, never the DOM, so it is the same
+     * whether the rows are on screen or not. A merge is counted once, by its
+     * top-left — the only cell of it that holds anything.
+     */
+    getSelectionSummary() {
+        if (this.preview.kind !== 'sheets' || !this.sheetRows) return '';
+        const bounds = this._selectionBounds();
+        if (!bounds) return '';
+        const values = [];
+        for (let r = bounds.top; r <= bounds.bottom; r++) {
+            const row = this.sheetRows[r];
+            if (!row) continue;
+            for (let c = bounds.left; c <= bounds.right; c++) values.push(row[c] || '');
+        }
+        return summarizeCells(values);
     }
 
     /** Bounds of the rectangle, expanded to contain intersecting merged cells. */
@@ -1125,7 +1524,8 @@ export class OfficeView {
         // That is the file, not a failure — but a column of blank cards reads
         // as a broken preview, so it gets said out loud, once.
         const hasText = (s) => !!(s.title || (s.bullets && s.bullets.length) || s.notes);
-        if (!slides.some(hasText)) {
+        const hasImages = (s) => !!(s.images && s.images.length);
+        if (!slides.some(hasText) && !slides.some(hasImages)) {
             const banner = document.createElement('div');
             banner.className = 'of-banner';
             banner.textContent = t('Every slide here is a picture — an outline has no text to read.');
@@ -1161,7 +1561,23 @@ export class OfficeView {
                 card.appendChild(ul);
             }
 
-            if (!hasText(slide)) {
+            // The slide's pictures, each at the share of the card it took of
+            // the slide: a full-width diagram stays full-width, a logo stays
+            // small.
+            if (hasImages(slide)) {
+                const pics = document.createElement('div');
+                pics.className = 'of-slide-pics';
+                const slideWidth = slide.slide_width > 0 ? slide.slide_width : 1280;
+                for (const picture of slide.images) {
+                    const share = picture.width > 0
+                        ? Math.min(100, Math.max(8, (picture.width / slideWidth) * 100))
+                        : 50;
+                    pics.appendChild(this._pictureFrame(picture, `${share.toFixed(2)}%`));
+                }
+                card.appendChild(pics);
+            }
+
+            if (!hasText(slide) && !hasImages(slide)) {
                 const none = document.createElement('p');
                 none.className = 'of-slide-none';
                 if (slide.pictures === 1) none.textContent = t('One image, no text');
@@ -1197,7 +1613,7 @@ export class OfficeView {
         }
         // "blocks" is what the parser calls them; a reader counts paragraphs,
         // and a table is one thing they scroll past rather than one paragraph.
-        const paragraphs = blocks.filter((b) => b.kind !== 'table').length;
+        const paragraphs = blocks.filter((b) => b.kind !== 'table' && b.kind !== 'image').length;
         this._setNote(t('{total} paragraphs', { total: paragraphs }));
 
         const page = document.createElement('article');
@@ -1227,6 +1643,12 @@ export class OfficeView {
                     continue;
                 }
                 list = null;
+                if (block.kind === 'image' && block.image) {
+                    // Its drawn size, never wider than the page.
+                    const w = block.image.width > 0 ? `${Math.round(block.image.width)}px` : '';
+                    frag.appendChild(this._pictureFrame(block.image, w));
+                    continue;
+                }
                 frag.appendChild(documentBlock(block));
             }
             page.appendChild(frag);
@@ -1369,7 +1791,10 @@ export class OfficeView {
         this.gridHeadEl = null;
         this.gridCanvasEl = null;
         this.gridMergesEl = null;
+        this.gridImagesEl = null;
         this.gridSelectionEl = null;
+        if (this.imageEls) this.imageEls.clear();
+        if (this.shapeEls) this.shapeEls.clear();
     }
 
     focus() {
@@ -1381,8 +1806,22 @@ export class OfficeView {
             cancelAnimationFrame(this.pending);
             this.pending = null;
         }
+        if (this._statusFrame) cancelAnimationFrame(this._statusFrame);
+        this._statusFrame = null;
+        this._statusPending = false;
         this._unbindSheetKeys();
         this._teardownScroller();
+        if (this.picObserver) {
+            this.picObserver.disconnect();
+            this.picObserver = null;
+        }
+        // The pictures' object URLs hold their bytes until revoked.
+        if (this.imageCache) {
+            for (const entry of this.imageCache.values()) {
+                if (entry.url) URL.revokeObjectURL(entry.url);
+            }
+            this.imageCache = null;
+        }
         if (this.container) this.container.innerHTML = '';
     }
 
@@ -1514,6 +1953,100 @@ export function columnName(index) {
         n = Math.floor(n / 26) - 1;
     } while (n >= 0);
     return name;
+}
+
+/**
+ * How much of a workbook colour goes into the editor's surface, in percent.
+ *
+ * The text is the editor's colour, not the workbook's, so the shading has to
+ * keep it readable: on a light theme a pale fill is shown as it is and a dark
+ * one (a navy header that had white text in Excel) is lightened; on a dark
+ * theme every fill is sunk toward the surface, a pale one most of all —
+ * pastel yellow at full strength under light text is unreadable.
+ * The hue is kept either way; that is what carries the meaning.
+ */
+export function fillMix(hex, dark) {
+    // 0.18 is where black text on the fill drops below 4.5:1 — the point at
+    // which the editor's dark text would stop being readable on it.
+    const pale = luminance(hex) >= 0.18;
+    if (dark) return pale ? 28 : 55;
+    return pale ? 100 : 45;
+}
+
+/** Relative luminance of "#rrggbb", 0 (black) to 1 (white). */
+export function luminance(hex) {
+    const ch = (i) => {
+        const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) return 1;
+    return 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+}
+
+/** Shade a cell or merged box. The mixing itself is in the stylesheet. */
+export function applyFill(el, hex, dark) {
+    el.classList.add('filled');
+    el.style.setProperty('--of-fill', hex);
+    el.style.setProperty('--of-fill-mix', `${fillMix(hex, dark)}%`);
+}
+
+/** Marker ids must be unique in the document, across both panes. */
+let shapeUid = 0;
+
+/** The media type for a picture part, from its extension. */
+export function imageMime(part) {
+    const ext = String(part).split('.').pop().toLowerCase();
+    return {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+        bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml',
+    }[ext] || 'application/octet-stream';
+}
+
+/** Does this value start at the cell's left edge, and so run into the right? */
+export function spillsRight(style, value) {
+    const halign = style && style.halign;
+    if (halign) return halign === 'left';
+    return !isNumeric(value);
+}
+
+/** The number a cell holds, for the status bar's sum — or null. */
+export function cellNumber(value) {
+    if (!isNumeric(value)) return null;
+    const percent = value.endsWith('%');
+    const n = Number(value.replace(/[,%]/g, ''));
+    if (!Number.isFinite(n)) return null;
+    return percent ? n / 100 : n;
+}
+
+/**
+ * Excel's status-bar line for a selection: 平均 / データの個数 / 合計.
+ * Nothing for a single cell, and only the count when nothing is a number —
+ * the same rule Excel follows, so the line appears where a reader expects it.
+ */
+export function summarizeCells(values) {
+    let count = 0;
+    let numbers = 0;
+    let sum = 0;
+    for (const v of values) {
+        if (v === '' || v == null) continue;
+        count++;
+        const n = cellNumber(v);
+        if (n !== null) {
+            numbers++;
+            sum += n;
+        }
+    }
+    if (count < 2) return '';
+    const parts = [];
+    if (numbers) parts.push(t('Average: {value}', { value: formatNumber(sum / numbers) }));
+    parts.push(t('Count: {value}', { value: count.toLocaleString() }));
+    if (numbers) parts.push(t('Sum: {value}', { value: formatNumber(sum) }));
+    return parts.join('   ');
+}
+
+/** Float noise trimmed, thousands grouped: 0.1+0.2 reads 0.3, not 0.30000000000000004. */
+function formatNumber(n) {
+    return Number(n.toPrecision(15)).toLocaleString(undefined, { maximumFractionDigits: 10 });
 }
 
 /** Right-aligned like a spreadsheet does, and only for what is really a number. */
@@ -1673,10 +2206,21 @@ function injectStyles() {
         border-right: 1px solid var(--border-color);
         border-bottom: 1px solid var(--border-color);
     }
+    /* A value running into the empty cells beside it; the inline clip-path
+       stops it at the first cell with something in it. */
+    .of-cell.spill { overflow: visible; }
     /* The faint background grid, which the sheet can ask to be without. Real
        borders are set on the element and win, because they are more specific
        than the shared rule below. */
     .of-grid.no-grid .of-cell { border-color: transparent; }
+    /* A shaded cell: the workbook's colour, mixed into the editor's surface by
+       the share applyFill chose. Before the hit and selection rules, so a
+       search match on a shaded cell still shows. Excel draws no gridline over
+       a fill; a real border is inline and still wins. */
+    .of-cell.filled, .of-merge.filled {
+        background: color-mix(in srgb, var(--of-fill) var(--of-fill-mix), var(--bg-color));
+    }
+    .of-cell.filled { border-color: transparent; }
     /* Search hits. Every match is tinted and the current one is outlined, so
        "where else is this" and "where am I" are answered at the same time. */
     .of-cell.of-hit, .of-merge.of-hit {
@@ -1709,7 +2253,8 @@ function injectStyles() {
        letter itself would have fitted. */
     .of-col { height: ${ROW_HEIGHT}px; line-height: ${ROW_HEIGHT}px; padding: 0 2px;
         text-overflow: clip; text-align: center; font-weight: 600;
-        opacity: .7; background: var(--bg-color); }
+        color: color-mix(in srgb, var(--text-color) 70%, transparent);
+        background: var(--bg-color); }
     /* The grip overhangs the column edge by half its width, so the target is
        the line itself rather than the inside of one cell. */
     .of-col { position: relative; }
@@ -1740,13 +2285,21 @@ function injectStyles() {
     .of-grid.row-resizing .of-row-grip {
         background: var(--primary-color, #3b82f6); opacity: .5;
     }
-    .of-gutter { width: ${GUTTER_WIDTH}px; text-align: right; opacity: .55;
+    /* Dimmed by the colour of the text, never by opacity: opacity makes the
+       background translucent too, and the cells scrolled under a frozen strip
+       then show through it. */
+    .of-gutter { width: ${GUTTER_WIDTH}px; text-align: right;
+        color: color-mix(in srgb, var(--text-color) 55%, transparent);
         position: sticky; left: 0; z-index: 2; background: var(--bg-color); }
     .of-corner { z-index: 4; }
 
     /* Merged cells, drawn over the rows. Opaque, so the gridlines of the cells
        underneath do not show through the middle of a box. */
-    .of-merges { position: absolute; top: 0; left: 0; }
+    /* Layers span the canvas, so a clip on them is measured against it
+       (_clipOverlays). They let clicks through to the cells; a merged box,
+       which can be selected, takes them back. */
+    .of-merges { position: absolute; inset: 0; pointer-events: none; }
+    .of-merge { pointer-events: auto; }
     .of-merge {
         position: absolute; box-sizing: border-box; padding: 0 8px;
         display: flex; flex-direction: column; justify-content: center;
@@ -1761,6 +2314,46 @@ function injectStyles() {
     .of-merge.v-top { justify-content: flex-start; }
     .of-merge.v-bottom { justify-content: flex-end; }
     .of-merge.wrap { white-space: pre-wrap; line-height: 1.35; }
+    /* Pictures, over the cells and under the selection. Clicks go through to
+       the cell beneath, so selecting and copying work as they do elsewhere. */
+    /* Its own stacking context: pictures and shapes are ordered inside it by
+       the drawing's own order, and the whole layer stays under the sticky
+       header and the selection. */
+    .of-images { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+    .of-image { position: absolute; box-sizing: border-box; pointer-events: none;
+        z-index: 1; overflow: hidden; }
+    .of-image img { display: block; width: 100%; height: 100%; }
+    .of-image.loading {
+        background: color-mix(in srgb, var(--text-color) 6%, transparent); }
+    .of-image-unsupported {
+        display: flex; align-items: center; justify-content: center;
+        border: 1px dashed var(--border-color); font-size: 11px; opacity: .7;
+        background: color-mix(in srgb, var(--text-color) 4%, transparent); }
+    /* A picture in a document or on a slide. Takes its shape before it loads,
+       so nothing below it moves when it arrives. */
+    .of-pic { max-width: 100%; margin: 8px 0; box-sizing: border-box;
+        min-height: 24px; overflow: hidden; }
+    .of-pic img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .of-pic.loading {
+        background: color-mix(in srgb, var(--text-color) 6%, transparent); }
+    .of-slide-pics { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+    .of-slide-pics .of-pic { margin: 4px 0; }
+    /* Shapes: SVG outline plus HTML text. pointer-events off, like the
+       pictures, so the cells underneath can still be selected. */
+    .of-shape { position: absolute; box-sizing: border-box; pointer-events: none;
+        transform-origin: center center; }
+    .of-shape > svg { position: absolute; left: 0; top: 0; overflow: visible; }
+    .of-shape-text { position: absolute; inset: 0; padding: 4.8px 9.6px;
+        display: flex; flex-direction: column; overflow: visible;
+        font-family: system-ui, -apple-system, "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif;
+        line-height: 1.25; white-space: pre-wrap; word-break: break-word; }
+    .of-shape-text.v-top { justify-content: flex-start; }
+    .of-shape-text.v-center { justify-content: center; }
+    .of-shape-text.v-bottom { justify-content: flex-end; }
+    .of-shape-text.h-left { text-align: left; }
+    .of-shape-text.h-center { text-align: center; }
+    .of-shape-text.h-right { text-align: right; }
+    .of-grid.no-shapes .of-shape { display: none; }
     .of-selection {
         position: absolute; box-sizing: border-box; pointer-events: none;
         z-index: 4; border: 2px solid var(--primary-color, #3b82f6);
