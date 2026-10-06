@@ -101,15 +101,24 @@ describe('configureMarkdown', () => {
 });
 
 describe('initMermaid', () => {
-    it('initialises with the light theme by default', () => {
+    // The palette is built from the theme's own colours on mermaid's `base`
+    // theme, so light and dark differ in darkMode, not in the theme name.
+    it('initialises with a light palette by default', () => {
         initMermaid();
-        expect(mermaidInit).toHaveBeenCalledWith(expect.objectContaining({ theme: 'default', startOnLoad: false }));
+        expect(mermaidInit).toHaveBeenCalledWith(expect.objectContaining({
+            theme: 'base', startOnLoad: false, securityLevel: 'strict' }));
+        expect(mermaidInit.mock.calls[0][0].themeVariables.darkMode).toBe(false);
     });
 
-    it.each(['theme-dark', 'theme-midnight', 'theme-solarized-dark'])('uses the dark theme for %s', (cls) => {
+    it.each(['theme-dark', 'theme-midnight', 'theme-solarized-dark'])('uses a dark palette for %s', (cls) => {
         document.body.className = cls;
         initMermaid();
-        expect(mermaidInit.mock.calls[0][0].theme).toBe('dark');
+        expect(mermaidInit.mock.calls[0][0].themeVariables.darkMode).toBe(true);
+    });
+
+    it('draws edges as right-angled lines', () => {
+        initMermaid();
+        expect(mermaidInit.mock.calls[0][0].flowchart.curve).toBe('step');
     });
 
     it('is a no-op when mermaid is missing', () => {
@@ -265,5 +274,34 @@ describe('renderMermaid — re-render safety (regressions)', () => {
         });
         await renderMermaid(document);
         expect(document.querySelector('.mermaid svg').getAttribute('height')).toBe('250');
+    });
+});
+
+// ELK does not fail on a diagram inside a display:none subtree (book mode
+// folds every page but the open spread that way): it returns a 16x16 drawing
+// that looks like success, and the page then opens on an empty square that no
+// later pass redraws.
+describe('renderMermaid — folded pages', () => {
+    it('leaves a diagram that cannot be seen as source for a later pass', async () => {
+        document.body.innerHTML = '<div class="mermaid">graph TD; A-->B;</div>';
+        document.querySelector('.mermaid').checkVisibility = () => false;
+        await renderMermaid(document);
+        expect(mermaidRun).not.toHaveBeenCalled();
+        expect(document.querySelector('.mermaid').textContent).toBe('graph TD; A-->B;');
+    });
+
+    it('puts an empty drawing back to source so opening the page redraws it', async () => {
+        document.body.innerHTML = '<div class="mermaid">graph TD; A-->B;</div>';
+        mermaidRun.mockImplementation(async ({ nodes }) => {
+            for (const n of nodes) {
+                n.innerHTML = '<svg viewBox="-8 -8 16 16"></svg>';
+                n.setAttribute('data-processed', 'true');
+            }
+        });
+        await renderMermaid(document);
+        const n = document.querySelector('.mermaid');
+        expect(n.querySelector('svg')).toBeNull();
+        expect(n.getAttribute('data-processed')).toBeNull();
+        expect(n.textContent).toBe('graph TD; A-->B;');
     });
 });

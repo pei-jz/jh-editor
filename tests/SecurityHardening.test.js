@@ -184,7 +184,11 @@ describe('rendering diagrams more than once', () => {
     // second pass has to be safe.
     it('drops nodes another run already finished', () => {
         expect(src).toContain('const pending = nodes.filter');
-        expect(src).toContain('mermaid.run({ nodes: pending');
+        // pending is split into two batches (app palette / diagram's own
+        // theme); both are cut from pending, never from the stale list.
+        expect(src).toContain('const own = pending.filter');
+        expect(src).toContain('const rest = pending.filter');
+        expect(src).toContain('mermaid.run({ nodes: batch');
         expect(src, 'the stale list must not reach mermaid')
             .not.toContain('mermaid.run({ nodes, ');
     });
@@ -307,8 +311,15 @@ describe('mermaid', () => {
     const md = read('src/modules/utils/Markdown.js');
 
     it('runs in strict mode everywhere it is initialised', () => {
-        expect(md).not.toMatch(/securityLevel:\s*'loose'/);
-        expect(md.match(/securityLevel:\s*'strict'/g) || []).toHaveLength(2);
+        // The settings are built in MermaidTheme.js, once; both initialise
+        // calls in Markdown.js must go through it rather than hand-roll a
+        // config of their own.
+        const cfg = read('src/modules/utils/MermaidTheme.js');
+        for (const src of [md, cfg]) expect(src).not.toMatch(/securityLevel:\s*'loose'/);
+        expect(cfg.match(/securityLevel:\s*'strict'/g) || []).toHaveLength(1);
+        const inits = md.match(/mermaid\.initialize\(/g) || [];
+        expect(inits).toHaveLength(2);
+        expect(md.match(/mermaid\.initialize\(mermaidConfig\(/g) || []).toHaveLength(inits.length);
     });
 
     it('is not loaded at startup', () => {

@@ -1,6 +1,6 @@
 
 import { SyntaxHighlighter } from './SyntaxHighlighter.js';
-import { isDarkTheme } from './ThemeInfo.js';
+import { mermaidConfig, hasOwnTheme } from './MermaidTheme.js';
 
 /**
  * Escape a mermaid source so the DOM hands it back unchanged.
@@ -119,25 +119,52 @@ export function ensureMermaid() {
     return _mermaidLoad;
 }
 
+let _elkLoad = null;
+let _elkReady = false;
+
+/**
+ * Register the ELK layout engine with mermaid, once.
+ *
+ * ELK routes edges orthogonally and places nodes so that edges and their
+ * labels do not run through each other, which dagre (mermaid's default) does
+ * not try to do. It is ~4 MB, so it is a separate chunk fetched with the first
+ * diagram, after mermaid itself.
+ *
+ * Resolves to false when it cannot be had; diagrams then fall back to dagre
+ * rather than failing to draw.
+ */
+function ensureElk() {
+    if (_elkLoad) return _elkLoad;
+    if (typeof mermaid === 'undefined' || typeof mermaid.registerLayoutLoaders !== 'function') {
+        return Promise.resolve(false);
+    }
+    _elkLoad = import('@mermaid-js/layout-elk')
+        .then((mod) => {
+            mermaid.registerLayoutLoaders(mod.default);
+            _elkReady = true;
+            return true;
+        })
+        .catch((e) => {
+            console.error('ELK layout failed to load; using dagre', e);
+            return false;
+        });
+    return _elkLoad;
+}
+
 export function initMermaid() {
     if (typeof mermaid === 'undefined') {
         console.error('Mermaid library not found');
         return;
     }
     try {
-        const isDark = isDarkTheme();
-        mermaid.initialize({
-            startOnLoad: false,
-            // 'strict', not 'loose'. Loose lets a diagram's `click` directive
-            // call arbitrary JavaScript and passes HTML in labels straight
-            // through — from a fence in a document the user merely opened, in
-            // the privileged main window. Strict encodes label HTML and runs
-            // mermaid's own sanitiser over the SVG it produces. `<br/>` still
-            // breaks lines: mermaid splits on it itself rather than relying on
-            // the HTML parser.
-            securityLevel: 'strict',
-            theme: isDark ? 'dark' : 'default'
-        });
+        // securityLevel is 'strict', not 'loose' (set in mermaidConfig). Loose
+        // lets a diagram's `click` directive call arbitrary JavaScript and
+        // passes HTML in labels straight through — from a fence in a document
+        // the user merely opened, in the privileged main window. Strict
+        // encodes label HTML and runs mermaid's own sanitiser over the SVG it
+        // produces. `<br/>` still breaks lines: mermaid splits on it itself
+        // rather than relying on the HTML parser.
+        mermaid.initialize(mermaidConfig({ elk: _elkReady }));
     } catch (e) {
         console.error('Mermaid init failed', e);
     }
@@ -222,12 +249,46 @@ async function _reportIfError(node, svg) {
     // Leaving the error graphic in place is not an option either: it counts as
     // a rendered diagram, so every later pass skips the node and turning to
     // the page never helps.
+    _restoreFresh(node);
+    return true;
+}
+
+/** Put a node back to source on a NEW element, ready for a later pass. */
+function _restoreFresh(node) {
+    const src = node.dataset.mermaidSrc || '';
     const fresh = node.ownerDocument.createElement('div');
     fresh.className = node.className;
     fresh.dataset.mermaidSrc = src;
     fresh.textContent = src;
     node.replaceWith(fresh);
-    return true;
+}
+
+/**
+ * Can this node be laid out right now?
+ *
+ * Inside a display:none subtree nothing has a size, and book mode keeps every
+ * page but the open spread folded that way. dagre gave up on such a diagram
+ * with an error graphic, which _reportIfError turned into a retry. ELK does
+ * not fail: it lays out zero-sized boxes and returns a 16x16 drawing, which
+ * looks like success, so the page later opens on an empty square that is
+ * never redrawn. Such a node is left as source until it can be seen; the
+ * book view renders again whenever a spread opens.
+ *
+ * checkVisibility() is absent in jsdom; treating that as visible keeps the
+ * tests drawing everything as before.
+ */
+function _canMeasure(node) {
+    if (!node.isConnected) return false;
+    return typeof node.checkVisibility === 'function' ? node.checkVisibility() : true;
+}
+
+/**
+ * A drawing with no extent: what ELK produces when it measured nothing. The
+ * diagram parsed, so this is worth another attempt once the node is visible.
+ */
+function _isEmptyDrawing(svg) {
+    const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    return vb.length === 4 && vb[2] <= 16 && vb[3] <= 16;
 }
 
 export async function renderMermaid(container = document) {
@@ -251,7 +312,8 @@ export async function renderMermaid(container = document) {
     //    node it already turned into an <svg> makes it try to parse that SVG —
     //    the other source of the phantom "Syntax error in text".
     const nodes = Array.from(container.querySelectorAll('.mermaid'))
-        .filter(n => !n.getAttribute('data-processed') && !n.querySelector('svg'));
+        .filter(n => !n.getAttribute('data-processed') && !n.querySelector('svg'))
+        .filter(_canMeasure);
     if (nodes.length === 0) return;
 
     // Keep the source so a failed render can show the code instead of a blank
@@ -267,21 +329,35 @@ export async function renderMermaid(container = document) {
         // ノードを描き終えていることがある。済んだものを渡すと mermaid は
         // その <svg> を図の記述として読もうとし、「Syntax error in text」に
         // なる。走る直前にもう一度絞れば、重ねて呼ばれても害が無い。
+        // Visibility is checked again for the same reason: a page can be
+        // folded away while this run waited its turn.
         const pending = nodes.filter(
-            (n) => !n.getAttribute('data-processed') && !n.querySelector('svg'));
+            (n) => !n.getAttribute('data-processed') && !n.querySelector('svg')
+                && _canMeasure(n));
         if (pending.length === 0) return;
 
         try {
-            const isDark = isDarkTheme();
-            // Re-initialised per run to pick up a theme change. Kept in step
-            // with initMermaid() above — including securityLevel: a second
-            // 'loose' here would have quietly undone the first one.
-            mermaid.initialize({
-                startOnLoad: false,
-                securityLevel: 'strict',
-                theme: isDark ? 'dark' : 'default'
-            });
-            await mermaid.run({ nodes: pending, suppressErrors: true });
+            const elk = await ensureElk();
+            // Re-initialised per run to pick up a theme change. Both calls
+            // build their settings in one place, so securityLevel cannot
+            // drift between them: a second 'loose' here would have quietly
+            // undone the first one.
+            //
+            // Colours come from the document being drawn into. The print path
+            // renders into a bare iframe with no theme on it, and paper wants
+            // the light palette whatever the editor is showing.
+            const doc = (container && container.ownerDocument) || document;
+            // A diagram that names its own theme is drawn in a separate pass
+            // without the app palette: mermaid layers site-wide
+            // themeVariables over named themes too, so a `forest` chosen in
+            // the diagram would otherwise come out in the app's colours.
+            const own = pending.filter((n) => hasOwnTheme(n.dataset.mermaidSrc));
+            const rest = pending.filter((n) => !own.includes(n));
+            for (const [batch, themed] of [[rest, true], [own, false]]) {
+                if (batch.length === 0) continue;
+                mermaid.initialize(mermaidConfig({ elk, doc, themed }));
+                await mermaid.run({ nodes: batch, suppressErrors: true });
+            }
         } catch (e) {
             console.error('Mermaid rendering error', e);
         }
@@ -298,9 +374,39 @@ export async function renderMermaid(container = document) {
             }
             // Restored for a later attempt: there is no SVG to size any more.
             if (await _reportIfError(n, svg)) continue;
+            if (_isEmptyDrawing(svg)) {
+                _restoreFresh(n);
+                continue;
+            }
             _fixSvgHeight(svg);
         }
     }).catch((e) => { console.error('Mermaid queue error', e); });
 
     return _mermaidQueue;
+}
+
+/**
+ * Redraw every diagram already on the page.
+ *
+ * A drawn diagram carries its colours inline in the SVG, so a theme switch
+ * leaves it in the old palette until something re-renders the block. The
+ * node itself is kept — the lightbox listener lives on it — and only its
+ * content goes back to source.
+ */
+export function refreshMermaid(container = document) {
+    if (typeof mermaid === 'undefined') return Promise.resolve();
+    const drawn = Array.from(container.querySelectorAll('.mermaid'))
+        .filter((n) => n.dataset.mermaidSrc && n.querySelector('svg'));
+    if (drawn.length === 0) return Promise.resolve();
+    for (const n of drawn) {
+        n.textContent = n.dataset.mermaidSrc;
+        n.removeAttribute('data-processed');
+    }
+    return renderMermaid(container);
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('themeChanged', () => {
+        refreshMermaid(document).catch((e) => console.error('Mermaid refresh failed', e));
+    });
 }

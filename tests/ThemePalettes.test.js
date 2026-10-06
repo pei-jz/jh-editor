@@ -253,7 +253,9 @@ describe('dark-theme detection', () => {
         // ShikiHighlighter.js was on this list until shiki was removed; its
         // job now belongs to CMHighlighter, which needs no dark/light decision
         // at all — the tok-* classes take their colour from the theme.
-        for (const f of ['src/modules/utils/Markdown.js',
+        // Mermaid's light/dark choice moved out of Markdown.js into
+        // MermaidTheme.js along with the rest of its palette.
+        for (const f of ['src/modules/utils/MermaidTheme.js',
             'src/modules/views/CodeMirrorView.js']) {
             const src = read(f);
             expect(src, f).toContain('ThemeInfo.js');

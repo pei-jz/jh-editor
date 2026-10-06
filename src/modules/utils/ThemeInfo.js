@@ -16,10 +16,14 @@ import { darkThemeClasses } from './Themes.js';
  * A theme counts as dark when its EDITOR SURFACE (--bg-color) is dark.
  */
 
-/** @returns {boolean} true when the editor surface is dark. */
-export function isDarkTheme() {
-    if (typeof document === 'undefined' || !document.body) return false;
-    const c = document.body.classList;
+/**
+ * @param {HTMLElement} [body]  the <body> to ask about; defaults to this
+ *   window's. Mermaid passes a print iframe's, which carries no theme.
+ * @returns {boolean} true when the editor surface is dark.
+ */
+export function isDarkTheme(body = typeof document === 'undefined' ? null : document.body) {
+    if (!body) return false;
+    const c = body.classList;
     return darkThemeClasses().some((t) => c.contains(t));
 }
 

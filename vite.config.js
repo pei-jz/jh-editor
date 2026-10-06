@@ -55,6 +55,13 @@ export default defineConfig({
                         // highlighting uses the editor's own Lezer parsers now
                         // (utils/CMHighlighter.js).
                         if (id.includes('/katex/')) return undefined;
+                        // ELK (Mermaid's layout engine, ~4 MB) is fetched with
+                        // the first diagram — see Markdown.js ensureElk().
+                        // Its build imports d3 and elkjs by name, so those
+                        // have to stay out of 'vendor' with it.
+                        if (/\/node_modules\/(@mermaid-js\/layout-elk|elkjs|d3|d3-[^/]+|internmap|delaunator|robust-predicates)\//.test(id)) {
+                            return undefined;
+                        }
                         return 'vendor'; // Split other vendors
                     }
                 }
