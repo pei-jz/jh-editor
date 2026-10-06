@@ -40,7 +40,6 @@ export const THEMES = [
     { id: 'dark', label: 'Dark', dark: true, bootBg: '#1e1e22' },
     { id: 'midnight', label: 'Midnight', dark: true, bootBg: '#0f0f11' },
     { id: 'latte', label: 'Latte', dark: false, bootBg: '#f0e8d0' },
-    { id: 'latte-dark', label: 'Mocha', dark: true, bootBg: '#1e1e2e' },
     { id: 'solarized-dark', label: 'Solarized Dark', dark: true, bootBg: '#002b36' },
     { id: 'solarized-light', label: 'Solarized Light', dark: false, bootBg: '#fdf6e3' },
     { id: 'paper', label: 'Paper', dark: false, bootBg: '#e7dab9' },

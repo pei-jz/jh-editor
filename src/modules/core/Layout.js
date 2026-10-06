@@ -91,6 +91,11 @@ function loadSettings() {
         theme = 'sumi-e';
         localStorage.setItem('theme', theme);
     }
+    // See index.html: Mocha folded into Midnight.
+    if (theme === 'latte-dark') {
+        theme = 'midnight';
+        localStorage.setItem('theme', theme);
+    }
     const compact = localStorage.getItem('settings_compact');
 
     // Apply Theme (Centralized)

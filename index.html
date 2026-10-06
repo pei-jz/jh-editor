@@ -58,6 +58,12 @@
         theme = 'sumi-e';
         localStorage.setItem('theme', theme);
       }
+      // Mocha was removed: a violet-accented dark navy, the same night as
+      // Midnight. Move anyone still on it across.
+      if (theme === 'latte-dark') {
+        theme = 'midnight';
+        localStorage.setItem('theme', theme);
+      }
       if (theme && theme !== 'light') {
         document.documentElement.classList.add('theme-' + theme);
         // Also update critical CSS to match specific theme if needed
@@ -73,7 +79,6 @@
         if (theme === 'kakejiku-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#232c3f; }';
         if (theme === 'sumi-e-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#26282d; }';
         if (theme === 'paper-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#2a2621; }';
-        if (theme === 'latte-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#1e1e2e; }';
       } else {
         document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ffffff; }';
       }

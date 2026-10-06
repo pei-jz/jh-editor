@@ -1,6 +1,6 @@
 /* Simple Modern Theme & Layout Phase 7 */
 :root {
-    --bg-color: #f8f9fa;
+    --bg-color: #ffffff;
     /* NOTE: --border-color set below; kept translucent for a softer, refined look */
     --sidebar-bg: #ffffff;
     --header-bg: #f1f3f5;
@@ -594,9 +594,12 @@ body.theme-paper {
     --text-secondary: #6d6350;    /* pencil */
 
     /* Markdown Premium Styles */
-    --code-color: #93313c;
-    --code-bg: rgba(178, 58, 72, 0.08);
-    --code-border: rgba(178, 58, 72, 0.20);
+    /* Blue-black fountain-pen ink. The red pen is the accent; code in the
+       same red made every emphasis on the page read as a correction. */
+    --code-color: #2f5d8a;
+    --code-bg: rgba(47, 93, 138, 0.08);
+    --code-border: rgba(47, 93, 138, 0.20);
+    --danger-base: #93313c;
     --blockquote-bg: rgba(120, 90, 40, 0.06);
 
     /* Selection */
@@ -907,9 +910,12 @@ body.theme-sumi-e {
     --header-bg: #efece3;
     --border-color: #d8d2c4;
     --text-color: #1c1c1c;          /* sumi ink */
-    --primary-color: #c73e3a;       /* 朱 — the seal's vermillion */
+    /* 松葉 — pine needles. Was the seal's vermillion, which Paper and Hanging
+       Scroll also wore, so the three read as one theme. 朱 stays in the
+       strings and inline code. */
+    --primary-color: #4a6b35;
     --active-tab-bg: #f7f5f0;
-    --active-tab-border: #c73e3a;
+    --active-tab-border: #4a6b35;
     --hover-color: #e9e4d8;
     --bg-color-secondary: #efece3;
     --bg-active: #e9e4d8;
@@ -937,17 +943,18 @@ body.theme-sumi-e {
        over the wash and 5.2:1 even at the ink ceiling. */
     --tab-inactive-color: #4f4a3e;
     --tree-item-color: var(--text-color);
-    --tree-item-active-bg: rgba(199, 62, 58, 0.10);
+    --tree-item-active-bg: rgba(74, 107, 53, 0.12);
     --text-secondary: #4f4a3e;
 
-    --code-color: #a63a34;
-    --code-bg: rgba(199, 62, 58, 0.08);
-    --code-border: rgba(199, 62, 58, 0.20);
+    --code-color: #4a6b35;          /* 松葉, with the accent */
+    --code-bg: rgba(74, 107, 53, 0.08);
+    --code-border: rgba(74, 107, 53, 0.22);
+    --danger-base: #a63a34;
     --blockquote-bg: rgba(28, 28, 28, 0.04);
 
-    --selection-bg: rgba(199, 62, 58, 0.20);
+    --selection-bg: rgba(74, 107, 53, 0.20);
     --selection-color: #1c1c1c;
-    --cm-selection-bg: rgba(199, 62, 58, 0.16);
+    --cm-selection-bg: rgba(74, 107, 53, 0.16);
 
     --git-modified-color: #a8791f;
     --git-staged-color: #4a7a4a;
@@ -1168,10 +1175,13 @@ body.theme-kakejiku {
     --border-color: #b9c3d2;
     /* Ink on the honji (dark, for the light sheet) */
     --text-color: #2b2f36;
-    /* The seal's vermillion */
-    --primary-color: #c14a3d;
+    /* 金茶 — the gold of the damask, deepened to hold 4.5:1 on every light
+       chrome face. Was the seal's vermillion, shared with Paper and Ink
+       Brush. The active tab sits on the indigo mount, where this is too
+       dark, so its border takes the night scroll's gold leaf instead. */
+    --primary-color: #735410;
     --active-tab-bg: #4a5a82;
-    --active-tab-border: #c14a3d;
+    --active-tab-border: #d6b25e;
     --hover-color: #d5dde7;
     --bg-color-secondary: #eef1f4;
     --bg-active: #cbd5e2;
@@ -1197,20 +1207,21 @@ body.theme-kakejiku {
     --gutter-color: #5a6577;        /* line numbers on the honji */
     --tab-inactive-color: #c7cede;  /* pale ink on the indigo mount */
     --tree-item-color: #2b2f36;     /* the explorer sits on the honji */
-    --tree-item-active-bg: rgba(193, 74, 61, 0.08);
+    --tree-item-active-bg: rgba(115, 84, 16, 0.10);
     /* Secondary ink. #6a7078 read 3.4:1 on the darkest chrome face
        (--bg-active), so it is darkened to clear 4.5:1 everywhere while staying
        clearly subordinate to the body ink. */
     --text-secondary: #545a63;
 
-    --code-color: #a63a34;
-    --code-bg: rgba(193, 74, 61, 0.08);
-    --code-border: rgba(193, 74, 61, 0.20);
+    --code-color: #735410;          /* 金茶, with the accent */
+    --code-bg: rgba(115, 84, 16, 0.08);
+    --code-border: rgba(115, 84, 16, 0.22);
+    --danger-base: #a63a34;
     --blockquote-bg: rgba(47, 95, 138, 0.06);
 
-    --selection-bg: rgba(193, 74, 61, 0.20);
+    --selection-bg: rgba(115, 84, 16, 0.18);
     --selection-color: #2b2f36;
-    --cm-selection-bg: rgba(193, 74, 61, 0.16);
+    --cm-selection-bg: rgba(115, 84, 16, 0.14);
 
     --git-modified-color: #b07d2b;
     --git-staged-color: #3a7a6a;
@@ -1296,7 +1307,7 @@ body.theme-kakejiku .titlebar-btn.titlebar-close:hover {
 }
 
 /* Inactive tabs on the mount: pale ink. Active tab keeps the indigo mount and
-   takes the vermillion seal as its top border. */
+   takes the gold leaf as its top border. */
 /* An inactive tab is part of the mount, not a chip laid on it: transparent so
    the brocade of #tab-bar shows through behind the pale ink. */
 body.theme-kakejiku .tab {
@@ -1327,11 +1338,10 @@ body.theme-kakejiku .explorer-tab {
        label to ~3:1. The ink is already muted; it does not need dimming too. */
     opacity: 0.92;
 }
-/* The active chip is the honji showing through the mounting, so it is light.
-   The seal vermillion read 3.3:1 on it — deepened just enough to clear the bar
-   while still reading as the seal. */
+/* The active chip is the honji showing through the mounting, so it is light,
+   and the accent's own 金茶 reads on it as it does on the sheet. */
 body.theme-kakejiku .explorer-tab.active {
-    color: #8f2e24;
+    color: var(--primary-color);
 }
 
 /* Explorer hover: the tree sits on the honji (light), so hovering must paint a
@@ -1387,9 +1397,10 @@ body.theme-kakejiku #status-bar,
 body.theme-kakejiku #status-bar * {
     color: #eef1f6;
 }
+/* The status bar is mount, where the deep 金茶 is too dark: gold leaf. */
 body.theme-kakejiku #status-bar #status-whitespace.active,
 body.theme-kakejiku #status-bar #status-vim-mode {
-    color: var(--primary-color);
+    color: #d6b25e;
 }
 
 /* Dropdown options on the pale silk. */
@@ -1403,8 +1414,8 @@ body.theme-kakejiku option {
    From docs/design/editor-theme-dark-proposal.html. The hanging scroll at
    night: the honji (本紙) is deep indigo silk, the hyousou (表装) is an even
    deeper black-indigo kinran brocade, and the damask weave is gold leaf
-   (#c9a86a) instead of silver. The vermillion seal is brightened to #d4705e
-   so it does not sink into the dark ground.
+   (#c9a86a) instead of silver, and the accent is that gold brightened to
+   #d6b25e so it does not sink into the dark ground.
 
    Same structural exception as the light Kakejiku — the SHEET is dark and the
    MOUNT is a further step down, so the mount's pale ink is overridden
@@ -1422,10 +1433,10 @@ body.theme-kakejiku-dark {
     --header-bg: #1e2534;
     --border-color: #3a4660;
     --text-color: #e3e8f3;          /* moonlight */
-    --primary-color: #d4705e;       /* the seal, brightened for the dark ground */
-    --text-on-primary: #2a0e0a;
+    --primary-color: #d6b25e;       /* 金泥 — gold leaf, brightened for the dark ground */
+    --text-on-primary: #2a1f05;
     --active-tab-bg: #2c3550;
-    --active-tab-border: #d4705e;
+    --active-tab-border: #d6b25e;
     --hover-color: #2a3347;
     --bg-color-secondary: #2a3347;
     --bg-active: #2c3550;
@@ -1451,17 +1462,18 @@ body.theme-kakejiku-dark {
     --gutter-color: #94a2bd;
     --tab-inactive-color: #aab4c8;  /* pale ink on the darker mount */
     --tree-item-color: #e3e8f3;
-    --tree-item-active-bg: rgba(212, 112, 94, 0.16);
+    --tree-item-active-bg: rgba(214, 178, 94, 0.14);
     --text-secondary: #aab4c8;
 
-    --code-color: #e0a070;
-    --code-bg: rgba(224, 160, 112, 0.10);
-    --code-border: rgba(224, 160, 112, 0.25);
+    --code-color: #d6b25e;          /* 金泥, with the accent */
+    --code-bg: rgba(214, 178, 94, 0.10);
+    --code-border: rgba(214, 178, 94, 0.25);
+    --danger-base: #e0806e;
     --blockquote-bg: rgba(138, 180, 248, 0.08);
 
-    --selection-bg: rgba(212, 112, 94, 0.30);
+    --selection-bg: rgba(214, 178, 94, 0.28);
     --selection-color: #e3e8f3;
-    --cm-selection-bg: rgba(212, 112, 94, 0.26);
+    --cm-selection-bg: rgba(214, 178, 94, 0.24);
 
     --git-modified-color: #e0c08a;
     --git-staged-color: #8fc9a8;
@@ -1559,7 +1571,7 @@ body.theme-kakejiku-dark .explorer-tab {
     opacity: 0.92;
 }
 body.theme-kakejiku-dark .explorer-tab.active {
-    color: #d4705e;
+    color: var(--primary-color);
 }
 
 /* The tree sits on the deep honji, so hovering paints a dark highlight. */
@@ -1648,7 +1660,8 @@ body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
    From docs/design/editor-theme-dark-proposal.html. Night washi, moonlight
    ink. The mountains and the single stroke are inverted to light lines (the
    same SVGs with #e6e4dd instead of sumi #1c1c1c), and the moon is a bare
-   outline. The vermillion seal is brightened to #d06a5a.
+   outline. The accent is 青墨 (blue-grey ink), #8ea6b8: night washi wants
+   colour kept quiet, so the green of the day version is not carried over.
    ========================================================================== */
 body.theme-sumi-e-dark {
     --bg-color: #26282d;            /* night washi */
@@ -1656,10 +1669,10 @@ body.theme-sumi-e-dark {
     --header-bg: #232529;
     --border-color: #3a3d44;
     --text-color: #e6e4dd;          /* moonlight ink */
-    --primary-color: #d06a5a;       /* 朱, brightened for the dark ground */
-    --text-on-primary: #2a0e0a;
+    --primary-color: #8ea6b8;       /* 青墨 — blue-grey ink, kept low in chroma */
+    --text-on-primary: #141c22;
     --active-tab-bg: #2e3137;
-    --active-tab-border: #d06a5a;
+    --active-tab-border: #8ea6b8;
     --hover-color: #2c2e34;
     --bg-color-secondary: #2c2e34;
     --bg-active: #2e3137;
@@ -1683,17 +1696,18 @@ body.theme-sumi-e-dark {
     --gutter-color: #a0a098;
     --tab-inactive-color: #a8a6a0;
     --tree-item-color: #e6e4dd;
-    --tree-item-active-bg: rgba(208, 106, 90, 0.14);
+    --tree-item-active-bg: rgba(142, 166, 184, 0.14);
     --text-secondary: #a8a6a0;
 
-    --code-color: #e0a070;
-    --code-bg: rgba(224, 160, 112, 0.10);
-    --code-border: rgba(224, 160, 112, 0.25);
+    --code-color: #8ea6b8;          /* 青墨, with the accent */
+    --code-bg: rgba(142, 166, 184, 0.10);
+    --code-border: rgba(142, 166, 184, 0.25);
+    --danger-base: #e0806e;
     --blockquote-bg: rgba(138, 180, 248, 0.06);
 
-    --selection-bg: rgba(208, 106, 90, 0.30);
+    --selection-bg: rgba(142, 166, 184, 0.28);
     --selection-color: #e6e4dd;
-    --cm-selection-bg: rgba(208, 106, 90, 0.26);
+    --cm-selection-bg: rgba(142, 166, 184, 0.24);
 
     --git-modified-color: #d9a44a;
     --git-staged-color: #8fc9a8;
@@ -1828,9 +1842,10 @@ body.theme-paper-dark {
     --tree-item-active-bg: rgba(212, 112, 94, 0.14);
     --text-secondary: #b0a89a;
 
-    --code-color: #e0a070;
-    --code-bg: rgba(224, 160, 112, 0.10);
-    --code-border: rgba(224, 160, 112, 0.25);
+    --code-color: #9cb8d6;          /* blue-black ink, lifted for the dark */
+    --code-bg: rgba(156, 184, 214, 0.10);
+    --code-border: rgba(156, 184, 214, 0.25);
+    --danger-base: #e0806e;
     --blockquote-bg: rgba(232, 226, 214, 0.05);
 
     --selection-bg: rgba(212, 112, 94, 0.28);
@@ -1843,9 +1858,9 @@ body.theme-paper-dark {
 
     --font-hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
     --paper-chrome-font: var(--font-hand);
-    --paper-rule-color: rgba(232, 226, 214, 0.10);
+    --paper-rule-color: rgba(232, 226, 214, 0.045);  /* was 0.10: read as a grid, not a ruled page */
     --paper-rule-size: 27px;
-    --paper-margin-color: rgba(212, 112, 94, 0.45);
+    --paper-margin-color: rgba(212, 112, 94, 0.28);
     --paper-vignette: rgba(0, 0, 0, 0.35);
 }
 
@@ -1926,87 +1941,6 @@ body.theme-paper-dark #explorer-search::placeholder { color: #a89f90; }
 body.theme-paper-dark .modal-content input,
 body.theme-paper-dark .modal-content select { color: #e8e2d6 !important; }
 
-/* ============================================================================
-   ☕ Mocha — Latte のダーク版 (latte-dark)
-   From docs/design/editor-theme-dark-proposal.html. Catppuccin Mocha, the
-   natural dark partner of Latte: base #1e1e2e, surface #313244, text
-   #cdd6f4, mauve accent #cba6f7. A standard dark theme with no art.
-   ========================================================================== */
-body.theme-latte-dark {
-    --bg-color: #1e1e2e;            /* Catppuccin Mocha base */
-    --sidebar-bg: #181825;
-    --header-bg: #181825;
-    --border-color: #45475a;
-    --text-color: #cdd6f4;
-    --primary-color: #cba6f7;       /* mauve */
-    --text-on-primary: #1e1e2e;
-    --active-tab-bg: #1e1e2e;
-    --active-tab-border: #cba6f7;
-    --hover-color: #313244;
-    --bg-color-secondary: #313244;
-    --bg-active: #313244;
-    --radius: 6px;
-    --table-header-bg: #313244;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
-    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
-
-    --hl-keyword: #cba6f7;
-    --hl-control-flow: #f38ba8;
-    --hl-built-in: #94e2d5;
-    --hl-literal: #cba6f7;
-    --hl-string: #a6e3a1;
-    --hl-comment: #a6adc8;
-    --hl-function: #89b4fa;
-    --hl-variable: #cdd6f4;
-    --hl-number: #fab387;
-    --hl-operator: #cdd6f4;
-
-    --gutter-color: #a6adc8;
-    --tab-inactive-color: #a6adc8;
-    --tree-item-color: #cdd6f4;
-    --tree-item-active-bg: rgba(203, 166, 247, 0.16);
-    --text-secondary: #a6adc8;
-
-    --code-color: #f9e2af;
-    --code-bg: rgba(249, 226, 175, 0.10);
-    --code-border: rgba(249, 226, 175, 0.25);
-    --blockquote-bg: rgba(203, 166, 247, 0.08);
-
-    --selection-bg: rgba(203, 166, 247, 0.28);
-    --selection-color: #cdd6f4;
-    --cm-selection-bg: rgba(203, 166, 247, 0.24);
-
-    --git-modified-color: #f9e2af;
-    --git-staged-color: #a6e3a1;
-    --git-untracked-color: #a6e3a1;
-}
-
-body.theme-latte-dark button,
-body.theme-latte-dark select,
-body.theme-latte-dark input[type="text"],
-body.theme-latte-dark input[type="password"] {
-    background-color: #313244;
-    color: #cdd6f4;
-    border: 1px solid #45475a;
-    color-scheme: dark;
-}
-body.theme-latte-dark button:hover { background-color: #45475a; }
-body.theme-latte-dark input[type="checkbox"] {
-    accent-color: var(--primary-color);
-    color-scheme: dark;
-    cursor: pointer;
-}
-body.theme-latte-dark #explorer-search {
-    background-color: #313244;
-    color: #cdd6f4;
-    border: 1px solid #45475a;
-}
-body.theme-latte-dark #explorer-search::placeholder { color: #a6adc8; }
-body.theme-latte-dark .modal-content input,
-body.theme-latte-dark .modal-content select { color: #cdd6f4 !important; }
-body.theme-latte-dark option { background-color: #1e1e2e; color: #cdd6f4; }
-
 /* ═══════════════════════════════════════════════════════════════════════
    DERIVED TOKENS
    ═══════════════════════════════════════════════════════════════════════
@@ -2067,7 +2001,9 @@ body {
        carrying this job in a few places; these are the general names. */
     --success-color: var(--git-staged-color, #3fb950);
     --warning-color: var(--git-modified-color, #d29922);
-    --danger-color: var(--code-color, #f85149);
+    /* Inline code was the only red every theme already had, so danger borrowed
+       it. A theme whose code ink is not red names its own with --danger-base. */
+    --danger-color: var(--danger-base, var(--code-color, #f85149));
     --success-soft: color-mix(in srgb, var(--success-color) 16%, transparent);
     --warning-soft: color-mix(in srgb, var(--warning-color) 16%, transparent);
     --danger-soft: color-mix(in srgb, var(--danger-color) 16%, transparent);
@@ -2086,8 +2022,7 @@ body.theme-bamboo-ancient,
 body.theme-nord,
 body.theme-kakejiku-dark,
 body.theme-sumi-e-dark,
-body.theme-paper-dark,
-body.theme-latte-dark {
+body.theme-paper-dark {
     --theme-contrast: #fff;
     /* A raised surface on a dark theme should lift more than a light one
        drops; the same 6% mix reads as almost nothing against dark ink. */

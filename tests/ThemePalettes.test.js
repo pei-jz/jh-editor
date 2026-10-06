@@ -51,7 +51,7 @@ const FOREGROUNDS = [
 ];
 
 const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord', 'kakejiku',
-    'kakejiku-dark', 'sumi-e-dark', 'paper-dark', 'latte-dark'];
+    'kakejiku-dark', 'sumi-e-dark', 'paper-dark'];
 
 // Which surface a foreground actually sits on. Hanging Scroll is a hybrid — a
 // light sheet inside dark indigo mounting — so its tab ink is pale ON PURPOSE
@@ -162,6 +162,21 @@ describe('removed themes', () => {
         expect(html).not.toContain('theme-paper-subtle');
     });
 
+    it('leaves no Mocha styling or class handling behind', () => {
+        for (const f of ['src/styles/themes.css', 'src/styles/base.css',
+            'src/modules/views/CodeMirrorView.js', 'src/modules/utils/Themes.js']) {
+            expect(read(f), f).not.toContain('latte-dark');
+        }
+    });
+
+    it('migrates a saved Mocha to Midnight on both startup paths', () => {
+        for (const f of ['index.html', 'src/modules/core/Layout.js']) {
+            const src = read(f);
+            expect(src, f).toContain("theme === 'latte-dark'");
+            expect(src, f).toContain("theme = 'midnight'");
+        }
+    });
+
     it('migrates a saved paper-subtle to Ink Brush on both startup paths', () => {
         for (const f of ['index.html', 'src/modules/core/Layout.js']) {
             const src = read(f);
@@ -190,7 +205,6 @@ describe('theme labels', () => {
             ['kakejiku-dark', 'Hanging Scroll Dark'],
             ['sumi-e-dark', 'Ink Brush Dark'],
             ['paper-dark', 'Paper Dark'],
-            ['latte-dark', 'Mocha'],
         ]) {
             const th = THEMES.find((t) => t.id === value);
             expect(th, value).toBeTruthy();
@@ -221,7 +235,7 @@ describe('dark-theme detection', () => {
         for (const t of ['theme-dark', 'theme-midnight', 'theme-solarized-dark',
             'theme-bamboo-ancient', 'theme-nord',
             'theme-kakejiku-dark', 'theme-sumi-e-dark',
-            'theme-paper-dark', 'theme-latte-dark']) {
+            'theme-paper-dark']) {
             expect(darkThemeClasses(), t).toContain(t);
         }
     });

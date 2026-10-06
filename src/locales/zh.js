@@ -102,7 +102,6 @@ export default {
     'Ink Brush': '水墨',
     'Nord': 'Nord',
     'Hanging Scroll': '挂轴',
-    'Mocha': '摩卡',
     'Paper Dark': '夜纸',
     'Ink Brush Dark': '月夜水墨',
     'Hanging Scroll Dark': '夜挂轴',

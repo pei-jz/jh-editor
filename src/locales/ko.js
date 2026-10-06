@@ -102,7 +102,6 @@ export default {
     'Ink Brush': '수묵',
     'Nord': 'Nord',
     'Hanging Scroll': '족자',
-    'Mocha': '모카',
     'Paper Dark': '밤의 종이',
     'Ink Brush Dark': '달밤의 먹',
     'Hanging Scroll Dark': '밤의 족자',

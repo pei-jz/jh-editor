@@ -102,7 +102,6 @@ export default {
     'Ink Brush': '水墨',
     'Nord': 'ノード',
     'Hanging Scroll': '掛け軸',
-    'Mocha': 'モカ',
     'Paper Dark': '夜の紙',
     'Ink Brush Dark': '月夜の墨',
     'Hanging Scroll Dark': '夜の掛軸',

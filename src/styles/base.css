@@ -173,12 +173,6 @@ body.theme-paper-dark {
     --scrollbar-thumb-hover: rgba(232, 226, 214, 0.38);
 }
 
-/* Mocha (Latte's dark partner). */
-body.theme-latte-dark {
-    --scrollbar-thumb: rgba(205, 214, 244, 0.24);
-    --scrollbar-thumb-hover: rgba(205, 214, 244, 0.40);
-}
-
 /* ── Git comparison result: a dense, collapsible file tree ────────────────────
    A branch comparison routinely lists hundreds of files; a flat list of them is
    a scroll hunt, so the rows are compact and every directory folds away. */
