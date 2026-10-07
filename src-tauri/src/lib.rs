@@ -39,6 +39,8 @@ pub fn run() {
             commands::fs::parse_excel_to_markdown,
             commands::office::read_office_preview,
             commands::office::open_office_file,
+            commands::deck::open_deck_in_browser,
+            commands::deck::open_deck_audience,
             commands::office::read_office_image,
             commands::search::search_files,
             commands::search::list_all_files,

@@ -102,14 +102,26 @@ them and `Ctrl+Shift+E` to switch to the source.
   If the source no longer matches what the slide showed, the edit is refused, not guessed.
 - **`Ctrl+S` inside the slides** saves through the editor and ends edit mode; switching
   away and back returns to the same slide and step.
-- **Slide list** — click to jump; drag, `Alt+↑` / `Alt+↓` to reorder, `Ctrl+D` to
-  duplicate, `Delete` to remove (no confirmation: it undoes). **Speaker notes** of the
-  current slide are edited below the slides.
+- **Slide list** — one rounded card per slide with its number and title. Click to jump;
+  drag, `Alt+↑` / `Alt+↓` to reorder, `Ctrl+D` to duplicate, `Delete` to remove (no
+  confirmation: it undoes).
+- **Speaker notes** of the current slide are edited below the slides (`- ` bullets, `1. `
+  numbering and `**bold**` are kept).
+- **Ask AI to change** — a dialog where you write what to change, slide by slide (● on the
+  card, a count on the button). *Ask AI* sends them all to J.H AI Agent and the slides come
+  back as a proposal (*Show diff* / *Apply* / *Discard*). Without the agent, *Copy all
+  requests* puts one prompt on the clipboard for Claude Code or any other AI; a request clears
+  itself once that slide is changed in the file.
 - **One undo history** — every change made in Deck View (text, order, notes) goes into the
   same history as the source view, so `Ctrl+Z` works in either and in the order things happened.
 - **Source ⇄ slides** — `Ctrl+Shift+E` opens the source at the current slide, and back
   again shows the slide the cursor is in.
-- **Present** — `F5` (or *Present*) shows the slides alone, full screen; `Esc` returns.
+- **Present** — `F5` (or *Present*). With a second monitor (a projector), the slides open full
+  screen there and this window becomes the presenter view: the current slide, a preview of
+  the next one, the notes, a timer and Previous / Next. Moving in either window moves both;
+  `Esc` in either ends it. With one monitor the slides fill the window, and `S` adds the same
+  presenter panel beside them for rehearsing. *Open in browser* is there too, for presenting
+  from the browser with the deck's own presenter view.
 - The slides run in a sandboxed frame (`allow-scripts` only) and talk to the editor
   through `postMessage`, following jh-presentation's edit protocol.
 

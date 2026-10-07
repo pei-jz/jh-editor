@@ -133,6 +133,55 @@ function plainText(html) {
 const NOTES_RE = /<aside\b[^>]*class="[^"]*\bnotes\b[^"]*"[^>]*>([\s\S]*?)<\/aside>/i;
 
 /**
+ * ノートの HTML を、編集欄で直せる文字にする。
+ * 段落 = 1 行、箇条書き = 「- 」、番号付き = 「1. 」、太字 = **…** で表す (notesFromText で元に戻る)。
+ */
+export function notesToText(html) {
+    // 箇条書きか番号付きかはリストの入れ子で決まるので、タグを先頭から順に 1 回で処理する
+    const stack = [];
+    const text = String(html)
+        .replace(/<(b|strong)\b[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')
+        .replace(/<(\/?)(ol|ul|li|p|div|br|h[1-6])\b[^>]*>/gi, (m, close, name) => {
+            const tag = name.toLowerCase();
+            if (tag === 'ol' || tag === 'ul') {
+                if (close) stack.pop();
+                else stack.push({ tag, n: 0 });
+            } else if (tag === 'li' && !close) {
+                const top = stack[stack.length - 1];
+                return top && top.tag === 'ol' ? `\n${++top.n}. ` : '\n- ';
+            }
+            return '\n';
+        })
+        .replace(/<[^>]*>/g, '');
+    return decodeEntities(text)
+        .split('\n').map((l) => l.replace(/[ \t\u00a0]+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+
+/** 編集欄の文字をノートの HTML にする (notesToText の逆) */
+export function notesFromText(text) {
+    const inline = (t) => escapeHtml(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const out = [];
+    let list = null; // { tag, items }
+    const flush = () => { if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join('')}</${list.tag}>`); list = null; } };
+    for (const raw of String(text).split('\n')) {
+        const line = raw.trim();
+        if (!line) { flush(); continue; }
+        const ul = line.match(/^[-・*]\s+(.*)$/);
+        const ol = line.match(/^\d+[.)]\s+(.*)$/);
+        if (ul || ol) {
+            const tag = ul ? 'ul' : 'ol';
+            if (!list || list.tag !== tag) { flush(); list = { tag, items: [] }; }
+            list.items.push(inline((ul || ol)[1]));
+        } else {
+            flush();
+            out.push(`<p>${inline(line)}</p>`);
+        }
+    }
+    flush();
+    return out.join('');
+}
+
+/**
  * ソースのスライド一覧。start / end はソース全体での <section>…</section> の範囲。
  * @returns {{ index:number, id:string|null, title:string, notes:string, start:number, end:number }[]}
  */
@@ -149,7 +198,7 @@ export function slideList(source) {
             index,
             id: r.id,
             title: heading ? plainText(heading[2]).replace(/\n/g, ' ') : '',
-            notes: notes ? plainText(notes[1]) : '',
+            notes: notes ? notesToText(notes[1]) : '',
             start: block.start + r.start,
             end: block.start + r.end,
         };
@@ -217,14 +266,13 @@ export function deleteSlide(source, index) {
 }
 
 /**
- * index 枚目のスライドの発表者ノートを書き換える。1 行が 1 段落 (<p>) になる。
+ * index 枚目のスライドの発表者ノートを書き換える (書式は notesFromText)。
  * ノートがなければ、スライドの末尾に <aside class="notes"> を足す。
  */
 export function setSlideNotes(source, index, text) {
     const slide = slideList(source)[index];
     if (!slide) throw new Error('Slide not found: ' + index);
-    const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
-    const inner = lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('');
+    const inner = notesFromText(text);
     const section = source.slice(slide.start, slide.end);
     const m = section.match(NOTES_RE);
     let from, to, insert;
@@ -328,4 +376,88 @@ export function undoDeckEdit(file, pane, redoIt = false) {
     writeSlot(file, pane, next, slot);
     const source = next.doc.toString();
     return { source, offset: firstDifference(file.content, source) };
+}
+
+// ---------------------------------------------------------------------------
+// スライドの修正を AI に依頼する
+// ---------------------------------------------------------------------------
+//
+// 「AI への依頼」欄にスライドごとの依頼を書き、まとめて AI に渡す。J.H AI Agent に繋がっていれば
+// 返ってきたスライドを変更案として確認・適用でき、繋がっていなければ同じ依頼文をコピーして
+// Claude Code などに渡せる。ノート (話す内容) とは別の欄にしてある。
+
+/**
+ * スライドの修正依頼の文面を作る。
+ * @param {string} source
+ * @param {{ index:number, text:string }[]} requests  スライド番号 (0 始まり) と依頼
+ * @param {{ path?: string|null, forAgent?: boolean }} opts
+ *        forAgent: J.H AI Agent に直接送る (返答の形を指定する) か、他の AI に貼り付ける (ファイルを直接直してもらう) か
+ */
+export function buildSlideRequest(source, requests, { path = null, forAgent = false } = {}) {
+    const list = slideList(source);
+    const items = requests.filter((r) => list[r.index]).sort((a, b) => a.index - b.index);
+    const lines = [];
+    lines.push('jh-presentation のデッキ (1 ファイルの HTML) のスライドを、次の依頼どおりに直してください。');
+    lines.push('');
+    lines.push('- 挙げたスライドだけを直す。スライドの id と順番は変えない');
+    lines.push('- 部品・クラス・レイアウトの書き方は、今のスライドとデッキの他のスライドに揃える');
+    lines.push('- 発表者ノート (<aside class="notes">) は、本文の変更に合わせて必要なら直す');
+    lines.push('');
+    if (forAgent) {
+        lines.push('返答は、挙げた順に、各スライドの修正後の <section>…</section> 全体を ```html のコードブロックで 1 つずつ返してください。説明は不要です。');
+    } else {
+        lines.push(path ? `対象のファイル: ${path}` : '対象のファイル: (未保存のデッキ。下のスライドの HTML を元に、修正後の <section> を返してください)');
+        lines.push('ファイルを直接直す場合は、<!-- jh:slides --> ブロックの中の該当する <section> だけを書き換えてください (自動生成の部分は編集しない)。');
+        lines.push('書き方は jh-presentation のガイド (docs/authoring-guide.md、MCP なら get_guide) に従ってください。');
+    }
+    for (const r of items) {
+        const sl = list[r.index];
+        lines.push('');
+        lines.push(`## スライド ${r.index + 1}${sl.id ? ` (id="${sl.id}")` : ''}${sl.title ? `「${sl.title}」` : ''}`);
+        lines.push('### 依頼');
+        lines.push(r.text.trim());
+        lines.push('### 今のスライド');
+        lines.push('```html');
+        lines.push(source.slice(sl.start, sl.end));
+        lines.push('```');
+    }
+    return lines.join('\n') + '\n';
+}
+
+/**
+ * AI の返答 (```html のブロックが依頼したスライドの数だけ並ぶ) から、更新後のソースを作る。
+ * 形が合わなければ例外を投げる (一部だけ当てはめることはしない)。
+ */
+export function applySlidesReply(source, indices, reply) {
+    const blocks = [...String(reply).matchAll(/```(?:html)?\s*\n([\s\S]*?)```/g)].map((m) => m[1].trim());
+    const order = indices.slice().sort((a, b) => a - b);
+    if (blocks.length !== order.length) {
+        throw new Error(`Expected ${order.length} slide(s) in the reply, got ${blocks.length}.`);
+    }
+    const list = slideList(source);
+    let next = source;
+    // 後ろのスライドから差し替えると、前のスライドの位置がずれない
+    for (let k = order.length - 1; k >= 0; k--) {
+        const s = list[order[k]];
+        const html = blocks[k];
+        if (!s) throw new Error('Slide not found: ' + order[k]);
+        if (!/^<section\b[^>]*\bclass="[^"]*\bslide\b/i.test(html) || !/<\/section>\s*$/i.test(html)) {
+            throw new Error(`The reply for slide ${order[k] + 1} is not a whole <section class="slide">.`);
+        }
+        if (DeckEdit.slideRanges(html).length !== 1) {
+            throw new Error(`The reply for slide ${order[k] + 1} must be exactly one slide.`);
+        }
+        next = next.slice(0, s.start) + html + next.slice(s.end);
+    }
+    return next;
+}
+
+/** スライドの並びを変えたとき、スライド番号をキーにした記録 (変更依頼) を付け替える */
+export function remapByIndex(map, count, reorder) {
+    const order = reorder([...Array(count).keys()]);
+    const next = {};
+    order.forEach((oldIndex, newIndex) => {
+        if (oldIndex != null && map[oldIndex] != null) next[newIndex] = map[oldIndex];
+    });
+    return next;
 }

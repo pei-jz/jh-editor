@@ -2738,27 +2738,47 @@ body.theme-solarized-light .md-view-mode-toggle {
     outline: none;
 }
 .deck-view-slide {
+    position: relative;
     display: flex;
-    gap: 8px;
-    align-items: baseline;
-    padding: 6px 8px;
-    margin-bottom: 2px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    aspect-ratio: 16 / 9;
+    margin-bottom: 8px;
+    padding: 8px 12px;
     font-size: 12px;
+    line-height: 1.4;
     color: var(--text-color);
-    border: 1px solid transparent;
-    border-radius: var(--radius, 6px);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
     user-select: none;
 }
-.deck-view-slide:hover { background: var(--hover-color); }
+.deck-view-slide:hover { border-color: var(--primary-color); }
 .deck-view-slide.active {
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
 }
-.deck-view-film:focus-visible .deck-view-slide.active { box-shadow: 0 0 0 2px var(--primary-color); }
-.deck-view-slide.drop { border-top: 2px solid var(--primary-color); }
-.deck-view-slide-no { flex: none; min-width: 18px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.deck-view-slide-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-view-film:focus-visible .deck-view-slide.active { box-shadow: 0 0 0 3px var(--primary-color); }
+.deck-view-slide.drop { border-top: 3px solid var(--primary-color); }
+.deck-view-slide-no {
+    position: absolute;
+    left: 8px;
+    top: 5px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.deck-view-slide-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-weight: 600;
+    text-align: center;
+}
 .deck-view-stage { flex: 1; min-width: 0; display: flex; }
 .deck-view-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: #000; }
 .deck-view-notes {
@@ -2777,13 +2797,133 @@ body.theme-solarized-light .md-view-mode-toggle {
     resize: vertical;
     min-height: 44px;
     padding: 4px 8px;
-    font: inherit;
+    font-family: var(--font-main);
     font-size: 13px;
     color: var(--text-color);
     background: var(--bg-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius, 6px);
 }
+.deck-view-count {
+    min-width: 16px;
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    color: var(--text-on-primary, #fff);
+    background: var(--primary-color);
+    border-radius: 8px;
+}
+.deck-view-count[hidden] { display: none; }
+/* AI への変更依頼のモーダル */
+/* 共通のダイアログ (Dialog.js) と同じ見た目。あちらのスタイルは最初のダイアログ表示まで入らないので、ここで持つ */
+.deck-ai-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147482000; /* 共通のダイアログ (確認など) はこの上に出る */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.42);
+}
+.deck-ai-dialog {
+    width: min(640px, 92vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius, 6px);
+    box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.35));
+    font-family: var(--font-main);
+    overflow: hidden;
+}
+.deck-ai-dialog .app-dialog-head {
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--bg-color-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+.deck-ai-dialog .app-dialog-body { padding: 14px 16px; font-size: 13px; overflow: auto; }
+.deck-ai-dialog .app-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 11px 16px;
+    background: var(--bg-color-secondary);
+    border-top: 1px solid var(--border-color);
+}
+.deck-ai-dialog .app-dialog-btn {
+    min-width: 84px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.deck-ai-dialog .app-dialog-btn:hover:not(:disabled) { background: var(--hover-color); }
+.deck-ai-dialog .app-dialog-btn:disabled { opacity: 0.5; cursor: default; }
+.deck-ai-dialog .app-dialog-btn.primary {
+    color: var(--text-on-primary, #fff);
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
+.deck-ai-body { display: flex; flex-direction: column; gap: 8px; }
+.deck-ai-target { display: flex; align-items: center; gap: 8px; }
+.deck-ai-target-label { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-ai-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 6px 8px;
+    font-family: var(--font-main);
+    font-size: 13px;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius, 6px);
+}
+.deck-ai-hint { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.deck-ai-list-head { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.deck-ai-list { margin: 0; padding: 0; list-style: none; max-height: 160px; overflow-y: auto; }
+.deck-ai-list li { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.deck-ai-list li.current { background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
+.deck-ai-item {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    color: var(--text-color);
+    background: none;
+    border: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.deck-ai-del { padding: 2px 8px; font-size: 14px; color: var(--text-secondary); background: none; border: 0; cursor: pointer; }
+.deck-ai-del:hover { color: var(--text-color); }
+.deck-view-slide-mark { position: absolute; right: 8px; top: 4px; color: var(--primary-color); font-size: 10px; }
+.deck-view-proposal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--bg-color));
+    border-bottom: 1px solid var(--primary-color);
+}
+.deck-view-proposal[hidden] { display: none; }
+.deck-view-proposal-label { margin-right: auto; font-weight: 600; }
 /* 発表中: スライドだけを画面いっぱいに */
 .deck-view.presenting {
     position: fixed;
@@ -2793,7 +2933,45 @@ body.theme-solarized-light .md-view-mode-toggle {
 }
 .deck-view.presenting .deck-view-head,
 .deck-view.presenting .deck-view-film,
-.deck-view.presenting .deck-view-notes { display: none; }
+.deck-view.presenting .deck-view-notes,
+.deck-view.presenting .deck-view-proposal { display: none; }
+.deck-view-presenter { display: none; }
+.deck-view.presenting.with-presenter .deck-view-presenter {
+    flex: 0 0 min(34%, 480px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 20px;
+    overflow-y: auto;
+    color: #e5e7eb;
+    background: #111827;
+}
+.deck-view-presenter-top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.deck-view-presenter-time { font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.deck-view-presenter-pos { font-size: 14px; color: #9ca3af; }
+.deck-view-presenter-nav { display: flex; gap: 8px; }
+.deck-view-presenter-nav .deck-view-btn { flex: 1; justify-content: center; padding: 8px; font-size: 14px; }
+.deck-view-presenter-label { margin-top: 8px; font-size: 12px; letter-spacing: .08em; color: #9ca3af; }
+.deck-view-presenter-next {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #000;
+    cursor: pointer;
+}
+.deck-view-presenter-next iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.deck-view-presenter-end {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    color: #9ca3af;
+    background: #000;
+}
+.deck-view-presenter-end[hidden] { display: none; }
+.deck-view-presenter-notes { font-size: 20px; line-height: 1.6; white-space: pre-wrap; }
 .deck-view-consent {
     margin: 12vh auto 0;
     max-width: 460px;

@@ -40,6 +40,11 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         rollupOptions: {
+            // 2 つ目のページ: Deck View の発表用ウィンドウ (src/deck-audience.js)
+            input: {
+                main: 'index.html',
+                'deck-audience': 'deck-audience.html',
+            },
             output: {
                 manualChunks: (id) => {
                     if (id.includes('node_modules')) {

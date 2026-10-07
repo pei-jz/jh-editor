@@ -31,6 +31,8 @@
     "core:window:allow-is-maximized",
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
+    "core:window:allow-available-monitors",
+    "core:window:allow-current-monitor",
     "core:window:allow-set-background-color",
     "core:webview:allow-set-webview-background-color",
     "fs:allow-stat",
