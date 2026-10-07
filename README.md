@@ -100,8 +100,16 @@ them and `Ctrl+Shift+E` to switch to the source.
 - **Fix text in place** — double-click a box (or turn on *Edit text*), type, `Enter`. Only
   that element's text is rewritten in the source; the rest of the file stays byte for byte.
   If the source no longer matches what the slide showed, the edit is refused, not guessed.
-- **`Ctrl+S` inside the slides** saves through the editor, and switching away and back
-  returns to the same slide and step.
+- **`Ctrl+S` inside the slides** saves through the editor and ends edit mode; switching
+  away and back returns to the same slide and step.
+- **Slide list** — click to jump; drag, `Alt+↑` / `Alt+↓` to reorder, `Ctrl+D` to
+  duplicate, `Delete` to remove (no confirmation: it undoes). **Speaker notes** of the
+  current slide are edited below the slides.
+- **One undo history** — every change made in Deck View (text, order, notes) goes into the
+  same history as the source view, so `Ctrl+Z` works in either and in the order things happened.
+- **Source ⇄ slides** — `Ctrl+Shift+E` opens the source at the current slide, and back
+  again shows the slide the cursor is in.
+- **Present** — `F5` (or *Present*) shows the slides alone, full screen; `Esc` returns.
 - The slides run in a sandboxed frame (`allow-scripts` only) and talk to the editor
   through `postMessage`, following jh-presentation's edit protocol.
 

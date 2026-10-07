@@ -48,7 +48,7 @@ import { pluginManager } from './PluginManager.js';
 import { initDefaultPlugins } from './ViewPlugins.js';
 import { showAlert, showConfirm, showDialog } from '../ui/Dialog.js';
 import { largeFileThresholdBytes } from '../utils/LargeFileSetting.js';
-import { isDeckFile } from '../utils/DeckHost.js';
+import { isDeckFile, slideIndexAt } from '../utils/DeckHost.js';
 
 // Initialize Plugins
 initDefaultPlugins();
@@ -388,6 +388,17 @@ const editorActions = {
 
         // jh-presentation のデッキはソースとスライド表示 (Deck View) を行き来する
         if (file.viewMode === 'deck' || (file.viewMode === 'text' && isDeckFile(file))) {
+            const current = getCurrentView();
+            // Deck View の「ソース」ボタンと同じく、今のスライドの行へ移る
+            if (file.viewMode === 'deck' && current && typeof current._showSource === 'function') {
+                current._showSource();
+                return;
+            }
+            // ソース → スライド: カーソルのあるスライドを、全ステップ表示で開く
+            const cm = current && current.editorView;
+            if (file.viewMode === 'text' && cm) {
+                file._deckState = { index: slideIndexAt(file.content, cm.state.selection.main.head), step: Infinity };
+            }
             file.viewMode = file.viewMode === 'deck' ? 'text' : 'deck';
             renderEditor();
             renderTabs();
@@ -700,6 +711,7 @@ export function renderEditor(targetPane = null) {
                 renderEditor: () => renderEditor(pane),
                 renderTabs: () => renderTabs(pane),
                 saveFile: () => saveFile(file, view),
+                pane,
             };
 
             view = new plugin.viewClass(container, options);
@@ -828,8 +840,11 @@ export function addViewUsageHint(container, file, options = {}) {
             ['← / →', 'previous / next'],
             ['Double-click', 'edit the text in a box'],
             ['E', 'edit mode on / off'],
-            ['Enter / Esc', 'confirm / cancel'],
-            ['Ctrl+S', 'save'],
+            ['Ctrl+S', 'save (ends edit mode)'],
+            ['Ctrl+Z / Ctrl+Y', 'undo / redo'],
+            ['Alt+↑ / ↓', 'move slide (in the list)'],
+            ['Ctrl+D / Delete', 'duplicate / delete slide'],
+            ['F5 / Esc', 'present / stop'],
             ['Ctrl+Shift+E', 'switch to source']
         ];
     } else if (isCsv) {

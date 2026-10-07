@@ -629,4 +629,9 @@ export default {
     'The edit was not applied because the source has changed. Reloading the slides.': '소스가 변경되어 편집을 적용하지 않았습니다. 슬라이드를 다시 표시합니다.',
     'Double-click a box on a slide to edit it (E)': '슬라이드의 상자를 더블클릭하여 편집 (E)',
     'Slide {n} / {total}': '슬라이드 {n} / {total}',
+    'Present': '발표',
+    'Speaker notes for this slide (one paragraph per line)': '이 슬라이드의 발표자 노트 (한 줄이 한 단락)',
+    'Duplicate': '복제',
+    'Move up': '위로 이동',
+    'Move down': '아래로 이동',
 };

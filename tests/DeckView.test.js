@@ -221,3 +221,166 @@ describe('DeckView', () => {
         view.destroy();
     });
 });
+
+describe('DeckHost — slide operations', async () => {
+    const { slideList, slideIndexAt, moveSlide, duplicateSlide, deleteSlide, setSlideNotes, recordDeckEdit, undoDeckEdit } =
+        await import('../src/modules/utils/DeckHost.js');
+    const THREE = DECK.replace('<!-- /jh:slides -->',
+        '<section class="slide" id="end"><h2>まとめ</h2><aside class="notes"><p>最後に一言</p><p>質問を受ける</p></aside></section>\n<!-- /jh:slides -->');
+
+    it('lists slides with their title and notes', () => {
+        const list = slideList(THREE);
+        expect(list.map((s) => s.title)).toEqual(['表紙', '本文', 'まとめ']);
+        expect(list[2].notes).toBe('最後に一言\n質問を受ける');
+        expect(list[2].id).toBe('end');
+        expect(THREE.slice(list[1].start, list[1].start + 9)).toBe('<section ');
+    });
+
+    it('finds the slide that holds a source position', () => {
+        const list = slideList(THREE);
+        expect(slideIndexAt(THREE, list[1].start + 5)).toBe(1);
+        expect(slideIndexAt(THREE, 0)).toBe(0);
+        expect(slideIndexAt(THREE, THREE.length)).toBe(2);
+    });
+
+    it('moves a slide and keeps the rest of the file as it was', () => {
+        const r = moveSlide(THREE, 2, 0);
+        expect(slideList(r.source).map((s) => s.title)).toEqual(['まとめ', '表紙', '本文']);
+        expect(r.source.slice(0, r.change.from)).toBe(THREE.slice(0, r.change.from));
+        expect(r.source.endsWith(THREE.slice(r.change.to))).toBe(true);
+    });
+
+    it('duplicates a slide after itself with a fresh id', () => {
+        const r = duplicateSlide(THREE, 2);
+        const list = slideList(r.source);
+        expect(list.map((s) => s.id)).toEqual([null, null, 'end', 'end-2']);
+    });
+
+    it('deletes a slide but never the last one', () => {
+        const r = deleteSlide(THREE, 1);
+        expect(slideList(r.source).map((s) => s.title)).toEqual(['表紙', 'まとめ']);
+        const one = deleteSlide(deleteSlide(THREE, 0).source, 0).source;
+        expect(() => deleteSlide(one, 0)).toThrow();
+    });
+
+    it('rewrites speaker notes, or adds them when a slide has none', () => {
+        const a = setSlideNotes(THREE, 2, '一言目\n<b>二言目</b>');
+        expect(a.source).toContain('<aside class="notes"><p>一言目</p><p>&lt;b&gt;二言目&lt;/b&gt;</p></aside>');
+        const b = setSlideNotes(THREE, 0, 'ノートを追加');
+        expect(slideList(b.source)[0].notes).toBe('ノートを追加');
+        expect(slideList(b.source).length).toBe(3);
+        expect(setSlideNotes(THREE, 0, '').change).toBeNull();
+    });
+
+    it('puts deck edits into the same undo history the source view uses', () => {
+        const file = deckFile();
+        const r = moveSlide(file.content, 1, 0);
+        file.content = recordDeckEdit(file, 'left', r.change);
+        expect(file.content).toBe(r.source);
+        // ソース表示はこの状態 (content が一致) をそのまま使う
+        expect(file._cmViewState.left.content).toBe(file.content);
+        expect(file._cmViewState.left.history).toBeTruthy();
+
+        const back = undoDeckEdit(file, 'left');
+        expect(back.source).toBe(DECK);
+        // 変わった場所を指す (並べ替えたスライドの先頭)
+        expect(slideIndexAt(back.source, back.offset)).toBe(0);
+        file.content = back.source;
+        const again = undoDeckEdit(file, 'left', true);
+        expect(again.source).toBe(r.source);
+        file.content = again.source;
+        expect(undoDeckEdit(file, 'left', true)).toBeNull();
+    });
+});
+
+describe('DeckView — slide list, notes and undo', () => {
+    let container;
+    beforeEach(() => {
+        container = document.createElement('div');
+        document.body.replaceChildren(container);
+    });
+    const fromDeck = (frame, data) => {
+        window.dispatchEvent(new MessageEvent('message', {
+            data: { jhdeck: DeckEdit.PROTOCOL, ...data }, source: frame.contentWindow,
+        }));
+    };
+    const open = (opts = {}) => {
+        const file = deckFile({ viewMode: 'deck', savedContent: DECK, savedEol: '\n', eol: '\n' });
+        trustDeck(file);
+        const view = new DeckView(container, { renderTabs: vi.fn(), ...opts });
+        view.render(file.content, file);
+        const frame = container.querySelector('iframe');
+        fromDeck(frame, { type: 'ready', slides: 2, editables: [2, 3], index: 0, step: 0 });
+        return { file, view, frame };
+    };
+
+    it('lists the slides and moves them with Alt+arrow keys', () => {
+        const { file, view } = open();
+        const items = () => [...container.querySelectorAll('.deck-view-slide-title')].map((e) => e.textContent);
+        expect(items()).toEqual(['表紙', '本文']);
+        const film = container.querySelector('.deck-view-film');
+        film.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }));
+        expect(items()).toEqual(['本文', '表紙']);
+        expect(file._deckState.index).toBe(1);
+        expect(file.isDirty).toBe(true);
+        view.undo();
+        expect(items()).toEqual(['表紙', '本文']);
+        expect(file.content).toBe(DECK);
+        view.destroy();
+    });
+
+    it('shows the slide that changed after undoing a duplicate', () => {
+        const { file, view } = open();
+        const film = container.querySelector('.deck-view-film');
+        container.querySelectorAll('.deck-view-slide')[1].click();
+        film.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, bubbles: true }));
+        expect(container.querySelectorAll('.deck-view-slide')).toHaveLength(3);
+        view.undo();
+        expect(container.querySelectorAll('.deck-view-slide')).toHaveLength(2);
+        expect(file._deckState.index).toBe(1);
+        view.destroy();
+    });
+
+    it('undoes a text edit made on a slide', () => {
+        const { file, view, frame } = open();
+        fromDeck(frame, { type: 'change', slide: 0, index: 0, html: '新しい表紙', before: '表紙', protocol: DeckEdit.PROTOCOL });
+        expect(file.content).toContain('<h1>新しい表紙</h1>');
+        fromDeck(frame, { type: 'undo' });
+        expect(file.content).toBe(DECK);
+        expect(file.isDirty).toBe(false);
+        fromDeck(frame, { type: 'redo' });
+        expect(file.content).toContain('<h1>新しい表紙</h1>');
+        view.destroy();
+    });
+
+    it('writes the speaker notes of the current slide', () => {
+        const { file, view } = open();
+        const notes = container.querySelector('.deck-view-notes textarea');
+        notes.value = '話す内容';
+        notes.dispatchEvent(new Event('blur'));
+        expect(file.content).toContain('<aside class="notes"><p>話す内容</p></aside>');
+        view.destroy();
+    });
+
+    it('asks the editor to save and tells the deck once it is saved', async () => {
+        const saveFile = vi.fn().mockResolvedValue(true);
+        const { view, frame } = open({ saveFile });
+        const post = vi.spyOn(frame.contentWindow, 'postMessage');
+        fromDeck(frame, { type: 'save' });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: 'saved' }), '*');
+        view.destroy();
+    });
+
+    it('presents on F5 from the deck and stops on Esc', async () => {
+        const { view, frame } = open();
+        const post = vi.spyOn(frame.contentWindow, 'postMessage');
+        fromDeck(frame, { type: 'present' });
+        expect(container.querySelector('.deck-view').classList.contains('presenting')).toBe(true);
+        expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: 'present', on: true }), '*');
+        fromDeck(frame, { type: 'present-exit' });
+        expect(container.querySelector('.deck-view').classList.contains('presenting')).toBe(false);
+        view.destroy();
+    });
+});

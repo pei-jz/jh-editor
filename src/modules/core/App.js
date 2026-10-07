@@ -644,7 +644,17 @@ async function bootstrap() {
         'app:find-next': findNext,
         'app:find-prev': findPrev,
         'app:replace-next': replaceNext,
-        'app:refresh-explorer': loadExplorer,
+        'app:refresh-explorer': (...args) => {
+            // Deck View を操作しているときの F5 は「発表」(スライドを全画面で表示)
+            const v = getCurrentView();
+            const focus = document.activeElement;
+            if (v && typeof v.present === 'function' && v.root
+                && (v.root.contains(focus) || focus === document.body)) {
+                v.present();
+                return;
+            }
+            return loadExplorer(...args);
+        },
         'app:shortcut-guide': toggleShortcutGuide,
         'app:command-palette': () => CommandPalette.toggle(),
         'app:focus-explorer': focusExplorer,

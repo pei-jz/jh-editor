@@ -2710,6 +2710,7 @@ body.theme-solarized-light .md-view-mode-toggle {
     background: var(--bg-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius, 6px);
+    white-space: nowrap;
     cursor: pointer;
 }
 .deck-view-btn:hover:not(:disabled) { border-color: var(--primary-color); }
@@ -2724,7 +2725,75 @@ body.theme-solarized-light .md-view-mode-toggle {
     color: var(--text-on-primary, #fff);
     border-color: var(--primary-color);
 }
+.deck-view-btn.icon-only { padding: 3px 8px; font-size: 14px; line-height: 1; }
+.deck-view-body { flex: 1; min-height: 0; display: flex; }
+.deck-view-film {
+    flex: 0 0 200px;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--sidebar-bg, var(--bg-color));
+    border-right: 1px solid var(--border-color);
+    outline: none;
+}
+.deck-view-slide {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 6px 8px;
+    margin-bottom: 2px;
+    font-size: 12px;
+    color: var(--text-color);
+    border: 1px solid transparent;
+    border-radius: var(--radius, 6px);
+    cursor: pointer;
+    user-select: none;
+}
+.deck-view-slide:hover { background: var(--hover-color); }
+.deck-view-slide.active {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    border-color: var(--primary-color);
+}
+.deck-view-film:focus-visible .deck-view-slide.active { box-shadow: 0 0 0 2px var(--primary-color); }
+.deck-view-slide.drop { border-top: 2px solid var(--primary-color); }
+.deck-view-slide-no { flex: none; min-width: 18px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.deck-view-slide-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-view-stage { flex: 1; min-width: 0; display: flex; }
 .deck-view-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: #000; }
+.deck-view-notes {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--header-bg);
+    border-top: 1px solid var(--border-color);
+}
+.deck-view-notes label { flex: none; padding-top: 4px; }
+.deck-view-notes textarea {
+    flex: 1;
+    resize: vertical;
+    min-height: 44px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text-color);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius, 6px);
+}
+/* 発表中: スライドだけを画面いっぱいに */
+.deck-view.presenting {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: #000;
+}
+.deck-view.presenting .deck-view-head,
+.deck-view.presenting .deck-view-film,
+.deck-view.presenting .deck-view-notes { display: none; }
 .deck-view-consent {
     margin: 12vh auto 0;
     max-width: 460px;

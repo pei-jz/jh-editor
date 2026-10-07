@@ -629,4 +629,9 @@ export default {
     'The edit was not applied because the source has changed. Reloading the slides.': '源代码已更改，未应用此编辑。正在重新显示幻灯片。',
     'Double-click a box on a slide to edit it (E)': '双击幻灯片中的文本框进行编辑 (E)',
     'Slide {n} / {total}': '幻灯片 {n} / {total}',
+    'Present': '演示',
+    'Speaker notes for this slide (one paragraph per line)': '此幻灯片的演讲者备注（每行一个段落）',
+    'Duplicate': '复制',
+    'Move up': '上移',
+    'Move down': '下移',
 };

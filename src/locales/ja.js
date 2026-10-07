@@ -629,4 +629,9 @@ export default {
     'The edit was not applied because the source has changed. Reloading the slides.': 'ソースが変更されているため反映しませんでした。スライドを表示し直します。',
     'Double-click a box on a slide to edit it (E)': 'スライドの枠をダブルクリックして編集 (E)',
     'Slide {n} / {total}': 'スライド {n} / {total}',
+    'Present': '発表',
+    'Speaker notes for this slide (one paragraph per line)': 'このスライドの発表者ノート (1 行が 1 段落)',
+    'Duplicate': '複製',
+    'Move up': '上へ移動',
+    'Move down': '下へ移動',
 };
