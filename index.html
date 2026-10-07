@@ -252,6 +252,11 @@
               <button id="find-prev-btn" class="search-status-btn" title="Previous (Shift+F3)" data-i18n-title="Previous (Shift+F3)" data-icon="chevron-up" data-icon-size="13" aria-label="Previous"></button>
               <span id="search-status-count" class="search-status-count">0 / 0</span>
               <button id="find-next-btn" class="search-status-btn" title="Next (F3)" data-i18n-title="Next (F3)" data-icon="chevron-down" data-icon-size="13" aria-label="Next"></button>
+              <!-- Shown only when a search runs long (large files / heavy regex) -->
+              <span id="search-status-progress" class="search-status-progress" style="display:none;">
+                <span class="search-progress-track"><span id="search-progress-fill" class="search-progress-fill"></span></span>
+                <button id="search-cancel-btn" class="search-status-btn search-cancel-btn" title="Cancel (Esc)"><span data-i18n="Cancel">Cancel</span></button>
+              </span>
               <div class="search-status-spacer"></div>
               <button id="search-status-reopen-btn" class="search-status-btn" title="Edit Search (Ctrl+F)" data-i18n-title="Edit Search (Ctrl+F)" data-icon="pencil" data-icon-size="13"><span data-i18n="Edit">Edit</span></button>
               <button id="search-status-clear-btn" class="search-status-btn search-status-clear" title="Close Search (Esc)" data-i18n-title="Close Search (Esc)" data-icon="close" data-icon-size="13" aria-label="Close Search"></button>

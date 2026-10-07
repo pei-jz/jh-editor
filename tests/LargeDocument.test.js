@@ -120,8 +120,8 @@ describe('CodeMirrorView on large documents', () => {
 describe('a new search starts from the cursor', () => {
     it('uses the next match after the cursor, not the first in the file', () => {
         const search = read('src/modules/ui/Search.js');
-        expect(search).toContain('State.currentMatchIndex = _matchIndexFromCursor();');
-        const cmThen = search.slice(search.indexOf('_cmView.performSearch('), search.indexOf('.catch(() => {});', search.indexOf('_cmView.performSearch(')));
+        expect(search).toContain('State.currentMatchIndex = _matchIndexFromCursor(step);');
+        const cmThen = search.slice(search.indexOf('_cmView.performSearch('), search.indexOf('.catch(', search.indexOf('_cmView.performSearch(')));
         expect(cmThen).not.toContain('State.currentMatchIndex = 0;');
     });
 });

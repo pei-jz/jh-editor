@@ -475,6 +475,32 @@
 }
 .search-status-spacer { flex: 1; }
 
+/* Progress of a long-running search (large file / heavy regex) */
+.search-status-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.search-progress-track {
+    width: 140px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border-color, rgba(128, 128, 128, 0.3));
+    overflow: hidden;
+}
+.search-progress-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--primary-color);
+    transition: width 0.15s linear;
+}
+.search-cancel-btn {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
 #toolbar {
     height: 48px;
     padding: 0 15px;

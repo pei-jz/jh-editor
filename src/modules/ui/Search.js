@@ -34,10 +34,13 @@ function openSearchModal(replaceMode = false) {
 
     EL.searchPanel.style.display = 'flex';
 
-    // Pre-fill with selected text
+    // Pre-fill with selected text. The editor view is asked first: CodeMirror
+    // draws its own selection, so the DOM selection doesn't reliably carry it.
     const active = document.activeElement;
-    let textToSearch = '';
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && !active.classList.contains('plain-text-editor')) {
+    let textToSearch = _editorSelectionText();
+    if (textToSearch) {
+        // already have it
+    } else if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && !active.classList.contains('plain-text-editor')) {
         textToSearch = active.value.substring(active.selectionStart, active.selectionEnd);
     } else {
         const sel = window.getSelection();
@@ -48,8 +51,8 @@ function openSearchModal(replaceMode = false) {
         }
     }
 
-    if (textToSearch && !textToSearch.includes('\n')) {
-        EL.findInput.value = textToSearch;
+    if (textToSearch && !/[\r\n]/.test(textToSearch)) {
+        EL.findInput.value = _asQuery(textToSearch);
         _performSearch(true);
     }
 
@@ -81,6 +84,41 @@ function toggleSearch() {
     }
 }
 
+// ─── Selection → query ───────────────────────────────────────────────────────
+
+// The active editor's selected text, or '' (also '' for a multi-line one).
+function _editorSelectionText() {
+    const view = getCurrentView();
+    if (!view || typeof view.getSelectedText !== 'function') return '';
+    let text = '';
+    try { text = view.getSelectedText() || ''; } catch (_) { return ''; }
+    return /[\r\n]/.test(text) ? '' : text;
+}
+
+// Selected text as a query: escaped when regex is on, so it is found as typed.
+function _asQuery(text) {
+    return isRegexOn() ? text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : text;
+}
+
+/**
+ * A selection Ctrl+K / Shift+Ctrl+K should search for instead of the current
+ * query, or '' to carry on with the current one. A selection that IS a hit of
+ * the current search (find-next selects each hit it lands on) is not new.
+ */
+function _newSelectionQuery() {
+    const text = _editorSelectionText();
+    if (!text) return '';
+    const view = getCurrentView();
+    const sel = view && typeof view.getSelectionOffsets === 'function' ? view.getSelectionOffsets() : null;
+    if (sel && State.searchMatches.length && State.searchMatches[0].start != null) {
+        const i = firstMatchAtOrAfter(State.searchMatches, sel.from);
+        const m = i === -1 ? null : State.searchMatches[i];
+        if (m && m.start === sel.from && m.end === sel.to) return '';
+    }
+    const q = _asQuery(text);
+    return q === EL.findInput.value && State.searchMatches.length ? '' : q;
+}
+
 // ─── Status bar ───────────────────────────────────────────────────────────────
 
 function _showStatusBar() {
@@ -97,9 +135,54 @@ function _hideStatusBar() {
     if (EL.searchStatusBar) EL.searchStatusBar.style.display = 'none';
 }
 
+// A search that takes longer than this shows a progress bar and Cancel.
+const PROGRESS_DELAY_MS = 300;
+let _progressTimer = null;
+let _progressFraction = 0;
+
+function _showProgress(on) {
+    const box = document.getElementById('search-status-progress');
+    if (box) box.style.display = on ? 'flex' : 'none';
+}
+
+function _startProgress() {
+    _stopProgress();
+    _progressFraction = 0;
+    _progressTimer = setTimeout(() => {
+        _progressTimer = null;
+        _showProgress(true);
+        _paintProgress();
+    }, PROGRESS_DELAY_MS);
+}
+
+function _stopProgress() {
+    clearTimeout(_progressTimer);
+    _progressTimer = null;
+    _showProgress(false);
+}
+
+function _paintProgress() {
+    const fill = document.getElementById('search-progress-fill');
+    if (fill) fill.style.width = `${Math.round(_progressFraction * 100)}%`;
+}
+
+// What the running worker job is, for the progress label and the message
+// Cancel shows: 'search' or 'replace'.
+let _runningOp = 'search';
+
+/** Stop a search (or replace-all) still running. Returns true if one was. */
+function _cancelRunningSearch() {
+    _stopProgress();
+    const view = getCurrentView();
+    return !!(view && typeof view.cancelSearch === 'function' && view.cancelSearch());
+}
+
 // Show a live "Searching… N hits" indicator while an async search runs.
-function _setSearchingStatus(n) {
-    const label = n > 0 ? `Searching… ${n.toLocaleString()} hits` : 'Searching…';
+function _setSearchingStatus(n, fraction) {
+    if (fraction != null) { _progressFraction = fraction; _paintProgress(); }
+    const pct = fraction != null && fraction < 1 ? ` ${Math.floor(fraction * 100)}%` : '';
+    const verb = _runningOp === 'replace' ? 'Replacing…' : 'Searching…';
+    const label = (n > 0 ? `${verb} ${n.toLocaleString()} hits` : verb) + pct;
     const countEl = document.getElementById('search-match-count');
     if (countEl) countEl.textContent = label;
     if (EL.searchStatusBar) EL.searchStatusBar.style.display = 'flex';
@@ -202,11 +285,10 @@ window.cleanupSearch = _cleanupSearch;
  * the user just dismissed.
  */
 const _clearSearchState = () => {
+    _cancelRunningSearch();
+    _runningOp = 'search';
     _cleanupSearch();
     if (EL.findInput) EL.findInput.value = '';
-    // Also forget the word auto-promoted from an editor selection, so the next
-    // selection can populate the box again (see CodeMirrorView._searchSelectedWord).
-    State._autoSearchTerm = null;
 };
 
 window.clearSearch = _clearSearchState;
@@ -216,11 +298,12 @@ window.clearSearch = _clearSearchState;
 /**
  * @param {boolean} noFocus      don't steal focus from the editor
  * @param {boolean} keepPosition don't jump to the first hit — keep the caret /
- *        viewport where they are and just paint the highlights. Used when the
- *        search was triggered implicitly (selecting a word), where yanking the
- *        view back to hit #1 would be jarring.
+ *        viewport where they are and just paint the highlights.
+ * @param {'next'|'prev'|null} step land on the first hit AFTER the selection
+ *        ('next') or the last one before it ('prev') instead of the one at the
+ *        caret — Ctrl+K on a selection should move, not re-select it.
  */
-const _performSearch = (noFocus = false, keepPosition = false) => {
+const _performSearch = (noFocus = false, keepPosition = false, step = null) => {
     if (State.activeTabIndex < 0) return;
     _cleanupSearch();
 
@@ -337,11 +420,16 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
     // ── CodeMirror mode (async, chunked so large files don't freeze) ──────────
     const _cmView = getCurrentView();
     if (_cmView && typeof _cmView.isCodeMirrorMode === 'function' && _cmView.isCodeMirrorMode()) {
+        _runningOp = 'search';
         _setSearchingStatus(0);
-        _cmView.performSearch(query, isRegex, isCaseSensitive, isWord, (n) => _setSearchingStatus(n))
-            .then(() => {
+        _startProgress();
+        _cmView.performSearch(query, isRegex, isCaseSensitive, isWord, (n, f) => _setSearchingStatus(n, f))
+            .then((finished) => {
+                // Superseded or cancelled: whoever did that owns the UI now.
+                if (finished === false) return;
+                _stopProgress();
                 if (State.searchMatches.length > 0) {
-                    State.currentMatchIndex = _matchIndexFromCursor();
+                    State.currentMatchIndex = _matchIndexFromCursor(step);
                     _settle();
                 }
                 _updateMatchCount();
@@ -351,7 +439,13 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
                 if (!isModalOpen() && State.searchMatches.length > 0) _showStatusBar();
                 else if (State.searchMatches.length === 0) _hideStatusBar();
             })
-            .catch(() => {});
+            .catch((e) => {
+                _stopProgress();
+                console.warn('search failed', e);
+                _updateMatchCount();
+                _hideStatusBar();
+                _showToast(`Search failed: ${e && e.message || e}`, 'error');
+            });
         return;
     }
 
@@ -394,7 +488,7 @@ const _performSearch = (noFocus = false, keepPosition = false) => {
             currentView.renderSearchHighlights(State.searchMatches, State.currentMatchIndex);
         }
         if (State.searchMatches.length > 0) {
-            State.currentMatchIndex = _matchIndexFromCursor();
+            State.currentMatchIndex = _matchIndexFromCursor(step);
             _settle();
         }
         _updateMatchCount();
@@ -481,20 +575,26 @@ window.setSearchMatchIndexByOffset = (offset) => {
  * occurrence from where you are instead of jumping back to the top of the file.
  * Falls back to the first match (wrapping) when the cursor is past them all.
  */
-function _matchIndexFromCursor() {
+function _matchIndexFromCursor(step = null) {
     const matches = State.searchMatches;
     if (!matches.length || matches[0].start == null) return 0;
-    let pos = null;
+    let sel = null;
     const view = getCurrentView();
     if (view && typeof view.getSelectionOffsets === 'function') {
-        const sel = view.getSelectionOffsets();
-        if (sel) pos = sel.from;
+        sel = view.getSelectionOffsets();
     } else {
         const { textarea } = _getActiveEditorDetails();
-        if (textarea) pos = textarea.selectionStart;
+        if (textarea) sel = { from: textarea.selectionStart, to: textarea.selectionEnd };
     }
-    if (pos == null) return 0;
-    const index = firstMatchAtOrAfter(matches, pos);
+    if (!sel) return 0;
+    if (step === 'prev') {
+        // Last hit starting before the selection, wrapping to the bottom.
+        const index = firstMatchAtOrAfter(matches, sel.from);
+        if (index === 0) { _showToast('Wrapped to the bottom'); return matches.length - 1; }
+        return index === -1 ? matches.length - 1 : index - 1;
+    }
+    const index = firstMatchAtOrAfter(matches, step === 'next' ? sel.to : sel.from);
+    if (index === -1 && step === 'next') _showToast('Wrapped to the top');
     return index === -1 ? 0 : index;
 }
 
@@ -507,7 +607,18 @@ function _viewSelectionOffsets() {
     return null;
 }
 
+// Ctrl+K / Shift+Ctrl+K on a selection: search for the selection instead.
+function _searchSelection(step) {
+    const q = _newSelectionQuery();
+    if (!q) return false;
+    _cancelRunningSearch();
+    EL.findInput.value = q;
+    _performSearch(false, false, step);
+    return true;
+}
+
 function findNext() {
+    if (_searchSelection('next')) return;
     if (State.searchMatches.length === 0) {
         if (EL.findInput.value) _performSearch();
     } else {
@@ -529,6 +640,7 @@ function findNext() {
 }
 
 function findPrev() {
+    if (_searchSelection('prev')) return;
     if (State.searchMatches.length === 0) {
         if (EL.findInput.value) _performSearch();
     } else {
@@ -664,8 +776,16 @@ function _doReplace() {
         const isRegex = isRegexOn();
         const isCaseSensitive = isCaseOn();
         const isWord = isWordOn();
-        currentView.replaceNext(EL.findInput.value, r, isRegex, isCaseSensitive, isWord);
-        _advanceAfterReplace(prevIndex);
+        // Replaces the hit the user is looking at, and updates the hit list
+        // itself — no fresh search, which on a large file is a full scan.
+        const index = currentView.replaceNext(EL.findInput.value, r, isRegex, isCaseSensitive, isWord, match);
+        if (index === -1) return;
+        if (State.searchMatches.length > 0) {
+            State.currentMatchIndex = Math.min(index, State.searchMatches.length - 1);
+            _scrollToMatch(true);
+        }
+        _updateMatchCount();
+        if (State.searchMatches.length === 0) _hideStatusBar();
         return;
     }
 
@@ -738,9 +858,28 @@ function _doReplaceAll() {
 
     const currentView = getCurrentView();
     if (currentView && typeof currentView.isCodeMirrorMode === 'function' && currentView.isCodeMirrorMode()) {
-        const n = currentView.replaceAll(q, r, isRegex, isCase, isWord) || 0;
-        setTimeout(_performSearch, 50);
-        _showToast(_replacedMessage(n, q));
+        // Large files run in a worker: progress and Cancel as for a search.
+        _cancelRunningSearch();
+        _cleanupSearch();
+        _runningOp = 'replace';
+        _setSearchingStatus(0);
+        _startProgress();
+        currentView.replaceAll(q, r, isRegex, isCase, isWord, (n, f) => _setSearchingStatus(n, f))
+            .then((n) => {
+                // Cancelled or superseded: nothing was changed.
+                if (n == null) return;
+                _stopProgress();
+                _runningOp = 'search';
+                _showToast(_replacedMessage(n, q));
+                _performSearch(true);
+            })
+            .catch((e) => {
+                _stopProgress();
+                _runningOp = 'search';
+                _hideStatusBar();
+                _updateMatchCount();
+                _showToast(`Replace failed: ${e && e.message || e}`, 'error');
+            });
         return;
     }
 
@@ -897,7 +1036,16 @@ function initSearch() {
         openSearchModal(false);
     });
     document.getElementById('search-status-clear-btn')?.addEventListener('click', () => {
+        _cancelRunningSearch();
         _cleanupSearch();
+    });
+    document.getElementById('search-cancel-btn')?.addEventListener('click', () => {
+        const op = _runningOp;
+        if (_cancelRunningSearch()) {
+            _cleanupSearch();
+            _runningOp = 'search';
+            _showToast(op === 'replace' ? 'Replace cancelled — nothing was replaced.' : 'Search cancelled');
+        }
     });
 
     // ── onchange: re-search (noFocus=true to keep modal focus) ───────────────

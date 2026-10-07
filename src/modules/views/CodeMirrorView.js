@@ -1,4 +1,5 @@
-import { firstMatchEndingAfter, searchMatchLimit } from '../utils/SearchRanges.js';
+import { firstMatchEndingAfter, firstMatchAtOrAfter, searchMatchLimit } from '../utils/SearchRanges.js';
+import { expandReplacement } from '../utils/TextSearchCore.js';
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
 // Named `tr`, not `t`: this module already binds `t` to Lezer's highlight
 // tags (see the import below), which every style rule in the file uses.
@@ -282,6 +283,11 @@ const jhTheme = EditorView.theme({
 // Building a decoration per hit on every Find Next froze large files once a
 // search found tens of thousands of hits — which is also why the search used
 // to stop at 20,000.
+// Documents at least this long are searched in a worker (TextSearch.worker.js):
+// in-thread, one step of CM6's search cursor can scan the whole file without
+// returning, and nothing can interrupt it.
+const WORKER_SEARCH_MIN_CHARS = 1 << 20;
+
 const setSearchHighlights = StateEffect.define();
 
 const searchHighlightField = StateField.define({
@@ -774,7 +780,7 @@ export class CodeMirrorView {
                     key: 'Escape',
                     run: () => {
                         const hasSearch = (State.searchMatches && State.searchMatches.length)
-                            || (State._autoSearchTerm);
+                            || this.isSearching();
                         if (hasSearch && typeof window.clearSearch === 'function') {
                             window.clearSearch();
                             return true;
@@ -830,11 +836,6 @@ export class CodeMirrorView {
                 // just edits.
                 if ((update.docChanged || update.selectionSet) && this.options.updateStatusBar) {
                     this.options.updateStatusBar();
-                }
-                // Selecting a word promotes it to the search term (so Ctrl+K /
-                // F3 walk its occurrences) unless a real search is running.
-                if (update.selectionSet && !update.docChanged) {
-                    this._scheduleSelectionSearch();
                 }
                 // Keep the HTML preview in step with the source (debounced —
                 // reloading an iframe on every keystroke is expensive).
@@ -1298,61 +1299,6 @@ export class CodeMirrorView {
     }
 
     // Currently selected text ('' if the selection is empty).
-    /**
-     * Debounced entry point for "selecting a word highlights it everywhere".
-     * Debounced because a drag-select fires selectionSet on every mouse move.
-     */
-    _scheduleSelectionSearch() {
-        clearTimeout(this._selSearchTimer);
-        this._selSearchTimer = setTimeout(() => this._searchSelectedWord(), 200);
-    }
-
-    /**
-     * Make the selected word the active search term, so it is highlighted
-     * everywhere and Ctrl+K / F3 step through its occurrences.
-     *
-     * An explicit search the user typed always wins and is never overwritten
-     * (requirement 2-1). To still allow *repeated* word selections to work, we
-     * remember the term we set ourselves: if the box still holds exactly that,
-     * it is ours to replace; anything else is the user's and is left alone.
-     */
-    _searchSelectedWord() {
-        if (!this.editorView) return;
-        // Only when this editor is the active view (a background pane must not
-        // hijack the search box).
-        try {
-            if (typeof window.app?.getCurrentView === 'function' && window.app.getCurrentView() !== this) return;
-        } catch (_) { /* ignore */ }
-
-        const input = document.getElementById('find-input');
-        if (!input) return;
-
-        const sel = this.editorView.state.selection.main;
-        const text = sel.empty ? '' : this.editorView.state.sliceDoc(sel.from, sel.to);
-
-        // A "word": no whitespace, at least 2 chars, and not an entire line-worth
-        // of text (long selections are almost never a word).
-        const isWord = !!text && text.length >= 2 && text.length <= 80 && !/\s/.test(text);
-        if (!isWord) return;
-
-        const current = input.value;
-        const ours = State._autoSearchTerm;
-        // Someone else's (user-typed) search is in the box → leave it be.
-        if (current && current !== ours) return;
-        if (current === text) return; // already searching for it
-
-        State._autoSearchTerm = text;
-        input.value = text;
-        try {
-            if (typeof window.performSearchInternal === 'function') {
-                // noFocus + keepPosition: highlight the occurrences without
-                // stealing focus or yanking the view to the first hit — the
-                // user is reading where they are.
-                window.performSearchInternal(true, true);
-            }
-        } catch (e) { console.warn('selection search failed', e); }
-    }
-
     getSelectedText() {
         if (!this.editorView) return '';
         const state = this.editorView.state;
@@ -1497,11 +1443,17 @@ export class CodeMirrorView {
         });
     }
 
-    // Chunked, cancellable, async match collection so a search over a large file
-    // with many hits doesn't freeze the UI. `onProgress(count)` is called between
-    // chunks; a newer search (bumping _searchToken) supersedes an in-flight one.
+    // Async, cancellable match collection so a search over a large file doesn't
+    // freeze the UI. `onProgress(count, fraction)` reports hits so far and how
+    // much of the document has been scanned (0..1). A newer search, or
+    // cancelSearch(), supersedes an in-flight one.
+    //
+    // Resolves true when the search finished and State.searchMatches holds its
+    // hits, false when it was superseded or cancelled (the caller must then
+    // leave the UI to whoever replaced it).
     async performSearch(query, isRegex, isCaseSensitive, isWord, onProgress) {
-        if (!this.editorView) return;
+        if (!this.editorView) return false;
+        this._stopSearchWorker();
         const token = (this._searchToken = (this._searchToken || 0) + 1);
 
         const sq = this._buildQuery(query, isRegex, isCaseSensitive, isWord);
@@ -1509,36 +1461,116 @@ export class CodeMirrorView {
             State.searchMatches = [];
             this.renderSearchHighlights([], 0);
             this._updateSearchScrollbarMarks();
-            return;
+            return true;
         }
 
-        const matches = [];
         // Capped only for very short terms (which match nearly everywhere); a
         // longer one collects every hit, up to a memory safety stop.
         const MAX_MATCHES = searchMatchLimit(query);
         this.lastSearchTruncated = 0;
-        const CHUNK = 2000;
-        const cursor = sq.getCursor(this.editorView.state);
-        let m;
-        while (!(m = cursor.next()).done) {
-            matches.push({ start: m.value.from, end: m.value.to, isCodeMirror: true });
-            if (matches.length >= MAX_MATCHES) {
-                this.lastSearchTruncated = MAX_MATCHES;
-                break;
+        const doc = this.editorView.state.doc;
+
+        let matches = null;
+        this._searchRunning = true;
+        try {
+            if (doc.length >= WORKER_SEARCH_MIN_CHARS) {
+                const res = await this._searchInWorker(doc.toString(), {
+                    query, isRegex, caseSensitive: isCaseSensitive, wholeWord: isWord, limit: MAX_MATCHES,
+                }, onProgress);
+                if (token !== this._searchToken || !this.editorView) return false;
+                if (res) {
+                    matches = new Array(res.count);
+                    for (let i = 0; i < res.count; i++) {
+                        matches[i] = { start: res.starts[i], end: res.ends[i], isCodeMirror: true };
+                    }
+                    if (res.truncated) this.lastSearchTruncated = MAX_MATCHES;
+                }
+                // res === null: no worker here — fall through to the in-thread scan.
             }
-            if (matches.length % CHUNK === 0) {
-                if (onProgress) onProgress(matches.length);
-                // Yield so the UI can paint; abort if superseded/destroyed.
-                await new Promise(r => setTimeout(r, 0));
-                if (token !== this._searchToken || !this.editorView) return;
+            if (!matches) {
+                matches = [];
+                const CHUNK = 2000;
+                const cursor = sq.getCursor(this.editorView.state);
+                let m;
+                while (!(m = cursor.next()).done) {
+                    matches.push({ start: m.value.from, end: m.value.to, isCodeMirror: true });
+                    if (matches.length >= MAX_MATCHES) {
+                        this.lastSearchTruncated = MAX_MATCHES;
+                        break;
+                    }
+                    if (matches.length % CHUNK === 0) {
+                        if (onProgress) onProgress(matches.length, doc.length ? m.value.to / doc.length : 1);
+                        // Yield so the UI can paint; abort if superseded/destroyed.
+                        await new Promise(r => setTimeout(r, 0));
+                        if (token !== this._searchToken || !this.editorView) return false;
+                    }
+                }
             }
+        } finally {
+            if (token === this._searchToken) this._searchRunning = false;
         }
-        if (token !== this._searchToken || !this.editorView) return;
+        if (token !== this._searchToken || !this.editorView) return false;
 
         State.searchMatches = matches;
         State.currentMatchIndex = 0;
         this.renderSearchHighlights(matches, 0);
         this._updateSearchScrollbarMarks();
+        return true;
+    }
+
+    /**
+     * Run the scan in a worker. Resolves with the hits, with null when a
+     * worker can't be started (the caller scans in-thread instead), and with
+     * `undefined` once the search is cancelled. Rejects on a worker error.
+     */
+    _searchInWorker(text, opts, onProgress) {
+        let worker;
+        try {
+            worker = new Worker(new URL('../workers/TextSearch.worker.js', import.meta.url), { type: 'module' });
+        } catch (e) {
+            return Promise.resolve(null);
+        }
+        return new Promise((resolve, reject) => {
+            const finish = (fn, v) => {
+                if (this._searchWorker && this._searchWorker.worker === worker) this._searchWorker = null;
+                worker.terminate();
+                fn(v);
+            };
+            this._searchWorker = { worker, cancel: () => finish(resolve, undefined) };
+            worker.onmessage = (e) => {
+                const d = e.data;
+                if (d.type === 'progress') {
+                    if (onProgress) onProgress(d.count, d.total ? d.scanned / d.total : 1);
+                } else if (d.type === 'done') {
+                    finish(resolve, d);
+                } else {
+                    finish(reject, new Error(d.error));
+                }
+            };
+            worker.onerror = (err) => { err.preventDefault?.(); finish(reject, new Error(err.message || 'search worker failed')); };
+            worker.postMessage({ text, ...opts });
+        });
+    }
+
+    _stopSearchWorker() {
+        if (this._searchWorker) this._searchWorker.cancel();
+    }
+
+    /** True while a search is still collecting hits. */
+    isSearching() {
+        return !!this._searchRunning;
+    }
+
+    /**
+     * Abandon the running search. Returns true if one was running. The
+     * performSearch() it belongs to resolves false.
+     */
+    cancelSearch() {
+        const was = this.isSearching();
+        this._searchToken = (this._searchToken || 0) + 1;
+        this._searchRunning = false;
+        this._stopSearchWorker();
+        return was;
     }
 
     // Paint the yellow "all hits" highlight (and orange on the active match).
@@ -1641,58 +1673,128 @@ export class CodeMirrorView {
     }
 
     // Replace is done standalone (the app doesn't include CM6's search extension,
-    // so cmReplaceNext/All aren't available). SearchQuery.getReplacement handles
-    // regex $1 group substitution.
-    // Compute the replacement text for a match. Consistent with the search side:
-    // regex ON → \n/\r/\t and $1 groups are interpreted (literal=false); regex
-    // OFF → the replacement is taken literally (\n stays backslash-n), same as
-    // the search field. This is CM6's SearchQuery behavior driven by `literal`.
+    // so cmReplaceNext/All aren't available). The replacement text follows the
+    // search side: regex ON → \n/\r/\t and $1 groups are interpreted; regex OFF
+    // → taken literally (see expandReplacement).
     _computeReplacement(sq, match, replaceWith, isRegex) {
-        const repl = String(replaceWith || '');
-        if (!isRegex) return repl; // plain mode: literal, matching the search side
-        // Regex mode: interpret \n \r \t \\, then resolve $1 / $& capture groups.
-        let out = repl.replace(/\\([nrt\\])/g,
-            (_, ch) => ch === 'n' ? '\n' : ch === 'r' ? '\r' : ch === 't' ? '\t' : '\\');
-        const groups = match && match.match;
-        if (groups) {
-            out = out.replace(/\$([$&]|\d+)/g,
-                (m, i) => i === '&' ? (groups[0] ?? '') : i === '$' ? '$' : (groups[+i] ?? ''));
-        }
-        return out;
-    }
-
-    replaceNext(query, replaceWith, isRegex, isCaseSensitive, isWord) {
-        if (!this.editorView) return;
-        const sq = this._buildQuery(query, isRegex, isCaseSensitive, isWord, replaceWith || '');
-        if (!sq.valid) return;
-        const state = this.editorView.state;
-        const from = state.selection.main.to;
-        let cursor = sq.getCursor(state, from);
-        let m = cursor.next();
-        if (m.done) { m = sq.getCursor(state, 0).next(); } // wrap to top
-        if (m.done) return;
-        const match = m.value;
-        const insert = this._computeReplacement(sq, match, replaceWith, isRegex);
-        this.editorView.dispatch({
-            changes: { from: match.from, to: match.to, insert },
-            selection: { anchor: match.from + insert.length },
-            scrollIntoView: true
-        });
-        this.performSearch(query, isRegex, isCaseSensitive, isWord); // refresh matches/highlights
+        return expandReplacement(replaceWith, match && match.match, isRegex);
     }
 
     /**
-     * Replace every match.
+     * Replace one hit: the current search hit `target` ({start, end}) when it
+     * is still a hit, otherwise the first one at or after the selection.
      *
-     * @returns {number} how many were replaced — the count was already sitting
-     *   in `changes.length` and was simply discarded, leaving the caller to say
-     *   "Replaced all occurrences" whether it replaced 900 or none at all.
+     * The hit list is updated in place — the replaced hit dropped, the later
+     * ones shifted — rather than searched again: on a large file a fresh
+     * search per replacement is a full scan each time, and it would also find
+     * the query inside text just inserted.
+     *
+     * @returns {number} index the replaced hit had in State.searchMatches, or
+     *   -1 when nothing was replaced.
      */
-    replaceAll(query, replaceWith, isRegex, isCaseSensitive, isWord) {
+    replaceNext(query, replaceWith, isRegex, isCaseSensitive, isWord, target = null) {
+        if (!this.editorView) return -1;
+        const sq = this._buildQuery(query, isRegex, isCaseSensitive, isWord, replaceWith || '');
+        if (!sq.valid) return -1;
+        const state = this.editorView.state;
+        const matches = State.searchMatches || [];
+
+        // The hit to replace, re-read from the document (bounded, so cheap)
+        // to get its capture groups and to be sure it is still there.
+        const hitAt = (from, to) => {
+            const m = sq.getCursor(state, from, to).next();
+            return !m.done && m.value.from === from && m.value.to === to ? m.value : null;
+        };
+        let match = target && target.start != null ? hitAt(target.start, target.end) : null;
+        if (!match && matches.length && matches[0].start != null) {
+            let i = firstMatchAtOrAfter(matches, state.selection.main.from);
+            if (i === -1) i = 0; // wrap to top
+            match = hitAt(matches[i].start, matches[i].end);
+        }
+        if (!match) {
+            let m = sq.getCursor(state, state.selection.main.from).next();
+            if (m.done) m = sq.getCursor(state, 0).next(); // wrap to top
+            if (m.done) return -1;
+            match = m.value;
+        }
+
+        const insert = this._computeReplacement(sq, match, replaceWith, isRegex);
+        const before = state.doc.length;
+        this.editorView.dispatch({
+            changes: { from: match.from, to: match.to, insert },
+            selection: { anchor: match.from + insert.length },
+            scrollIntoView: true,
+            userEvent: 'input.replace',
+        });
+        const delta = this.editorView.state.doc.length - before;
+
+        const index = firstMatchAtOrAfter(matches, match.from);
+        if (index !== -1 && matches[index].start === match.from) {
+            matches.splice(index, 1);
+            for (let i = index; i < matches.length; i++) {
+                matches[i].start += delta;
+                matches[i].end += delta;
+            }
+        }
+        this.renderSearchHighlights(matches, Math.min(Math.max(index, 0), Math.max(matches.length - 1, 0)));
+        this._updateSearchScrollbarMarks();
+        return index;
+    }
+
+    /**
+     * Replace every match, as one undo step.
+     *
+     * Large documents are scanned in the worker (with progress, cancellable)
+     * and the result applied as a single edit over the span from the first hit
+     * to the last; CodeMirror takes seconds to apply hundreds of thousands of
+     * separate changes, and as long again to undo them.
+     *
+     * @returns {Promise<number|null>} how many were replaced, or null when the
+     *   run was cancelled or superseded (nothing was changed). Rejects when the
+     *   document was edited while the worker was scanning — the positions it
+     *   found no longer apply, so nothing is replaced.
+     */
+    async replaceAll(query, replaceWith, isRegex, isCaseSensitive, isWord, onProgress) {
         if (!this.editorView) return 0;
+        this._stopSearchWorker();
+        const token = (this._searchToken = (this._searchToken || 0) + 1);
         const sq = this._buildQuery(query, isRegex, isCaseSensitive, isWord, replaceWith || '');
         if (!sq.valid) return 0;
         const state = this.editorView.state;
+
+        if (state.doc.length >= WORKER_SEARCH_MIN_CHARS) {
+            const sel = state.selection.main;
+            let res;
+            this._searchRunning = true;
+            try {
+                res = await this._searchInWorker(state.doc.toString(), {
+                    query, isRegex, caseSensitive: isCaseSensitive, wholeWord: isWord,
+                    replace: String(replaceWith || ''), positions: [sel.anchor, sel.head],
+                }, onProgress);
+            } finally {
+                if (token === this._searchToken) this._searchRunning = false;
+            }
+            if (token !== this._searchToken || !this.editorView) return null;
+            if (res) {
+                if (this.editorView.state.doc !== state.doc) {
+                    throw new Error('The document changed while replacing — nothing was replaced.');
+                }
+                if (!res.count) return 0;
+                const view = this.editorView;
+                view.dispatch({
+                    changes: { from: res.from, to: res.to, insert: res.insert },
+                    userEvent: 'input.replace.all',
+                });
+                // Mapped by the worker: CodeMirror would push a selection
+                // inside the rebuilt span to one of its ends.
+                const len = view.state.doc.length;
+                const [anchor, head] = res.positions.map(p => Math.min(Math.max(p, 0), len));
+                view.dispatch({ selection: { anchor, head } });
+                return res.count;
+            }
+            // res === null: no worker here — fall through to the in-thread scan.
+        }
+
         const cursor = sq.getCursor(state, 0);
         const changes = [];
         let m;
@@ -1703,8 +1805,7 @@ export class CodeMirrorView {
             changes.push({ from: match.from, to: match.to, insert });
             if (changes.length >= MAX) break;
         }
-        if (changes.length) this.editorView.dispatch({ changes });
-        this.performSearch(query, isRegex, isCaseSensitive, isWord); // refresh marks
+        if (changes.length) this.editorView.dispatch({ changes, userEvent: 'input.replace.all' });
         return changes.length;
     }
 
@@ -1780,8 +1881,8 @@ export class CodeMirrorView {
     }
 
     destroy() {
-        // Don't let a queued selection-search fire against a torn-down view.
-        clearTimeout(this._selSearchTimer);
+        // Don't let a search still running in the worker report into a torn-down view.
+        this.cancelSearch();
         // Remember the Book-mode page so returning to this tab reopens it there.
         if (this.file && State.plainTextViewMode === 'book') {
             try { this.file._cmBookPage = this.currentPageIndex || 0; } catch (e) { /* ignore */ }
