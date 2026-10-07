@@ -617,4 +617,16 @@ export default {
     'Show the background grid': '显示背景网格线',
     'Replace is not available here.': '此处无法使用替换。',
     'Drag to resize · double-click to fit': '拖动调整宽度 · 双击自适应内容',
+    // Deck View (views/DeckView.js)
+    'This is a jh-presentation deck': '这是 jh-presentation 演示文稿',
+    'Showing the slides runs the scripts in this file. It is asked only once per file.': '显示幻灯片会运行此文件中的脚本。每个文件只询问一次。',
+    'Show slides': '以幻灯片打开',
+    'Keep the source': '保持源代码',
+    'Edit text': '编辑文字',
+    'Source': '源代码',
+    'Slides': '幻灯片',
+    'This deck cannot be edited here. Update it with jh-presentation first.': '无法在此编辑该演示文稿。请先用 jh-presentation 更新为最新格式。',
+    'The edit was not applied because the source has changed. Reloading the slides.': '源代码已更改，未应用此编辑。正在重新显示幻灯片。',
+    'Double-click a box on a slide to edit it (E)': '双击幻灯片中的文本框进行编辑 (E)',
+    'Slide {n} / {total}': '幻灯片 {n} / {total}',
 };

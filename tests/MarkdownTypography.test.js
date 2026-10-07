@@ -173,7 +173,7 @@ describe('the scroll view uses the width it is given', () => {
            all return early. The reset has to happen before the first of them. */
         const render = read('src/modules/core/Editor.js');
         const reset = render.indexOf(
-            "container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode')");
+            "container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode', 'deck-mode')");
         expect(reset, 'the mode class should be cleared somewhere').toBeGreaterThan(-1);
 
         for (const early of ["file.type === 'diff'", "file.type === 'compare'",
@@ -187,7 +187,7 @@ describe('the scroll view uses the width it is given', () => {
         // And only once: a second reset further down would read as though the
         // first one were not enough.
         expect(render.split(
-            "classList.remove('plain-mode', 'csv-mode', 'markdown-mode')")
+            "classList.remove('plain-mode', 'csv-mode', 'markdown-mode', 'deck-mode')")
         ).toHaveLength(2);
     });
 

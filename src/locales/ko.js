@@ -617,4 +617,16 @@ export default {
     'Show the background grid': '배경 눈금선 표시',
     'Replace is not available here.': '여기서는 바꾸기를 사용할 수 없습니다.',
     'Drag to resize · double-click to fit': '드래그하여 너비 변경 · 두 번 클릭하면 내용에 맞춤',
+    // Deck View (views/DeckView.js)
+    'This is a jh-presentation deck': 'jh-presentation 덱입니다',
+    'Showing the slides runs the scripts in this file. It is asked only once per file.': '슬라이드를 표시하면 이 파일의 스크립트가 실행됩니다. 파일마다 한 번만 묻습니다.',
+    'Show slides': '슬라이드로 열기',
+    'Keep the source': '소스 그대로',
+    'Edit text': '텍스트 편집',
+    'Source': '소스',
+    'Slides': '슬라이드',
+    'This deck cannot be edited here. Update it with jh-presentation first.': '이 덱은 여기서 편집할 수 없습니다. 먼저 jh-presentation으로 최신 형식으로 업데이트하세요.',
+    'The edit was not applied because the source has changed. Reloading the slides.': '소스가 변경되어 편집을 적용하지 않았습니다. 슬라이드를 다시 표시합니다.',
+    'Double-click a box on a slide to edit it (E)': '슬라이드의 상자를 더블클릭하여 편집 (E)',
+    'Slide {n} / {total}': '슬라이드 {n} / {total}',
 };

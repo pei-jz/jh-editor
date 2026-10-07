@@ -617,4 +617,16 @@ export default {
     'Show the background grid': '背景のグリッド線を表示',
     'Replace is not available here.': 'ここでは置換は使えません。',
     'Drag to resize · double-click to fit': 'ドラッグで幅を変更・ダブルクリックで内容に合わせる',
+    // Deck View (views/DeckView.js)
+    'This is a jh-presentation deck': 'jh-presentation のデッキです',
+    'Showing the slides runs the scripts in this file. It is asked only once per file.': 'スライドを表示すると、このファイルのスクリプトを実行します。確認はファイルごとに 1 回だけです。',
+    'Show slides': 'スライド表示で開く',
+    'Keep the source': 'ソースのまま',
+    'Edit text': '文字を編集',
+    'Source': 'ソース',
+    'Slides': 'スライド',
+    'This deck cannot be edited here. Update it with jh-presentation first.': 'このデッキはここでは編集できません。先に jh-presentation で最新の形式に更新してください。',
+    'The edit was not applied because the source has changed. Reloading the slides.': 'ソースが変更されているため反映しませんでした。スライドを表示し直します。',
+    'Double-click a box on a slide to edit it (E)': 'スライドの枠をダブルクリックして編集 (E)',
+    'Slide {n} / {total}': 'スライド {n} / {total}',
 };

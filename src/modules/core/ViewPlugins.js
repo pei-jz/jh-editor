@@ -7,6 +7,7 @@ import { CodeMirrorView } from '../views/CodeMirrorView.js';
 import { MarkdownView } from '../views/MarkdownView.js';
 import { StructureView } from '../views/StructureView.js';
 import { CsvView } from '../views/CsvView.js';
+import { DeckView } from '../views/DeckView.js';
 
 export function initDefaultPlugins(context) {
     // 1. Markdown
@@ -27,7 +28,17 @@ export function initDefaultPlugins(context) {
         priority: 10
     });
 
-    // 3. Structure (XML, JSON, HTML)
+    // 3. jh-presentation deck (HTML shown as slides). Only reached through
+    //    viewMode 'deck', which Editor.js sets for files that are decks.
+    pluginManager.register({
+        id: 'deck',
+        viewClass: DeckView,
+        extensions: ['html', 'htm'],
+        modes: ['deck'],
+        priority: 20
+    });
+
+    // 4. Structure (XML, JSON, HTML)
     pluginManager.register({
         id: 'structure',
         viewClass: StructureView,
@@ -43,7 +54,7 @@ export function initDefaultPlugins(context) {
         }
     });
 
-    // 4. Plain Text (Fallback)
+    // 5. Plain Text (Fallback)
     pluginManager.register({
         id: 'plain',
         viewClass: CodeMirrorView,

@@ -48,7 +48,7 @@ agent over MCP, rather than embedding an LLM stack of its own.
 
 ### 📝 Editing modes
 
-Every file opens in **Text** mode by default (CSV opens as a table). `Ctrl+Shift+E`
+Every file opens in **Text** mode by default (CSV opens as a table, a jh-presentation deck as slides). `Ctrl+Shift+E`
 switches modes; the current mode is always shown in the status bar.
 
 | Mode | What it is |
@@ -59,6 +59,7 @@ switches modes; the current mode is always shown in the status bar.
 | **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
 | **Diff** | Side-by-side diff with per-hunk Accept/Reject, whitespace-ignore toggle, similarity-based line pairing, and a change minimap |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
+| **Deck** | A [jh-presentation](https://github.com/pei-jz/jh-presentation) deck shown as slides. Double-click a box to fix its text in place; only that text changes in the source |
 | **Office preview** | Read-only look inside `.xlsx` / `.xlsm` / `.xls` / `.ods` / `.docx` / `.pptx`, without waiting for Excel or Word to start |
 
 ### ✍️ Markdown
@@ -87,6 +88,22 @@ switches modes; the current mode is always shown in the status bar.
   and explicit CRLF/LF control that never changes on its own
 - **Office files** — `.xlsx` / `.docx` / `.pptx` open in the preview below rather than
   being hidden as binaries; they appear in the explorer and in `Ctrl+P`
+
+### 🎞️ Slides (jh-presentation decks)
+
+A deck made by [jh-presentation](https://github.com/pei-jz/jh-presentation) is a single HTML
+file, and it opens in **Deck View**: the slides themselves, with `←` / `→` to move through
+them and `Ctrl+Shift+E` to switch to the source.
+
+- **Asked once per file** — a deck runs its own scripts, so the first time a file is opened
+  the view asks before showing it. The answer is remembered for that file.
+- **Fix text in place** — double-click a box (or turn on *Edit text*), type, `Enter`. Only
+  that element's text is rewritten in the source; the rest of the file stays byte for byte.
+  If the source no longer matches what the slide showed, the edit is refused, not guessed.
+- **`Ctrl+S` inside the slides** saves through the editor, and switching away and back
+  returns to the same slide and step.
+- The slides run in a sandboxed frame (`allow-scripts` only) and talk to the editor
+  through `postMessage`, following jh-presentation's edit protocol.
 
 ### 📊 Office preview
 

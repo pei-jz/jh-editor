@@ -48,6 +48,7 @@ import { pluginManager } from './PluginManager.js';
 import { initDefaultPlugins } from './ViewPlugins.js';
 import { showAlert, showConfirm, showDialog } from '../ui/Dialog.js';
 import { largeFileThresholdBytes } from '../utils/LargeFileSetting.js';
+import { isDeckFile } from '../utils/DeckHost.js';
 
 // Initialize Plugins
 initDefaultPlugins();
@@ -385,6 +386,14 @@ const editorActions = {
         // it into an empty CodeMirror and look like the file had vanished.
         if (file.type === 'office') return;
 
+        // jh-presentation のデッキはソースとスライド表示 (Deck View) を行き来する
+        if (file.viewMode === 'deck' || (file.viewMode === 'text' && isDeckFile(file))) {
+            file.viewMode = file.viewMode === 'deck' ? 'text' : 'deck';
+            renderEditor();
+            renderTabs();
+            return;
+        }
+
         if (structural.some(ext => path.endsWith(ext)) || isMarkdown) {
             if (file.viewMode === 'text') {
                 if (file.content && file.content.length > 5 * 1024 * 1024) {
@@ -552,7 +561,7 @@ export function renderEditor(targetPane = null) {
         // inset by the Markdown page margin, and the same diff opened after a
         // .txt was not. Same view, two layouts, decided by what you happened to
         // be looking at before.
-        container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode');
+        container.classList.remove('plain-mode', 'csv-mode', 'markdown-mode', 'deck-mode');
 
         // Special Case: Diff View
         if (file.type === 'diff' || file.viewMode === 'diff') {
@@ -664,11 +673,16 @@ export function renderEditor(targetPane = null) {
             // the MarkdownView (block) view with its book/scroll mode remembered
             // in State.markdownViewMode. Every other type (html, json, …)
             // defaults to plain text. The choice sticks for that tab and can be
-            // flipped with Ctrl+Shift+E.
-            file.viewMode = (isCsv || isMarkdown) ? 'structure' : 'text';
+            // flipped with Ctrl+Shift+E. A jh-presentation deck opens as slides
+            // (Deck View); the first time, the view asks before running its scripts.
+            if (isCsv || isMarkdown) file.viewMode = 'structure';
+            else if (isHtml && isDeckFile(file)) file.viewMode = 'deck';
+            else file.viewMode = 'text';
         }
 
-        if (file.viewMode === 'text') {
+        if (file.viewMode === 'deck') {
+            container.classList.add('deck-mode');
+        } else if (file.viewMode === 'text') {
             container.classList.add('plain-mode');
         } else if (file.viewMode === 'structure') {
             if (isMarkdown) {
@@ -685,6 +699,7 @@ export function renderEditor(targetPane = null) {
                 updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
                 renderEditor: () => renderEditor(pane),
                 renderTabs: () => renderTabs(pane),
+                saveFile: () => saveFile(file, view),
             };
 
             view = new plugin.viewClass(container, options);
@@ -807,6 +822,16 @@ export function addViewUsageHint(container, file, options = {}) {
             ['Ctrl+Alt+B', 'book / scroll mode'],
             ['Ctrl+Shift+E', 'switch to text']
         ];
+    } else if (file.viewMode === 'deck') {
+        title = 'Deck View';
+        lines = [
+            ['← / →', 'previous / next'],
+            ['Double-click', 'edit the text in a box'],
+            ['E', 'edit mode on / off'],
+            ['Enter / Esc', 'confirm / cancel'],
+            ['Ctrl+S', 'save'],
+            ['Ctrl+Shift+E', 'switch to source']
+        ];
     } else if (isCsv) {
         title = 'Table View';
         // The insert / delete pair is Excel's, and this panel is where anyone
@@ -833,7 +858,7 @@ export function addViewUsageHint(container, file, options = {}) {
 
     const storageKey = (mdVi || cmVi)
         ? 'view-usage-hint-min-vi'
-        : `view-usage-hint-min-${isMd ? 'md' : isCsv ? 'csv' : 'struct'}`;
+        : `view-usage-hint-min-${file.viewMode === 'deck' ? 'deck' : isMd ? 'md' : isCsv ? 'csv' : 'struct'}`;
     const wasMin = localStorage.getItem(storageKey) === '1';
 
     const panel = document.createElement('div');
@@ -3231,7 +3256,8 @@ export function updateStatusBar(forFile = null) {
         const ext = (file.path || file.name || '').toLowerCase();
         const isCsv = ext.endsWith('.csv') || ext.endsWith('.tsv');
         let label = '';
-        if (isMd && file.viewMode === 'structure') label = 'Markdown View';
+        if (file.viewMode === 'deck') label = 'Deck View';
+        else if (isMd && file.viewMode === 'structure') label = 'Markdown View';
         else if (isCsv && file.viewMode === 'structure') label = 'Table View';
         else if (file.viewMode === 'structure') label = 'Structure View';
         else label = 'Text View';
