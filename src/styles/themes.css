@@ -663,7 +663,7 @@ body.theme-paper code {
 }
 
 /* Ruled notebook lines behind rendered Markdown (off when --paper-rule-color is transparent). */
-body.theme-paper .md-body,
+body.theme-paper .markdown-mode,
 body.theme-paper .stf__page.md-body {
     background-image:
         repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));
@@ -808,7 +808,7 @@ body.theme-bamboo-ancient #status-bar {
 
 /* Reading surfaces get the fibre grain only. The slat lines are 4px of near
    black every 46px; behind prose they cut straight through the text. */
-body.theme-bamboo-ancient .md-body,
+body.theme-bamboo-ancient .markdown-mode,
 body.theme-bamboo-ancient .stf__page {
     background-image: var(--grain);
     background-attachment: local;
@@ -993,7 +993,7 @@ body.theme-sumi-e {
 }
 
 body.theme-sumi-e #explorer,
-body.theme-sumi-e .md-body,
+body.theme-sumi-e .markdown-mode,
 body.theme-sumi-e .stf__page {
     background-image: var(--grain);
 }
@@ -1255,7 +1255,7 @@ body.theme-kakejiku #explorer {
 }
 
 /* Reading surfaces (markdown preview / book pages) get the silk. */
-body.theme-kakejiku .md-body,
+body.theme-kakejiku .markdown-mode,
 body.theme-kakejiku .stf__page {
     background-image: var(--silk);
     background-position: 0 0;
@@ -1503,7 +1503,7 @@ body.theme-kakejiku-dark #explorer {
     color: var(--text-color);
 }
 
-body.theme-kakejiku-dark .md-body,
+body.theme-kakejiku-dark .markdown-mode,
 body.theme-kakejiku-dark .stf__page {
     background-image: var(--silk);
     background-position: 0 0;
@@ -1729,7 +1729,7 @@ body.theme-sumi-e-dark {
 }
 
 body.theme-sumi-e-dark #explorer,
-body.theme-sumi-e-dark .md-body,
+body.theme-sumi-e-dark .markdown-mode,
 body.theme-sumi-e-dark .stf__page {
     background-image: var(--grain);
 }
@@ -1897,7 +1897,7 @@ body.theme-paper-dark code {
     letter-spacing: normal;
 }
 
-body.theme-paper-dark .md-body,
+body.theme-paper-dark .markdown-mode,
 body.theme-paper-dark .stf__page.md-body {
     background-image:
         repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));

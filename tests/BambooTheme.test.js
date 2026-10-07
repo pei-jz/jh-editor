@@ -91,11 +91,22 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
     // The slats are 4px of near-black every 46px. Behind prose they would cut
     // straight through the text, so reading surfaces take the fibre grain only.
     it('keeps the slat lines off the reading surfaces', () => {
-        const idx = themes.indexOf('body.theme-bamboo-ancient .md-body,');
+        const idx = themes.indexOf('body.theme-bamboo-ancient .markdown-mode,');
         expect(idx).toBeGreaterThan(-1);
         const rule = themes.slice(idx, themes.indexOf('}', idx));
         expect(rule).toContain('background-image: var(--grain);');
         expect(rule).not.toContain('--slip');
+    });
+
+    // Every Markdown block carries .md-body too. A texture on .md-body was
+    // painted once per block, on top of the page's own, and each block showed
+    // as a lighter box with its own edges. The surface takes it, not the blocks.
+    it('paints textures on the surface, never once per block', () => {
+        const offenders = [...themes.matchAll(/^([^{}]*)\{([^}]*)\}/gm)]
+            .filter(([, sel, body]) => /background(-image)?\s*:/.test(body)
+                && sel.split(',').some(s => /(^|\s)\.md-(body|block)$/.test(s.trim())))
+            .map(([, sel]) => sel.trim());
+        expect(offenders).toEqual([]);
     });
 
     it('leaves the other themes untouched', () => {
