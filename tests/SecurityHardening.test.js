@@ -281,6 +281,20 @@ describe('tauri configuration', () => {
         expect(csp['style-src-attr']).toContain("'unsafe-inline'");
     });
 
+    // script-src gets the same treatment: the inline <script> in index.html is
+    // hashed into it, which switches 'unsafe-inline' off. A sandboxed srcdoc
+    // frame inherits its parent's policy, so the Deck View slides (whose engine
+    // is an inline <script>) stayed black in a packaged build, and F5 pressed
+    // inside one reached the webview as a reload — back to the Welcome screen.
+    // Naming script-src-elem keeps <script> elements out of the rewritten one.
+    // Event-handler attributes stay governed by script-src, i.e. blocked.
+    it('keeps inline script elements working under the hash Tauri injects', () => {
+        const csp = conf.app.security.csp;
+        expect(csp['script-src-elem']).toContain("'unsafe-inline'");
+        expect(csp['script-src-elem']).toContain("'self'");
+        expect(csp['script-src-attr']).toBeUndefined();
+    });
+
     it('pins the bundle identifier', () => {
         // The identifier is the path to the WebView2 data directory, and this
         // app keeps its settings, session, drafts and recent workspaces in
