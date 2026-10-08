@@ -27,8 +27,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
 // CodeMirror 6 — powers the block editor (replacing the plain textarea).
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { defaultKeymap, history, historyKeymap, insertTab, indentLess } from '@codemirror/commands';
+import { syntaxHighlighting, defaultHighlightStyle, indentUnit } from '@codemirror/language';
 import { markdown } from '@codemirror/lang-markdown';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 
@@ -85,9 +85,8 @@ function _injectBlockEditStyles() {
     .mbe-body.mbe-vertical > .mbe-left { flex: 1 1 55%; min-width: 0; min-height: 140px; }
     .mbe-body.mbe-vertical > .mbe-right {
         flex: 1 1 45%; min-width: 0; min-height: 120px;
-        border-left: none; border-top: 1px solid var(--border-color);
     }
-    .mbe-body.mbe-vertical > .mbe-split { flex: 0 0 5px; cursor: row-resize; }
+    .mbe-body.mbe-vertical > .mbe-split { flex: 0 0 9px; cursor: row-resize; }
 
     .mbe-layout-btn {
         display: inline-flex; align-items: center; gap: 5px;
@@ -101,27 +100,45 @@ function _injectBlockEditStyles() {
     .mbe-left .editor-block-container { flex: 1; min-height: 0; }
     .mbe-left .block-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .mbe-left .block-cm .cm-editor { flex: 1; min-height: 0; max-height: none; }
+    .mbe-left .block-cm .cm-scroller { min-height: 0; overflow: auto; }
 
     /* Smaller editor text: the modal is a fixed-size window, so a slightly
        smaller face fits more of the document on screen. */
     .mbe-left .block-cm .cm-scroller { font-size: 13px; }
 
+    /* Splitter: ONE neutral hairline with a small grip in the middle.
+       It used to be an accent line on the splitter plus an accent border on
+       the preview pane, which read as a heavy double rule down the middle of
+       the dialog. Now the line is the ordinary border colour, the grip says
+       "this moves", and only hovering/dragging brings in the accent. */
     .mbe-split {
-        flex: 0 0 5px; cursor: col-resize; transition: background .12s ease;
-        position: relative;
+        flex: 0 0 9px; cursor: col-resize; position: relative;
+        background: transparent;
     }
-    /* The source/preview boundary stays visible as an accent hairline, not
-       only while hovered/dragged. */
+    .mbe-split::before {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px;
+        background: var(--border-color);
+        transition: background .12s ease;
+    }
     .mbe-split::after {
-        content: ''; position: absolute; top: 0; bottom: 0; left: 2px; width: 1px;
-        background: var(--accent-color, var(--primary-color));
+        content: ''; position: absolute; top: 50%; left: 2px;
+        width: 5px; height: 32px; margin-top: -16px; border-radius: 3px;
+        background: var(--bg-color); border: 1px solid var(--border-color);
+        box-sizing: border-box;
+        transition: background .12s ease, border-color .12s ease;
+    }
+    .mbe-body.mbe-vertical > .mbe-split::before {
+        top: 4px; bottom: auto; left: 0; right: 0; width: auto; height: 1px;
     }
     .mbe-body.mbe-vertical > .mbe-split::after {
-        top: 2px; bottom: auto; left: 0; right: 0; width: auto; height: 1px;
+        top: 2px; left: 50%; width: 32px; height: 5px; margin-top: 0; margin-left: -16px;
     }
-    .mbe-split:hover, .mbe-split.dragging { background: var(--primary-color); opacity: 0.55; }
+    .mbe-split:hover::before, .mbe-split.dragging::before { background: var(--primary-color); }
+    .mbe-split:hover::after, .mbe-split.dragging::after {
+        background: var(--primary-color); border-color: var(--primary-color);
+    }
 
-    .mbe-right { flex: 1 1 45%; min-width: 220px; display: flex; flex-direction: column; border-left: 1px solid var(--accent-color, var(--primary-color)); }
+    .mbe-right { flex: 1 1 45%; min-width: 220px; display: flex; flex-direction: column; }
     .mbe-right-head {
         padding: 6px 12px; font-size: 11px; font-weight: 600; opacity: 0.7;
         border-bottom: 1px solid var(--border-color); background: var(--bg-color-secondary, var(--bg-color));
@@ -443,6 +460,67 @@ export class MarkdownView extends BaseView {
         file.isDirty = !isAtSavedState(file, key);
     }
 
+    /**
+     * Write a block edit back to the file and remember it for Ctrl+Z.
+     *
+     * The block view rebuilds the document from `blocksData`, so neither the
+     * block editor's CodeMirror history (gone when the modal closes) nor the
+     * browser's execCommand('undo') reaches a saved block — after Save in the
+     * edit modal there was nothing to undo with. Every write goes through here
+     * instead, and keeps a document-level history on the FILE (the view is
+     * rebuilt on each render; the file is not).
+     */
+    _commitContent(file, content) {
+        if (!file) return;
+        const before = file.content;
+        if (before !== content) {
+            const h = file._mdHistory || (file._mdHistory = { undo: [], redo: [] });
+            h.undo.push({ before, after: content, cursor: State.vimState.selectedIndex });
+            if (h.undo.length > 200) h.undo.shift();
+            h.redo.length = 0;
+        }
+        file.content = content;
+        this._refreshDirty(file);
+    }
+
+    /** Ctrl+Z in the block view: step the document back one block edit. */
+    undo() { this._stepHistory('undo'); }
+
+    /** Ctrl+Y / Ctrl+Shift+Z in the block view. */
+    redo() { this._stepHistory('redo'); }
+
+    _stepHistory(dir) {
+        if (State.activeTabIndex < 0) return;
+        const file = State.openFiles[State.activeTabIndex];
+        const h = file && file._mdHistory;
+        const stack = h && h[dir];
+        if (!stack || !stack.length) return;
+        const entry = stack[stack.length - 1];
+        // The text was changed somewhere else since (the plain-text editor,
+        // a reload from disk). Replaying a snapshot now would silently throw
+        // that change away, so the history is no longer trustworthy.
+        const expected = dir === 'undo' ? entry.after : entry.before;
+        if (file.content !== expected) {
+            h.undo.length = 0;
+            h.redo.length = 0;
+            return;
+        }
+        stack.pop();
+        (dir === 'undo' ? h.redo : h.undo).push(entry);
+        file.content = dir === 'undo' ? entry.before : entry.after;
+        this._refreshDirty(file);
+        this.blocksData = this._splitIntoBlocks(file.content);
+
+        const last = Math.max(0, this.blocksData.length - 1);
+        const at = Math.min(Math.max(0, entry.cursor || 0), last);
+        this._setCursor(at);
+
+        if (this.renderTabs) this.renderTabs();
+        if (this.renderEditor) this.renderEditor();
+        if (this.updateOutline) this.updateOutline();
+        setTimeout(() => this.selectBlock(at, { reveal: 'center' }), 50);
+    }
+
     _splitIntoBlocks(content) {
         if (!content) return [];
         const lines = content.split(/\r?\n/);
@@ -648,7 +726,11 @@ export class MarkdownView extends BaseView {
         const cmParent = document.createElement('div');
         cmParent.className = 'block-editor block-cm';
         cmParent.style.minHeight = '150px';
-        cmParent.style.display = isTableMode ? 'none' : 'block';
+        // '' rather than 'block' when shown: an inline display:block outranked
+        // the modal's `.mbe-left .block-cm { display: flex }`, so the editor
+        // grew to its full content height inside an overflow:hidden pane —
+        // no scrollbar, no wheel scrolling, only the caret could move the view.
+        cmParent.style.display = isTableMode ? 'none' : '';
 
         const _cmInputHandlers = [];
         // Pick a highlight style that suits the active theme's background:
@@ -665,7 +747,12 @@ export class MarkdownView extends BaseView {
                 history(),
                 drawSelection(),
                 dropCursor(),
-                keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+                // Tab types a real tab character. indentWithTab indented the
+                // whole LINE by indentUnit (two spaces), so Tab never produced
+                // a tab. With a selection, insertTab still indents the lines —
+                // by one tab, since that is the unit now.
+                indentUnit.of('\t'),
+                keymap.of([{ key: 'Tab', run: insertTab, shift: indentLess }, ...defaultKeymap, ...historyKeymap]),
                 markdown(),
                 EditorView.lineWrapping,
                 syntaxHighlighting(_isDarkTheme ? oneDarkHighlightStyle : defaultHighlightStyle),
@@ -749,7 +836,7 @@ export class MarkdownView extends BaseView {
                     isTableMode = false;
                 }
             } else {
-                textarea.style.display = 'block';
+                textarea.style.display = '';
                 tableHost.style.display = 'none';
                 textarea.focus();
             }
@@ -1393,8 +1480,7 @@ export class MarkdownView extends BaseView {
 
         // Use consistent join logic (double newline as per _splitIntoBlocks intent)
         const eol = file.eol || '\n';
-        file.content = this.blocksData.join(eol + eol);
-        this._refreshDirty(file);
+        this._commitContent(file, this.blocksData.join(eol + eol));
 
         if (this.renderTabs) this.renderTabs();
         if (this.renderEditor) this.renderEditor();
@@ -1531,11 +1617,10 @@ export class MarkdownView extends BaseView {
      * Deleting a block used to mean: F2, select all, delete, Ctrl+Enter — four
      * steps to remove something you had already pointed at.
      *
-     * It asks first. There is no block-level undo (the document is rebuilt
-     * from `blocksData`, so the editor's own history does not reach here), and
-     * Delete is one keystroke away from the arrow keys used to get to the
-     * block — so the confirm is the only thing standing between a mistyped
-     * navigation and lost text. It names the count and shows the first line,
+     * It asks first. Ctrl+Z brings a deleted block back (see _commitContent),
+     * but Delete is one keystroke away from the arrow keys used to get to the
+     * block, and a stray delete noticed only later is still lost text — so
+     * the confirm stays. It names the count and shows the first line,
      * so the answer is not blind.
      */
     async deleteSelectedBlocks() {
@@ -1578,8 +1663,7 @@ export class MarkdownView extends BaseView {
         const file = State.openFiles[State.activeTabIndex];
         if (file) {
             const eol = file.eol || '\n';
-            file.content = this.blocksData.join(eol + eol);
-            this._refreshDirty(file);
+            this._commitContent(file, this.blocksData.join(eol + eol));
         }
 
         // Land on the block that took the deleted one's place, or the last one
@@ -1873,8 +1957,7 @@ export class MarkdownView extends BaseView {
         if (State.activeTabIndex < 0) return;
         const file = State.openFiles[State.activeTabIndex];
         const eol = file.eol || '\n';
-        file.content = blocks.join(`${eol}${eol}`);
-        this._refreshDirty(file);
+        this._commitContent(file, blocks.join(`${eol}${eol}`));
 
         // The tab's "*" follows the order: moving a block back clears it.
         if (this.renderTabs) this.renderTabs();

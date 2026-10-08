@@ -58,6 +58,40 @@ describe('MarkdownView modified mark', () => {
         expect(renderTabs).toHaveBeenCalledTimes(2);
     });
 
+    // Saving the edit modal used to leave nothing for Ctrl+Z: the editor's
+    // history died with the modal and the document had none of its own.
+    it('undo puts a saved block back, and redo re-applies it', () => {
+        const original = file.content;
+        State.vimState.selectedIndex = 1;
+        view.saveBlock(1, 'first, edited');
+        const edited = file.content;
+
+        view.undo();
+        expect(file.content).toBe(original);
+        expect(view.blocksData[1]).toBe('first');
+
+        view.redo();
+        expect(file.content).toBe(edited);
+        expect(view.blocksData[1]).toBe('first, edited');
+    });
+
+    it('undo reverses a block move and a delete-by-emptying', () => {
+        const original = file.content;
+        State.vimState.selectedIndex = 1;
+        view.moveBlock(1);
+        view.saveBlock(2, '');
+        view.undo();
+        view.undo();
+        expect(file.content).toBe(original);
+    });
+
+    it('drops the history once the text was changed elsewhere', () => {
+        view.saveBlock(1, 'first, edited');
+        file.content = 'changed in the text editor';
+        view.undo();
+        expect(file.content).toBe('changed in the text editor');
+    });
+
     it('a real change stays marked', () => {
         view.saveBlock(2, 'second\n\nthird');
         expect(file.isDirty).toBe(true);

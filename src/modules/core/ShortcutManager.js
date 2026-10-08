@@ -265,6 +265,17 @@ export class ShortcutManager {
                 if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && !target.classList.contains('plain-text-editor')) {
                     return; // Let browser handle it naturally
                 }
+                // The markdown block editor (CodeMirror in the edit modal) is a
+                // contenteditable, not a TEXTAREA, so it used to fall through to
+                // app:paste — and that is MarkdownView.paste(), which pastes into
+                // the DOCUMENT behind the modal as blocks rather than into the
+                // editor. Copy read window.getSelection(), which CodeMirror only
+                // partly keeps in the DOM. CodeMirror handles the native
+                // copy/cut/paste events itself (and the image paste handler
+                // hangs off the same paste event), so let the key through.
+                if (target && typeof target.closest === 'function' && target.closest('.block-editor')) {
+                    return;
+                }
             }
             // Undo/redo belong to the focused editor whenever that editor keeps
             // its own history: the CSV cell overlay (<textarea>, native undo)

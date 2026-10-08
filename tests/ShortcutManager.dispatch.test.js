@@ -380,6 +380,26 @@ describe('ShortcutManager — dispatch', () => {
             host.remove();
         });
 
+        // app:paste there was MarkdownView.paste(), which pasted into the
+        // document BEHIND the edit modal instead of into the editor.
+        it.each([['c', 'app:copy'], ['x', 'app:cut'], ['v', 'app:paste']])(
+            'lets the markdown block editor handle Ctrl+%s natively', (k, cmd) => {
+                const action = vi.fn();
+                sm.register({ key: k, ctrl: true, cmd, scope: 'GLOBAL', action });
+                const host = document.createElement('div');
+                host.className = 'block-editor block-cm';
+                const content = document.createElement('div');
+                content.className = 'cm-content';
+                content.contentEditable = 'true';
+                host.appendChild(content);
+                document.body.appendChild(host);
+                sm.setScope('MARKDOWN');
+                const ev = key({ key: k, ctrlKey: true, target: content });
+                sm.handleKeyDown(ev);
+                expect(action).not.toHaveBeenCalled();
+                host.remove();
+            });
+
         it('still runs Ctrl+Z on the CSV grid itself', () => {
             const action = vi.fn();
             sm.register({ key: 'z', ctrl: true, cmd: 'app:undo', scope: 'GLOBAL', action });
