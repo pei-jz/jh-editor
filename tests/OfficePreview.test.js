@@ -647,13 +647,58 @@ describe('the preview view', () => {
             sheets: [{
                 name: 'Heights', rows: [['title'], ['short'], ['tall']],
                 total_rows: 3, total_cols: 1, truncated: false, error: null,
-                layout: { col_widths: [80], row_heights: [25, 20, 93], merges: [] },
+                layout: { col_widths: [80], row_heights: [25, 20, 45], merges: [] },
             }],
         }));
 
         view._setColumnWidth(0, 140); // Repaints the virtualised grid.
         expect([...container.querySelectorAll('.of-row')].map((row) => row.style.height))
-            .toEqual(['25px', '20px', '93px']);
+            .toEqual(['25px', '20px', '45px']);
+        view.destroy();
+    });
+
+    // One long wrapped note — or a row the author dragged tall — used to fill
+    // the window with a single row. A preview is for skimming: three lines.
+    it('caps a row at three lines, and double-click opens it fully and back', () => {
+        const long = 'A long description which has to wrap several times in a narrow cell. '.repeat(4);
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Tall', rows: [[long], ['declared tall']],
+                total_rows: 2, total_cols: 1, truncated: false, error: null,
+                layout: {
+                    col_widths: [60], row_heights: [20, 300], merges: [],
+                    styles: [{ wrap: false }, { wrap: true }], style_ids: [[1], [0]],
+                },
+            }],
+        }));
+
+        expect(view.rowHeights[0]).toBe(53);
+        expect(view.rowHeights[1]).toBe(53);
+        expect(container.querySelector('.of-cell').title).toBe(long);
+
+        view._autoFitRow(0);
+        expect(view.rowHeights[0]).toBeGreaterThan(53);
+        view._autoFitRow(0);
+        expect(view.rowHeights[0]).toBe(53);
+
+        // Dragging is the reader's choice, and is not capped.
+        view._setRowHeight(1, 300);
+        expect(view.rowHeights[1]).toBe(300);
+        view.destroy();
+    });
+
+    it('does not cap a row a picture is anchored to', () => {
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Pic', rows: [['x'], ['y']],
+                total_rows: 2, total_cols: 1, truncated: false, error: null,
+                layout: {
+                    col_widths: [80], row_heights: [200, 20], merges: [],
+                    images: [{ row: 0, col: 0, to_row: 0, to_col: 0, width: 50, height: 50, part: 'a.png' }],
+                },
+            }],
+        }));
+        expect(view.rowHeights[0]).toBe(200);
         view.destroy();
     });
 

@@ -23,6 +23,12 @@ import { shapeSvg, shapeColors, textRect } from './OfficeShapes.js';
 const ROW_HEIGHT = 24;
 const MIN_ROW_HEIGHT = 16;
 const WRAP_LINE_HEIGHT = 16.2;
+/** Tallest a row gets on its own: three lines of text. This is a preview for
+ *  skimming, and one long wrapped note (or a row the author dragged tall)
+ *  used to fill the whole window with a single row. The cut-off text is in
+ *  the cell's tooltip; dragging the row grip, or double-clicking it, shows
+ *  all of it. */
+const MAX_AUTO_ROW_HEIGHT = Math.ceil(3 * WRAP_LINE_HEIGHT + 4);
 const CELL_HORIZONTAL_PADDING = 16;
 const MIN_COL_WIDTH = 64;
 const MAX_COL_WIDTH = 320;
@@ -515,7 +521,35 @@ export class OfficeView {
         ), 0);
     }
 
-    _autoRowHeight(rowIndex) {
+    /**
+     * The height a row takes when the reader has not set one.
+     * Capped at MAX_AUTO_ROW_HEIGHT unless `full` — except on a row a picture
+     * or shape is anchored to: those are placed by row, and squeezing the row
+     * would push the drawing over the rows below it.
+     */
+    _autoRowHeight(rowIndex, { full = false } = {}) {
+        const height = this._contentRowHeight(rowIndex);
+        if (full || this._drawingRows().has(rowIndex)) return height;
+        return Math.min(height, Math.max(MAX_AUTO_ROW_HEIGHT, MIN_ROW_HEIGHT));
+    }
+
+    /** Rows covered by a picture or shape anchor, for this sheet. */
+    _drawingRows() {
+        if (this._drawingRowsCache && this._drawingRowsCache.images === this.images
+            && this._drawingRowsCache.shapes === this.shapes) {
+            return this._drawingRowsCache.rows;
+        }
+        const rows = new Set();
+        for (const d of [...(this.images || []), ...(this.shapes || [])]) {
+            if (!d || !Number.isFinite(d.row)) continue;
+            const last = Number.isFinite(d.to_row) ? Math.max(d.row, d.to_row) : d.row;
+            for (let r = d.row; r <= last; r++) rows.add(r);
+        }
+        this._drawingRowsCache = { images: this.images, shapes: this.shapes, rows };
+        return rows;
+    }
+
+    _contentRowHeight(rowIndex) {
         const base = this.baseRowHeights[rowIndex] || ROW_HEIGHT;
         const row = this.sheetRows[rowIndex] || [];
         const ids = this.styleIds[rowIndex] || [];
@@ -687,9 +721,21 @@ export class OfficeView {
         this._refreshRowHeights();
     }
 
+    /**
+     * Double-click on a row grip. A row cut off at the three-line cap opens
+     * to its full height; anything else — including that opened row — goes
+     * back to auto-fit, so a second double-click closes it again.
+     */
     _autoFitRow(row) {
+        if (!this.sheetRows || row >= this.sheetRows.length) return;
         const bySheet = this.file._officeRowHeights || {};
         const forSheet = bySheet[this.sheetIndex];
+        const readerSet = !!forSheet && Object.prototype.hasOwnProperty.call(forSheet, row);
+        const full = this._autoRowHeight(row, { full: true });
+        if (!readerSet && full > this._autoRowHeight(row)) {
+            this._setRowHeight(row, full);
+            return;
+        }
         if (forSheet) delete forSheet[row];
         this._refreshRowHeights();
     }
@@ -802,7 +848,9 @@ export class OfficeView {
                 }
                 // The tooltip still carries the whole of a value that had to be
                 // cut, and the line breaks folded out of one that did not wrap.
-                if (text !== value || value.length > 12) td.title = value;
+                // A short value of several lines counts too: the row may now
+                // stop at three of them (MAX_AUTO_ROW_HEIGHT).
+                if (text !== value || value.length > 12 || value.includes('\n')) td.title = value;
                 td.addEventListener('pointerdown', (e) => this._beginSelection(r, c, e));
                 el.appendChild(td);
             }
@@ -937,7 +985,7 @@ export class OfficeView {
                 bottom: bottomLeft && bottomLeft.bottom,
             });
 
-            if (text !== value || value.length > 12) box.title = value;
+            if (text !== value || value.length > 12 || value.includes('\n')) box.title = value;
             box.addEventListener('pointerdown', (e) => this._beginSelection(m.row, m.col, e));
             frag.appendChild(box);
         }
