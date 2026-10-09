@@ -404,9 +404,17 @@ export class MarkdownView extends BaseView {
             // Shift is the convention for a contiguous range and Ctrl is what
             // most people reach for when they want "and this one too" —
             // and the range here is contiguous either way.
+            //
+            // A drag that selects text INSIDE one block ends in a click on that
+            // block, and selectBlock() collapses the selection to the block's
+            // start — so the text could only be selected across blocks (no
+            // click fires when the drag ends on another element). Keep a text
+            // selection the click landed in; book mode never collapsed it.
             div.onclick = (e) => {
                 if (div.classList.contains('editing')) return;
-                this.selectBlock(i, { extend: e.ctrlKey || e.metaKey || e.shiftKey });
+                const sel = window.getSelection();
+                const keepSelection = !!sel && !sel.isCollapsed && div.contains(sel.anchorNode);
+                this.selectBlock(i, { extend: e.ctrlKey || e.metaKey || e.shiftKey, keepSelection });
             };
         });
 
@@ -1556,6 +1564,7 @@ export class MarkdownView extends BaseView {
 
     selectBlock(index, opts = {}) {
         const { reveal = 'nearest', focus = true, extend = false } = opts;
+        const keepSelection = !!opts.keepSelection;
         if (State.activeTabIndex < 0) return;
         // Bounds must come from the ACTUAL blocks. Re-splitting the raw text on
         // blank lines ignores fenced code, so a document with ``` blocks
@@ -1598,7 +1607,21 @@ export class MarkdownView extends BaseView {
                     b.scrollIntoView({ behavior: 'smooth', block: reveal });
                 }
                 if (!focus) return;
+                // The reader's own text selection (see the scroll-mode click
+                // handler) outranks parking the caret at the block's start.
+                // Held across focus(), which some engines let reset it.
+                const current = window.getSelection();
+                const kept = keepSelection && current && current.rangeCount
+                    ? current.getRangeAt(0).cloneRange() : null;
                 b.focus({ preventScroll: true });
+                if (kept) {
+                    const after = window.getSelection();
+                    if (after.rangeCount === 0 || after.toString() !== kept.toString()) {
+                        after.removeAllRanges();
+                        after.addRange(kept);
+                    }
+                    return;
+                }
                 const range = document.createRange();
                 range.selectNodeContents(b);
                 const sel = window.getSelection();

@@ -457,3 +457,58 @@ describe('the block cursor has exactly one setter', () => {
         expect(src.slice(i, i + 160)).toContain('e.ctrlKey || e.metaKey || e.shiftKey');
     });
 });
+
+/* Selecting text inside ONE block in scroll mode: the drag ends in a click on
+   that block, and selectBlock() used to collapse the selection to the block's
+   start — text could only be selected across blocks, where no click fires. */
+describe('text selection inside a block', () => {
+    let view;
+    let State;
+
+    beforeEach(async () => {
+        ({ State } = await import('../src/modules/core/Store.js'));
+        const { MarkdownView } = await import('../src/modules/views/MarkdownView.js');
+        document.body.innerHTML = '<div id="host"></div>';
+        view = Object.create(MarkdownView.prototype);
+        view.container = document.getElementById('host');
+        view.blocksData = ['first paragraph', 'second'];
+        view.container.innerHTML = view.blocksData
+            .map((t, i) => `<div class="md-block" data-index="${i}" tabindex="-1">${t}</div>`).join('');
+        State.vimState = State.vimState || {};
+        State.activeTabIndex = 0;
+        State.markdownViewMode = 'scroll';
+    });
+
+    afterEach(() => { document.body.innerHTML = ''; });
+
+    const selectWord = (block) => {
+        const text = block.firstChild;
+        const range = document.createRange();
+        range.setStart(text, 0);
+        range.setEnd(text, 5);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return sel;
+    };
+
+    it('keeps the selection when asked, and still moves the block cursor', () => {
+        const block = view.container.querySelector('[data-index="0"]');
+        const sel = selectWord(block);
+        view.selectBlock(0, { keepSelection: true });
+        expect(sel.toString()).toBe('first');
+        expect(block.classList.contains('selected')).toBe(true);
+    });
+
+    it('still parks the caret at the start on a plain click', () => {
+        const block = view.container.querySelector('[data-index="0"]');
+        const sel = selectWord(block);
+        view.selectBlock(0);
+        expect(sel.isCollapsed).toBe(true);
+    });
+
+    it('passes keepSelection from the scroll-mode click handler', () => {
+        const src = read('src', 'modules', 'views', 'MarkdownView.js');
+        expect(src).toMatch(/keepSelection = !!sel && !sel\.isCollapsed && div\.contains\(sel\.anchorNode\)/);
+    });
+});
