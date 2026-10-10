@@ -348,7 +348,7 @@ export default {
     'Current workspace': '当前工作区',
     'Remove from history': '从历史记录中删除',
     // Explorer click behaviour (utils/ExplorerPrefs.js)
-    'Explorer: open files with': '资源管理器中打开文件的方式',
+    'Explorer: open folders with': '资源管理器中打开文件夹的方式',
     'Double-click (a single click selects)': '双击（单击为选择）',
     'Single click': '单击',
     'Open in edit mode (heavy)': '以编辑模式打开（较重）',

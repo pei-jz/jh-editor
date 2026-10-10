@@ -348,7 +348,7 @@ export default {
     'Current workspace': '現在のワークスペース',
     'Remove from history': '履歴から削除',
     // Explorer click behaviour (utils/ExplorerPrefs.js)
-    'Explorer: open files with': 'エクスプローラーでファイルを開く操作',
+    'Explorer: open folders with': 'エクスプローラーでフォルダーを開く操作',
     'Double-click (a single click selects)': 'ダブルクリック（1回クリックは選択）',
     'Single click': '1回クリック',
     'Open in edit mode (heavy)': '編集モードで開く (負荷大)',

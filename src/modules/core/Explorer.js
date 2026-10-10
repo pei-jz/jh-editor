@@ -559,23 +559,22 @@ class VirtualExplorer {
                 this.selectedPaths.clear();
                 this.selectedPaths.add(item.path);
                 this.lastClickedIndex = index;
-                // By default a single click only selects, so picking a file to
-                // copy or rename no longer opens it (settings: ExplorerPrefs).
+                // A file opens on a single click. A folder, by default, only
+                // gets selected — opening and closing it is a double-click,
+                // Enter, ← / → or its chevron (settings: ExplorerPrefs).
                 //
                 // The second click of a double-click is recognised here rather
                 // than with a dblclick listener: refresh() rebuilds every row,
                 // so the two clicks land on two different elements and the
                 // browser's own dblclick cannot be relied on.
-                const now = Date.now();
-                const last = this._lastRowClick;
-                const isDouble = !!last && last.path === item.path && now - last.time < 400;
-                this._lastRowClick = isDouble ? null : { path: item.path, time: now };
-                if (explorerOpensOn() === 'single' || isDouble) {
-                    if (isDir) {
-                        this.toggle(item);
-                    } else {
-                        if (openFileCallback) openFileCallback(item.path);
-                    }
+                if (!isDir) {
+                    if (openFileCallback) openFileCallback(item.path);
+                } else {
+                    const now = Date.now();
+                    const last = this._lastRowClick;
+                    const isDouble = !!last && last.path === item.path && now - last.time < 400;
+                    this._lastRowClick = isDouble ? null : { path: item.path, time: now };
+                    if (explorerOpensOn() === 'single' || isDouble) this.toggle(item);
                 }
                 // Re-focus explorer so keyboard shortcuts (Delete, etc.) still work
                 this.setFocus(index);

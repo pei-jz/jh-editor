@@ -348,7 +348,7 @@ export default {
     'Current workspace': '현재 작업 영역',
     'Remove from history': '기록에서 삭제',
     // Explorer click behaviour (utils/ExplorerPrefs.js)
-    'Explorer: open files with': '탐색기에서 파일 열기',
+    'Explorer: open folders with': '탐색기에서 폴더 열기',
     'Double-click (a single click selects)': '더블 클릭 (한 번 클릭은 선택)',
     'Single click': '한 번 클릭',
     'Open in edit mode (heavy)': '편집 모드로 열기 (부하 큼)',

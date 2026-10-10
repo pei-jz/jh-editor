@@ -1,13 +1,16 @@
 /**
- * ExplorerPrefs.js — how the file explorer opens things.
+ * ExplorerPrefs.js — how the file explorer opens folders.
  *
- * 'double' (the default): a single click only selects; double-click, Enter or
- * → opens a file, and a folder opens and closes on double-click, Enter, → / ←
- * or its chevron. Selecting a file to copy, rename or delete it used to open it
- * as well, because a single click did both.
+ * Files always open on a single click. Folders:
  *
- * 'single': the old behaviour, for anyone who browses by clicking through
- * files one after another.
+ * 'double' (the default): a single click only selects the folder; it opens
+ * and closes on double-click, Enter, → / ← or its chevron. Selecting a folder
+ * to copy, rename or delete it used to toggle it as well.
+ *
+ * 'single': a single click opens and closes it, the old behaviour.
+ *
+ * The stored key keeps its original name so a choice made in 0.4.4, when the
+ * setting covered files too, carries over.
  */
 const KEY = 'settings_explorerOpenOn';
 

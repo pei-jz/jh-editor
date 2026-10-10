@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 
-// A single click in the explorer used to open the file (or toggle the folder)
-// as well as select it, so picking a file to copy or rename opened it too.
-// Now a single click selects; double-click, Enter or → opens. A setting puts
-// the old single-click behaviour back.
+// Files open on a single click. A folder used to toggle on a single click as
+// well, so selecting one to copy or rename opened and closed it; now a single
+// click selects it and a double-click (Enter, ← / →, the chevron) toggles it.
+// A setting puts the single-click toggle back.
 
 vi.mock('../src/modules/utils/FileSystem.js', async (orig) => {
     const real = await orig();
@@ -62,36 +62,34 @@ describe('explorer clicks', () => {
     const click = (name) => row(name).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const flush = () => new Promise((r) => setTimeout(r, 0));
 
-    it('selects on a single click without opening', () => {
+    it('opens a file on a single click', () => {
         click('a.md');
-        expect(opened).not.toHaveBeenCalled();
-        expect(row('a.md').classList.contains('selected')).toBe(true);
-    });
-
-    it('opens on a double click', () => {
-        click('a.md');
-        click('a.md');
+        expect(opened).toHaveBeenCalledTimes(1);
         expect(opened).toHaveBeenCalledWith('C:/root/a.md');
-    });
-
-    it('does not open when the two clicks are on different rows', () => {
-        click('a.md');
-        click('b.md');
-        expect(opened).not.toHaveBeenCalled();
+        expect(row('a.md').classList.contains('selected')).toBe(true);
     });
 
     it('leaves a folder closed on a single click and opens it on a double click', async () => {
         click('docs');
         await flush();
         expect(State.expandedFolders.has('C:/root/docs')).toBe(false);
+        expect(row('docs').classList.contains('selected')).toBe(true);
         click('docs');
         await flush();
         expect(State.expandedFolders.has('C:/root/docs')).toBe(true);
     });
 
-    it('opens on a single click when the setting says so', () => {
+    it('does not toggle when the two clicks are on different rows', async () => {
+        click('a.md');
+        click('docs');
+        await flush();
+        expect(State.expandedFolders.has('C:/root/docs')).toBe(false);
+    });
+
+    it('toggles a folder on a single click when the setting says so', async () => {
         setExplorerOpensOn('single');
-        click('b.md');
-        expect(opened).toHaveBeenCalledWith('C:/root/b.md');
+        click('docs');
+        await flush();
+        expect(State.expandedFolders.has('C:/root/docs')).toBe(true);
     });
 });
