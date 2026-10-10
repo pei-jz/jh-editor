@@ -154,19 +154,32 @@ export class OfficeView {
         return true;
     }
 
-    /** The arrows walk the selected cell; Shift+arrow stretches the range. */
+    /**
+     * The arrows walk the selected cell; Shift+arrow stretches the range.
+     * Ctrl+arrow jumps to the edge of the data, and PageUp / PageDown turn a
+     * screen — all as in Excel.
+     */
     _cellMoveKey(e) {
+        if (e.altKey) return;
+        if (!this.gridEl || !this.sheetRows || !this.sheetRows.length) return;
+        const ctrl = e.ctrlKey || e.metaKey;
+
+        // Plain PageUp / PageDown. Nothing in the preview holds the focus, so
+        // the browser had no scroller to hand them to and they did nothing.
+        // (With Ctrl they switch sheets — _sheetSwitchKey, asked first.)
+        if ((e.key === 'PageUp' || e.key === 'PageDown') && !ctrl) {
+            e.preventDefault();
+            e.stopPropagation();
+            this._pageBy(e.key === 'PageDown' ? 1 : -1, e.shiftKey);
+            return;
+        }
+
         const step = ARROW_STEPS[e.key];
         if (!step) return;
-        // Ctrl+arrow is Excel's jump to the edge of the data, which this does
-        // not do. Swallowing the key to do nothing would be worse than leaving
-        // the browser to scroll with it.
-        if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (!this.gridEl || !this.sheetRows || !this.sheetRows.length) return;
-
         e.preventDefault();
         e.stopPropagation();
-        this._moveSelection(step[0], step[1], e.shiftKey);
+        if (ctrl) this._jumpToDataEdge(step[0], step[1], e.shiftKey);
+        else this._moveSelection(step[0], step[1], e.shiftKey);
     }
 
     _unbindSheetKeys() {
@@ -192,7 +205,7 @@ export class OfficeView {
         if (this.preview.kind === 'sheets' && this.preview.sheets.length) {
             this.tabsEl = document.createElement('div');
             this.tabsEl.className = 'of-tabs';
-            this.headEl.appendChild(this.tabsEl);
+            this.headEl.appendChild(this._buildTabBar(this.tabsEl));
         }
 
         const spacer = document.createElement('span');
@@ -305,6 +318,107 @@ export class OfficeView {
             };
             this.tabsEl.appendChild(tab);
         });
+        this._revealActiveTab();
+        this._updateTabNav();
+    }
+
+    /**
+     * The sheet strip: the tabs, with ‹ › either side once they overflow.
+     *
+     * The tabs used to shrink to fit, and a workbook of twenty sheets turned
+     * every name into "表…", "A…", "マ…" — the strip never overflowed, so it
+     * never scrolled either. Now each tab keeps its name (up to a cap) and the
+     * strip slides, like the editor's own tab bar.
+     */
+    _buildTabBar(tabsEl) {
+        const bar = document.createElement('div');
+        bar.className = 'of-tabbar';
+        const nav = (dir, label, title) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'of-tab-nav';
+            b.textContent = label;
+            b.title = title;
+            b.hidden = true;
+            // Held down, it keeps sliding, as the editor's tab arrows do.
+            b.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                tabsEl.scrollBy({ left: dir * 120, behavior: 'smooth' });
+                // A frame loop, not an interval: it runs only while the button
+                // is held and stops with the frame after release.
+                let frame = 0;
+                const glide = () => {
+                    tabsEl.scrollLeft += dir * 10;
+                    frame = requestAnimationFrame(glide);
+                };
+                const delay = setTimeout(() => { frame = requestAnimationFrame(glide); }, 300);
+                const stop = () => {
+                    clearTimeout(delay);
+                    if (frame) cancelAnimationFrame(frame);
+                    frame = 0;
+                    b.removeEventListener('pointerup', stop);
+                    b.removeEventListener('pointercancel', stop);
+                    b.removeEventListener('lostpointercapture', stop);
+                };
+                b.setPointerCapture(e.pointerId);
+                b.addEventListener('pointerup', stop);
+                b.addEventListener('pointercancel', stop);
+                b.addEventListener('lostpointercapture', stop);
+            });
+            return b;
+        };
+        this.tabNavLeft = nav(-1, '‹', t('Scroll Left'));
+        this.tabNavRight = nav(1, '›', t('Scroll Right'));
+
+        // A plain mouse wheel only scrolls vertically; over the strip it
+        // should slide the tabs.
+        tabsEl.addEventListener('wheel', (e) => {
+            if (tabsEl.scrollWidth <= tabsEl.clientWidth) return;
+            const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            if (!delta) return;
+            e.preventDefault();
+            tabsEl.scrollLeft += delta;
+        }, { passive: false });
+        tabsEl.addEventListener('scroll', () => this._updateTabNav());
+
+        if (this._tabNavObserver) this._tabNavObserver.disconnect();
+        this._tabNavObserver = new ResizeObserver(() => {
+            this._updateTabNav();
+            this._revealActiveTab();
+        });
+        this._tabNavObserver.observe(tabsEl);
+
+        bar.append(this.tabNavLeft, tabsEl, this.tabNavRight);
+        return bar;
+    }
+
+    /** Show the arrows only when the strip overflows; dim the one at an end. */
+    _updateTabNav() {
+        const el = this.tabsEl;
+        if (!el || !this.tabNavLeft) return;
+        const overflow = el.scrollWidth > el.clientWidth + 1;
+        this.tabNavLeft.hidden = !overflow;
+        this.tabNavRight.hidden = !overflow;
+        this.tabNavLeft.disabled = el.scrollLeft <= 0;
+        this.tabNavRight.disabled = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    }
+
+    /**
+     * Slide the strip so the active sheet's tab is fully in view — on a
+     * click, on Ctrl+PgUp / Ctrl+PgDn, and when the file is reopened on a
+     * sheet far down the list. Done by hand rather than scrollIntoView, which
+     * would scroll the pane around the header as well.
+     */
+    _revealActiveTab() {
+        const el = this.tabsEl;
+        const tab = el && el.querySelector('.of-tab.active');
+        if (!tab) return;
+        // .of-tabs is position:relative, so offsetLeft is measured from it.
+        const left = tab.offsetLeft;
+        const right = left + tab.offsetWidth;
+        if (left < el.scrollLeft) el.scrollLeft = left;
+        else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth;
     }
 
     _renderSheet() {
@@ -451,6 +565,8 @@ export class OfficeView {
         // with Wrap Text and no `ht` is auto-sized when Excel opens it, so
         // reproduce that calculation from the visible column widths here.
         this._refreshRowHeights();
+        // From the first paint, not only once _refitFiller runs.
+        canvas.style.width = `${Math.max(totalWidth, this._drawingRight || 0)}px`;
 
         // A uniform sheet keeps VirtualScroll on its fixed-height path, which
         // is a straight division instead of a scan over every row.
@@ -499,9 +615,14 @@ export class OfficeView {
             total += step;
         }
 
-        const width = `${this.colOffsets[this.colOffsets.length - 1] + GUTTER_WIDTH}px`;
-        if (this.gridHeadEl) this.gridHeadEl.style.width = width;
-        if (this.gridCanvasEl) this.gridCanvasEl.style.width = width;
+        // The canvas reaches past the cells to the furthest drawing; see
+        // _measureDrawings. The header stays the width of the columns.
+        this._measureDrawings();
+        const cellsWidth = this.colOffsets[this.colOffsets.length - 1] + GUTTER_WIDTH;
+        if (this.gridHeadEl) this.gridHeadEl.style.width = `${cellsWidth}px`;
+        if (this.gridCanvasEl) {
+            this.gridCanvasEl.style.width = `${Math.max(cellsWidth, this._drawingRight || 0)}px`;
+        }
         if (this.scroller) this.scroller.onScroll();
     }
 
@@ -578,6 +699,7 @@ export class OfficeView {
         for (const height of this.rowHeights) {
             this.rowTops.push(this.rowTops[this.rowTops.length - 1] + height);
         }
+        this._measureDrawings();
         if (this.scroller) this.scroller.setItemHeight(this._rowMetric());
     }
 
@@ -760,7 +882,7 @@ export class OfficeView {
         // with the next scroll instead of waiting for the file to reopen.
         const dark = isDarkTheme();
 
-        this.gridCanvasEl.style.height = `${totalHeight}px`;
+        this.gridCanvasEl.style.height = `${Math.max(totalHeight, this._drawingBottom || 0)}px`;
         this.gridRowsEl.style.transform = `translateY(${offsetY}px)`;
 
         // The header is rebuilt with the rows because it is windowed the same
@@ -993,6 +1115,33 @@ export class OfficeView {
     }
 
     // -- pictures -----------------------------------------------------------
+
+    /**
+     * The bottom-right corner of every picture and shape, in canvas px.
+     *
+     * Drawings are painted only near the rows on screen, but one that hangs
+     * past the last row or column still adds to the grid's scrollable area
+     * while it is painted. So the area changed with what happened to be on
+     * screen: scrolled near the bottom, a drawing dropping out shrank it, the
+     * browser clamped scrollTop, the repaint brought the drawing back and the
+     * area grew again — a scrollbar flickering in and out, and with it the
+     * ResizeObservers on the grid. The canvas is sized to cover them all up
+     * front instead, so painting can never change it.
+     */
+    _measureDrawings() {
+        let bottom = 0;
+        let right = 0;
+        for (const d of [...(this.images || []), ...(this.shapes || [])]) {
+            const rect = this._imageRect(d);
+            if (!Number.isFinite(rect.top) || !Number.isFinite(rect.left)) continue;
+            // The same slack _paintShapes allows: arrowheads and thick lines
+            // reach past the box.
+            bottom = Math.max(bottom, rect.top + Math.max(0, rect.height) + 8);
+            right = Math.max(right, rect.left + Math.max(0, rect.width) + 8);
+        }
+        this._drawingBottom = Math.ceil(bottom);
+        this._drawingRight = Math.ceil(right);
+    }
 
     /** Where a picture is drawn, in canvas px, against the current widths. */
     _imageRect(img) {
@@ -1485,6 +1634,108 @@ export class OfficeView {
         if (this.scroller) this.scroller.onScroll();
     }
 
+    /**
+     * Ctrl+arrow: Excel's jump to the edge of the data.
+     *
+     * Standing on a value with another value next to it, run to the last
+     * value before a gap. Otherwise run to the next value there is, or to the
+     * edge of the sheet when there is none. "The sheet" is what the preview
+     * holds — the used range, not Excel's million rows.
+     */
+    _jumpToDataEdge(dr, dc, extend) {
+        const rows = this.sheetRows.length;
+        const cols = this.dataCols;
+        if (!rows || !cols) return;
+        // No active cell yet: land on one first, the way a plain arrow does.
+        if (!this.selection) { this._moveSelection(dr, dc, extend); return; }
+
+        const inside = (r, c) => r >= 0 && r < rows && c >= 0 && c < cols;
+        // A merged box counts as filled throughout: its value is the whole
+        // box's, even though only the top-left cell carries it.
+        const filled = (r, c) => {
+            const m = this._mergeAt(r, c);
+            const v = (this.sheetRows[m ? m.row : r] || [])[m ? m.col : c];
+            return v != null && v !== '';
+        };
+
+        const from = this.selection.focus;
+        let r = Math.min(rows - 1, Math.max(0, from.r));
+        let c = Math.min(cols - 1, Math.max(0, from.c));
+        // Leave a merge from its far edge, as a plain arrow does.
+        const box = this._mergeAt(r, c);
+        if (box) {
+            if (dr > 0) r = box.row + box.rows - 1;
+            else if (dr < 0) r = box.row;
+            if (dc > 0) c = box.col + box.cols - 1;
+            else if (dc < 0) c = box.col;
+        }
+
+        if (inside(r + dr, c + dc)) {
+            if (filled(r, c) && filled(r + dr, c + dc)) {
+                while (inside(r + dr, c + dc) && filled(r + dr, c + dc)) { r += dr; c += dc; }
+            } else {
+                r += dr; c += dc;
+                while (!filled(r, c) && inside(r + dr, c + dc)) { r += dr; c += dc; }
+            }
+        }
+
+        const into = this._mergeAt(r, c);
+        const focus = into ? { r: into.row, c: into.col } : { r, c };
+        this.selection.focus = focus;
+        if (!extend) this.selection.anchor = { ...focus };
+        this._rememberSelection();
+        this._revealCell(focus.r, focus.c);
+        if (this.scroller) this.scroller.onScroll();
+    }
+
+    /**
+     * PageUp / PageDown: scroll a screen, and take the active cell the same
+     * distance so it stays where it was on screen, as Excel does. Shift
+     * stretches the range instead of moving it.
+     */
+    _pageBy(dir, extend) {
+        const grid = this.gridEl;
+        if (!grid || !this.rowTops) return;
+        const headH = this.gridHeadEl ? this.gridHeadEl.offsetHeight : 0;
+        const page = Math.max(ROW_HEIGHT, (grid.clientHeight || 0) - headH);
+
+        if (!this.selection) {
+            grid.scrollTop = Math.max(0, grid.scrollTop + dir * page);
+            if (this.scroller) this.scroller.onScroll();
+            return;
+        }
+
+        {
+            const rows = this.sheetRows.length;
+            const from = this.selection.focus;
+            const fromR = Math.min(Math.max(0, from.r), rows - 1);
+            const fromTop = this.rowTops[fromR] || 0;
+            const y = fromTop + dir * page;
+            // The row whose top is NEAREST that height. Taking the one at or
+            // above it lost a row on every page whenever the page was not a
+            // whole number of rows, so PageDown then PageUp did not come back.
+            let lo = 0;
+            let hi = rows - 1;
+            while (lo < hi) {
+                const mid = Math.ceil((lo + hi) / 2);
+                if (this.rowTops[mid] <= y) lo = mid;
+                else hi = mid - 1;
+            }
+            if (lo + 1 < rows && this.rowTops[lo + 1] - y < y - this.rowTops[lo]) lo += 1;
+            // Scroll by exactly what the cell moved, so it stays put on screen.
+            grid.scrollTop = Math.max(0, grid.scrollTop + (this.rowTops[lo] - fromTop));
+            const into = this._mergeAt(lo, from.c);
+            const focus = into ? { r: into.row, c: into.col } : { r: lo, c: from.c };
+            this.selection.focus = focus;
+            if (!extend) this.selection.anchor = { ...focus };
+            this._rememberSelection();
+            // At either end the sheet cannot scroll a whole page, but the
+            // cell still moves; keep it in view.
+            this._revealCell(focus.r, focus.c);
+        }
+        if (this.scroller) this.scroller.onScroll();
+    }
+
     /** The cell in the top-left corner of what is on screen. */
     _firstVisibleCell() {
         const atLeast = (offsets, edge, limit) => {
@@ -1859,6 +2110,10 @@ export class OfficeView {
         this._statusPending = false;
         this._unbindSheetKeys();
         this._teardownScroller();
+        if (this._tabNavObserver) {
+            this._tabNavObserver.disconnect();
+            this._tabNavObserver = null;
+        }
         if (this.picObserver) {
             this.picObserver.disconnect();
             this.picObserver = null;
@@ -2221,8 +2476,20 @@ function injectStyles() {
     .of-btn:hover { background: var(--hover-color); }
     .of-btn.active { background: var(--hover-color); border-color: var(--text-secondary, var(--border-color)); }
 
-    .of-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; min-width: 0; }
+    /* The strip may shrink (it is the one thing in the header that can); the
+       tabs inside it may not — see _buildTabBar. */
+    .of-tabbar { display: flex; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; }
+    .of-tabs { display: flex; gap: 2px; overflow-x: auto; min-width: 0; position: relative;
+        scrollbar-width: none; scroll-behavior: auto; }
+    .of-tabs::-webkit-scrollbar { display: none; }
+    .of-tab-nav { flex: 0 0 auto; width: 20px; height: 22px; padding: 0; cursor: pointer;
+        font: inherit; font-size: 15px; line-height: 1; color: inherit;
+        border: none; border-radius: 4px; background: transparent; opacity: .65; }
+    .of-tab-nav:hover:not(:disabled) { opacity: 1; background: var(--hover-color); }
+    .of-tab-nav:disabled { opacity: .25; cursor: default; }
+    .of-tab-nav[hidden] { display: none; }
     .of-tab { font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer;
+        flex: 0 0 auto; min-width: 4em;
         white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
         border: 1px solid transparent; border-radius: 4px 4px 0 0;
         background: transparent; color: inherit; opacity: .7; }

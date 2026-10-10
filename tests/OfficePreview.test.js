@@ -572,16 +572,67 @@ describe('the preview view', () => {
             view.destroy();
         });
 
-        it('leaves Ctrl+arrow to the browser rather than swallowing it', () => {
-            // Excel's jump to the edge of the data is not implemented. Taking
-            // the key to do nothing with it is worse than not taking it.
-            const { view } = show(grid());
+        it('jumps to the edge of the data on Ctrl+arrow, as Excel does', () => {
+            // Column 0: values in rows 0-4, a gap, values in rows 8-9, then
+            // nothing to the end. Row 0: values in columns 0-2, then empty.
+            const rows = Array.from({ length: 20 }, () => Array(10).fill(''));
+            for (const r of [0, 1, 2, 3, 4, 8, 9]) rows[r][0] = `v${r}`;
+            rows[0][1] = 'b'; rows[0][2] = 'c';
+            const { view } = show(sheetsPreview({
+                sheets: [{
+                    name: 'Gaps', rows, total_rows: 20, total_cols: 10, truncated: false, error: null,
+                    layout: { col_widths: Array(10).fill(100), row_heights: Array(20).fill(20),
+                        merges: [], styles: [], style_ids: [] },
+                }],
+            }));
             viewport(view);
-            press('ArrowDown');
-            const before = { ...view.selection.focus };
+            press('ArrowDown');                                    // lands on r0c0
+            expect(view.selection.focus).toEqual({ r: 0, c: 0 });
+
             const e = press('ArrowDown', { ctrlKey: true });
-            expect(view.selection.focus).toEqual(before);
-            expect(e.defaultPrevented).toBe(false);
+            expect(e.defaultPrevented).toBe(true);
+            expect(view.selection.focus, 'end of the run').toEqual({ r: 4, c: 0 });
+            press('ArrowDown', { ctrlKey: true });
+            expect(view.selection.focus, 'across the gap to the next value').toEqual({ r: 8, c: 0 });
+            press('ArrowDown', { ctrlKey: true });
+            expect(view.selection.focus).toEqual({ r: 9, c: 0 });
+            press('ArrowDown', { ctrlKey: true });
+            expect(view.selection.focus, 'no more values: the last row').toEqual({ r: 19, c: 0 });
+            press('ArrowUp', { ctrlKey: true });
+            expect(view.selection.focus, 'back up to the nearest value').toEqual({ r: 9, c: 0 });
+
+            press('ArrowUp', { ctrlKey: true });                   // r8
+            press('ArrowUp', { ctrlKey: true });                   // r4
+            press('ArrowUp', { ctrlKey: true });                   // r0
+            press('ArrowRight', { ctrlKey: true });
+            expect(view.selection.focus, 'last column with a value').toEqual({ r: 0, c: 2 });
+
+            // Ctrl+Shift stretches the range instead of moving it.
+            press('ArrowLeft', { ctrlKey: true, shiftKey: true });
+            expect(view.selection.anchor).toEqual({ r: 0, c: 2 });
+            expect(view.selection.focus).toEqual({ r: 0, c: 0 });
+            view.destroy();
+        });
+
+        it('scrolls a page on PageDown / PageUp and takes the cell along', () => {
+            const { view } = show(grid());
+            viewport(view, { height: 100 });
+            // No active cell yet: the sheet just scrolls.
+            let e = press('PageDown');
+            expect(e.defaultPrevented).toBe(true);
+            expect(view.gridEl.scrollTop).toBeGreaterThan(0);
+            expect(view.selection).toBe(null);
+
+            view.gridEl.scrollTop = 0;
+            press('ArrowDown');                                    // r0c0
+            press('PageDown');
+            const page = view.gridEl.scrollTop;
+            expect(page).toBeGreaterThan(0);
+            expect(view.selection.focus.r).toBe(Math.floor(page / 20));
+            e = press('PageUp');
+            expect(e.defaultPrevented).toBe(true);
+            expect(view.selection.focus).toEqual({ r: 0, c: 0 });
+            expect(view.gridEl.scrollTop).toBe(0);
             view.destroy();
         });
 
@@ -684,6 +735,27 @@ describe('the preview view', () => {
         // Dragging is the reader's choice, and is not capped.
         view._setRowHeight(1, 300);
         expect(view.rowHeights[1]).toBe(300);
+        view.destroy();
+    });
+
+    // A drawing below the last row used to add to the scrollable area only
+    // while it was painted, so the area changed as it scrolled in and out —
+    // the scrollbar flickered and the view could not settle.
+    it('sizes the canvas to cover drawings past the last row and column', () => {
+        const shape = { row: 1, col: 0, row_off: 0, col_off: 0, to_row: 40, to_col: 12,
+            to_row_off: 0, to_col_off: 0, width: 0, height: 0, frac: [0, 0, 1, 1], order: 0,
+            geom: 'rect', fill: '#88f', line: '#000', adj: {} };
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Drawn', rows: [['a'], ['b']],
+                total_rows: 2, total_cols: 1, truncated: false, error: null,
+                layout: { col_widths: [80], row_heights: [20, 20], merges: [], shapes: [shape] },
+            }],
+        }));
+        const rect = view._imageRect(shape);
+        const canvas = container.querySelector('.of-grid-canvas');
+        expect(parseFloat(canvas.style.height)).toBeGreaterThanOrEqual(rect.top + rect.height);
+        expect(parseFloat(canvas.style.width)).toBeGreaterThanOrEqual(rect.left + rect.width);
         view.destroy();
     });
 
