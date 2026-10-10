@@ -102,6 +102,29 @@ function _injectBlockEditStyles() {
     .mbe-left .block-cm .cm-editor { flex: 1; min-height: 0; max-height: none; }
     .mbe-left .block-cm .cm-scroller { min-height: 0; overflow: auto; }
 
+    /* The visual table editor, the same way: the host fills the pane and the
+       scroller inside it scrolls both ways. It used to grow to the table's
+       full height with nothing to scroll it, and focusing a cell below the
+       fold then scrolled the DIALOG instead — the header slid out of sight
+       and the footer ended up drawn over the table. (Shown with display ''
+       rather than 'block' for the reason given at cmParent.) */
+    .mbe-left .table-editor-host {
+        flex: 1; min-height: 0; display: flex; flex-direction: column;
+    }
+    .mbe-left .table-editor-scroll { flex: 1; min-height: 0; overflow: auto; }
+    /* Clear of the scroller's own vertical scrollbar, which it now has. */
+    .mbe-left .table-editor-host > .table-copy-btn { right: 16px; }
+    /* The key hints stay on screen while the table scrolls under them. */
+    .mbe-left .table-editor-scroll .table-editor-hints {
+        position: sticky; left: 0; bottom: 0; z-index: 2; margin-top: 0;
+        border-radius: 0; border-top: 1px solid var(--border-color);
+    }
+
+    /* The frame never scrolls. Its panes do; with overflow:hidden the browser
+       could still scroll the frame itself to reveal a focused element, which
+       is how a tall table pushed the header off the top. */
+    .mbe-body, .mbe-left, .mbe-right { overflow: clip; }
+
     /* Smaller editor text: the modal is a fixed-size window, so a slightly
        smaller face fits more of the document on screen. */
     .mbe-left .block-cm .cm-scroller { font-size: 13px; }
@@ -805,7 +828,7 @@ export class MarkdownView extends BaseView {
         // view the moment a wide table was scrolled sideways.
         const tableHost = document.createElement('div');
         tableHost.className = 'table-editor-host';
-        tableHost.style.display = isTableMode ? 'block' : 'none';
+        tableHost.style.display = isTableMode ? '' : 'none';
 
         const tableContainer = document.createElement('div');
         tableContainer.className = 'table-editor-scroll';
@@ -837,7 +860,7 @@ export class MarkdownView extends BaseView {
                     }
                     TableEditor.render(tableContainer, tableData, syncTableToText);
                     textarea.style.display = 'none';
-                    tableHost.style.display = 'block';
+                    tableHost.style.display = '';
                     syncTableToText();
                 } else {
                     showAlert('Current text is not recognized as a valid table.', { title: 'Invalid Table', kind: 'info' });
