@@ -4,6 +4,7 @@ import { State } from './Store.js';
 import { iconEl, iconForFile } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
+import { explorerOpensOn } from '../utils/ExplorerPrefs.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
 import { GrepModal } from '../ui/GrepModal.js';
 import { showCustomInput, showCustomConfirm, showNewFileModal } from '../ui/Modal.js';
@@ -153,6 +154,11 @@ class VirtualExplorer {
                             }
                         }
                     }
+                } else if (openFileCallback) {
+                    // → on a file opens it, like Enter: with a single click
+                    // only selecting, the keyboard needs a way in that does
+                    // not leave the arrow keys.
+                    openFileCallback(item.path);
                 }
             }
         } else if (e.key === 'ArrowLeft') {
@@ -553,10 +559,23 @@ class VirtualExplorer {
                 this.selectedPaths.clear();
                 this.selectedPaths.add(item.path);
                 this.lastClickedIndex = index;
-                if (isDir) {
-                    this.toggle(item);
-                } else {
-                    if (openFileCallback) openFileCallback(item.path);
+                // By default a single click only selects, so picking a file to
+                // copy or rename no longer opens it (settings: ExplorerPrefs).
+                //
+                // The second click of a double-click is recognised here rather
+                // than with a dblclick listener: refresh() rebuilds every row,
+                // so the two clicks land on two different elements and the
+                // browser's own dblclick cannot be relied on.
+                const now = Date.now();
+                const last = this._lastRowClick;
+                const isDouble = !!last && last.path === item.path && now - last.time < 400;
+                this._lastRowClick = isDouble ? null : { path: item.path, time: now };
+                if (explorerOpensOn() === 'single' || isDouble) {
+                    if (isDir) {
+                        this.toggle(item);
+                    } else {
+                        if (openFileCallback) openFileCallback(item.path);
+                    }
                 }
                 // Re-focus explorer so keyboard shortcuts (Delete, etc.) still work
                 this.setFocus(index);

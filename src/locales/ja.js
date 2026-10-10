@@ -344,6 +344,13 @@ export default {
     'Open Today\'s Daily Note': '今日のデイリーノートを開く',
     'Open in Browser': 'ブラウザーで開く',
     'Open in a new window': '新しいウィンドウで開く',
+    // Workspace menu (ui/WorkspaceMenu.js)
+    'Current workspace': '現在のワークスペース',
+    'Remove from history': '履歴から削除',
+    // Explorer click behaviour (utils/ExplorerPrefs.js)
+    'Explorer: open files with': 'エクスプローラーでファイルを開く操作',
+    'Double-click (a single click selects)': 'ダブルクリック（1回クリックは選択）',
+    'Single click': '1回クリック',
     'Open in edit mode (heavy)': '編集モードで開く (負荷大)',
     'Opens this file in the normal editor. Large files may be slow.': '通常のエディターでこのファイルを開きます。大きなファイルは遅くなることがあります。',
     'Optional block': '任意ブロック (opt)',

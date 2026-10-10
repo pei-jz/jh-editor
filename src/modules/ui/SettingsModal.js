@@ -12,6 +12,7 @@ import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './Rege
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
+import { explorerOpensOn, setExplorerOpensOn } from '../utils/ExplorerPrefs.js';
 import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
@@ -642,6 +643,8 @@ export function initSettingsModal() {
             if (themeSelector) {
                 themeSelector.value = localStorage.getItem('theme') || DEFAULT_THEME;
             }
+            const explorerOpen = document.getElementById('explorer-open-selector');
+            if (explorerOpen) explorerOpen.value = explorerOpensOn();
 
             // Reset to General Tab
             if (tabs && tabs[0]) tabs[0].click();
@@ -706,6 +709,11 @@ export function initSettingsModal() {
             const mode = e.target.value;
             setCompactMode(mode === 'compact');
         };
+    }
+
+    const explorerOpenSelector = document.getElementById('explorer-open-selector');
+    if (explorerOpenSelector) {
+        explorerOpenSelector.onchange = (e) => setExplorerOpensOn(e.target.value);
     }
 
     if (fontFamilySelector) {

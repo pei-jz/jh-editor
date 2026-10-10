@@ -344,6 +344,13 @@ export default {
     'Open Today\'s Daily Note': '打开今天的日记',
     'Open in Browser': '在浏览器中打开',
     'Open in a new window': '在新窗口中打开',
+    // Workspace menu (ui/WorkspaceMenu.js)
+    'Current workspace': '当前工作区',
+    'Remove from history': '从历史记录中删除',
+    // Explorer click behaviour (utils/ExplorerPrefs.js)
+    'Explorer: open files with': '资源管理器中打开文件的方式',
+    'Double-click (a single click selects)': '双击（单击为选择）',
+    'Single click': '单击',
     'Open in edit mode (heavy)': '以编辑模式打开（较重）',
     'Opens this file in the normal editor. Large files may be slow.': '在普通编辑器中打开此文件。大文件可能会很慢。',
     'Optional block': '可选块',

@@ -210,6 +210,13 @@ export class ShortcutManager {
         // input by returning without preventDefault/stopPropagation.
         if (e.target && e.target.classList && e.target.classList.contains('rename-input')) return;
 
+        // A popup that reads its own keys (the workspace menu: arrows, Enter,
+        // Escape, Delete) marks itself `data-shortcut-keys="own"`. Without
+        // this, focus in the explorer's menu matched explorer:nav and the
+        // arrows walked the file tree behind it instead.
+        if (e.target && typeof e.target.closest === 'function'
+            && e.target.closest('[data-shortcut-keys="own"]')) return;
+
         // When focus is inside the search panel, let the modal handle all keys itself.
         // Only allow Ctrl+F / Ctrl+H through (to re-open or toggle the modal).
         if (this.currentScope === 'SEARCH') {

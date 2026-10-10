@@ -23,17 +23,48 @@ function writeFiles(list) {
     try { localStorage.setItem(FILES_KEY, JSON.stringify(list)); } catch (_) { /* ignore */ }
 }
 
+const WORKSPACES_KEY = 'jheditor_recent_workspaces';
+/** Enough to switch between the projects someone actually works in. It was 5,
+ *  when the list only lived on the Welcome screen. */
+const MAX_WORKSPACES = 10;
+
 function readWorkspaces() {
     try {
-        const raw = localStorage.getItem('jheditor_recent_workspaces');
+        const raw = localStorage.getItem(WORKSPACES_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
         return Array.isArray(parsed) ? parsed.filter((p) => typeof p === 'string') : [];
     } catch (_) { return []; }
 }
 
+function writeWorkspaces(list) {
+    try { localStorage.setItem(WORKSPACES_KEY, JSON.stringify(list)); } catch (_) { /* ignore */ }
+}
+
+/** Same folder whichever way its slashes or drive letter were written. */
+export function sameWorkspace(a, b) {
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return !!a && !!b && norm(a) === norm(b);
+}
+
 export const RecentFiles = {
     getFiles: readFiles,
     getWorkspaces: readWorkspaces,
+
+    /**
+     * Record a workspace as just opened (most recent first, de-duped).
+     * Called on every switch, not only from the Welcome screen: the explorer's
+     * folder button opened workspaces without ever adding them here.
+     */
+    recordWorkspace(path) {
+        if (!path) return;
+        const next = [path, ...readWorkspaces().filter((p) => !sameWorkspace(p, path))]
+            .slice(0, MAX_WORKSPACES);
+        writeWorkspaces(next);
+    },
+
+    forgetWorkspace(path) {
+        writeWorkspaces(readWorkspaces().filter((p) => !sameWorkspace(p, path)));
+    },
 
     /** Record a file as recently opened (most recent first, de-duped). */
     recordFile(path) {

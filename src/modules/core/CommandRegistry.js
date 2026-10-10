@@ -38,6 +38,7 @@ const COMMANDS = [
     { id: 'app:save', label: 'Save', category: 'File', icon: 'check', keywords: 'write disk' },
     { id: 'app:save-as', label: 'Save As…', category: 'File', icon: 'export', keywords: 'write copy rename' },
     { id: 'app:close-tab', label: 'Close Tab', category: 'File', icon: 'close' },
+    { id: 'app:workspace-menu', label: 'Recent Workspaces', category: 'File', icon: 'folder', keywords: 'switch project open folder history' },
     { id: 'app:open-notes', label: 'Open Notes', category: 'File', icon: 'note', keywords: 'quick scratch' },
     { id: 'app:new-note', label: 'New Note', category: 'File', icon: 'plus', keywords: 'quick scratch' },
     { id: 'app:daily-note', label: "Open Today's Daily Note", category: 'File', icon: 'clock', keywords: 'journal diary today' },

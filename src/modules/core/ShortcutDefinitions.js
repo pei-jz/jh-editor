@@ -17,6 +17,9 @@ export const SHORTCUTS = {
         { key: 'f', ctrl: true, cmd: 'app:search', description: 'Search' },
         { key: 'f', shift: true, alt: true, cmd: 'app:format', description: 'Format' },
         { key: 'o', ctrl: true, cmd: 'app:outline-modal', description: 'Outline Navigation' },
+        // Ctrl+O stays the outline; Alt added for the workspace history, the
+        // explorer folder button's list.
+        { key: 'o', ctrl: true, alt: true, cmd: 'app:workspace-menu', description: 'Recent Workspaces' },
         { key: 'p', ctrl: true, cmd: 'app:file-search', description: 'File Search' },
         { key: 'r', ctrl: true, shift: true, cmd: 'app:file-search', description: 'File Search' },
         // Ctrl+Shift+P: the verb picker, next to Ctrl+P's noun picker.

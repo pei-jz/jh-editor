@@ -1,6 +1,7 @@
 import { exists } from '../utils/FileSystem.js';
 import { t } from '../utils/I18n.js';
 import { showAlert } from './Dialog.js';
+import { RecentFiles } from '../utils/RecentFiles.js';
 
 const EL = {
     screen: document.getElementById('welcome-screen'),
@@ -9,8 +10,6 @@ const EL = {
     newFileBtn: document.getElementById('welcome-new-file-btn'),
     recentList: document.getElementById('recent-workspaces-list'),
 };
-
-const RECENTS_KEY = 'jheditor_recent_workspaces';
 
 /**
  * Wire up the Welcome screen.
@@ -91,31 +90,18 @@ async function selectWorkspace(path, callback) {
     }
 }
 
+// The history lives in RecentFiles, shared with the explorer's workspace menu,
+// so both show the same list.
 function removeFromRecents(path) {
-    let recents = getRecents();
-    recents = recents.filter(p => p !== path);
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+    RecentFiles.forgetWorkspace(path);
 }
 
 function addToRecents(path) {
-    let recents = getRecents();
-    // Remove if exists
-    recents = recents.filter(p => p !== path);
-    // Add to top
-    recents.unshift(path);
-    // Limit to 5
-    if (recents.length > 5) recents.pop();
-
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+    RecentFiles.recordWorkspace(path);
 }
 
 function getRecents() {
-    try {
-        const json = localStorage.getItem(RECENTS_KEY);
-        return json ? JSON.parse(json) : [];
-    } catch (e) {
-        return [];
-    }
+    return RecentFiles.getWorkspaces();
 }
 
 function renderRecents(onWorkspaceSelect) {

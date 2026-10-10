@@ -17,6 +17,8 @@ import { initSearch, toggleSearch, findNext, findPrev, replaceNext } from '../ui
 // import 'highlight.js/styles/github.css'; // REMOVED: Conflicts with Dark Mode (White Background) 
 import { initVimMode } from '../editors/Vim.js';
 import { initWelcomeScreen, showWelcomeScreen, hideWelcomeScreen } from '../ui/WelcomeScreen.js';
+import { toggleWorkspaceMenu } from '../ui/WorkspaceMenu.js';
+import { RecentFiles } from '../utils/RecentFiles.js';
 import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal } from '../ui/SettingsModal.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
@@ -355,6 +357,9 @@ async function bootstrap() {
         // 2. Set State and Root (per-window; the backend keys this by window).
         State.currentDir = path;
         sessionResume(); // now scoped to the NEW workspace
+        // Every way in (Welcome screen, the explorer's workspace menu, a
+        // workspace passed on the command line) lands in the history.
+        RecentFiles.recordWorkspace(path);
         await invoke('set_workspace_root', { path });
         updateWindowTitle();
         loadExplorer();
@@ -540,8 +545,10 @@ async function bootstrap() {
         });
     }
 
+    // Set below once the folder button is wired; app:workspace-menu calls it.
+    let openWorkspaceMenu = () => {};
     if (EL.openFolderBtn) {
-        EL.openFolderBtn.onclick = async () => {
+        const pickFolder = async () => {
             try {
                 const folder = await open({
                     directory: true,
@@ -556,6 +563,15 @@ async function bootstrap() {
                 console.error('Failed to open folder dialog', e);
             }
         };
+        // The recent workspaces first, so switching between projects is one
+        // click; "Open Folder…" at the bottom of the list for anything else.
+        // Ctrl+Alt+O (app:workspace-menu) opens the same list.
+        openWorkspaceMenu = () => toggleWorkspaceMenu(EL.openFolderBtn, {
+            onSwitch: (path) => switchProject(path),
+            onOpenFolder: pickFolder,
+            onOpenInNewWindow: (path) => window.app.openWorkspaceInNewWindow(path),
+        });
+        EL.openFolderBtn.onclick = () => openWorkspaceMenu();
     }
     
     // Explorer Tab System (Files / Git)
@@ -612,6 +628,7 @@ async function bootstrap() {
         'app:grep': () => GrepModal.show(),
         'app:format': formatCurrentFile,
         'app:outline-modal': () => OutlineModal.show(),
+        'app:workspace-menu': () => openWorkspaceMenu(),
         'app:new-file': createNewFileAction,
         // Ctrl+W closes the tab in the FOCUSED pane (split-aware). In an unsplit
         // editor activePane() is always 'left', so this is a plain close-tab.
