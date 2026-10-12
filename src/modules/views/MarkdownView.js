@@ -23,6 +23,7 @@ import { MermaidHelper } from '../ui/MermaidHelper.js';
 import { showAlert, showConfirm } from '../ui/Dialog.js';
 import { isAtSavedState, savedForm, rememberSavedForm } from '../utils/DirtyState.js';
 import { enableLightbox } from '../ui/Lightbox.js';
+import { attachDiagramZoom } from '../ui/DiagramZoom.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
 // CodeMirror 6 — powers the block editor (replacing the plain textarea).
@@ -163,9 +164,11 @@ function _injectBlockEditStyles() {
 
     .mbe-right { flex: 1 1 45%; min-width: 220px; display: flex; flex-direction: column; }
     .mbe-right-head {
-        padding: 6px 12px; font-size: 11px; font-weight: 600; opacity: 0.7;
+        display: flex; align-items: center; gap: 8px; min-height: 30px;
+        padding: 4px 8px 4px 12px; font-size: 11px;
         border-bottom: 1px solid var(--border-color); background: var(--bg-color-secondary, var(--bg-color));
     }
+    .mbe-right-title { font-weight: 600; opacity: 0.7; }
     /* The shared preview node, re-homed into the modal.
        Scoped to #preview-content so it beats the node's own ID rule
        (editor.css gives #preview-content a max-height of 500px); an ID
@@ -705,6 +708,7 @@ export class MarkdownView extends BaseView {
             Markdown.renderMermaid(previewContent).then(() => {
                 if (MdAssets.hasMath(previewContent.textContent)) MdAssets.renderMath(previewContent);
                 enableLightbox(previewContent);
+                this._previewZoom?.refresh();
             });
         };
 
@@ -1293,10 +1297,16 @@ export class MarkdownView extends BaseView {
         right.className = 'mbe-right';
         const rightHead = document.createElement('div');
         rightHead.className = 'mbe-right-head';
-        rightHead.textContent = t('Preview');
+        const rightTitle = document.createElement('span');
+        rightTitle.className = 'mbe-right-title';
+        rightTitle.textContent = t('Preview');
         // Re-home the shared preview node; restore() puts it back on close.
         this._previewHome = { node: previewPane, parent: previewPane.parentElement, next: previewPane.nextSibling };
         previewPane.classList.add('mbe-preview');
+        // Half a modal is too narrow for most diagrams: let them be zoomed in place.
+        this._previewZoom?.destroy();
+        this._previewZoom = attachDiagramZoom(previewPane);
+        rightHead.append(rightTitle, this._previewZoom.bar);
         right.append(rightHead, previewPane);
 
         body.append(left, split, right);
@@ -1461,6 +1471,8 @@ export class MarkdownView extends BaseView {
     /** Tear the edit modal down and put the shared preview node back. */
     _closeEditModal() {
         this._altHintCleanup?.();
+        this._previewZoom?.destroy();
+        this._previewZoom = null;
         const home = this._previewHome;
         if (home && home.node) {
             home.node.classList.remove('mbe-preview');

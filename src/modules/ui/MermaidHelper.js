@@ -2,6 +2,7 @@ import { MERMAID_RECIPES, getRecipe, searchRecipes, detectDiagramType, toMarkdow
 import { t } from '../utils/I18n.js';
 import * as Markdown from '../utils/Markdown.js';
 import { showConfirm } from './Dialog.js';
+import { attachDiagramZoom } from './DiagramZoom.js';
 
 /**
  * MermaidHelper — "I know what diagram I want, I just can't remember the syntax".
@@ -178,6 +179,20 @@ function _injectStyles() {
         background: var(--bg-color-secondary, var(--bg-color));
     }
     .mh-preview svg { max-width: 100%; }
+    /* The diagram's block has to take the pane's width. As a shrink-to-fit
+       flex item it had none of its own, so the SVG's width="100%" fell back
+       to the browser's 300px default and every diagram came out thumbnail-
+       sized however wide the pane was. */
+    .mh-preview > .mermaid { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; }
+    .mh-preview-pane {
+        flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+    }
+    .mh-preview-bar {
+        display: flex; justify-content: flex-end;
+        padding: 4px 8px; border-bottom: 1px solid var(--border-color);
+        background: var(--bg-color-secondary, var(--bg-color));
+    }
+    .mh-preview-bar:has(> .dz-bar[hidden]) { display: none; }
     .mh-error {
         color: var(--error-color, #e5534b); font-size: 12px;
         font-family: var(--editor-font-family, monospace); white-space: pre-wrap;
@@ -280,7 +295,14 @@ export const MermaidHelper = {
         editor.value = initialCode || '';
         const preview = document.createElement('div');
         preview.className = 'mh-preview';
-        center.append(editor, preview);
+        const zoom = attachDiagramZoom(preview);
+        const previewBar = document.createElement('div');
+        previewBar.className = 'mh-preview-bar';
+        previewBar.appendChild(zoom.bar);
+        const previewPane = document.createElement('div');
+        previewPane.className = 'mh-preview-pane';
+        previewPane.append(previewBar, preview);
+        center.append(editor, previewPane);
 
         // ── right: cheat sheet ──
         const cheat = document.createElement('div');
@@ -319,7 +341,7 @@ export const MermaidHelper = {
         const splitH = document.createElement('div');
         splitH.className = 'mh-split-h';
         splitH.title = t('Drag to resize');
-        center.insertBefore(splitH, preview);
+        center.insertBefore(splitH, previewPane);
 
         // Colour controls. The style is written into the diagram itself as a
         // mermaid init directive, not kept as an app setting: it travels with
@@ -567,12 +589,14 @@ export const MermaidHelper = {
                 await Markdown.renderMermaid(preview);
                 // mermaid.run leaves the source in place when it fails.
                 if (!preview.querySelector('svg')) throw new Error('Could not render');
+                zoom.refresh();
             } catch (e) {
                 preview.innerHTML = '';
                 const err = document.createElement('div');
                 err.className = 'mh-error';
                 err.textContent = t('Syntax error: ') + (e && e.message ? e.message : String(e));
                 preview.appendChild(err);
+                zoom.refresh();
             }
         };
 
@@ -590,6 +614,7 @@ export const MermaidHelper = {
 
         const close = () => {
             clearTimeout(previewTimer);
+            zoom.destroy();
             document.removeEventListener('keydown', onKey, true);
             overlay.remove();
             if (returnFocusTo && returnFocusTo.isConnected
