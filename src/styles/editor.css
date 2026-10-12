@@ -2935,6 +2935,9 @@ body.theme-solarized-light .md-view-mode-toggle {
 .deck-view.presenting .deck-view-film,
 .deck-view.presenting .deck-view-notes,
 .deck-view.presenting .deck-view-proposal { display: none; }
+/* マップ文書: スライドの一覧・ノートはない */
+.deck-view.is-map .deck-view-film,
+.deck-view.is-map .deck-view-notes { display: none; }
 .deck-view-presenter { display: none; }
 .deck-view.presenting.with-presenter .deck-view-presenter {
     flex: 0 0 min(34%, 480px);

@@ -29,6 +29,14 @@ export function isDeckFile(file) {
     return DeckEdit.isDeck(file.content);
 }
 
+/**
+ * jh-presentation のマップ文書 (<meta name="jh-kind" content="map">) か。
+ * generator の meta はデッキと同じなので isDeckFile も true になるが、スライドも編集できる枠もない
+ */
+export function isMapDocument(content) {
+    return /<meta name="jh-kind" content="map"/.test(String(content || ''));
+}
+
 /** 許可の記録に使うパス (区切りと大文字小文字の違いを無視する) */
 function trustKey(path) {
     return String(path).replace(/\\/g, '/').toLowerCase();

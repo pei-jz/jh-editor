@@ -6,7 +6,7 @@ import { buildPreviewDocument } from '../ui/HtmlPreview.js';
 import { isAtSavedState } from '../utils/DirtyState.js';
 import { openAudience } from '../utils/DeckAudience.js';
 import {
-    DeckEdit, isDeckTrusted, trustDeck, canEditDeck, applyDeckChange,
+    DeckEdit, isDeckTrusted, isMapDocument, trustDeck, canEditDeck, applyDeckChange,
     slideList, moveSlide, duplicateSlide, deleteSlide, setSlideNotes,
     recordDeckEdit, undoDeckEdit, slideIndexAt,
     buildSlideRequest, applySlidesReply, remapByIndex,
@@ -136,6 +136,8 @@ export class DeckView extends BaseView {
         this.aiCount.className = 'deck-view-count';
         this.aiBtn.append(this.aiCount);
         head.append(this.posLabel, undoBtn, redoBtn, this.editBtn, this.aiBtn, presentBtn, browserBtn, sourceBtn);
+        // マップ文書にはスライドも編集できる枠もないので、スライド用の操作は隠す
+        this._slideOnly = [undoBtn, redoBtn, this.editBtn, this.aiBtn];
 
         const body = document.createElement('div');
         body.className = 'deck-view-body';
@@ -626,10 +628,18 @@ export class DeckView extends BaseView {
     /** ソースの今の内容でデッキを読み込む (ready が来たら元の位置へ戻す) */
     _load() {
         if (!this.frame) return;
+        this._syncKind();
         this.ready = false;
         this.editable = false;
         this._syncEditButton();
         this.frame.srcdoc = buildPreviewDocument(this.file.content, this.file.path);
+    }
+
+    /** マップ文書か (ソースの meta で決める。ソース表示で書き換えられても読み込みのたびに合わせる) */
+    _syncKind() {
+        this.isMap = isMapDocument(this.file.content);
+        if (this.root) this.root.classList.toggle('is-map', this.isMap);
+        (this._slideOnly || []).forEach((b) => { b.hidden = this.isMap; });
     }
 
     _post(msg) {
@@ -654,6 +664,16 @@ export class DeckView extends BaseView {
         switch (d.type) {
             case 'ready': {
                 this.ready = true;
+                if (d.kind === 'map' || this.isMap) {
+                    // マップ文書: 位置 (階層) はマップの中で完結する。伝えるのは発表中かどうかだけ
+                    this.slides = 0;
+                    this.editable = false;
+                    this.file._deckEdit = false;
+                    if (this.presenting) this._post({ type: 'present', on: true });
+                    this._syncEditButton();
+                    this._showPos(0);
+                    break;
+                }
                 this.slides = d.slides || 0;
                 this.editable = canEditDeck(d, this.file.content);
                 const st = this.file._deckState;
@@ -862,8 +882,9 @@ export class DeckView extends BaseView {
         document.addEventListener('keydown', this._onPresentKey, true);
         this._post({ type: 'present', on: true });
         this.frame.focus();
-        // モニターが 2 台以上なら、もう 1 台に発表用ウィンドウを開き、ここは発表者ビューにする
-        await this._openAudience();
+        // モニターが 2 台以上なら、もう 1 台に発表用ウィンドウを開き、ここは発表者ビューにする。
+        // マップ文書は 2 つの画面で場所 (階層) を合わせる仕組みがないので、この画面だけで発表する
+        if (!this.isMap) await this._openAudience();
         if (!this.presenting) return;
         try {
             const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -952,7 +973,7 @@ export class DeckView extends BaseView {
      * 「ブラウザで開く」から、デッキ自身の発表者ビュー (別ウィンドウ) を使う。
      */
     _togglePresenter() {
-        if (!this.presenting || !this.root || this.audience) return;
+        if (!this.presenting || !this.root || this.audience || this.isMap) return;
         this.root.classList.toggle('with-presenter');
         this._renderPresenter();
         if (this.frame) this.frame.focus();

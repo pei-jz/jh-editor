@@ -580,3 +580,63 @@ describe('DeckView — slide list, notes and undo', () => {
         }
     });
 });
+
+describe('DeckView — map documents', () => {
+    const fromDeck = (frame, data) => {
+        window.dispatchEvent(new MessageEvent('message', {
+            data: { jhdeck: DeckEdit.PROTOCOL, ...data }, source: frame.contentWindow,
+        }));
+    };
+    const MAP = `<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="generator" content="jh-presentation 0.7.0">
+<meta name="jh-kind" content="map">
+<title>M</title></head><body class="jh-mapdoc">
+<!-- jh:map -->
+<script type="application/json" id="jh-map-data">{"nodes":[{"id":"a","label":"A"}]}</script>
+<!-- /jh:map -->
+</body></html>`;
+    let container;
+    beforeEach(() => {
+        container = document.createElement('div');
+        document.body.replaceChildren(container);
+    });
+
+    it('hides the slide list, notes and slide editing for a map', () => {
+        const file = deckFile({ viewMode: 'deck', content: MAP });
+        trustDeck(file);
+        const view = new DeckView(container, {});
+        view.render(file.content, file);
+        const root = container.querySelector('.deck-view');
+        expect(root.classList.contains('is-map')).toBe(true);
+        expect(view.editBtn.hidden).toBe(true);
+        const frame = container.querySelector('iframe');
+        const post = vi.spyOn(frame.contentWindow, 'postMessage');
+        fromDeck(frame, { type: 'ready', kind: 'map', slides: 0, index: 0, step: 0 });
+        expect(post).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'goto' }), '*');
+        view.destroy();
+    });
+
+    it('presents a map on this screen only, and F5 / Esc from the map start and stop it', async () => {
+        const open = vi.fn(async () => ({ goto: vi.fn(), close: vi.fn() }));
+        audienceMock.open = open;
+        try {
+            const file = deckFile({ viewMode: 'deck', content: MAP });
+            trustDeck(file);
+            const view = new DeckView(container, {});
+            view.render(file.content, file);
+            const frame = container.querySelector('iframe');
+            fromDeck(frame, { type: 'ready', kind: 'map', slides: 0, index: 0, step: 0 });
+            fromDeck(frame, { type: 'present' });
+            await Promise.resolve();
+            const root = container.querySelector('.deck-view');
+            expect(root.classList.contains('presenting')).toBe(true);
+            expect(open).not.toHaveBeenCalled();
+            fromDeck(frame, { type: 'present-exit' });
+            expect(root.classList.contains('presenting')).toBe(false);
+            view.destroy();
+        } finally {
+            audienceMock.open = async () => null;
+        }
+    });
+});
