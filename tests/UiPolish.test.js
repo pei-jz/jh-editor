@@ -70,7 +70,7 @@ describe('titlebar readability', () => {
         const pairs = [
             ['#343a40', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
             ['#4c4f69', '#e6e9ef'], ['#b0bec5', '#073642'], ['#073642', '#eee8d5'],
-            ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#efece3'],
+            ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#e4dfd2'],
             ['#eceff4', '#343b49'], ['#eef1f6', '#3a4868'],
         ];
         const mix88 = (a, b) => '#' + [0, 2, 4].map((i) => Math.round(
@@ -371,7 +371,7 @@ describe('the Ink Brush mount bands', () => {
     });
 
     it('keeps every band label readable over the darkest ink', () => {
-        const band = '#efece3';
+        const band = '#e4dfd2';
         const over = (a) => '#' + [0, 2, 4].map((i) => Math.round(
             parseInt(band.slice(1 + i, 3 + i), 16) * (1 - a) + 0x1c * a,
         ).toString(16).padStart(2, '0')).join('');
@@ -486,7 +486,7 @@ describe('the status bar itself', () => {
         const pairs = [
             ['#343a40', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
             ['#4c4f69', '#e6e9ef'], ['#b0bec5', '#073642'], ['#073642', '#eee8d5'],
-            ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#efece3'],
+            ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#e4dfd2'],
             ['#eceff4', '#343b49'],
         ];
         const mix88 = (a, b) => '#' + [0, 2, 4].map((i) => Math.round(

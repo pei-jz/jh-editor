@@ -905,16 +905,20 @@ body.theme-bamboo-ancient option {
    proposed.
    ========================================================================== */
 body.theme-sumi-e {
-    --bg-color: #f7f5f0;            /* unbleached washi (editor) */
+    /* Three grounds, not one: the sheet brightest, the desk a step down, the
+       mount bands (titlebar / tabs / status) a step below that. With all
+       three within a shade of each other the window read as a single sheet of
+       old paper, and no edge told the chrome from the work. */
+    --bg-color: #fbfaf6;            /* unbleached washi (editor) */
     --sidebar-bg: #ece8df;          /* the desk */
-    --header-bg: #efece3;
-    --border-color: #d8d2c4;
+    --header-bg: #e4dfd2;           /* the mount bands */
+    --border-color: #cbc3b0;
     --text-color: #1c1c1c;          /* sumi ink */
     /* 松葉 — pine needles. Was the seal's vermillion, which Paper and Hanging
        Scroll also wore, so the three read as one theme. 朱 stays in the
        strings and inline code. */
     --primary-color: #4a6b35;
-    --active-tab-bg: #f7f5f0;
+    --active-tab-bg: #fbfaf6;
     --active-tab-border: #4a6b35;
     --hover-color: #e9e4d8;
     --bg-color-secondary: #efece3;
@@ -943,7 +947,7 @@ body.theme-sumi-e {
        over the wash and 5.2:1 even at the ink ceiling. */
     --tab-inactive-color: #4f4a3e;
     --tree-item-color: var(--text-color);
-    --tree-item-active-bg: rgba(74, 107, 53, 0.12);
+    --tree-item-active-bg: rgba(74, 107, 53, 0.16);
     --text-secondary: #4f4a3e;
 
     --code-color: #4a6b35;          /* 松葉, with the accent */
@@ -961,7 +965,11 @@ body.theme-sumi-e {
     --git-untracked-color: #4a7a4a;
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
-    --sumi-chrome-font: var(--font-textbook);
+    /* The chrome is a tool, not a page: the UI sans. Mincho at tree and tab
+       sizes renders hairline-thin on Windows, and with the prose already in a
+       serif, every word in the window was set as a book. The prose keeps its
+       serif; only the frame around it changes. */
+    --sumi-chrome-font: var(--font-main);
 
     /* ── 表装 — ink on the two mount bands, never on the paper ────────────
        A hanging scroll leaves the 本紙 untouched and dresses only the mount.
@@ -975,8 +983,8 @@ body.theme-sumi-e {
        the filename and the path sit — the picture keeps out of the text's way
        by composition rather than by being faded to nothing.
 
-       Ink is capped at 11%. The band is #efece3 and the ink is #1c1c1c, so
-       even at the 18% ceiling the filename still reads at 10:1. */
+       Ink is capped at 11%. The band is #e4dfd2 and the ink is #1c1c1c, so
+       even at the 18% ceiling the filename still reads at 9:1. */
     --sumi-mount-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='40' viewBox='0 0 900 40' preserveAspectRatio='none'%3E%3Cfilter id='h' x='-15%25' y='-60%25' width='130%25' height='240%25'%3E%3CfeGaussianBlur stdDeviation='2.2'/%3E%3C/filter%3E%3Cg fill='%231c1c1c'%3E%3Cg opacity='0.06' filter='url(%23h)'%3E%3Cpath d='M400,40 L448,26 Q466,17 484,25 L516,9 Q532,0 548,11 L586,31 Q604,42 621,37 L664,19 Q684,9 702,22 L744,40 Z'/%3E%3Cpath d='M762,40 L800,28 Q818,20 834,29 L862,15 Q878,7 892,18 L900,24 L900,40 Z'/%3E%3C/g%3E%3Cpath opacity='0.11' d='M596,40 L642,26 Q658,18 674,27 L700,14 Q714,6 727,16 L756,32 Q772,42 787,38 L828,24 Q846,16 862,26 L900,40 Z'/%3E%3C/g%3E%3C/svg%3E");
 
     /* かすれ一筆: one loaded stroke broken by turbulence, plus a lighter
@@ -999,24 +1007,39 @@ body.theme-sumi-e .stf__page {
 }
 
 /* 上の表装 — the mountains keep their aspect and hug the right edge, so a
-   wider window gets more empty band rather than a stretched landscape. */
+   wider window gets more empty band rather than a stretched landscape.
+   The bands carry the picture but not the fibre: grain on every surface was
+   one more thing blurring where the chrome stops and the paper starts. */
 body.theme-sumi-e #custom-titlebar {
-    background-image: var(--sumi-mount-top), var(--grain);
-    background-repeat: no-repeat, repeat;
-    background-position: right bottom, 0 0;
-    background-size: auto 100%, auto;
+    background-image: var(--sumi-mount-top);
+    background-repeat: no-repeat;
+    background-position: right bottom;
+    background-size: auto 100%;
 }
 
 /* 下の表装 — a single stroke, so stretching it across the width is what it
    wants: a longer sweep of the same brush. */
 body.theme-sumi-e #status-bar {
-    background-image: var(--sumi-mount-bottom), var(--grain);
-    background-repeat: no-repeat, repeat;
-    background-position: center, 0 0;
-    background-size: 100% 100%, auto;
+    background-image: var(--sumi-mount-bottom);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
 }
 
-/* Mincho on the chrome… */
+/* Where you are, in the accent. The open tab joins the sheet below it and
+   takes a pine-green cap; the selected file takes a pine-green edge. The
+   generic rules gave the tab only a bolder label and the tree row a blue
+   edge borrowed from the default theme. */
+body.theme-sumi-e .tab.active {
+    box-shadow: inset 0 2px 0 var(--active-tab-border);
+}
+
+body.theme-sumi-e .tree-item.selected {
+    border-left-color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* UI sans on the chrome… */
 body.theme-sumi-e #explorer,
 body.theme-sumi-e #tab-bar,
 body.theme-sumi-e #status-bar,
@@ -1044,7 +1067,7 @@ body.theme-sumi-e code {
     letter-spacing: normal;
 }
 
-body.theme-sumi-e option { background-color: #f7f5f0; color: #1c1c1c; }
+body.theme-sumi-e option { background-color: #fbfaf6; color: #1c1c1c; }
 
 /* ============================================================================
    ❄ Nord — 北極の青 (nord)
@@ -1666,7 +1689,9 @@ body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
 body.theme-sumi-e-dark {
     --bg-color: #26282d;            /* night washi */
     --sidebar-bg: #202226;
-    --header-bg: #232529;
+    /* The mount bands sit below the desk, as in the day version. At #232529
+       they were lighter than the sidebar beside them. */
+    --header-bg: #1c1d21;
     --border-color: #3a3d44;
     --text-color: #e6e4dd;          /* moonlight ink */
     --primary-color: #8ea6b8;       /* 青墨 — blue-grey ink, kept low in chroma */
@@ -1714,7 +1739,8 @@ body.theme-sumi-e-dark {
     --git-untracked-color: #8fc9a8;
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
-    --sumi-chrome-font: var(--font-textbook);
+    /* UI sans on the chrome, as in the day version. */
+    --sumi-chrome-font: var(--font-main);
 
     /* Washi fibre, reused from the light Sumi-e. */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
@@ -1735,17 +1761,26 @@ body.theme-sumi-e-dark .stf__page {
 }
 
 body.theme-sumi-e-dark #custom-titlebar {
-    background-image: var(--sumi-mount-top), var(--grain);
-    background-repeat: no-repeat, repeat;
-    background-position: right bottom, 0 0;
-    background-size: auto 100%, auto;
+    background-image: var(--sumi-mount-top);
+    background-repeat: no-repeat;
+    background-position: right bottom;
+    background-size: auto 100%;
 }
 
 body.theme-sumi-e-dark #status-bar {
-    background-image: var(--sumi-mount-bottom), var(--grain);
-    background-repeat: no-repeat, repeat;
-    background-position: center, 0 0;
-    background-size: 100% 100%, auto;
+    background-image: var(--sumi-mount-bottom);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+}
+
+body.theme-sumi-e-dark .tab.active {
+    box-shadow: inset 0 2px 0 var(--active-tab-border);
+}
+
+body.theme-sumi-e-dark .tree-item.selected {
+    border-left-color: var(--primary-color);
+    font-weight: 600;
 }
 
 body.theme-sumi-e-dark #explorer,
