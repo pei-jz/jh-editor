@@ -11,9 +11,10 @@ self.onmessage = (e) => {
     
     try {
         let parser;
-        if (type === 'xml') parser = new XmlParser();
-        else if (type === 'json') parser = new JsonParser();
-        else if (type === 'html') parser = new HtmlParser();
+        // parse() is static on all three; an instance has no parse method.
+        if (type === 'xml') parser = XmlParser;
+        else if (type === 'json') parser = JsonParser;
+        else if (type === 'html') parser = HtmlParser;
         else throw new Error('Unknown parser type: ' + type);
 
         const rootNode = parser.parse(content);

@@ -228,6 +228,7 @@ export default {
     'Diamond (decision)': 'ひし形 (分岐)',
     'Direction': '方向',
     'Distribution of changes (click to jump)': '変更の分布 (クリックでジャンプ)',
+    'Read only: this JSON has numbers that would lose precision if written back from the tree ({nums}). Edit it as text instead.': '読み取り専用: この JSON には、ツリーから書き戻すと精度が落ちる数値があります ({nums})。テキストとして編集してください。',
     'Document Tree': 'ドキュメントツリー',
     'Dotted arrow': '点線の矢印',
     'Drag to resize': 'ドラッグでサイズ変更',

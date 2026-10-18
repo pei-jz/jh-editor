@@ -16,6 +16,18 @@ import { Navigation } from '../utils/Navigation.js';
 import { showAlert } from '../ui/Dialog.js';
 import { isAtSavedState } from '../utils/DirtyState.js';
 
+/**
+ * Why a JSON file has to stay read-only in the tree, or null.
+ * A JS number cannot hold 12345678901234567890 or a 20-digit fraction; any
+ * value the tree generated from one would be a different number.
+ */
+export function jsonReadOnlyReason(doc) {
+    if (!doc || !doc.lossy || doc.lossy.length === 0) return null;
+    const shown = doc.lossy.slice(0, 3).map((n) => n.raw).join(', ');
+    const more = doc.lossy.length > 3 ? ', ...' : '';
+    return t('Read only: this JSON has numbers that would lose precision if written back from the tree ({nums}). Edit it as text instead.', { nums: shown + more });
+}
+
 const debounce = (func, wait) => {
     let timeout;
     return function (...args) {
@@ -168,12 +180,25 @@ export class StructureView extends BaseView {
                 }
 
                 let rootNode;
-                try {
-                    // Try Rust parser first
-                    rootNode = await invoke('parse_structured_data', { content: parseContent, format: type, filePath: file.path });
-                } catch (e) {
-                    // Fallback to JS Worker parser
-                    rootNode = await parseAsync(parseContent, type);
+                this._jsonDoc = null;
+                this._readOnlyReason = null;
+                if (type === 'json') {
+                    // JSON is parsed here, not in Rust: the tree has to remember
+                    // the text it came from so writing it back changes only what
+                    // was edited. The Rust tree also carried every number,
+                    // boolean and null as a string, so any edit quoted them all.
+                    const parsed = JsonParser.parseDocument(parseContent);
+                    rootNode = parsed.root;
+                    this._jsonDoc = parsed.doc;
+                    this._readOnlyReason = jsonReadOnlyReason(parsed.doc);
+                } else {
+                    try {
+                        // Try Rust parser first
+                        rootNode = await invoke('parse_structured_data', { content: parseContent, format: type, filePath: file.path });
+                    } catch (e) {
+                        // Fallback to JS Worker parser
+                        rootNode = await parseAsync(parseContent, type);
+                    }
                 }
 
                 if (jspBlocks) restoreJspInTree(rootNode, jspBlocks);
@@ -184,20 +209,21 @@ export class StructureView extends BaseView {
                 else this.parser = JsonParser;
 
                 treeContainer.innerHTML = '';
+                if (this._readOnlyReason) {
+                    const banner = document.createElement('div');
+                    banner.className = 'structure-readonly-banner';
+                    banner.style.cssText = 'padding:6px 10px; font-size:0.9em; color:var(--text-color); border-bottom:1px solid var(--border-color);';
+                    banner.textContent = this._readOnlyReason;
+                    leftPaneDOM.insertBefore(banner, treeContainer);
+                }
                 this.editor = new StructureEditor(
                     treeContainer,
                     rootNode,
                     (newModel) => {
-                        // Fix: Must stringify the model before updating file content
-                        if (this.parser && typeof this.parser.stringify === 'function') {
-                            try {
-                                const stringified = this.parser.stringify(newModel);
-                                this.currentFile.content = stringified;
-                                this.currentFile.isDirty = true;
-                                if (this.onRenderTabs) this.onRenderTabs();
-                            } catch (e) {
-                                console.error('StructureView: Stringify failed during onUpdate', e);
-                            }
+                        try {
+                            this._writeBack(newModel);
+                        } catch (e) {
+                            console.error('StructureView: Stringify failed during onUpdate', e);
                         }
                     },
                     (node) => {
@@ -209,6 +235,7 @@ export class StructureView extends BaseView {
                         this.renderRightPane(rightPaneContent);
                     },
                     {
+                        readOnly: !!this._readOnlyReason,
                         onLazyLoad: async (node) => {
                             try {
                                 const children = await invoke('get_node_children', { filePath: file.path, nodeId: node.id });
@@ -299,7 +326,7 @@ export class StructureView extends BaseView {
             return;
         }
 
-        const fragment = this.parser.stringify(this.currentSelectedNode);
+        const fragment = this._serialize(this.currentSelectedNode, { fragment: true });
 
         // Text a tab switch (or another node) left behind because it did not
         // parse — see _commitOrStash. It only comes back onto the very node it
@@ -336,6 +363,10 @@ export class StructureView extends BaseView {
     }
 
     applyChanges(newValue, { silent = false } = {}) {
+        if (this._readOnlyReason) {
+            if (!silent) showAlert(this._readOnlyReason, { title: 'Structure', kind: 'error' });
+            return false;
+        }
         try {
             let newNode;
             if (this.currentType === 'json') {
@@ -609,6 +640,10 @@ export class StructureView extends BaseView {
 
         // Tree Node Paste
         if (!this.editor || !this.editor.state.selectedNodeId) return;
+        if (this._readOnlyReason) {
+            showAlert(this._readOnlyReason, { title: 'Structure', kind: 'error' });
+            return;
+        }
 
         let newNode;
         try {
@@ -653,14 +688,35 @@ export class StructureView extends BaseView {
             
             // Sync with file
             try {
-                const fullSource = this.parser.stringify(this.editor.model);
-                this.currentFile.content = fullSource;
-                this.currentFile.isDirty = true;
-                if (this.onRenderTabs) this.onRenderTabs();
+                this._writeBack(this.editor.model);
             } catch (e) {
                 console.error(e);
             }
         }
+    }
+
+    /**
+     * Tree -> text. JSON goes through the document it was parsed from, so the
+     * untouched parts of the file come back byte for byte; a fragment for the
+     * source pane only borrows the file's indentation.
+     */
+    _serialize(node, { fragment = false } = {}) {
+        if (this.parser === JsonParser && this._jsonDoc) {
+            return fragment
+                ? JsonParser.stringify(node, { format: this._jsonDoc.format })
+                : JsonParser.stringify(node, { doc: this._jsonDoc });
+        }
+        return this.parser.stringify(node);
+    }
+
+    /** Put the tree into file.content, unless the file must not be rewritten. */
+    _writeBack(model) {
+        if (this._readOnlyReason) return false;
+        if (!this.parser || typeof this.parser.stringify !== 'function') return false;
+        this.currentFile.content = this._serialize(model);
+        this.currentFile.isDirty = true;
+        if (this.onRenderTabs) this.onRenderTabs();
+        return true;
     }
 
     updateNode(nodeId, newNode) {
@@ -685,10 +741,7 @@ export class StructureView extends BaseView {
         if (findAndReplace(this.editor.model)) {
             this.editor.render();
             try {
-                const fullSource = this.parser.stringify(this.editor.model);
-                this.currentFile.content = fullSource;
-                this.currentFile.isDirty = true;
-                if (this.onRenderTabs) this.onRenderTabs();
+                this._writeBack(this.editor.model);
             } catch (e) {
                 console.error('StructureView: Stringify failed during updateNode', e);
                 showAlert('Failed to generate source: ' + e.message, { title: 'Structure', kind: 'error' });
