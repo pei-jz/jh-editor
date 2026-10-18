@@ -572,38 +572,101 @@ export class MarkdownView extends BaseView {
     }
 
     _splitIntoBlocks(content) {
-        if (!content) return [];
-        const lines = content.split(/\r?\n/);
+        return this._splitWithGaps(content).blocks;
+    }
+
+    /**
+     * Blocks, and the exact text between them.
+     *
+     * `gaps[0]` is what comes before the first block, `gaps[i]` what sits
+     * between block i-1 and block i, and the last entry what follows the last
+     * block (the final newline). Blank lines inside a fenced code block do not
+     * end a block — for ``` and ~~~ fences alike; a ~~~ fence used to be cut
+     * at every blank line.
+     */
+    _splitWithGaps(content) {
         const blocks = [];
-        let currentBlock = [];
-        let inCodeBlock = false;
+        if (!content) return { blocks, gaps: [''] };
+        const lines = [];
+        const re = /\r?\n/g;
+        let pos = 0;
+        let m;
+        while ((m = re.exec(content))) {
+            lines.push({ text: content.slice(pos, m.index), start: pos, end: m.index });
+            pos = re.lastIndex;
+        }
+        lines.push({ text: content.slice(pos), start: pos, end: content.length });
 
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // Toggle code block state
-            if (line.trim().startsWith('```')) {
-                inCodeBlock = !inCodeBlock;
+        const spans = [];
+        let cur = null;
+        let fence = null; // the opening fence while inside a code block
+        for (const line of lines) {
+            const opener = /^\s*(`{3,}|~{3,})/.exec(line.text);
+            if (opener) {
+                if (!fence) fence = opener[1];
+                else if (opener[1][0] === fence[0] && opener[1].length >= fence.length
+                    && line.text.trim() === opener[1]) fence = null;
             }
-
-            // If not in code block and line is empty (or whitespace only)
-            // and we have content in current block, finish the block
-            if (!inCodeBlock && line.trim() === '') {
-                // Check if next lines are also empty to handle multiple empty lines
-                if (currentBlock.length > 0) {
-                    blocks.push(currentBlock.join('\n'));
-                    currentBlock = [];
-                }
+            if (!fence && !opener && line.text.trim() === '') {
+                if (cur) { spans.push(cur); cur = null; }
+            } else if (cur) {
+                cur.lines.push(line);
             } else {
-                currentBlock.push(line);
+                cur = { lines: [line] };
             }
         }
+        if (cur) spans.push(cur);
 
-        if (currentBlock.length > 0) {
-            blocks.push(currentBlock.join('\n'));
+        const gaps = [];
+        let prevEnd = 0;
+        for (const span of spans) {
+            const first = span.lines[0];
+            const last = span.lines[span.lines.length - 1];
+            gaps.push(content.slice(prevEnd, first.start));
+            blocks.push(span.lines.map((l) => l.text).join('\n'));
+            prevEnd = last.end;
         }
+        gaps.push(content.slice(prevEnd));
+        return { blocks, gaps };
+    }
 
-        return blocks;
+    /**
+     * The document text for `this.blocksData`, keeping the file's own spacing.
+     *
+     * Every block edit, move or delete used to write the WHOLE document back
+     * as blocks joined by exactly one blank line — collapsing double blank
+     * lines, dropping whitespace-only lines and the final newline, in parts of
+     * the file nobody touched. The blocks that did not change are matched
+     * against the current text from both ends, and keep the spacing they had;
+     * only around the edited ones is the default blank line used.
+     */
+    _joinBlocks(file) {
+        const blocks = this.blocksData || [];
+        const content = (file && typeof file.content === 'string') ? file.content : '';
+        const old = this._splitWithGaps(content);
+        const n = blocks.length;
+        const m = old.blocks.length;
+        const def = content.includes('\r\n') ? '\r\n\r\n' : '\n\n';
+        if (n === 0) return '';
+        if (m === 0) return blocks.join(def);
+
+        let p = 0;
+        while (p < n && p < m && blocks[p] === old.blocks[p]) p++;
+        let q = 0;
+        while (q < n - p && q < m - p && blocks[n - 1 - q] === old.blocks[m - 1 - q]) q++;
+
+        const gapBefore = (k) => {
+            if (k === 0) return old.gaps[0];
+            if (n === m) return old.gaps[k];          // edited in place, or swapped
+            if (k <= p) return old.gaps[k];           // block k-1 unchanged, at the front
+            // Block k unchanged, at the back — unless that old gap was just
+            // used in front of an insertion, where it would appear twice.
+            if (k >= n - q && k - n + m > p) return old.gaps[k - n + m];
+            return def;
+        };
+        let out = '';
+        for (let k = 0; k < n; k++) out += gapBefore(k) + blocks[k];
+        return out + old.gaps[m];
     }
 
     _renderBlockInternal(div) {
@@ -756,6 +819,21 @@ export class MarkdownView extends BaseView {
         let isTableMode = TableEditor.isTable(originalText || '');
         let tableData = isTableMode ? TableEditor.parse(originalText) : [];
 
+        // The grid always writes its own layout (padding, separator row), so a
+        // table that was only looked at came back reformatted — and Escape
+        // then asked about "unsaved changes" nobody made. While the grid still
+        // serializes to what the opening text would, the opening text is used.
+        let tableBase = null;
+        const rememberTableBase = (source) => {
+            tableBase = { source, serialized: TableEditor.serialize(TableEditor.parse(source)) };
+        };
+        if (isTableMode) rememberTableBase(originalText || '');
+        const editedText = () => {
+            if (!isTableMode) return textarea.value;
+            const out = TableEditor.serialize(tableData);
+            return tableBase && out === tableBase.serialized ? tableBase.source : out;
+        };
+
         // Initial setup for shortcuts
         const scope = isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN';
         shortcuts.unregisterScope('MARKDOWN');
@@ -858,7 +936,7 @@ export class MarkdownView extends BaseView {
         tableHost.appendChild(tableContainer);
 
         const syncTableToText = () => {
-            textarea.value = TableEditor.serialize(tableData);
+            textarea.value = editedText();
             if (typeof marked !== 'undefined') {
                 previewContent.innerHTML = this._parseMarkdown(textarea.value);
                 runMermaidPreview();
@@ -879,6 +957,7 @@ export class MarkdownView extends BaseView {
                         tableData = [['Header 1', 'Header 2'], ['Row 1', 'Row 2']];
                     } else {
                         tableData = TableEditor.parse(currentText);
+                        rememberTableBase(currentText);
                     }
                     TableEditor.render(tableContainer, tableData, syncTableToText);
                     textarea.style.display = 'none';
@@ -1012,7 +1091,7 @@ export class MarkdownView extends BaseView {
             if (savingProgress) return;
             savingProgress = true;
             try {
-                const text = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+                const text = editedText();
                 if (text !== originalText) {
                     const before = this.blocksData.length;
                     // Blocks that actually exist inside the range: none for
@@ -1022,6 +1101,7 @@ export class MarkdownView extends BaseView {
                     rangeCount = this.blocksData.length - (before - covered);
                     // Escape after this asks only about edits made since.
                     originalText = text;
+                    if (isTableMode) rememberTableBase(text);
                     if (this.renderTabs) this.renderTabs();
                 }
                 if (typeof this.saveFileToDisk === 'function') {
@@ -1036,7 +1116,7 @@ export class MarkdownView extends BaseView {
         };
 
         const saveAndClose = () => {
-            const finalContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+            const finalContent = editedText();
             this.saveBlock(blockIndex, finalContent, rangeCount);
             destroyBlockCM();
             blockElement.classList.remove('editing');
@@ -1059,7 +1139,7 @@ export class MarkdownView extends BaseView {
         const cancelAndClose = async () => {
             // Warn whenever the edits would be lost — for the table editor the
             // textarea alone does not reflect cell edits, so serialize it too.
-            const currentContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+            const currentContent = editedText();
             if (currentContent !== originalText) {
                 const choice = await confirmDiscardChange();
                 if (choice !== 'YES') return;
@@ -1136,7 +1216,7 @@ export class MarkdownView extends BaseView {
             },
             'app:toggle-view-mode': (e) => {
                 e.preventDefault();
-                const finalContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+                const finalContent = editedText();
                 this.saveBlock(blockIndex, finalContent);
                 blockElement.classList.remove('editing');
                 previewModal.style.display = 'none';
@@ -1608,9 +1688,7 @@ export class MarkdownView extends BaseView {
             }
         }
 
-        // Use consistent join logic (double newline as per _splitIntoBlocks intent)
-        const eol = file.eol || '\n';
-        this._commitContent(file, this.blocksData.join(eol + eol));
+        this._commitContent(file, this._joinBlocks(file));
         return file;
     }
 
@@ -1804,8 +1882,7 @@ export class MarkdownView extends BaseView {
 
         const file = this._viewFile();
         if (file) {
-            const eol = file.eol || '\n';
-            this._commitContent(file, this.blocksData.join(eol + eol));
+            this._commitContent(file, this._joinBlocks(file));
         }
 
         // Land on the block that took the deleted one's place, or the last one
@@ -2100,8 +2177,7 @@ export class MarkdownView extends BaseView {
         // Persist via the same join logic used by saveBlock, then re-render.
         const file = this._viewFile();
         if (!file) return;
-        const eol = file.eol || '\n';
-        this._commitContent(file, blocks.join(`${eol}${eol}`));
+        this._commitContent(file, this._joinBlocks(file));
 
         // The tab's "*" follows the order: moving a block back clears it.
         if (this.renderTabs) this.renderTabs();

@@ -42,8 +42,9 @@ describe('MarkdownView modified mark', () => {
 
         view.saveBlock(1, 'first');
         expect(file.isDirty).toBe(false);
-        // The text is in the block view's form, not the file's original bytes.
-        expect(file.content).not.toBe(file.savedContent);
+        // The document's own spacing (three blank lines, the final newline)
+        // survives the round trip: the text is the file's, byte for byte.
+        expect(file.content).toBe(file.savedContent);
         expect(renderTabs).toHaveBeenCalled();
     });
 

@@ -284,32 +284,48 @@ export const TableEditor = {
         return isAllTableRows;
     },
 
-    // Parse markdown string to 2D array
+    // Parse markdown string to 2D array.
+    //
+    // `\|` is a pipe INSIDE a cell, not a column break: splitting on every
+    // pipe cut such a cell in two and shifted the rest of the row. The
+    // separator row's colons (:--, --:, :-:) are the columns' alignment; they
+    // ride along on the array as `data.align` so serialize() can write them
+    // back instead of resetting every column to the default.
     parse(text) {
         const lines = text.trim().split('\n');
         const data = [];
+        let align = null;
 
         lines.forEach((line, i) => {
             const trimmed = line.trim();
             // Skip separator line
             if (i === 1 && this.isSeparatorLine(trimmed)) {
+                align = this._splitRow(trimmed).map((c) => {
+                    const t = c.trim();
+                    const l = t.startsWith(':');
+                    const r = t.endsWith(':');
+                    return l && r ? 'center' : r ? 'right' : l ? 'left' : null;
+                });
                 return;
             }
 
-            // Remove leading/trailing pipes and split
-            let cleanLine = trimmed;
-            if (cleanLine.startsWith('|')) {
-                cleanLine = cleanLine.substring(1);
-            }
-            if (cleanLine.endsWith('|')) {
-                cleanLine = cleanLine.substring(0, cleanLine.length - 1);
-            }
-
-            const row = cleanLine.split('|');
-            data.push(row.map(cell => cell.trim()));
+            data.push(this._splitRow(trimmed).map(cell => cell.trim()));
         });
 
+        if (align && align.some(Boolean)) data.align = align;
         return data;
+    },
+
+    /** Cells of one table row: outer pipes dropped, `\|` kept inside its cell. */
+    _splitRow(trimmed) {
+        let cleanLine = trimmed;
+        if (cleanLine.startsWith('|')) {
+            cleanLine = cleanLine.substring(1);
+        }
+        if (cleanLine.endsWith('|') && !cleanLine.endsWith('\\|')) {
+            cleanLine = cleanLine.substring(0, cleanLine.length - 1);
+        }
+        return cleanLine.split(/(?<!\\)\|/);
     },
 
     // Convert 2D array back to markdown string
@@ -337,8 +353,15 @@ export const TableEditor = {
 
         let md = formatRow(data[0]) + '\n';
 
-        // Separator
-        const separator = widths.map(w => '-'.repeat(w)).join(' | ');
+        // Separator, with each column's alignment as it was read.
+        const align = Array.isArray(data.align) ? data.align : [];
+        const separator = widths.map((w, i) => {
+            const a = align[i];
+            if (a === 'center') return ':' + '-'.repeat(Math.max(1, w - 2)) + ':';
+            if (a === 'left') return ':' + '-'.repeat(Math.max(1, w - 1));
+            if (a === 'right') return '-'.repeat(Math.max(1, w - 1)) + ':';
+            return '-'.repeat(w);
+        }).join(' | ');
         md += '| ' + separator + ' |\n';
 
         // Body
@@ -566,6 +589,7 @@ export const TableEditor = {
                     e.preventDefault();
                     if (isShift) {
                         data.forEach(row => row.splice(this._state.activeCol + 1, 0, ''));
+                        if (Array.isArray(data.align)) data.align.splice(this._state.activeCol + 1, 0, null);
                         this.render(container, data, onChange);
                         setTimeout(() => updateSelection(this._state.activeRow, this._state.activeCol + 1), 0);
                     } else {
@@ -582,6 +606,7 @@ export const TableEditor = {
                     if (isShift) {
                         if (data[0].length > 1) {
                             data.forEach(row => row.splice(this._state.activeCol, 1));
+                            if (Array.isArray(data.align)) data.align.splice(this._state.activeCol, 1);
                             this.render(container, data, onChange);
                             updateSelection(this._state.activeRow, Math.min(this._state.activeCol, data[0].length - 1));
                             notify();

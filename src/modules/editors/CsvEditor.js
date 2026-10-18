@@ -24,6 +24,9 @@ function getOsLineEnding() {
 export class CsvModel {
     constructor(content, existingLineEnding = null) {
         this.lineEnding = existingLineEnding || getOsLineEnding();
+        // A file that ends in a line break keeps it. serialize() joins rows
+        // with line breaks, so the last one was dropped on every edit.
+        this.trailingBreak = /(\r\n|\r|\n)$/.test(String(content || ''));
         this.data = this.parse(content, !existingLineEnding);
         if (this.data.length === 0) this.data = [['']];
         this.history = [];
@@ -253,12 +256,13 @@ export class CsvModel {
     }
 
     serialize() {
-        return this.data.map(row => row.map(cell => {
+        const body = this.data.map(row => row.map(cell => {
             if (cell.includes('"') || cell.includes(',') || cell.includes('\n') || cell.includes('\r')) {
                 return `"${cell.replace(/"/g, '""')}"`;
             }
             return cell;
         }).join(',')).join(this.lineEnding);
+        return this.trailingBreak ? body + this.lineEnding : body;
     }
 
     transpose() {
