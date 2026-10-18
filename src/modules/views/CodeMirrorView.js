@@ -1,4 +1,5 @@
 import { firstMatchEndingAfter, firstMatchAtOrAfter, searchMatchLimit } from '../utils/SearchRanges.js';
+import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 import { expandReplacement } from '../utils/TextSearchCore.js';
 import { EditorState, StateField, StateEffect, Compartment, RangeSetBuilder } from '@codemirror/state';
 // Named `tr`, not `t`: this module already binds `t` to Lezer's highlight
@@ -2178,6 +2179,7 @@ export class CodeMirrorView {
             // focused row, so the target/activeElement guards below can't see
             // it; the stamp can.
             if (e.__explorerKeyDown) return;
+            if (keyIsOwnedByPopup(e)) return;
             
             if (!this.container || this.container.offsetParent === null) return;
 

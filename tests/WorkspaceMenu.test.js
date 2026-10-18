@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const { toggleWorkspaceMenu, closeWorkspaceMenu } = await import('../src/modules/ui/WorkspaceMenu.js');
 const { RecentFiles, sameWorkspace } = await import('../src/modules/utils/RecentFiles.js');
 const { State } = await import('../src/modules/core/Store.js');
+const { keyIsOwnedByPopup } = await import('../src/modules/utils/KeyOwnership.js');
+const { readFileSync } = await import('node:fs');
 
 describe('workspace history', () => {
     beforeEach(() => localStorage.clear());
@@ -101,5 +103,52 @@ describe('workspace menu', () => {
         toggleWorkspaceMenu(anchor, handlers);
         toggleWorkspaceMenu(anchor, handlers);
         expect(menu()).toBe(null);
+    });
+});
+
+// The views that listen on the window in the capture phase hear every key
+// before the menu does. With a Markdown file open, ↑/↓ moved the block
+// selection behind the menu instead of walking its rows.
+describe('arrow keys while the menu is open', () => {
+    afterEach(() => {
+        closeWorkspaceMenu();
+        document.body.innerHTML = '';
+    });
+
+    it('belong to the menu, not to a window-level view handler', () => {
+        localStorage.clear();
+        document.body.innerHTML = '<button id="anchor">folder</button>';
+        RecentFiles.recordWorkspace('C:/a');
+        RecentFiles.recordWorkspace('C:/b');
+        toggleWorkspaceMenu(document.getElementById('anchor'), {
+            onSwitch: vi.fn(), onOpenFolder: vi.fn(), onOpenInNewWindow: vi.fn(),
+        });
+
+        const view = vi.fn();
+        const listener = (e) => { if (!keyIsOwnedByPopup(e)) view(e.key); };
+        window.addEventListener('keydown', listener, true);
+        const before = document.activeElement;
+        before.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+        window.removeEventListener('keydown', listener, true);
+
+        expect(view).not.toHaveBeenCalled();
+        expect(document.activeElement).not.toBe(before);   // the menu moved instead
+    });
+
+    it('is not claimed when no popup is involved', () => {
+        document.body.innerHTML = '<div id="doc" tabindex="0"></div>';
+        const e = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+        Object.defineProperty(e, 'target', { value: document.getElementById('doc') });
+        expect(keyIsOwnedByPopup(e)).toBe(false);
+    });
+
+    it('is asked by every window-level arrow handler', () => {
+        for (const f of ['src/modules/views/MarkdownView.js', 'src/modules/views/CodeMirrorView.js',
+            'src/modules/editors/StructureEditor.js']) {
+            expect(readFileSync(f, 'utf8'), f).toContain('if (keyIsOwnedByPopup(e)) return;');
+        }
+        // MarkdownView has two: block navigation and the book-mode page keys.
+        const md = readFileSync('src/modules/views/MarkdownView.js', 'utf8');
+        expect(md.split('if (keyIsOwnedByPopup(e)) return;').length - 1).toBe(2);
     });
 });

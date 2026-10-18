@@ -24,6 +24,7 @@ import { showAlert, showConfirm } from '../ui/Dialog.js';
 import { isAtSavedState, savedForm, rememberSavedForm } from '../utils/DirtyState.js';
 import { enableLightbox } from '../ui/Lightbox.js';
 import { attachDiagramZoom } from '../ui/DiagramZoom.js';
+import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 import { isFullScreenKey } from '../utils/FullScreenKey.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
@@ -2017,6 +2018,8 @@ export class MarkdownView extends BaseView {
             // e.target.closest('#explorer') guard below sees null and the old
             // guard silently missed (both the explorer AND this view moved).
             if (e.__explorerKeyDown) return;
+            // The workspace menu (and any popup like it) walks its own rows.
+            if (keyIsOwnedByPopup(e)) return;
             // Only while this view is the visible one.
             if (!this.container || !this.container.isConnected || this.container.offsetParent === null) return;
             // Never steal keys from an editor / input / a modal that is open on
@@ -2917,6 +2920,7 @@ export class MarkdownView extends BaseView {
             // virtual-scroll re-render detaches the focused row, so the
             // target/activeElement guards below can't see it; the stamp can.
             if (e.__explorerKeyDown) return;
+            if (keyIsOwnedByPopup(e)) return;
             
             // Only handle if this view is visible
             if (!this.container || this.container.offsetParent === null) {

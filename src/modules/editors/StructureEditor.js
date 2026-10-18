@@ -6,6 +6,7 @@
  */
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { t } from '../utils/I18n.js';
+import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 
 export class StructureEditor {
     constructor(container, model, onUpdate, onSelectionChange, options = {}) {
@@ -158,6 +159,7 @@ export class StructureEditor {
             // .handleKeyDown); its virtual list detaches the focused row, so
             // the target/activeElement checks below can't see it — the stamp can.
             if (e.__explorerKeyDown) return;
+            if (keyIsOwnedByPopup(e)) return;
             const t = e.target;
             // Inside the tree already → the root listener handles it.
             if (t && typeof t.closest === 'function' && root.contains(t)) return;
