@@ -1,5 +1,6 @@
 import { t } from '../utils/I18n.js';
 import { Lightbox } from './Lightbox.js';
+import { fitDiagram, naturalSize } from '../utils/DiagramFit.js';
 
 /**
  * DiagramZoom — zoom for the live diagram previews (Mermaid helper, block edit).
@@ -10,7 +11,9 @@ import { Lightbox } from './Lightbox.js';
  * lightbox already enlarges a diagram, but it covers the source you are
  * editing. This keeps the diagram in place and changes its size instead:
  *
- *   fit    — as wide as the pane, never wider than the diagram itself (default)
+ *   fit    — as wide as the pane, never wider than the diagram itself, and a
+ *            tall one shrunk toward the pane's height — but only down to a
+ *            readable scale, past which the pane scrolls (default)
  *   zoom   — a fixed scale of the diagram's natural size; the pane scrolls
  *
  * The previews re-render on every keystroke, which replaces the SVG, so the
@@ -51,10 +54,12 @@ function _injectStyles() {
     document.head.appendChild(style);
 }
 
-/** Natural size of a rendered diagram, from its viewBox. */
-function _natural(svg) {
-    const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
-    return vb.length === 4 && vb[2] > 0 && vb[3] > 0 ? { w: vb[2], h: vb[3] } : null;
+
+
+/** Room for a diagram in the pane: its height less the block's padding. */
+function _paneHeight(el) {
+    const h = el.clientHeight;
+    return h > 0 ? Math.max(160, h - 48) : Infinity;
 }
 
 /**
@@ -95,7 +100,7 @@ export function attachDiagramZoom(scrollEl) {
     const currentScale = () => {
         if (zoom != null) return zoom;
         const svg = svgs()[0];
-        const n = svg && _natural(svg);
+        const n = svg && naturalSize(svg);
         const w = svg && svg.getBoundingClientRect().width;
         return n && w ? w / n.w : 1;
     };
@@ -106,17 +111,16 @@ export function attachDiagramZoom(scrollEl) {
         if (!list.length) return;
         scrollEl.classList.toggle('dz-zoomed', zoom != null);
         for (const svg of list) {
-            const n = _natural(svg);
+            const n = naturalSize(svg);
             if (!n) continue;
             if (zoom == null) {
-                // Fill the pane, but never blow a small diagram up past 1:1.
-                svg.style.width = '100%';
-                svg.style.maxWidth = `${n.w}px`;
-                svg.style.height = 'auto';
+                // Fill the pane, never past 1:1, and keep a tall one in view.
+                fitDiagram(svg, _paneHeight(scrollEl));
             } else {
                 svg.style.width = `${Math.round(n.w * zoom)}px`;
                 svg.style.maxWidth = 'none';
                 svg.style.height = `${Math.round(n.h * zoom)}px`;
+                svg.style.aspectRatio = '';
             }
         }
         level.textContent = `${Math.round(currentScale() * 100)}%`;
@@ -143,9 +147,18 @@ export function attachDiagramZoom(scrollEl) {
     };
     scrollEl.addEventListener('wheel', onWheel, { passive: false });
 
-    // In fit mode the label follows the pane as the splitter moves.
+    // In fit mode the size (its height cap is in px) and the label follow the
+    // pane as the splitter or the dialog moves.
+    // Only on a real change of the pane: refitting must not feed back into a
+    // pane that sizes itself to its content.
+    let lastBox = '';
     const ro = typeof ResizeObserver === 'function'
-        ? new ResizeObserver(() => { if (zoom == null && !bar.hidden) level.textContent = `${Math.round(currentScale() * 100)}%`; })
+        ? new ResizeObserver(() => {
+            const box = `${scrollEl.clientWidth}x${scrollEl.clientHeight}`;
+            if (box === lastBox) return;
+            lastBox = box;
+            if (zoom == null && !bar.hidden) refresh();
+        })
         : null;
     if (ro) ro.observe(scrollEl);
 

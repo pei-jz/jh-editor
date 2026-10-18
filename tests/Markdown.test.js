@@ -267,13 +267,19 @@ describe('renderMermaid — re-render safety (regressions)', () => {
         expect(svg.style.height).toMatch(/px$|^auto$/);
     });
 
-    it('leaves a concrete pixel height alone', async () => {
+    // Every type is sized the same way, from its viewBox: never past 1:1, and
+    // a tall one held to the window. Mermaid's own width/height attributes
+    // differ by type, which is how a small diagram ended up column-wide.
+    it('sizes every diagram from its viewBox, whatever mermaid set', async () => {
         document.body.innerHTML = '<div class="mermaid">graph TD;</div>';
         mermaidRun.mockImplementation(async ({ nodes }) => {
-            for (const n of nodes) n.innerHTML = '<svg height="250" viewBox="0 0 400 250"></svg>';
+            for (const n of nodes) n.innerHTML = '<svg height="250" width="100%" viewBox="0 0 400 250"></svg>';
         });
         await renderMermaid(document);
-        expect(document.querySelector('.mermaid svg').getAttribute('height')).toBe('250');
+        const svg = document.querySelector('.mermaid svg');
+        expect(svg.getAttribute('height')).toBeNull();
+        expect(svg.style.maxWidth).toBe('400px');
+        expect(svg.style.aspectRatio).toMatch(/400 \/ 250/);
     });
 });
 

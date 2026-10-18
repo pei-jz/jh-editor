@@ -1,6 +1,7 @@
 
 import { SyntaxHighlighter } from './SyntaxHighlighter.js';
 import { mermaidConfig, hasOwnTheme } from './MermaidTheme.js';
+import { fitDiagram, documentMaxHeight } from './DiagramFit.js';
 
 /**
  * Escape a mermaid source so the DOM hands it back unchanged.
@@ -378,7 +379,11 @@ export async function renderMermaid(container = document) {
                 _restoreFresh(n);
                 continue;
             }
-            _fixSvgHeight(svg);
+            // Width-fit alone let a tall diagram run to several screens, and
+            // let types without mermaid's own max-width blow a small diagram
+            // up to the full column. The print iframe has no screen to fit.
+            const maxH = svg.ownerDocument === document ? documentMaxHeight() : Infinity;
+            if (!fitDiagram(svg, maxH)) _fixSvgHeight(svg);
         }
     }).catch((e) => { console.error('Mermaid queue error', e); });
 
