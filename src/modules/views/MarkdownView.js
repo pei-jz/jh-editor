@@ -24,6 +24,7 @@ import { showAlert, showConfirm } from '../ui/Dialog.js';
 import { isAtSavedState, savedForm, rememberSavedForm } from '../utils/DirtyState.js';
 import { enableLightbox } from '../ui/Lightbox.js';
 import { attachDiagramZoom } from '../ui/DiagramZoom.js';
+import { isFullScreenKey } from '../utils/FullScreenKey.js';
 import { invoke } from '@tauri-apps/api/core';
 import { PageFlip } from 'page-flip';
 // CodeMirror 6 — powers the block editor (replacing the plain textarea).
@@ -254,6 +255,9 @@ export class MarkdownView extends BaseView {
         this.renderEditor = callbacks.renderEditor;
         this.renderTabs = callbacks.renderTabs;
         this.updateOutline = callbacks.updateOutline;
+        // Writes this view's file to disk (Editor.saveFile). Ctrl+S inside the
+        // block edit modal saves through it without closing the modal.
+        this.saveFileToDisk = callbacks.saveFile;
 
         this._onFontChange = () => {
             // Closed tabs can leave callbacks behind. Only the view that still
@@ -517,6 +521,18 @@ export class MarkdownView extends BaseView {
         this._refreshDirty(file);
     }
 
+    /**
+     * The file this view is showing.
+     *
+     * Not `State.openFiles[State.activeTabIndex]`: that is the LEFT pane's
+     * active tab. With the document in the right pane, a block edit was
+     * written into whatever file the left pane had open (or, with the left
+     * pane empty, silently dropped).
+     */
+    _viewFile() {
+        return this.file || (State.activeTabIndex >= 0 ? State.openFiles[State.activeTabIndex] : null) || null;
+    }
+
     /** Ctrl+Z in the block view: step the document back one block edit. */
     undo() { this._stepHistory('undo'); }
 
@@ -524,8 +540,7 @@ export class MarkdownView extends BaseView {
     redo() { this._stepHistory('redo'); }
 
     _stepHistory(dir) {
-        if (State.activeTabIndex < 0) return;
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
         const h = file && file._mdHistory;
         const stack = h && h[dir];
         if (!stack || !stack.length) return;
@@ -690,7 +705,9 @@ export class MarkdownView extends BaseView {
         if (blockElement.classList.contains('editing')) return;
         // >1 when several blocks were joined into this editor; the save path
         // then replaces that many blocks instead of one.
-        const rangeCount = Math.max(1, opts.rangeCount || 1);
+        // Reassigned by Ctrl+S (save and keep editing): the edited text may
+        // have become more blocks, or none.
+        let rangeCount = Math.max(1, opts.rangeCount || 1);
 
         State.vimState.mode = 'insert';
 
@@ -985,6 +1002,38 @@ export class MarkdownView extends BaseView {
             if (this._blockCM) { this._blockCM.destroy(); this._blockCM = null; }
         };
 
+        // Ctrl+S: put the text into the document AND write the file, but keep
+        // the modal open. Until now the only way to keep a long edit safe was
+        // to close the modal; a crash or a stray click before that lost all
+        // of it. Each save is one step for Ctrl+Z once the modal is closed.
+        let savingProgress = false;
+        const saveProgress = async () => {
+            if (savingProgress) return;
+            savingProgress = true;
+            try {
+                const text = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
+                if (text !== originalText) {
+                    const before = this.blocksData.length;
+                    // Blocks that actually exist inside the range: none for
+                    // the "+ Add Block" phantom past the end.
+                    const covered = Math.max(0, Math.min(rangeCount, before - blockIndex));
+                    if (!this._applyBlockText(blockIndex, text, rangeCount)) return;
+                    rangeCount = this.blocksData.length - (before - covered);
+                    // Escape after this asks only about edits made since.
+                    originalText = text;
+                    if (this.renderTabs) this.renderTabs();
+                }
+                if (typeof this.saveFileToDisk === 'function') {
+                    const ok = await this.saveFileToDisk();
+                    if (ok && window.showToast) window.showToast(t('Saved'));
+                }
+            } catch (err) {
+                console.error('Markdown: save from the edit modal failed', err);
+            } finally {
+                savingProgress = false;
+            }
+        };
+
         const saveAndClose = () => {
             const finalContent = isTableMode ? TableEditor.serialize(tableData) : textarea.value;
             this.saveBlock(blockIndex, finalContent, rangeCount);
@@ -1047,8 +1096,16 @@ export class MarkdownView extends BaseView {
                 e.preventDefault();
                 saveAndClose();
             },
+            'md:save-progress': (e) => {
+                e.preventDefault();
+                saveProgress();
+            },
             'md:cancel': (e) => {
                 e.preventDefault();
+                // Out of full screen first (see the overlay's Escape handler):
+                // this action runs before it, so it has to ask too.
+                const fs = this._editFullScreen;
+                if (fs && fs.is()) { fs.set(false); return; }
                 cancelAndClose();
             },
             'md:format': (e) => {
@@ -1357,9 +1414,12 @@ export class MarkdownView extends BaseView {
         };
         const isFullScreen = () => box.classList.contains('mbe-max');
         const toggleFullScreen = () => setFullScreen(!isFullScreen());
+        // For md:cancel: the shortcut manager hears Escape on the window,
+        // before this overlay's own listener, and would discard the edit.
+        this._editFullScreen = { is: isFullScreen, set: setFullScreen };
         if (maxBtn) {
             maxBtn.innerHTML = svgIcon('maximize', { size: 12 }) + `<span>${t('Full screen')}</span>`;
-            maxBtn.title = `${t('Fill the window')} (Ctrl+Alt+F)`;
+            maxBtn.title = `${t('Fill the window')} (F11 / Ctrl+Alt+F)`;
             maxBtn.onclick = toggleFullScreen;
         }
 
@@ -1453,6 +1513,12 @@ export class MarkdownView extends BaseView {
                 setFullScreen(false);
                 return;
             }
+            if (isFullScreenKey(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFullScreen();
+                return;
+            }
             if (!e.altKey || !(e.ctrlKey || e.metaKey)) return;
             // `e.code` as well as `e.key`: holding Alt changes the reported
             // CHARACTER on several layouts while the physical key stays put.
@@ -1471,6 +1537,7 @@ export class MarkdownView extends BaseView {
     /** Tear the edit modal down and put the shared preview node back. */
     _closeEditModal() {
         this._altHintCleanup?.();
+        this._editFullScreen = null;
         this._previewZoom?.destroy();
         this._previewZoom = null;
         const home = this._previewHome;
@@ -1501,13 +1568,32 @@ export class MarkdownView extends BaseView {
      *   replaced by whatever came out, not mapped one-for-one.
      */
     saveBlock(index, newText, replace = 1) {
+        if (!this._applyBlockText(index, newText, replace)) return;
+
+        if (this.renderTabs) this.renderTabs();
+        if (this.renderEditor) this.renderEditor();
+        if (this.updateOutline) this.updateOutline();
+    }
+
+    /**
+     * Write a block's text into the document without redrawing it — the part
+     * of saveBlock() the edit modal also needs while it stays open (Ctrl+S),
+     * where a redraw would rebuild the view that owns the modal.
+     *
+     * `replace` is how many existing blocks the text stands for: 1 normally,
+     * more after a multi-block edit, 0 when an earlier save in the same modal
+     * emptied the block (the text is then inserted at `index`).
+     *
+     * @returns {object|null} the file written to, or null when there is none
+     */
+    _applyBlockText(index, newText, replace = 1) {
         if (typeof newText !== 'string') {
             newText = String(newText || '');
         }
-        if (State.activeTabIndex < 0) return;
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
+        if (!file) return null;
 
-        if (replace > 1) {
+        if (replace !== 1 && index < this.blocksData.length) {
             const pieces = this._splitIntoBlocks(newText).filter((b) => b.trim());
             this.blocksData.splice(index, replace, ...pieces);
             this._selAnchor = null;
@@ -1524,10 +1610,7 @@ export class MarkdownView extends BaseView {
         // Use consistent join logic (double newline as per _splitIntoBlocks intent)
         const eol = file.eol || '\n';
         this._commitContent(file, this.blocksData.join(eol + eol));
-
-        if (this.renderTabs) this.renderTabs();
-        if (this.renderEditor) this.renderEditor();
-        if (this.updateOutline) this.updateOutline();
+        return file;
     }
 
     /**
@@ -1718,7 +1801,7 @@ export class MarkdownView extends BaseView {
 
         this.blocksData.splice(from, count);
 
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
         if (file) {
             const eol = file.eol || '\n';
             this._commitContent(file, this.blocksData.join(eol + eol));
@@ -1738,7 +1821,7 @@ export class MarkdownView extends BaseView {
     }
 
     _editBlockRange(range) {
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
         const eol = (file && file.eol) || '\n';
         const joined = this.blocksData.slice(range.from, range.to + 1).join(eol + eol);
 
@@ -2012,8 +2095,8 @@ export class MarkdownView extends BaseView {
         this._setCursor(to);
 
         // Persist via the same join logic used by saveBlock, then re-render.
-        if (State.activeTabIndex < 0) return;
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
+        if (!file) return;
         const eol = file.eol || '\n';
         this._commitContent(file, blocks.join(`${eol}${eol}`));
 
@@ -2191,7 +2274,7 @@ export class MarkdownView extends BaseView {
         // The trailing "+ Add Block" phantom has no source behind it.
         const to = Math.min(range.to, last);
         if (to < from) return '';
-        const file = State.openFiles[State.activeTabIndex];
+        const file = this._viewFile();
         const eol = (file && file.eol) || '\n';
         return this.blocksData.slice(from, to + 1).join(eol + eol);
     }

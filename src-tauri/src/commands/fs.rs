@@ -54,7 +54,7 @@ fn allow_asset_dir(webview: &tauri::WebviewWindow, dir: &std::path::Path,
     }
 }
 
-#[command]
+#[command(async)]
 pub fn set_workspace_root(
     webview: tauri::WebviewWindow,
     path: String,
@@ -86,7 +86,7 @@ pub fn set_workspace_root(
     Ok(())
 }
 
-#[command]
+#[command(async)]
 pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
     let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     let mut result = Vec::new();
@@ -108,42 +108,169 @@ pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(result)
 }
 
-#[command]
+#[command(async)]
 pub fn read_file(path: String) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|e| e.to_string())
 }
 
-#[command]
-pub fn write_file(path: String, content: String, encoding: Option<String>) -> Result<(), String> {
-    let encoding_label = encoding.as_deref().unwrap_or("utf-8");
+const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
+
+/// Turn the editor's text into the bytes that go on disk.
+///
+/// Two things here used to change a file without a word:
+///
+/// - `encode` does not fail on a character the encoding has no code for — it
+///   writes `&#NNNN;` in its place. An emoji typed into a Shift_JIS file came
+///   back as markup. Refusing is the only honest answer: the buffer stays
+///   dirty, nothing on disk changes, and the message says what to do.
+/// - Reading strips a UTF-8 BOM, and writing never put it back. A file that
+///   had one keeps it.
+pub(crate) fn encode_for_disk(content: &str, encoding_label: &str, had_bom: bool) -> Result<Vec<u8>, String> {
     let encoding = encoding_rs::Encoding::for_label(encoding_label.as_bytes())
         .ok_or(format!("Unsupported encoding: {}", encoding_label))?;
+    // UTF-16 labels encode as UTF-8 in encoding_rs; saying UTF-16 and writing
+    // UTF-8 would be a silent conversion, so it is refused as well.
+    if encoding.output_encoding() != encoding {
+        return Err(format!("Saving as {} is not supported. Choose UTF-8 instead.", encoding.name()));
+    }
+    let (encoded, _, had_errors) = encoding.encode(content);
+    if had_errors {
+        return Err(format!(
+            "Some characters cannot be written in {}. Nothing was saved. Change the file's encoding to UTF-8, or remove those characters.",
+            encoding.name()
+        ));
+    }
+    let mut bytes = encoded.into_owned();
+    if had_bom && encoding == encoding_rs::UTF_8 && !bytes.starts_with(UTF8_BOM) {
+        bytes.splice(0..0, UTF8_BOM.iter().copied());
+    }
+    Ok(bytes)
+}
 
-    let (encoded_bytes, _, _) = encoding.encode(&content);
+static SAVE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-    let mut file = fs::File::create(path).map_err(|e| e.to_string())?;
-    file.write_all(&encoded_bytes).map_err(|e| e.to_string())?;
-    Ok(())
+/// Replace a file's contents so that, at every moment, the file on disk is
+/// either the old version or the new one — never empty, never half written.
+///
+/// `File::create` truncates first and writes after. A crash, a forced quit
+/// from Task Manager, a full disk or a dropped network share in between left
+/// an empty or cut-off file where the user's document had been. Here the new
+/// bytes go to a temporary file in the same folder, are flushed to the disk,
+/// and only then take the old file's place in one rename.
+///
+/// Falls back to writing in place (the old behaviour, so never worse than
+/// before) when that is not possible: the folder does not let us create a
+/// file, the target is hidden/system (a rename would drop those attributes),
+/// or the rename keeps failing because something holds the file open.
+pub(crate) fn write_replacing(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    // Save through a symlink to its target, so the link itself survives.
+    let target = match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path)?,
+        _ => path.to_path_buf(),
+    };
+    let existing = fs::metadata(&target).ok();
+    if let Some(m) = &existing {
+        if m.permissions().readonly() {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "The file is read-only."));
+        }
+        if keeps_attributes_only_in_place(m) {
+            return write_in_place(&target, bytes);
+        }
+    }
+
+    let dir = match target.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
+        _ => std::path::PathBuf::from("."),
+    };
+    let name = target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let seq = SAVE_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = dir.join(format!(".{}.{}-{}.jh-save", name, std::process::id(), seq));
+
+    let mut file = match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        Ok(f) => f,
+        // No right to create files here, but perhaps to rewrite this one.
+        Err(_) => return write_in_place(&target, bytes),
+    };
+    let written = file.write_all(bytes).and_then(|_| file.sync_all());
+    drop(file);
+    if let Err(e) = written {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+
+    // A virus scanner or the search indexer often has a just-written file open
+    // for a moment; Windows refuses the rename until it lets go.
+    let mut last_err = None;
+    for attempt in 0..6u64 {
+        match fs::rename(&tmp, &target) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                last_err = Some(e);
+                std::thread::sleep(std::time::Duration::from_millis(40 * (attempt + 1)));
+            }
+        }
+    }
+    let _ = fs::remove_file(&tmp);
+    match write_in_place(&target, bytes) {
+        Ok(()) => Ok(()),
+        Err(e) => Err(last_err.unwrap_or(e)),
+    }
+}
+
+/// Hidden and system files lose those attributes if replaced by a rename.
+#[cfg(windows)]
+fn keeps_attributes_only_in_place(m: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const HIDDEN: u32 = 0x2;
+    const SYSTEM: u32 = 0x4;
+    m.file_attributes() & (HIDDEN | SYSTEM) != 0
+}
+
+#[cfg(not(windows))]
+fn keeps_attributes_only_in_place(_m: &fs::Metadata) -> bool {
+    false
+}
+
+/// Truncate-and-write, flushed. `truncate` rather than `create`: on Windows
+/// `File::create` is refused for a hidden file.
+fn write_in_place(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut file = fs::OpenOptions::new().write(true).create(true).truncate(true).open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
+fn starts_with_bom(path: &str) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; 3];
+    fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut head))
+        .map(|_| head == UTF8_BOM)
+        .unwrap_or(false)
+}
+
+#[command(async)]
+pub fn write_file(path: String, content: String, encoding: Option<String>) -> Result<(), String> {
+    let encoding_label = encoding.as_deref().unwrap_or("utf-8");
+    let bytes = encode_for_disk(&content, encoding_label, starts_with_bom(&path))?;
+    write_replacing(std::path::Path::new(&path), &bytes).map_err(|e| e.to_string())
 }
 
 /// Write raw bytes (pasted images, downloaded assets…). Parent directories are
 /// created as needed so callers don't have to pre-make `assets/`.
-#[command]
+#[command(async)]
 pub fn write_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
     if let Some(parent) = std::path::Path::new(&path).parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let mut file = fs::File::create(&path).map_err(|e| e.to_string())?;
-    file.write_all(&bytes).map_err(|e| e.to_string())?;
-    Ok(())
+    write_replacing(std::path::Path::new(&path), &bytes).map_err(|e| e.to_string())
 }
 
-#[command]
+#[command(async)]
 pub fn create_dir(path: String) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| e.to_string())
 }
 
-#[command]
+#[command(async)]
 pub fn remove_file(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
     if p.is_dir() {
@@ -153,12 +280,12 @@ pub fn remove_file(path: String) -> Result<(), String> {
     }
 }
 
-#[command]
+#[command(async)]
 pub fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
     fs::rename(old_path, new_path).map_err(|e| e.to_string())
 }
 
-#[command]
+#[command(async)]
 pub fn copy_file_cmd(source: String, dest: String) -> Result<(), String> {
     fs::copy(source, dest)
         .map(|_| ())
@@ -184,7 +311,7 @@ pub struct FileStats {
     pub mtime: Option<f64>,
 }
 
-#[command]
+#[command(async)]
 pub fn file_stats(path: String) -> Result<FileStats, String> {
     let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
     let mtime = meta
@@ -214,7 +341,7 @@ pub struct NoteEntry {
 /// Not recursive and not general-purpose: this is for the notes folders, which
 /// are flat by construction. A missing directory is an empty list, not an
 /// error — there are simply no notes yet.
-#[command]
+#[command(async)]
 pub fn list_notes(dir: String) -> Result<Vec<NoteEntry>, String> {
     let read = match fs::read_dir(&dir) {
         Ok(r) => r,
@@ -278,12 +405,12 @@ fn note_title(path: &std::path::Path) -> String {
     String::new()
 }
 
-#[command]
+#[command(async)]
 pub fn exists(path: String) -> bool {
     std::path::Path::new(&path).exists()
 }
 
-#[command]
+#[command(async)]
 pub fn read_file_auto_detect(
     webview: tauri::WebviewWindow,
     path: String,
@@ -313,26 +440,28 @@ fn decode_auto_detect(bytes: &[u8]) -> Result<FileContent, String> {
     detector.feed(bytes, true);
     let encoding = detector.guess(None, true);
 
-    let (cow, _encoding_used, _malformed) = encoding.decode(bytes);
+    let (cow, _encoding_used, malformed) = encoding.decode(bytes);
 
     Ok(FileContent {
         content: cow.to_string(),
         encoding: encoding.name().to_string(),
+        lossy: malformed,
     })
 }
 
-#[command]
+#[command(async)]
 pub fn read_file_with_encoding(path: String, encoding: String) -> Result<FileContent, String> {
     let bytes = fs::read(&path).map_err(|e| e.to_string())?;
 
     let encoding = encoding_rs::Encoding::for_label(encoding.as_bytes())
         .ok_or(format!("Unsupported encoding: {}", encoding))?;
 
-    let (cow, _, _) = encoding.decode(&bytes);
+    let (cow, _, malformed) = encoding.decode(&bytes);
 
     Ok(FileContent {
         content: cow.to_string(),
         encoding: encoding.name().to_string(),
+        lossy: malformed,
     })
 }
 
@@ -449,6 +578,92 @@ pub async fn list_recursive(
 mod tests {
     use super::*;
     use std::fs;
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("jh_save_{}_{}", name, std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn save_replaces_the_file_and_leaves_no_temp_behind() {
+        let dir = scratch("replace");
+        let file = dir.join("doc.md");
+        fs::write(&file, b"old text").unwrap();
+        write_replacing(&file, b"new text").unwrap();
+        assert_eq!(fs::read(&file).unwrap(), b"new text");
+        let left: Vec<_> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(left.len(), 1, "temporary file left behind: {:?}", left);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_creates_a_new_file() {
+        let dir = scratch("create");
+        let file = dir.join("new.txt");
+        write_replacing(&file, b"hello").unwrap();
+        assert_eq!(fs::read(&file).unwrap(), b"hello");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_refuses_a_read_only_file_and_leaves_it_alone() {
+        let dir = scratch("readonly");
+        let file = dir.join("ro.txt");
+        fs::write(&file, b"keep me").unwrap();
+        let mut perm = fs::metadata(&file).unwrap().permissions();
+        perm.set_readonly(true);
+        fs::set_permissions(&file, perm.clone()).unwrap();
+        assert!(write_replacing(&file, b"overwritten").is_err());
+        assert_eq!(fs::read(&file).unwrap(), b"keep me");
+        #[allow(clippy::permissions_set_readonly_false)]
+        perm.set_readonly(false);
+        fs::set_permissions(&file, perm).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_character_the_encoding_cannot_hold_is_refused_not_rewritten() {
+        // encoding_rs would otherwise write "&#128512;" for the emoji.
+        let err = encode_for_disk("日本語 😀", "Shift_JIS", false).unwrap_err();
+        assert!(err.contains("Nothing was saved"), "{}", err);
+        assert!(encode_for_disk("日本語", "Shift_JIS", false).is_ok());
+    }
+
+    #[test]
+    fn a_utf8_bom_survives_the_round_trip() {
+        let bytes = encode_for_disk("abc", "UTF-8", true).unwrap();
+        assert_eq!(bytes, b"\xEF\xBB\xBFabc");
+        let plain = encode_for_disk("abc", "UTF-8", false).unwrap();
+        assert_eq!(plain, b"abc");
+        // The BOM is not doubled when the text already carries one.
+        let again = encode_for_disk("\u{FEFF}abc", "UTF-8", true).unwrap();
+        assert_eq!(again, b"\xEF\xBB\xBFabc");
+    }
+
+    #[test]
+    fn utf16_is_refused_rather_than_written_as_utf8() {
+        assert!(encode_for_disk("abc", "UTF-16LE", false).is_err());
+    }
+
+    #[test]
+    fn undecodable_bytes_are_reported() {
+        let ok = decode_auto_detect("plain ascii".as_bytes()).unwrap();
+        assert!(!ok.lossy);
+        // Not FF FE first: decode() would sniff that as a UTF-16 BOM.
+        let bad = read_file_with_encoding_bytes(b"ok \xFF\xFD ok", "UTF-8");
+        assert!(bad.lossy);
+    }
+
+    fn read_file_with_encoding_bytes(bytes: &[u8], label: &str) -> FileContent {
+        let dir = scratch("lossy");
+        let file = dir.join("x.bin");
+        fs::write(&file, bytes).unwrap();
+        let r = read_file_with_encoding(file.to_string_lossy().to_string(), label.to_string()).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        r
+    }
 
     #[test]
     fn test_exists() {
@@ -658,7 +873,7 @@ pub struct DirDiffEntry {
 /// unchanged files can be filtered out. Files on one side only are reported as
 /// added/deleted. Comparison is done here rather than in JS because it means
 /// reading every file once, natively, instead of shuttling whole trees over IPC.
-#[command]
+#[command(async)]
 pub fn diff_directories(
     left_root: String,
     right_root: String,

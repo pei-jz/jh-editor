@@ -223,7 +223,7 @@ describe('structural', () => {
     const app = read('src/modules/core/App.js');
 
     it('checks the disk before writing, not after', () => {
-        const i = editor.indexOf('export async function saveFile(');
+        const i = editor.indexOf('async function saveFileNow(');
         const save = editor.slice(i, editor.indexOf('\n}', i));
         const guard = save.indexOf('confirmOverwrite(file)');
         const write = save.indexOf('FS.writeFile(file.path');

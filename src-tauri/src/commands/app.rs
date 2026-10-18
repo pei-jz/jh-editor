@@ -7,7 +7,7 @@ pub fn get_launch_args() -> Vec<String> {
 
 /// True when `path` points at an existing directory. Used at startup to decide
 /// whether a launch argument should open as a workspace (folder) or a file.
-#[command]
+#[command(async)]
 pub fn path_is_dir(path: String) -> bool {
     std::path::Path::new(&path).is_dir()
 }
@@ -112,7 +112,7 @@ pub fn open_devtools(webview: tauri::WebviewWindow) -> Result<(), String> {
 ///
 /// Anywhere but Windows this is meaningless — there is no portable build to
 /// tell apart — so it answers yes and nothing gets disabled.
-#[command]
+#[command(async)]
 pub fn is_installed() -> bool {
     #[cfg(not(windows))]
     {
@@ -170,7 +170,7 @@ pub fn is_installed() -> bool {
 /// families rather than every weight: "Arial", not "Arial Bold Italic". Whether
 /// a family is monospaced is not recorded here at all — the caller measures
 /// that in the webview, where it can just render two glyphs and compare.
-#[command]
+#[command(async)]
 pub fn list_fonts() -> Vec<String> {
     #[cfg(not(windows))]
     {
@@ -240,7 +240,7 @@ pub fn list_fonts() -> Vec<String> {
 ///
 /// The path is passed as a process ARGUMENT, never interpolated into a shell
 /// command line, so names containing spaces, quotes or `&` are safe.
-#[command]
+#[command(async)]
 pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
     if !p.exists() {
@@ -346,7 +346,7 @@ fn jh_agent_exe_path() -> Option<String> {
 }
 
 /// Whether J.H AI Agent is installed (its install location resolves).
-#[command]
+#[command(async)]
 pub fn is_jh_agent_installed() -> bool {
     jh_agent_exe_path()
         .map(|p| std::path::Path::new(&p).exists())
@@ -355,7 +355,7 @@ pub fn is_jh_agent_installed() -> bool {
 
 /// Start J.H AI Agent. Fails when it is not installed (the frontend then
 /// points the user at the download page instead).
-#[command]
+#[command(async)]
 pub fn launch_jh_agent() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -387,7 +387,7 @@ pub fn launch_jh_agent() -> Result<(), String> {
 }
 
 /// Open a URL in the default browser (the agent's download page).
-#[command]
+#[command(async)]
 pub fn open_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {

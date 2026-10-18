@@ -21,7 +21,7 @@ fn is_deck(path: &str) -> bool {
 /// Narrow on purpose, like `open_office_file`: opening a path with its default
 /// handler is a shell execute, so this takes only a saved file that really is a
 /// jh-presentation deck.
-#[command]
+#[command(async)]
 pub fn open_deck_in_browser(path: String) -> Result<(), String> {
     if !std::path::Path::new(&path).is_file() {
         return Err(format!("File not found: {}", path));

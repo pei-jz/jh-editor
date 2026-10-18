@@ -34,6 +34,16 @@ export function markSaved(file) {
     file.savedEol = file.eol || '\n';
 }
 
+/**
+ * Record `content` as what is on disk when the buffer has already moved on —
+ * a save that the user kept typing through. The buffer stays dirty against it.
+ */
+export function markSavedAs(file, content, eol) {
+    if (!file || typeof content !== 'string') return;
+    file.savedContent = content;
+    file.savedEol = eol || '\n';
+}
+
 /** Remember how the saved text looks once a view has rewritten it. */
 export function rememberSavedForm(file, key, value) {
     if (!file || typeof file.savedContent !== 'string' || typeof value !== 'string') return;

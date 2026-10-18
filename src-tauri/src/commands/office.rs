@@ -378,7 +378,7 @@ pub async fn read_office_preview(path: String) -> Result<OfficePreview, String> 
 /// execute, which for an `.exe` means running it; this takes only the formats
 /// the preview itself can show, and only when the file is really there. So a
 /// path arriving from somewhere unexpected cannot turn it into a launcher.
-#[command]
+#[command(async)]
 pub fn open_office_file(path: String) -> Result<(), String> {
     if !is_office_path(&path) {
         return Err(format!("Not a file this preview opens: {}", path));

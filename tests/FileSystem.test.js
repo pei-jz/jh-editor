@@ -283,3 +283,39 @@ describe('FileSystem Utilities', () => {
         });
     });
 });
+
+/* The backend writes off the main thread, where two writes can overlap. A
+   second save of the same file must not start before the first has landed,
+   or a slow disk can leave the OLDER text on it. */
+describe('writes to one file stay in order', () => {
+    beforeEach(() => { vi.mocked(invoke).mockReset(); });
+
+    it('waits for the earlier write of the same file', async () => {
+        const log = [];
+        let releaseFirst;
+        vi.mocked(invoke).mockImplementation((cmd, args) => {
+            log.push(`start ${args.content}`);
+            if (args.content === 'old') {
+                return new Promise((r) => { releaseFirst = () => { log.push('end old'); r(); }; });
+            }
+            log.push(`end ${args.content}`);
+            return Promise.resolve();
+        });
+        const a = FS.writeFile('C:\\w\\a.txt', 'old');
+        const b = FS.writeFile('C:/w/A.txt', 'new'); // same file, other spelling
+        await new Promise((r) => setTimeout(r, 0));
+        expect(log).toEqual(['start old']);
+        releaseFirst();
+        await Promise.all([a, b]);
+        expect(log).toEqual(['start old', 'end old', 'start new', 'end new']);
+    });
+
+    it('lets different files write side by side, and a failure not block the next', async () => {
+        vi.mocked(invoke).mockImplementation((cmd, args) =>
+            args.content === 'bad' ? Promise.reject(new Error('disk')) : Promise.resolve());
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await expect(FS.writeFile('/x.txt', 'bad')).rejects.toThrow('disk');
+        await expect(FS.writeFile('/x.txt', 'good')).resolves.toBeUndefined();
+        expect(invoke).toHaveBeenLastCalledWith('write_file', { path: '/x.txt', content: 'good', encoding: null });
+    });
+});

@@ -472,9 +472,9 @@ describe('ShortcutManager — dispatch', () => {
 
         it('still dispatches other MARKDOWN_TABLE commands (md:save)', () => {
             const action = vi.fn();
-            sm.register({ key: 's', ctrl: true, cmd: 'md:save', scope: 'MARKDOWN_TABLE', action });
+            sm.register({ key: 'Enter', ctrl: true, cmd: 'md:save', scope: 'MARKDOWN_TABLE', action });
             sm.setScope('MARKDOWN_TABLE');
-            sm.handleKeyDown(key({ key: 's', ctrlKey: true }));
+            sm.handleKeyDown(key({ key: 'Enter', ctrlKey: true }));
             expect(action).toHaveBeenCalledOnce();
         });
     });

@@ -30,6 +30,14 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::default()
             .level(log::LevelFilter::Info)
             .build())
+        // A plain `#[command] fn` runs on the MAIN thread — the one that pumps
+        // the window's messages. A directory listing on a slow share, a file
+        // held by antivirus or an OneDrive placeholder then stalls the whole
+        // window: Windows greys it out as "not responding" and even the close
+        // button stops working. Anything that touches the disk, spawns a
+        // process or parses a file is declared `#[command(async)]` so it runs
+        // on the runtime's pool instead. tests/MainThreadCommands.test.js
+        // keeps it that way.
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_dir,
             commands::fs::read_file,

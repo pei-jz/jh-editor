@@ -58,7 +58,7 @@ fn find_node<'a>(root: &'a StructuredNode, id: &str) -> Option<&'a StructuredNod
     None
 }
 
-#[command]
+#[command(async)]
 pub fn get_node_children(file_path: String, node_id: String) -> Result<Vec<StructuredNode>, String> {
     let cache = get_cache().lock().unwrap();
     if let Some(root) = cache.get(&file_path) {
@@ -75,7 +75,7 @@ pub fn get_node_children(file_path: String, node_id: String) -> Result<Vec<Struc
     Ok(vec![])
 }
 
-#[command]
+#[command(async)]
 pub fn parse_structured_data(content: String, format: String, file_path: String) -> Result<StructuredNode, String> {
     let root = if format == "json" {
         let v: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;

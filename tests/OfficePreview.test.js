@@ -1697,7 +1697,7 @@ describe('how an Office tab is opened and closed off', () => {
     });
 
     it('refuses to write a file it can only read', () => {
-        const save = editor.slice(editor.indexOf('export async function saveFile'));
+        const save = editor.slice(editor.indexOf('async function saveFileNow('));
         const guard = save.indexOf("file.type === 'office'");
         expect(guard).toBeGreaterThan(-1);
         // Before needsSaveLocation(), or an Office tab would be offered a Save

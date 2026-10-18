@@ -21,7 +21,7 @@ import { CodeMirrorView } from '../views/CodeMirrorView.js';
 import { LargeFileEditView } from '../views/LargeFileEditView.js';
 import { MarkdownView } from '../views/MarkdownView.js';
 import { StructureView } from '../views/StructureView.js';
-import { markSaved, isAtSavedState } from '../utils/DirtyState.js';
+import { markSaved, markSavedAs, isAtSavedState } from '../utils/DirtyState.js';
 import { CsvView } from '../views/CsvView.js';
 import { MergeEditor } from '../editors/MergeEditor.js';
 import { makeSide, mergeDirty, sideDirty } from '../utils/MergeSides.js';
@@ -1093,7 +1093,13 @@ const pendingOpens = new Set();
 // Used when jumping to a specific line (e.g. from grep results) — the
 // structure/CSV/book views are not line-addressable, so a line jump there
 // would silently land nowhere.
+// Counts openFile calls. File reads no longer queue behind each other on the
+// main thread, so a slow file asked for first can finish after a quick one
+// asked for later — and must not pull the reader back to it when it does.
+let openSeq = 0;
+
 export async function openFile(path, forceEncoding = false, gotoLine = null, forcePlainText = false) {
+    const mySeq = ++openSeq;
     let cleanPath = path;
     if (cleanPath.startsWith('\\\\?\\')) {
         cleanPath = cleanPath.substring(4);
@@ -1219,6 +1225,7 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
                 isDirty: false,
                 stats: stats || { size: 0, mtime: 0 }
             };
+            if (read.lossy) fileData.decodeLossy = true;
         }
 
         // What is on disk right now. Edits are compared against it, so undoing
@@ -1254,10 +1261,11 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
             // silently did nothing at all.
             const pane = activePane();
             paneFiles(pane).push(fileData);
-            setActiveTab(paneFiles(pane).length - 1, pane);
+            // Overtaken by a later open: the tab is added, the focus stays.
+            if (mySeq === openSeq) setActiveTab(paneFiles(pane).length - 1, pane);
         }
         renderTabs();
-        if (gotoLine) scheduleGoToLine(gotoLine);
+        if (gotoLine && mySeq === openSeq) scheduleGoToLine(gotoLine);
     } catch (e) {
         console.warn('Failed to open file (silenced):', resolvedPath);
         // User requested: リンク先がない場合はエラーダイヤログではなく、処理を握りつぶしてください
@@ -2737,7 +2745,26 @@ export function needsSaveLocation(file) {
  * Resolves true when the buffer is on disk as shown, false when the save was
  * cancelled, refused or failed (the user has already been told why).
  */
-export async function saveFile(file, view = viewShowing(file), { refresh = true } = {}) {
+/*
+ * One save per file at a time. Disk work no longer queues on the main thread,
+ * so a second Ctrl+S could start while the first was still writing: it then
+ * met its own predecessor's new modification time and asked whether to
+ * overwrite "changes on disk" that were nothing but the first save.
+ */
+const saveChains = new WeakMap();
+
+export function saveFile(file, view, opts) {
+    if (!file) return Promise.resolve(false);
+    // The view is looked up when the save actually RUNS: a queued save may
+    // start after the tab has been redrawn with a different view object.
+    const explicitView = arguments.length >= 2;
+    const prev = saveChains.get(file) || Promise.resolve();
+    const run = prev.then(() => saveFileNow(file, explicitView ? view : viewShowing(file), opts || {}));
+    saveChains.set(file, run.catch(() => false));
+    return run;
+}
+
+async function saveFileNow(file, view, { refresh = true } = {}) {
     if (!file) return false;
 
     // Ensure all code blocks are unfolded before saving to prevent data loss
@@ -2832,12 +2859,38 @@ export async function saveFile(file, view = viewShowing(file), { refresh = true 
     // watcher that (see syncWatchers) was not even running on this tab.
     if (!await confirmOverwrite(file)) return false;
 
+    // Some bytes of this file did not decode in its encoding and are shown as
+    // U+FFFD. Saving writes U+FFFD where they were — the original bytes are
+    // gone for good, in lines nobody touched. Asked once per open.
+    if (file.decodeLossy && !file._lossyConfirmed) {
+        const ok = await showConfirm(
+            t('{name} contains characters that could not be read as {encoding}. Saving replaces them with a placeholder mark for good. If the text looks garbled, reopen the file in another encoding first.', {
+                name: file.name || FS.getBasename(file.path) || file.path,
+                encoding: file.encoding || 'UTF-8',
+            }),
+            { title: t('Save'), kind: 'warning', okLabel: t('Save anyway'), cancelLabel: t('Cancel') },
+        );
+        if (!ok) return false;
+        file._lossyConfirmed = true;
+    }
+
+    // What is being written, as the buffer had it. The write is not instant
+    // any more — the UI keeps working while it runs — and anything typed in
+    // the meantime is NOT on disk: it must stay dirty, and its draft kept.
+    const savedText = file.content;
+    const savedEol = file.eol;
+
     try {
         await FS.writeFile(file.path, contentToSave, file.encoding);
-        file.isDirty = false;
-        markSaved(file);
-        // The disk now holds this text — the crash-recovery draft is stale.
-        try { dropDraft(file); } catch (_) { /* non-critical */ }
+        if (file.content === savedText && file.eol === savedEol) {
+            file.isDirty = false;
+            markSaved(file);
+            // The disk now holds this text — the crash-recovery draft is stale.
+            try { dropDraft(file); } catch (_) { /* non-critical */ }
+        } else {
+            markSavedAs(file, savedText, savedEol);
+            file.isDirty = true;
+        }
     } catch (err) {
         console.error('Editor: Failed to save file:', err);
         showAlert(`Save failed: ${err.message || err}`, { title: 'Save', kind: 'error' });
@@ -3489,7 +3542,7 @@ async function restoreSessionInto(loading) {
                 continue;
             }
 
-            const { content, encoding, eol } = await FS.readFileAutoDetect(entry.path);
+            const { content, encoding, eol, lossy } = await FS.readFileAutoDetect(entry.path);
             const file = {
                 path: entry.path,
                 content: FS.normalizeToLF(content),
@@ -3499,6 +3552,7 @@ async function restoreSessionInto(loading) {
                 stats,
             };
             markSaved(file); // the disk text, before a recovered draft replaces it
+            if (lossy) file.decodeLossy = true;
             if (entry.viewMode) file.viewMode = entry.viewMode;
 
             // Unsaved edits win over the on-disk text.
@@ -3530,7 +3584,7 @@ async function restoreSessionInto(loading) {
                     restored++;
                     continue;
                 }
-                const { content, encoding, eol } = await FS.readFileAutoDetect(entry.path);
+                const { content, encoding, eol, lossy } = await FS.readFileAutoDetect(entry.path);
                 const file = {
                     path: entry.path,
                     content: FS.normalizeToLF(content),
@@ -3539,6 +3593,7 @@ async function restoreSessionInto(loading) {
                     isDirty: false,
                     stats,
                 };
+                if (lossy) file.decodeLossy = true;
                 if (entry.viewMode) file.viewMode = entry.viewMode;
                 State.rightOpenFiles.push(file);
                 restored++;

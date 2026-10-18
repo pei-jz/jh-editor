@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SHORTCUTS } from '../src/modules/core/ShortcutDefinitions.js';
+import { isFullScreenKey } from '../src/modules/utils/FullScreenKey.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
@@ -33,23 +34,28 @@ const mermaidKeys = () => {
 };
 
 describe('full screen has a key in both editors', () => {
-    it('uses the same combination in each', () => {
+    it('uses the same keys in each', () => {
         // One key for one idea. Learning it in the Markdown editor and finding
-        // it missing in the Mermaid one is worse than never having it.
+        // it missing in the Mermaid one is worse than never having it. Both
+        // ask the same function, so they cannot drift apart.
         for (const [name, body] of [['markdown', markdownOverlayKeys()], ['mermaid', mermaidKeys()]]) {
-            expect(body, `${name}: Ctrl/Cmd required`).toMatch(/e\.ctrlKey \|\| e\.metaKey/);
-            expect(body, `${name}: Alt required`).toContain('e.altKey');
-            expect(body, `${name}: F`).toContain("'KeyF'");
+            expect(body, name).toContain('isFullScreenKey(e)');
         }
     });
 
-    it('matches on the physical key as well as the character', () => {
-        // Holding Alt changes the reported CHARACTER on several layouts while
-        // the physical key stays put, which is why `e.code` is checked too.
-        for (const [name, body] of [['markdown', markdownOverlayKeys()], ['mermaid', mermaidKeys()]]) {
-            expect(body, name).toMatch(/e\.code === 'KeyF'/);
-            expect(body, name).toMatch(/String\(e\.key\)\.toLowerCase\(\) === 'f'/);
-        }
+    it('takes F11 and Ctrl+Alt+F, by physical key as well as character', () => {
+        const k = (o) => ({ key: '', code: '', ctrlKey: false, altKey: false, metaKey: false, shiftKey: false, ...o });
+        expect(isFullScreenKey(k({ key: 'F11', code: 'F11' }))).toBe(true);
+        // WebView2 on some Japanese setups reports function keys this way.
+        expect(isFullScreenKey(k({ key: 'Unidentified', keyCode: 122 }))).toBe(true);
+        expect(isFullScreenKey(k({ key: 'f', code: 'KeyF', ctrlKey: true, altKey: true }))).toBe(true);
+        // Holding Alt changes the reported CHARACTER on several layouts.
+        expect(isFullScreenKey(k({ key: 'ƒ', code: 'KeyF', ctrlKey: true, altKey: true }))).toBe(true);
+        expect(isFullScreenKey(k({ key: 'F', code: 'KeyF', metaKey: true, altKey: true }))).toBe(true);
+        // Not plain F, not Ctrl+F (search), not a modified F11.
+        expect(isFullScreenKey(k({ key: 'f', code: 'KeyF' }))).toBe(false);
+        expect(isFullScreenKey(k({ key: 'f', code: 'KeyF', ctrlKey: true }))).toBe(false);
+        expect(isFullScreenKey(k({ key: 'F11', code: 'F11', shiftKey: true }))).toBe(false);
     });
 
     it('lets Escape step out of full screen before it closes anything', () => {
@@ -60,13 +66,20 @@ describe('full screen has a key in both editors', () => {
         expect(md).toMatch(/e\.key === 'Escape' && isFullScreen\(\)/);
         expect(md).toContain('setFullScreen(false)');
 
+        // The shortcut manager hears Escape on the WINDOW, before the overlay,
+        // and maps it to md:cancel. That action has to step out of full screen
+        // itself, or the overlay's check above never gets the chance.
+        const i = markdown.indexOf("'md:cancel': (e) => {");
+        const cancel = markdown.slice(i, markdown.indexOf('cancelAndClose();', i));
+        expect(cancel).toMatch(/fs\.is\(\)\) \{ fs\.set\(false\); return; \}/);
+
         const mm = mermaidKeys();
         expect(mm).toMatch(/if \(isMax\(\)\) setMax\(false\);\s*\n\s*else close\(\);/);
     });
 
     it('says the key on the button, so it can be found without the guide', () => {
-        expect(markdown).toContain("maxBtn.title = `${t('Fill the window')} (Ctrl+Alt+F)`");
-        expect(mermaid).toContain("`${t('Fill the window')} (Ctrl+Alt+F)`");
+        expect(markdown).toContain("maxBtn.title = `${t('Fill the window')} (F11 / Ctrl+Alt+F)`");
+        expect(mermaid).toContain("`${t('Fill the window')} (F11 / Ctrl+Alt+F)`");
     });
 
     it('is listed in the Markdown shortcut guide', () => {
@@ -76,6 +89,9 @@ describe('full screen has a key in both editors', () => {
         // Documentation-only: the modal handles the key on its own overlay, so
         // a cmd here would route it through the global manager as well.
         expect(entry.cmd).toBeUndefined();
+        const f11 = SHORTCUTS.MARKDOWN.find((s) => s.key === 'F11');
+        expect(f11, 'F11 should be documented').toBeTruthy();
+        expect(f11.cmd).toBeUndefined();
     });
 });
 

@@ -20,6 +20,11 @@ pub struct SearchProgress {
 pub struct FileContent {
     pub content: String,
     pub encoding: String,
+    /// Some bytes did not decode in `encoding` and became U+FFFD. Saving the
+    /// text back writes U+FFFD where those bytes were, so the editor asks
+    /// before it does.
+    #[serde(default)]
+    pub lossy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

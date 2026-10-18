@@ -105,7 +105,7 @@ fn make_hit(line: usize, s: &str, start: usize, end: usize) -> SearchHit {
     }
 }
 
-#[command]
+#[command(async)]
 pub fn large_file_open(
     path: String,
     state: State<'_, LargeFileState>,
@@ -155,7 +155,7 @@ pub fn large_file_open(
     })
 }
 
-#[command]
+#[command(async)]
 pub fn large_file_lines(
     id: u64,
     start: usize,
@@ -176,7 +176,7 @@ pub fn large_file_lines(
     Ok(out)
 }
 
-#[command]
+#[command(async)]
 pub fn large_file_search(
     id: u64,
     query: String,
@@ -406,7 +406,7 @@ fn detect_eol(s: &str) -> String {
     }
 }
 
-#[command]
+#[command(async)]
 pub fn editable_open(
     path: String,
     state: State<'_, EditableState>,
@@ -441,7 +441,7 @@ pub fn editable_open(
     })
 }
 
-#[command]
+#[command(async)]
 pub fn editable_window(
     id: u64,
     start_line: usize,
@@ -458,7 +458,7 @@ pub fn editable_window(
     })
 }
 
-#[command]
+#[command(async)]
 pub fn editable_replace(
     id: u64,
     start_char: usize,
@@ -471,14 +471,14 @@ pub fn editable_replace(
     Ok(ef.replace(start_char, end_char, &text))
 }
 
-#[command]
+#[command(async)]
 pub fn editable_line_count(id: u64, state: State<'_, EditableState>) -> Result<usize, String> {
     let files = state.files.lock().unwrap();
     let ef = files.get(&id).ok_or("Editable file handle not found")?;
     Ok(ef.line_count())
 }
 
-#[command]
+#[command(async)]
 pub fn editable_search(
     id: u64,
     query: String,
@@ -501,7 +501,7 @@ pub fn editable_search(
     )
 }
 
-#[command]
+#[command(async)]
 pub fn editable_save(
     id: u64,
     path: String,
@@ -510,7 +510,8 @@ pub fn editable_save(
     let mut files = state.files.lock().unwrap();
     let ef = files.get_mut(&id).ok_or("Editable file handle not found")?;
     let bytes = ef.save_bytes();
-    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    crate::commands::fs::write_replacing(std::path::Path::new(&path), &bytes)
+        .map_err(|e| e.to_string())?;
     ef.dirty = false;
     Ok(())
 }

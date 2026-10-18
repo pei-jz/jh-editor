@@ -194,7 +194,7 @@ export const SHORTCUTS = {
 
     MARKDOWN: [
         { key: 'Enter', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
-        { key: 's', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
+        { key: 's', ctrl: true, cmd: 'md:save-progress', description: 'Save (keep editing)' },
         { key: 'e', ctrl: true, cmd: 'md:toggle-mode', description: 'Switch Table / Text Editor' },
         { key: 'Escape', cmd: 'md:cancel', description: 'Cancel & Close' },
         { key: '?', ctrl: true, cmd: 'md:shortcut-guide', description: 'Shortcut Guide' },
@@ -213,6 +213,7 @@ export const SHORTCUTS = {
         { key: 'e', ctrl: true, shift: true, cmd: 'app:toggle-view-mode', description: 'Toggle View Mode' },
         // Documentation-only (no cmd): the edit modal handles these itself, on
         // its own overlay, so they work whichever pane has the focus.
+        { key: 'F11', description: 'Full screen (and back)' },
         { key: 'f', ctrl: true, alt: true, description: 'Full screen (and back)' },
         { key: 'l', ctrl: true, alt: true, description: 'Side by side / Stacked' },
         // Tapping Alt — pressed and released on its own — reveals a letter or
@@ -222,7 +223,7 @@ export const SHORTCUTS = {
 
     MARKDOWN_TABLE: [
         { key: 'Enter', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
-        { key: 's', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
+        { key: 's', ctrl: true, cmd: 'md:save-progress', description: 'Save (keep editing)' },
         { key: 'e', ctrl: true, cmd: 'md:toggle-mode', description: 'Toggle Mode' },
         { key: 'Escape', cmd: 'md:cancel', description: 'Cancel & Close' },
         { key: '?', ctrl: true, cmd: 'md:shortcut-guide', description: 'Shortcut Guide' },

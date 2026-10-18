@@ -138,7 +138,9 @@ export async function readFileAutoDetect(path, forceEncoding = null) {
     return {
         content: result.content,
         encoding: result.encoding,
-        eol: detectEol(result.content)
+        eol: detectEol(result.content),
+        // Some bytes did not decode and became U+FFFD (see saveFile).
+        lossy: !!result.lossy,
     };
 }
 
@@ -147,13 +149,32 @@ export async function readFileWithEncoding(path, encoding) {
     return {
         content: result.content,
         encoding: result.encoding,
-        eol: detectEol(result.content)
+        eol: detectEol(result.content),
+        lossy: !!result.lossy,
     };
+}
+
+/*
+ * Writes to the same file go out one at a time, in the order they were asked
+ * for. The backend runs them off the main thread (see lib.rs), where two of
+ * them can overlap — and a Ctrl+S pressed twice on a slow disk could then land
+ * the OLDER text last. Different files still write in parallel.
+ */
+const _writeChains = new Map();
+
+function _serialWrite(path, task) {
+    const key = String(path).replace(/\\/g, '/').toLowerCase();
+    const prev = _writeChains.get(key) || Promise.resolve();
+    const run = prev.catch(() => {}).then(task);
+    const tail = run.catch(() => {});
+    _writeChains.set(key, tail);
+    tail.then(() => { if (_writeChains.get(key) === tail) _writeChains.delete(key); });
+    return run;
 }
 
 export async function writeFile(path, content, encoding = null) {
     try {
-        await invoke('write_file', { path, content, encoding });
+        await _serialWrite(path, () => invoke('write_file', { path, content, encoding }));
     } catch (e) {
         console.error('FS: writeFile error', path, e);
         throw e;
@@ -163,7 +184,7 @@ export async function writeFile(path, content, encoding = null) {
 /** Write raw bytes (pasted images…). Parent dirs are created by the backend. */
 export async function writeFileBytes(path, bytes) {
     try {
-        await invoke('write_file_bytes', { path, bytes: Array.from(bytes) });
+        await _serialWrite(path, () => invoke('write_file_bytes', { path, bytes: Array.from(bytes) }));
     } catch (e) {
         console.error('FS: writeFileBytes error', path, e);
         throw e;

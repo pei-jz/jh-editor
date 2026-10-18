@@ -3,6 +3,7 @@ import { t } from '../utils/I18n.js';
 import * as Markdown from '../utils/Markdown.js';
 import { showConfirm } from './Dialog.js';
 import { attachDiagramZoom } from './DiagramZoom.js';
+import { isFullScreenKey } from '../utils/FullScreenKey.js';
 
 /**
  * MermaidHelper — "I know what diagram I want, I just can't remember the syntax".
@@ -272,7 +273,7 @@ export const MermaidHelper = {
         const typesBtn = mkHeadBtn(t('Types'), t('Show or hide the diagram types'));
         const partsBtn = mkHeadBtn(t('Parts'), t('Show or hide the syntax list'));
         const sideBtn = mkHeadBtn(t('Side preview'), t('Put the preview beside the source instead of below'));
-        const maxBtn = mkHeadBtn(t('Full screen'), `${t('Fill the window')} (Ctrl+Alt+F)`);
+        const maxBtn = mkHeadBtn(t('Full screen'), `${t('Fill the window')} (F11 / Ctrl+Alt+F)`);
         head.append(styleBtn, typesBtn, partsBtn, sideBtn, maxBtn);
 
         // ── left: diagram types ──
@@ -674,11 +675,8 @@ export const MermaidHelper = {
         };
 
         const onKey = (e) => {
-            // Ctrl+Alt+F matches the Markdown block editor's key for the same
-            // thing. `e.code` as well as `e.key`, because holding Alt changes
-            // the reported CHARACTER on several layouts.
-            if (e.altKey && (e.ctrlKey || e.metaKey)
-                && (e.code === 'KeyF' || String(e.key).toLowerCase() === 'f')) {
+            // F11 or Ctrl+Alt+F, the same keys as the Markdown block editor.
+            if (isFullScreenKey(e)) {
                 e.preventDefault(); e.stopPropagation();
                 setMax(!isMax());
                 return;
