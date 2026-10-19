@@ -6,7 +6,10 @@ export default defineConfig({
     // Playwright specs must not be picked up by vitest — they call
     // test.describe() from @playwright/test and abort the whole run
     // (which also broke `--coverage`).
-    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
+    // .claude/ holds other sessions' git worktrees — whole second copies of
+    // this repository. Their tests are not this checkout's, and failed the
+    // release build's `npm test` (missing ../jh-ai-agent, their e2e specs).
+    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', '.claude/**'],
 
     coverage: {
       provider: 'v8',
