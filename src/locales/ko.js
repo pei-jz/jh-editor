@@ -228,6 +228,7 @@ export default {
     'Diamond (decision)': '마름모 (분기)',
     'Direction': '방향',
     'Distribution of changes (click to jump)': '변경 분포 (클릭하여 이동)',
+    'Read only: this JSON has numbers that would lose precision if written back from the tree ({nums}). Edit it as text instead.': '읽기 전용: 이 JSON에는 트리에서 다시 쓰면 정밀도가 손실되는 숫자가 있습니다 ({nums}). 텍스트로 편집하세요.',
     'Document Tree': '문서 트리',
     'Dotted arrow': '점선 화살표',
     'Drag to resize': '드래그하여 크기 조정',

@@ -535,6 +535,9 @@ export class StructureEditor {
     }
 
     startEditing(nodeId, field, element) {
+        // The view decided this tree must not write the file back (e.g. JSON
+        // numbers a JS number would round), so nothing in it is editable.
+        if (this.options.readOnly) return;
         // Simple prompt for now, replace with inline input later if needed
         const currentText = element.textContent;
         // In Component Architecture, avoid `prompt` if possible, but for MVP it's safest purely for logic check.

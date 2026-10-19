@@ -228,6 +228,7 @@ export default {
     'Diamond (decision)': '菱形（判断）',
     'Direction': '方向',
     'Distribution of changes (click to jump)': '更改分布（点击跳转）',
+    'Read only: this JSON has numbers that would lose precision if written back from the tree ({nums}). Edit it as text instead.': '只读：此 JSON 中有从树写回时会丢失精度的数字 ({nums})。请以文本方式编辑。',
     'Document Tree': '文档树',
     'Dotted arrow': '虚线箭头',
     'Drag to resize': '拖动以调整大小',
