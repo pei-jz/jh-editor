@@ -278,7 +278,16 @@ THIRD-PARTY-NOTICES.md に記載しています。
 
     $portableZip = Join-Path $repo ("src-tauri\target\release\J.H.Editor_{0}_x64-portable.zip" -f $version)
     if (Test-Path $portableZip) { Remove-Item $portableZip -Force }
-    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $portableZip
+    # Compress-Archive の進捗バーは、画面幅を返さない端末 (エディタ内蔵の
+    # ターミナルなど) で IndexOutOfRangeException を投げて止まる。
+    # 出さなければ落ちず、速くもなる。
+    $prevProgress = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $portableZip
+    } finally {
+        $ProgressPreference = $prevProgress
+    }
     Remove-Item $stage -Recurse -Force
 
     Write-Ok ('{0} ({1:N0} bytes)' -f (Split-Path $portableZip -Leaf), (Get-Item $portableZip).Length)
