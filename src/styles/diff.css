@@ -8,7 +8,7 @@
     background: var(--bg-color);
     /* Width of the ← / → column between the panes; the header leaves the same
        gap so each label sits over its own pane. */
-    --merge-gap-width: 64px;
+    --merge-gap-width: 84px;
 }
 
 /* Toolbar */
@@ -156,6 +156,19 @@
 .diff-sum-add { color: #3fb950; }
 .diff-sum-del { color: #f85149; }
 .diff-sum-blocks { color: var(--text-secondary); font-weight: 400; }
+
+/* The three kinds of change, as counted chips that double as the legend. */
+.diff-sum-kind {
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.diff-sum-kind.is-left { color: #f85149; background: rgba(248, 81, 73, 0.14); }
+.diff-sum-kind.is-right { color: #3fb950; background: rgba(46, 160, 67, 0.14); }
+.diff-sum-kind.is-both { color: #d29922; background: rgba(210, 153, 34, 0.16); }
+
+.diff-sync-clear { color: #a371f7; }
 .diff-sum-none { color: var(--text-secondary); font-weight: 400; }
 
 /* Pane headers: which side is which, and whether it can be written. */
@@ -322,11 +335,191 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+.merge-editor .cm-merge-revert .merge-copy-control[data-kind="left"] { box-shadow: inset 3px 0 0 rgba(248, 81, 73, 0.7); }
+.merge-editor .cm-merge-revert .merge-copy-control[data-kind="right"] { box-shadow: inset -3px 0 0 rgba(63, 185, 80, 0.7); }
+.merge-editor .cm-merge-revert .merge-copy-control[data-kind="both"] {
+    box-shadow: inset 3px 0 0 rgba(210, 153, 34, 0.8), inset -3px 0 0 rgba(210, 153, 34, 0.8);
+}
+
+/* A conflict's "how to merge" button, between the arrows. */
+.merge-editor .cm-merge-revert .merge-copy-control button.merge-pick-btn {
+    position: static;
+    width: 18px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid rgba(210, 153, 34, 0.8);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: #d29922;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 20px;
+    cursor: pointer;
+}
+.merge-editor .cm-merge-revert .merge-copy-control button.merge-pick-btn:hover {
+    background: #d29922;
+    color: #fff;
+}
+
+/* Whitespace-only chunks are there to line the panes up, not to be acted on. */
+.merge-editor .cm-merge-revert .merge-copy-control[data-kind="ws"] { display: none; }
+
+/* The package styles every button in the column, which beat [hidden]. */
+.merge-editor .cm-merge-revert .merge-copy-control button[hidden],
+.diff-toolbar .diff-btn[hidden] {
+    display: none;
+}
+
+.merge-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 220px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+    font-size: 12.5px;
+}
+.merge-menu-heading {
+    padding: 6px 10px 2px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+}
+.merge-menu-item {
+    display: block;
+    width: 100%;
+    padding: 5px 10px 5px 18px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.merge-menu-item:hover,
+.merge-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+.merge-menu-note {
+    margin-top: 4px;
+    padding: 6px 10px 4px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 11px;
+    max-width: 260px;
+}
+
 .merge-editor .cm-merge-revert .merge-copy-control button.merge-copy-btn:hover {
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: var(--text-on-primary, #fff);
 }
+
+/* Each pane still scrolls sideways (wheel, trackpad, cursor), but its own bar
+   sits under the last line of the file; the shared .merge-hscroll replaces it. */
+.merge-body .cm-mergeView .cm-scroller {
+    scrollbar-width: none;
+}
+.merge-body .cm-mergeView .cm-scroller::-webkit-scrollbar {
+    display: none;
+}
+
+/* The shared horizontal scrollbar under both panes (MergeEditor._layoutHScroll). */
+.merge-hscroll {
+    flex: 0 0 auto;
+    height: 12px;
+    margin-right: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-color-secondary);
+}
+.merge-hscroll[hidden] { display: none; }
+.merge-hscroll-inner { height: 1px; }
+.merge-hscroll::-webkit-scrollbar { height: 12px; }
+.merge-hscroll::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--text-color) 28%, transparent);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 6px;
+}
+.merge-hscroll::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--text-color) 45%, transparent);
+}
+
+/* Line details (MergeEditor._renderDetails): the cursor line and the line it
+   faces, one above the other and wrapped, so a long line is compared whole. */
+.merge-details {
+    flex: 0 0 auto;
+    max-height: 32%;
+    overflow-y: auto;
+    padding: 6px 12px 8px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-color-secondary);
+    font-family: var(--editor-font-family, Consolas, 'Courier New', monospace);
+    font-size: var(--editor-font-size, 11.5pt);
+    line-height: 1.55;
+}
+.merge-details[hidden] { display: none; }
+.merge-details-note {
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    font-family: var(--font-family, system-ui, sans-serif);
+    font-size: 11px;
+}
+.merge-details-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+.merge-details-row + .merge-details-row { margin-top: 3px; }
+.merge-details[data-kind="left"] .merge-details-row.is-left { background: rgba(248, 81, 73, 0.13); }
+.merge-details[data-kind="right"] .merge-details-row.is-right { background: rgba(46, 160, 67, 0.13); }
+.merge-details[data-kind="both"] .merge-details-row { background: rgba(210, 153, 34, 0.14); }
+.merge-details-label {
+    flex: 0 0 64px;
+    color: var(--text-secondary);
+    font-family: var(--font-family, system-ui, sans-serif);
+    font-size: 11px;
+    line-height: 2;
+    white-space: nowrap;
+}
+.merge-details-row.is-cursor .merge-details-label { color: var(--primary-color); font-weight: 700; }
+.merge-details-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+    color: var(--text-color);
+}
+.merge-details-text.is-missing,
+.merge-details-empty,
+.merge-details-more {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-family: var(--font-family, system-ui, sans-serif);
+    font-size: 11.5px;
+}
+.merge-details-chg { background: rgba(210, 153, 34, 0.5); border-radius: 2px; }
+.merge-details-chg.is-current { box-shadow: inset 0 0 0 2px var(--primary-color); }
+/* Where text that only the other side has would go. */
+.merge-details-ins {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    margin: 0 1px;
+    vertical-align: text-bottom;
+    background: #d29922;
+}
+.merge-details-ins.is-current { box-shadow: 0 0 0 2px var(--primary-color); }
 
 /* Flat + overlay scrollbar, like the editor: hidden until hover / scroll. */
 .merge-body .cm-mergeView::-webkit-scrollbar {

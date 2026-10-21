@@ -57,7 +57,7 @@ switches modes; the current mode is always shown in the status bar.
 | **Markdown (block)** | Notion-style block editing. Double-click or `F2` opens a large split modal — source on the left, live preview on the right |
 | **Structure** | Tree + source dual pane for JSON / XML / HTML / JSP, with drag-and-drop node manipulation |
 | **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
-| **Diff** | Side-by-side diff with per-hunk Accept/Reject, whitespace-ignore toggle, similarity-based line pairing, and a change minimap |
+| **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
 | **Deck** | A [jh-presentation](https://github.com/pei-jz/jh-presentation) deck shown as slides. Double-click a box to fix its text in place; only that text changes in the source |
 | **Office preview** | Read-only look inside `.xlsx` / `.xlsm` / `.xls` / `.ods` / `.docx` / `.pptx`, without waiting for Excel or Word to start |

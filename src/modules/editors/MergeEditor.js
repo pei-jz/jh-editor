@@ -21,26 +21,129 @@
  *
  * The change being worked on is outlined on both sides, and its ← / → controls
  * sit on a band as tall as the change, so the buttons read as belonging to it.
+ *
+ * The differences themselves come from utils/LineDiff.js, not from the
+ * package: lines first, then words. Each change says whether it exists on the
+ * left only, the right only, or on both (a conflict), and is coloured that way.
+ * A conflict also offers to keep both versions, in either order, for editing.
+ * Lines paired inside a change are lined up with padding, and sync points let
+ * the user say which two lines belong together when the match goes wrong.
  */
-import { EditorState, Compartment, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, Compartment, StateEffect, StateField, Transaction, RangeSet } from '@codemirror/state';
 import {
-    EditorView, Decoration, keymap, lineNumbers, highlightSpecialChars, drawSelection,
-    highlightActiveLine, highlightWhitespace,
+    EditorView, Decoration, WidgetType, GutterMarker, gutterLineClass, keymap, lineNumbers,
+    highlightSpecialChars, drawSelection, highlightActiveLine, highlightWhitespace,
 } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import {
-    MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk, getChunks, getOriginalDoc, Change,
+    MergeView, unifiedMergeView, getChunks, getOriginalDoc, Change, Chunk,
 } from '@codemirror/merge';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { pageMotionKeymap } from '../utils/CMPageMotion.js';
 import { t } from '../utils/I18n.js';
 import { languageExtensionFor, syntaxExtensionForTheme } from '../views/CodeMirrorView.js';
 import {
-    canCopyToward, mergeDirty, sideDirty, blockCopyEdit, whitespaceInsensitiveChanges,
+    canCopyToward, mergeDirty, sideDirty, blockCopyEdit, blockCombineEdit,
 } from '../utils/MergeSides.js';
+import { computeDiff } from '../utils/LineDiff.js';
 
 // Long unchanged stretches fold away, keeping a few lines of context.
 const COLLAPSE = { margin: 3, minSize: 8 };
+
+// Past this many characters on both sides together the package's own diff
+// takes over: ours recomputes the whole comparison on every edit.
+const OWN_DIFF_LIMIT = 4 * 1024 * 1024;
+
+/*
+ * The merge view gets its chunks from Chunk.build / updateA / updateB, and
+ * offers no hook to supply them: `diffConfig.override` only replaces the
+ * character diff, which the package then regroups into lines itself, and
+ * the incremental update hands it slices of the documents. So the three are
+ * wrapped, once, to defer to a config that carries its own `buildChunks` —
+ * any other config (another merge view in the app) is passed straight through.
+ */
+const ownChunks = (conf) => !!conf && typeof conf.buildChunks === 'function';
+const baseBuild = Chunk.build;
+const baseUpdateA = Chunk.updateA;
+const baseUpdateB = Chunk.updateB;
+if (!Chunk.build.jhWrapped) {
+    Chunk.build = function build(a, b, conf) {
+        return ownChunks(conf) ? conf.buildChunks(a, b, null) : baseBuild.call(this, a, b, conf);
+    };
+    Chunk.build.jhWrapped = true;
+    Chunk.updateA = function updateA(chunks, a, b, changes, conf) {
+        return ownChunks(conf) ? conf.buildChunks(a, b, { side: 'a', changes })
+            : baseUpdateA.call(this, chunks, a, b, changes, conf);
+    };
+    Chunk.updateB = function updateB(chunks, a, b, changes, conf) {
+        return ownChunks(conf) ? conf.buildChunks(a, b, { side: 'b', changes })
+            : baseUpdateB.call(this, chunks, a, b, changes, conf);
+    };
+}
+
+/** A LineDiff result as the package's Chunk, keeping what only we know. */
+function toChunk(c) {
+    const chunk = new Chunk(c.changes.map((x) => new Change(x.fromA, x.toA, x.fromB, x.toB)),
+        c.fromA, c.toA, c.fromB, c.toB);
+    chunk.kind = c.kind;
+    chunk.pairs = c.pairs;
+    chunk.runs = c.runs;
+    return chunk;
+}
+
+/** 'left' | 'right' | 'both' | 'ws' for any chunk, ours or the package's. */
+export function chunkKind(chunk) {
+    if (chunk.kind) return chunk.kind;
+    if (chunk.fromA === chunk.toA) return 'right';
+    if (chunk.fromB === chunk.toB) return 'left';
+    return 'both';
+}
+
+/** A chunk that is a change to show: not whitespace only (see LineDiff). */
+const isShown = (chunk) => chunkKind(chunk) !== 'ws';
+
+/**
+ * The line facing line `line` (1-based) of side `side` ('a' | 'b'), given
+ * the chunks between documents `docA` / `docB` (CodeMirror Text).
+ *
+ * Returns `{ a, b, chunk }`: both line numbers (null on the side that has no
+ * such line — it was added or removed) and the index of the chunk the line is
+ * in, or -1 for an unchanged line. Outside chunks the sides are identical, so
+ * an unchanged line's partner is found by counting.
+ */
+export function lineCounterpart(chunks, docA, docB, side, line) {
+    const isA = side === 'a';
+    let shift = 0;          // lines on the other side minus lines on this one, so far
+    for (let k = 0; k < chunks.length; k++) {
+        const ch = chunks[k];
+        const [ownDoc, otherDoc] = isA ? [docA, docB] : [docB, docA];
+        const [from, to, oFrom, oTo] = isA
+            ? [ch.fromA, ch.toA, ch.fromB, ch.toB]
+            : [ch.fromB, ch.toB, ch.fromA, ch.toA];
+        const start = ownDoc.lineAt(Math.min(from, ownDoc.length)).number;
+        const count = linesIn(ownDoc, from, to);
+        const oStart = otherDoc.lineAt(Math.min(oFrom, otherDoc.length)).number;
+        const oCount = linesIn(otherDoc, oFrom, oTo);
+        if (line < start) break;
+        if (line < start + count) {
+            const rel = line - start;
+            let other = null;
+            if (ch.pairs) {
+                const pair = ch.pairs.find((p) => (isA ? p[0] : p[1]) === rel);
+                if (pair) other = oStart + (isA ? pair[1] : pair[0]);
+            } else if (rel < oCount) {
+                // The package's own chunks (very large files) pair by position.
+                other = oStart + rel;
+            }
+            return isA ? { a: line, b: other, chunk: k } : { a: other, b: line, chunk: k };
+        }
+        shift += oCount - count;
+    }
+    const other = line + shift;
+    const otherDoc = isA ? docB : docA;
+    const valid = other >= 1 && other <= otherDoc.lines ? other : null;
+    return isA ? { a: line, b: valid, chunk: -1 } : { a: valid, b: line, chunk: -1 };
+}
 
 // Selections the comparison makes itself, so they do not count as the user
 // moving away from the word being looked at.
@@ -60,11 +163,21 @@ function el(tag, className, text) {
     return node;
 }
 
+/**
+ * The number of the last line a chunk side `from`..`to` covers (non-empty).
+ * `to` one past the document end means the block runs through the last line —
+ * which, when the text ends with a line break, is the empty line after it:
+ * `to - 1` would stop one line short.
+ */
+function lastLineOf(doc, from, to) {
+    if (to > doc.length) return doc.lines;
+    return doc.lineAt(Math.max(from, to - 1)).number;
+}
+
 /** Lines a chunk covers in `doc` (0 when it is an empty range on that side). */
 function linesIn(doc, from, to) {
     if (to <= from) return 0;
-    const last = Math.max(from, Math.min(doc.length, to) - 1);
-    return doc.lineAt(last).number - doc.lineAt(from).number + 1;
+    return lastLineOf(doc, from, to) - doc.lineAt(Math.min(from, doc.length)).number + 1;
 }
 
 /**
@@ -73,6 +186,9 @@ function linesIn(doc, from, to) {
  *   Alt+↑ / Alt+↓            previous / next change
  *   Alt+← / Alt+→            previous / next change inside a line (word level)
  *   Alt+Shift+← / Alt+Shift+→ copy the current change to that side
+ *   Alt+M                    how to merge the current change (keep both, …)
+ *   Alt+S                    sync point: the cursor lines on both sides belong together
+ *   Alt+D                    line details: the cursor line and its counterpart, wrapped
  *   Alt+I / Alt+W            ignore / show whitespace
  *   Ctrl+↑ / Ctrl+↓          previous / next file (Git comparisons only)
  */
@@ -95,9 +211,189 @@ export function mergeKeyAction(e, { hasFileNav = false } = {}) {
         case 'ArrowRight': return 'next-inline';
         case 'i': case 'I': return 'ignore-whitespace';
         case 'w': case 'W': return 'show-whitespace';
+        case 'd': case 'D': return 'toggle-details';
+        case 'm': case 'M': return 'merge-menu';
+        case 's': case 'S': return 'sync-point';
         default: return null;
     }
 }
+
+// ── Kinds, padding inside a change, sync points ─────────────────────────────
+
+/**
+ * Blank space standing in for lines the other side has, so the lines paired
+ * inside a change sit side by side (WinMerge's ghost lines). The package only
+ * aligns the two sides between changes; inside one, everything below an
+ * inserted line was a line out.
+ */
+class PadWidget extends WidgetType {
+    constructor(lines) {
+        super();
+        this.lines = lines;
+    }
+
+    eq(other) { return other.lines === this.lines; }
+
+    /**
+     * One empty line per missing line, rather than a computed height: a
+     * height taken from the theme's variable or from a measurement made
+     * before the styles applied was a fraction of a pixel off per line, and
+     * that added up down a long change. An empty line is exactly as tall as a
+     * real one.
+     */
+    toDOM() {
+        const pad = document.createElement('div');
+        pad.className = 'cm-merge-pad';
+        pad.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < this.lines; i++) {
+            const line = document.createElement('div');
+            line.className = 'cm-merge-pad-line';
+            line.textContent = '​';
+            pad.appendChild(line);
+        }
+        return pad;
+    }
+
+    get estimatedHeight() { return this.lines * 22; }
+
+    ignoreEvent() { return false; }
+}
+
+/**
+ * Nothing at all, at the start of every changed line. It works around a
+ * CodeMirror redraw bug: the package wraps a whole change in one <ins> / <del>
+ * mark, and when a line decoration changes on a line in the middle of such a
+ * mark — the cursor's line, a sync point, the current change — the line was
+ * redrawn with no attributes at all. The cursor line inside a change lost its
+ * colour, and the word highlights looked like they had gone. A widget there
+ * makes the redraw start the line properly.
+ */
+class LineAnchorWidget extends WidgetType {
+    eq() { return true; }
+
+    toDOM() {
+        const span = document.createElement('span');
+        span.className = 'cm-merge-line-anchor';
+        return span;
+    }
+
+    ignoreEvent() { return false; }
+}
+
+const lineAnchor = Decoration.widget({ widget: new LineAnchorWidget(), side: -1 });
+
+const kindLine = {
+    left: Decoration.line({ class: 'cm-merge-kind-left' }),
+    right: Decoration.line({ class: 'cm-merge-kind-right' }),
+    both: Decoration.line({ class: 'cm-merge-kind-both' }),
+    ws: Decoration.line({ class: 'cm-merge-kind-ws' }),
+};
+
+// The package marks a whitespace-only chunk's gutter like any change; this
+// class lets the theme take that back.
+const wsGutter = new class extends GutterMarker {
+    constructor() {
+        super();
+        this.elementClass = 'cm-merge-ws-gutter';
+    }
+}();
+
+/**
+ * For one side: the redraw anchors on every changed line and, side by side
+ * (`split`), the kind classes and the padding inside changes.
+ */
+function layoutDecorations(state, split) {
+    const found = getChunks(state);
+    if (!found || !found.chunks || !found.side) return { deco: Decoration.none, gutter: RangeSet.empty };
+    const isA = found.side === 'a';
+    const { doc } = state;
+    const ranges = [];
+    const quiet = [];
+    for (const ch of found.chunks) {
+        const from = isA ? ch.fromA : ch.fromB;
+        const to = isA ? ch.toA : ch.toB;
+        if (to <= from) continue;
+        const first = doc.lineAt(Math.min(from, doc.length)).number;
+        const last = lastLineOf(doc, from, to);
+        const deco = kindLine[chunkKind(ch)];
+        for (let n = first; n <= last; n++) {
+            const start = doc.line(n).from;
+            ranges.push(lineAnchor.range(start));
+            if (split) ranges.push(deco.range(start));
+            if (split && chunkKind(ch) === 'ws') quiet.push(wsGutter.range(start));
+        }
+        if (!split) continue;
+
+        // Walk the pairs; whichever side is behind gets padding before the pair.
+        let padA = 0;
+        let padB = 0;
+        for (const [i, j] of ch.pairs || []) {
+            const atA = i + padA;
+            const atB = j + padB;
+            if (atA === atB) continue;
+            const lines = Math.abs(atA - atB);
+            const behindA = atA < atB;
+            if (behindA) padA += lines; else padB += lines;
+            if (behindA !== isA) continue;
+            const n = first + (isA ? i : j);
+            if (n > doc.lines) continue;
+            ranges.push(Decoration.widget({ widget: new PadWidget(lines), block: true, side: -1 })
+                .range(doc.line(n).from));
+        }
+    }
+    return { deco: Decoration.set(ranges, true), gutter: RangeSet.of(quiet) };
+}
+
+const layoutFieldFor = (split) => StateField.define({
+    create: (state) => layoutDecorations(state, split),
+    update(value, tr) {
+        const before = getChunks(tr.startState);
+        const after = getChunks(tr.state);
+        if ((before && before.chunks) !== (after && after.chunks)) return layoutDecorations(tr.state, split);
+        return { deco: value.deco.map(tr.changes), gutter: value.gutter.map(tr.changes) };
+    },
+    provide: (field) => [
+        EditorView.decorations.from(field, (value) => value.deco),
+        gutterLineClass.from(field, (value) => value.gutter),
+    ],
+});
+const layoutField = layoutFieldFor(true);
+const unifiedLayoutField = layoutFieldFor(false);
+
+const setSyncLines = StateEffect.define();
+const syncLine = Decoration.line({ class: 'cm-merge-sync' });
+const syncGutter = new class extends GutterMarker {
+    constructor() {
+        super();
+        this.elementClass = 'cm-merge-sync-gutter';
+    }
+}();
+
+/**
+ * The sync points on one side: a dashed rule over each line, and its line
+ * number marked — the rule alone vanished under the current change's frame.
+ */
+const syncField = StateField.define({
+    create: () => ({ deco: Decoration.none, gutter: RangeSet.empty }),
+    update(value, tr) {
+        for (const effect of tr.effects) {
+            if (effect.is(setSyncLines)) {
+                const { doc } = tr.state;
+                const lines = [...new Set(effect.value.map((pos) => doc.lineAt(Math.min(pos, doc.length)).from))]
+                    .sort((x, y) => x - y);
+                return {
+                    deco: Decoration.set(lines.map((pos) => syncLine.range(pos))),
+                    gutter: RangeSet.of(lines.map((pos) => syncGutter.range(pos))),
+                };
+            }
+        }
+        return { deco: value.deco.map(tr.changes), gutter: value.gutter.map(tr.changes) };
+    },
+    provide: (field) => [
+        EditorView.decorations.from(field, (value) => value.deco),
+        gutterLineClass.from(field, (value) => value.gutter),
+    ],
+});
 
 // ── The outline around the current change ────────────────────────────────────
 
@@ -116,7 +412,7 @@ function focusDecorations(state, focus) {
     const ranges = [];
     if (focus.lines && focus.to > focus.from) {
         const first = doc.lineAt(Math.min(focus.from, doc.length)).number;
-        const last = doc.lineAt(Math.max(focus.from, Math.min(doc.length, focus.to) - 1)).number;
+        const last = lastLineOf(doc, focus.from, focus.to);
         for (let n = first; n <= last; n++) {
             let cls = 'cm-merge-focus';
             if (n === first) cls += ' cm-merge-focus-top';
@@ -174,23 +470,53 @@ const mergeTheme = EditorView.theme({
         color: 'var(--text-secondary)',
         border: 'none',
     },
-    // Removed on the left, added on the right, in the colours the old view used.
+    // Removed on the left, added on the right — the unified view, and any
+    // change that carries no kind. The `.cm-editor .cm-line` steps outrank the
+    // package's `&dark` rules, which otherwise won in a dark theme and drew a
+    // word change as a 2px rule under the line instead of a background.
     '&.cm-merge-a .cm-changedLine, .cm-deletedChunk': {
         backgroundColor: 'rgba(248, 81, 73, 0.14)',
     },
     '&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine': {
         backgroundColor: 'rgba(46, 160, 67, 0.14)',
     },
-    '&.cm-merge-a .cm-changedText, .cm-deletedChunk .cm-deletedText': {
+    '&.cm-merge-a.cm-editor .cm-line .cm-changedText, &.cm-editor .cm-deletedChunk .cm-deletedText': {
         background: 'rgba(248, 81, 73, 0.4)',
         borderRadius: '2px',
     },
-    '&.cm-merge-b .cm-changedText': {
+    '&.cm-merge-b.cm-editor .cm-line .cm-changedText': {
         background: 'rgba(46, 160, 67, 0.4)',
         borderRadius: '2px',
     },
     '&.cm-merge-a .cm-changedLineGutter': { background: '#f85149' },
     '&.cm-merge-b .cm-changedLineGutter': { background: '#3fb950' },
+    // Side by side, by kind: only on the left, only on the right, or on both
+    // (a conflict — neither side's version wins without a decision).
+    '& .cm-line.cm-changedLine.cm-merge-kind-left': { backgroundColor: 'rgba(248, 81, 73, 0.15)' },
+    '& .cm-line.cm-changedLine.cm-merge-kind-right': { backgroundColor: 'rgba(46, 160, 67, 0.15)' },
+    '& .cm-line.cm-changedLine.cm-merge-kind-both': { backgroundColor: 'rgba(210, 153, 34, 0.16)' },
+    '&.cm-editor .cm-line.cm-merge-kind-both .cm-changedText': {
+        background: 'rgba(210, 153, 34, 0.5)',
+        borderRadius: '2px',
+    },
+    // Whitespace-only chunks (whitespace ignored) look unchanged.
+    '& .cm-line.cm-changedLine.cm-merge-kind-ws': { backgroundColor: 'transparent' },
+    '&.cm-editor .cm-gutterElement.cm-changedLineGutter.cm-merge-ws-gutter': { background: 'transparent' },
+    '.cm-merge-pad, .cm-mergeSpacer': {
+        backgroundImage: 'repeating-linear-gradient(135deg, transparent 0 5px, rgba(127, 127, 127, 0.13) 5px 6px)',
+    },
+    // A sync point: a dashed rule over the line, on both sides.
+    '.cm-line.cm-merge-sync': {
+        backgroundImage: 'linear-gradient(to right, #a371f7 60%, transparent 60%)',
+        backgroundSize: '8px 2px',
+        backgroundRepeat: 'repeat-x',
+        backgroundPosition: 'left top',
+    },
+    '.cm-gutterElement.cm-merge-sync-gutter': {
+        backgroundColor: 'rgba(163, 113, 247, 0.35)',
+        color: 'var(--text-color)',
+        fontWeight: '700',
+    },
     '.cm-collapsedLines': {
         color: 'var(--text-secondary)',
         background: 'var(--bg-color-secondary)',
@@ -215,9 +541,10 @@ const mergeTheme = EditorView.theme({
     },
     '.cm-merge-focus-gap-before': { boxShadow: `inset 0 2px 0 ${FOCUS}` },
     '.cm-merge-focus-gap-after': { boxShadow: `inset 0 -2px 0 ${FOCUS}` },
+    // Drawn inside the word, not around it: an outline outside overlapped the
+    // neighbouring highlights and, on a one-line change, the line below.
     '.cm-merge-inline-focus': {
-        outline: `2px solid ${FOCUS}`,
-        outlineOffset: '1px',
+        boxShadow: `inset 0 0 0 2px ${FOCUS}`,
         borderRadius: '2px',
     },
 });
@@ -239,6 +566,8 @@ export class MergeEditor {
 
         this.ignoreWhitespace = readFlag('diff_ignoreWhitespace');
         this.showWhitespace = readFlag('diff_showWhitespace');
+        this.showDetails = readFlag('diff_showDetails');
+        this._appliedDetailsKey = '';
         this.viewMode = 'split';
         this.mergeView = null;
         this.unifiedView = null;
@@ -249,6 +578,12 @@ export class MergeEditor {
         this._hoverChunk = null;    // chunk whose copy band the pointer is over
         this._focusIndex = -1;      // chunk currently outlined
         this._appliedFocusKey = '';
+        this._appliedSyncKey = '';
+        this._menu = null;          // the open "how to merge" menu
+        this._rediffing = false;    // a recompute in progress, not an edit
+        // Sync points as line-start positions { a, b }, kept on the tab like
+        // the texts so a redraw keeps them.
+        if (!Array.isArray(this.merge.anchors)) this.merge.anchors = [];
 
         this.syntaxCompartment = new Compartment();
         this.whitespaceCompartment = new Compartment();
@@ -291,6 +626,24 @@ export class MergeEditor {
         this.minimapEl.addEventListener('click', (e) => this._onMinimapClick(e));
         this.bodyEl.appendChild(this.minimapEl);
         c.appendChild(this.bodyEl);
+
+        // One horizontal scrollbar for both panes, always in view. Each pane
+        // scrolls sideways on its own, and the package lets its panes grow to
+        // their full height, so their own bars sat under the LAST line of the
+        // file — out of sight until scrolled to the end.
+        this.hscrollEl = el('div', 'merge-hscroll');
+        this.hscrollInner = el('div', 'merge-hscroll-inner');
+        this.hscrollEl.appendChild(this.hscrollInner);
+        this.hscrollEl.hidden = true;
+        this.hscrollEl.addEventListener('scroll', () => this._onHScroll(this.hscrollEl));
+        c.appendChild(this.hscrollEl);
+
+        // The cursor line and the line it faces, one above the other and
+        // wrapped: a long line compared whole, without scrolling sideways.
+        this.detailsEl = el('div', 'merge-details');
+        this.detailsEl.hidden = !this.showDetails;
+        c.appendChild(this.detailsEl);
+        this._hLeft = 0;
 
         this._mountEditors();
     }
@@ -336,6 +689,18 @@ export class MergeEditor {
         actions.appendChild(this.copyAllLeftBtn);
         actions.appendChild(this.copyAllRightBtn);
 
+        // When the match goes wrong: say which two lines belong together.
+        const sync = el('div', 'diff-nav');
+        this.syncBtn = this._button(t('Sync lines'),
+            t('Line up the cursor lines of both sides — put the cursor on a line on each side first (Alt+S)'),
+            () => this.toggleSyncPoint(), 'diff-btn diff-sync-btn');
+        this.syncBtn.appendChild(el('span', 'diff-btn-key', 'Alt+S'));
+        sync.appendChild(this.syncBtn);
+        this.clearSyncBtn = this._button('', t('Remove every sync point'), () => this.clearSyncPoints(),
+            'diff-btn diff-sync-clear');
+        sync.appendChild(this.clearSyncBtn);
+        actions.appendChild(sync);
+
         for (const extra of this.options.extraActions || []) {
             actions.appendChild(this._button(extra.label, extra.title || '', extra.onClick));
         }
@@ -353,6 +718,13 @@ export class MergeEditor {
         this.showWsBtn.appendChild(el('span', 'diff-btn-key', 'Alt+W'));
         this.showWsBtn.classList.toggle('active', this.showWhitespace);
         actions.appendChild(this.showWsBtn);
+
+        this.detailsBtn = this._button(t('Line details'),
+            t('Show the cursor line and its counterpart one above the other, wrapped — for long lines (Alt+D)'),
+            () => this.toggleDetails(), 'diff-btn diff-details-btn');
+        this.detailsBtn.appendChild(el('span', 'diff-btn-key', 'Alt+D'));
+        this.detailsBtn.classList.toggle('active', this.showDetails);
+        actions.appendChild(this.detailsBtn);
 
         this.viewToggleBtn = this._button('', '', () => this.toggleViewMode());
         actions.appendChild(this.viewToggleBtn);
@@ -439,16 +811,41 @@ export class MergeEditor {
         const side = this.merge[key];
         return [
             ...this._commonExtensions(side.writable),
+            layoutField,
+            syncField,
             EditorView.updateListener.of((u) => this._onEditorUpdate(u, key)),
         ];
     }
 
     _diffConfig() {
-        if (!this.ignoreWhitespace) return { scanLimit: 500, timeout: 2000 };
-        return {
-            override: (a, b) => whitespaceInsensitiveChanges(a, b)
-                .map((c) => new Change(c.fromA, c.toA, c.fromB, c.toB)),
-        };
+        const size = this.merge.left.text.length + this.merge.right.text.length;
+        if (size > OWN_DIFF_LIMIT) return { scanLimit: 500, timeout: 2000 };
+        return { buildChunks: (a, b, edit) => this._buildChunks(a, b, edit) };
+    }
+
+    /**
+     * Every chunk, from scratch, for documents `a` and `b` (Text). `edit` is
+     * the change that produced them, on side 'a' or 'b', which the sync points
+     * follow — each stays on the start of its line.
+     */
+    _buildChunks(a, b, edit) {
+        const anchors = this.merge.anchors;
+        if (edit && anchors.length && !this._rediffing) {
+            const doc = edit.side === 'a' ? a : b;
+            for (const p of anchors) {
+                const pos = edit.changes.mapPos(p[edit.side], -1);
+                p[edit.side] = doc.lineAt(Math.min(pos, doc.length)).from;
+            }
+        }
+        const lines = anchors.map((p) => [
+            a.lineAt(Math.min(p.a, a.length)).number - 1,
+            b.lineAt(Math.min(p.b, b.length)).number - 1,
+        ]);
+        const chunks = computeDiff(a.toString(), b.toString(), { ignoreWhitespace: this.ignoreWhitespace, anchors: lines })
+            .map(toChunk);
+        // Only the side-by-side view lines up two panes and needs the
+        // whitespace-only chunks; the unified view would show them as changes.
+        return this.viewMode === 'unified' ? chunks.filter(isShown) : chunks;
     }
 
     _mergeConfig() {
@@ -466,6 +863,11 @@ export class MergeEditor {
         };
     }
 
+    /**
+     * One band's controls. The package renders them before saying which chunk
+     * they belong to, so the kind-specific parts (titles, the merge button)
+     * are filled in by _layoutCopyControls.
+     */
     _renderCopyControl() {
         const box = el('div', 'merge-copy-control');
         if (canCopyToward(this.merge, 'left')) {
@@ -474,6 +876,11 @@ export class MergeEditor {
             b.title = t('Copy this change to the left (Alt+Shift+Left)');
             box.appendChild(b);
         }
+        // A conflict has more answers than either arrow: keep both, in order.
+        const pick = el('button', 'merge-pick-btn', '⋯');
+        pick.title = t('Choose how to merge this conflict (Alt+M)');
+        pick.hidden = true;
+        box.appendChild(pick);
         if (canCopyToward(this.merge, 'right')) {
             const b = el('button', 'merge-copy-btn', '→');
             b.dataset.toward = 'right';
@@ -483,9 +890,24 @@ export class MergeEditor {
         return box;
     }
 
+    /** What an arrow does to a change of this kind, in words. */
+    _copyTitle(kind, toward) {
+        if (toward === 'left') {
+            if (kind === 'left') return t('Remove these lines from the left (Alt+Shift+Left)');
+            if (kind === 'right') return t('Add these lines to the left (Alt+Shift+Left)');
+            return t('Replace the left with the right version (Alt+Shift+Left)');
+        }
+        if (kind === 'left') return t('Add these lines to the right (Alt+Shift+Right)');
+        if (kind === 'right') return t('Remove these lines from the right (Alt+Shift+Right)');
+        return t('Replace the right with the left version (Alt+Shift+Right)');
+    }
+
     _mountEditors() {
         const scrollTop = this.file._mergeScrollTop || 0;
         this._destroyEditors();
+        // New panes start at the left edge; the shared bar follows them.
+        this._hLeft = 0;
+        this.hscrollEl.hidden = true;
         this.container.classList.toggle('merge-no-controls',
             this.viewMode === 'unified' || !this._hasCopyControls());
 
@@ -507,6 +929,7 @@ export class MergeEditor {
                             collapseUnchanged: COLLAPSE,
                             diffConfig: this._diffConfig(),
                         }),
+                        unifiedLayoutField,
                         EditorView.updateListener.of((u) => this._onEditorUpdate(u, null)),
                     ],
                 }),
@@ -521,14 +944,17 @@ export class MergeEditor {
             });
             const dom = this.mergeView.dom;
             this._onControlsMouseDown = (e) => {
-                const btn = e.target && e.target.closest ? e.target.closest('.merge-copy-btn') : null;
+                const btn = e.target && e.target.closest
+                    ? e.target.closest('.merge-copy-btn, .merge-pick-btn') : null;
                 if (!btn) return;
                 // Ahead of the package's own handler, which would always revert
                 // in its single configured direction.
                 e.preventDefault();
                 e.stopPropagation();
                 const box = btn.closest('.merge-copy-control');
-                this.copyChunk(Number(box && box.dataset.chunk), btn.dataset.toward);
+                const index = Number(box && box.dataset.chunk);
+                if (btn.classList.contains('merge-pick-btn')) this.openMergeMenu(index, btn);
+                else this.copyChunk(index, btn.dataset.toward);
             };
             this._onControlsOver = (e) => {
                 const box = e.target && e.target.closest ? e.target.closest('.merge-copy-control') : null;
@@ -539,6 +965,15 @@ export class MergeEditor {
             dom.addEventListener('mouseover', this._onControlsOver);
             dom.addEventListener('mouseleave', this._onControlsLeave);
             dom.addEventListener('scroll', () => this._updateMinimapViewport());
+            // Sideways, the two panes move together (as in WinMerge), whether
+            // by the bar, Shift+wheel, a trackpad or the cursor moving.
+            for (const view of [this.mergeView.a, this.mergeView.b]) {
+                view.scrollDOM.addEventListener('scroll', () => this._onHScroll(view.scrollDOM));
+            }
+            if (typeof ResizeObserver === 'function') {
+                this._resizeObserver = new ResizeObserver(() => this._scheduleControlLayout());
+                this._resizeObserver.observe(dom);
+            }
 
             // The outline round the current change, one per side, drawn over
             // the scrolled content so it moves with it.
@@ -562,8 +997,11 @@ export class MergeEditor {
         const split = this.viewMode === 'split';
         this.copyAllLeftBtn.hidden = !split || !canCopyToward(this.merge, 'left');
         this.copyAllRightBtn.hidden = !split || !canCopyToward(this.merge, 'right');
+        // Two cursors are needed to say which lines belong together.
+        this.syncBtn.disabled = !split;
 
         this._appliedFocusKey = '';
+        this._appliedSyncKey = '';
         this._renderHeaders();
         this._refresh();
         if (scrollTop) {
@@ -575,11 +1013,16 @@ export class MergeEditor {
     }
 
     _destroyEditors() {
+        this.closeMergeMenu();
         const s = this._scroller();
         if (s) this.file._mergeScrollTop = s.scrollTop;
         if (this._controlsObserver) {
             this._controlsObserver.disconnect();
             this._controlsObserver = null;
+        }
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
         }
         if (this.mergeView) {
             const dom = this.mergeView.dom;
@@ -656,7 +1099,9 @@ export class MergeEditor {
     }
 
     _refresh() {
-        const chunks = this._chunks();
+        const all = this._chunks();
+        // Whitespace-only chunks exist for the alignment, not as changes.
+        const chunks = all.filter(isShown);
         const docs = this._docs();
 
         this.summaryEl.textContent = '';
@@ -666,19 +1111,30 @@ export class MergeEditor {
         } else if (docs) {
             let left = 0;
             let right = 0;
+            const kinds = { left: 0, right: 0, both: 0 };
             for (const ch of chunks) {
                 left += linesIn(docs.a, ch.fromA, ch.toA);
                 right += linesIn(docs.b, ch.fromB, ch.toB);
+                kinds[chunkKind(ch)]++;
             }
-            this.summaryEl.appendChild(el('span', 'diff-sum-del', `−${left}`));
-            this.summaryEl.appendChild(el('span', 'diff-sum-add', `+${right}`));
+            // Doubles as the legend for the three colours.
+            const chip = (kind, label, tip) => {
+                if (!kinds[kind]) return;
+                const c = el('span', `diff-sum-kind is-${kind}`, `${label} ${kinds[kind]}`);
+                c.title = tip;
+                this.summaryEl.appendChild(c);
+            };
+            chip('left', t('Left only'), t('Changes whose lines exist on the left only'));
+            chip('right', t('Right only'), t('Changes whose lines exist on the right only'));
+            chip('both', t('Conflict'), t('Changes where both sides have their own lines — choose which to keep'));
             this.summaryEl.appendChild(el('span', 'diff-sum-blocks', t('{n} changes', { n: chunks.length })));
             this.summaryEl.title = t('{left} changed lines on the left, {right} on the right', { left, right });
         }
 
         const at = this._chunkAtCursor();
+        const rank = at.inside >= 0 ? chunks.indexOf(all[at.inside]) : -1;
         this.navLabel.textContent = chunks.length
-            ? t('Change {n} of {total}', { n: at.inside >= 0 ? at.inside + 1 : '–', total: chunks.length })
+            ? t('Change {n} of {total}', { n: rank >= 0 ? rank + 1 : '–', total: chunks.length })
             : '';
 
         const inChunk = at.inside >= 0 ? this._inlineTargets().filter((tg) => tg.chunk === at.inside) : [];
@@ -691,9 +1147,14 @@ export class MergeEditor {
         if (this.saveBtn) this.saveBtn.disabled = !dirty;
         if (this.copyAllLeftBtn) this.copyAllLeftBtn.disabled = !chunks.length;
         if (this.copyAllRightBtn) this.copyAllRightBtn.disabled = !chunks.length;
+        const syncs = this.merge.anchors.length;
+        this.clearSyncBtn.hidden = !syncs;
+        this.clearSyncBtn.textContent = t('Clear sync points ({n})', { n: syncs });
         this._renderHeaders();
+        this._applySyncLines();
         this._applyFocus();
         this._buildMinimap();
+        this._renderDetails();
         this._scheduleControlLayout();
     }
 
@@ -743,24 +1204,72 @@ export class MergeEditor {
         const run = () => {
             this._layoutFrame = null;
             this._layoutCopyControls();
+            this._layoutHScroll();
         };
         this._layoutFrame = typeof requestAnimationFrame === 'function'
             ? requestAnimationFrame(run)
             : setTimeout(run, 16);
     }
 
+    // ── Sideways scrolling ───────────────────────────────────────────────────
+
+    _hScrollers() {
+        const mv = this.mergeView;
+        return mv ? [mv.a.scrollDOM, mv.b.scrollDOM] : [];
+    }
+
+    /** Show the shared bar when either pane is wider than it is, sized to the wider one. */
+    _layoutHScroll() {
+        const bar = this.hscrollEl;
+        if (!bar) return;
+        const scrollers = this._hScrollers();
+        const overflow = scrollers.length
+            ? Math.max(...scrollers.map((s) => s.scrollWidth - s.clientWidth))
+            : 0;
+        bar.hidden = !(overflow > 1);
+        if (bar.hidden) return;
+        this.hscrollInner.style.width = `${bar.clientWidth + overflow}px`;
+        if (Math.abs(bar.scrollLeft - this._hLeft) > 1) bar.scrollLeft = this._hLeft;
+    }
+
+    /**
+     * One of the bar or the panes scrolled sideways: bring the others along.
+     * Setting scrollLeft fires their scroll events later; a pane that is
+     * narrower stops short of the position asked, so an event that only
+     * reports that is an echo, not the user, and is not passed on.
+     */
+    _onHScroll(source) {
+        const max = (el) => Math.max(0, el.scrollWidth - el.clientWidth);
+        const expected = Math.min(this._hLeft, max(source));
+        if (Math.abs(source.scrollLeft - expected) <= 1) return;
+        this._hLeft = source.scrollLeft;
+        for (const el of [...this._hScrollers(), this.hscrollEl]) {
+            if (el === source || !el || el.hidden) continue;
+            const want = Math.min(this._hLeft, max(el));
+            if (Math.abs(el.scrollLeft - want) > 1) el.scrollLeft = want;
+        }
+    }
+
     /** Vertical extent of a chunk, in the aligned coordinates both editors share. */
     _chunkSpan(chunk) {
         const mv = this.mergeView;
         const side = (ed, from, to) => {
-            const len = ed.state.doc.length;
-            const top = ed.lineBlockAt(Math.min(from, len)).top;
-            const bottom = to > from ? ed.lineBlockAt(Math.max(from, Math.min(len, to) - 1)).bottom : top;
-            return { top, bottom };
+            const { doc } = ed.state;
+            const at = Math.min(from, doc.length);
+            const block = ed.lineBlockAt(at);
+            if (to <= from) {
+                // Lines added after a last line with no line break: the gap
+                // is under that line, not over it.
+                const below = at === doc.length && doc.lineAt(at).from < at;
+                const y = below ? block.bottom : block.top;
+                return { top: y, bottom: y, raw: block.top };
+            }
+            return { top: block.top, bottom: ed.lineBlockAt(doc.line(lastLineOf(doc, from, to)).from).bottom, raw: block.top };
         };
         const a = side(mv.a, chunk.fromA, chunk.toA);
         const b = side(mv.b, chunk.fromB, chunk.toB);
-        return { top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom), anchor: a.top };
+        // `anchor` is where the package put the band: the chunk's first line on the left.
+        return { top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom), anchor: a.raw };
     }
 
     /**
@@ -781,6 +1290,13 @@ export class MergeEditor {
             box.style.marginTop = `${span.top - span.anchor}px`;
             box.style.height = `${Math.max(28, span.bottom - span.top)}px`;
             box.classList.toggle('is-current', index === this._focusIndex);
+            const kind = chunkKind(chunk);
+            if (box.dataset.kind !== kind) {
+                box.dataset.kind = kind;
+                for (const b of box.querySelectorAll('.merge-copy-btn')) b.title = this._copyTitle(kind, b.dataset.toward);
+                const pick = box.querySelector('.merge-pick-btn');
+                if (pick) pick.hidden = kind !== 'both';
+            }
         }
         this._layoutFocusFrames();
     }
@@ -839,6 +1355,7 @@ export class MergeEditor {
         const isA = this.mergeView ? ed === this.mergeView.a : false;
         const pos = ed.state.selection.main.head;
         for (let i = 0; i < chunks.length; i++) {
+            if (!isShown(chunks[i])) continue;
             const from = isA ? chunks[i].fromA : chunks[i].fromB;
             const to = isA ? chunks[i].toA : chunks[i].toB;
             if (pos >= from && pos <= Math.max(from, to - 1)) { result.inside = i; break; }
@@ -847,22 +1364,55 @@ export class MergeEditor {
         return result;
     }
 
+    /**
+     * Move the cursor to the previous / next change, wrapping at either end.
+     * Not the package's goToNextChunk: that would stop on whitespace-only
+     * chunks, which are not changes.
+     */
     navigate(direction) {
         const ed = this._activeEditor();
         if (!ed) return;
-        const command = direction > 0 ? goToNextChunk : goToPreviousChunk;
-        command({ state: ed.state, dispatch: (tr) => ed.dispatch(tr) });
+        const chunks = this._chunks();
+        const isA = !!this.mergeView && ed === this.mergeView.a;
+        const fromOf = (ch) => Math.min(isA ? ch.fromA : ch.fromB, ed.state.doc.length);
+        const shown = chunks.filter(isShown);
+        if (!shown.length) return;
+        const head = ed.state.selection.main.head;
+        const inside = this._chunkAtCursor().inside;
+        let target;
+        if (direction > 0) {
+            target = shown.find((ch) => fromOf(ch) > head && ch !== chunks[inside]) || shown[0];
+        } else {
+            for (let k = shown.length - 1; k >= 0; k--) {
+                if (fromOf(shown[k]) < head && shown[k] !== chunks[inside]) { target = shown[k]; break; }
+            }
+            if (!target) target = shown[shown.length - 1];
+        }
+        const pos = fromOf(target);
+        ed.dispatch({
+            selection: { anchor: pos },
+            effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+            userEvent: 'select.byChunk',
+        });
         this._inline = null;
         ed.focus();
         this._queueRefresh();
     }
 
-    /** Every word-level change, in document order, with positions on both sides. */
+    /**
+     * Every word-level change, in document order, with positions on both
+     * sides: the words changed inside paired lines, and each run of lines with
+     * no partner as one step — never including the line break after it, which
+     * put the cursor on the next line.
+     */
     _inlineTargets() {
         const out = [];
         this._chunks().forEach((ch, i) => {
-            if (ch.changes && ch.changes.length) {
-                for (const c of ch.changes) {
+            if (!isShown(ch)) return;
+            const parts = [...(ch.changes || []), ...(ch.runs || [])]
+                .sort((x, y) => x.fromA - y.fromA || x.fromB - y.fromB);
+            if (parts.length) {
+                for (const c of parts) {
                     out.push({
                         chunk: i,
                         fromA: ch.fromA + c.fromA, toA: ch.fromA + c.toA,
@@ -950,24 +1500,218 @@ export class MergeEditor {
 
     /** Copy the change under (or just after) the cursor. */
     copyAtCursor(toward) {
-        const at = this._chunkAtCursor();
-        const index = at.inside >= 0 ? at.inside : at.next;
+        const index = this._currentChunkIndex();
         return index >= 0 ? this.copyChunk(index, toward) : false;
     }
 
     /** Copy every change toward one side, as a single undoable edit. */
     copyAll(toward) {
         const mv = this.mergeView;
-        if (!mv || !mv.chunks.length || !canCopyToward(this.merge, toward)) return false;
+        // Whitespace-only chunks stay as they are: whitespace is being ignored.
+        const chunks = mv ? mv.chunks.filter(isShown) : [];
+        if (!chunks.length || !canCopyToward(this.merge, toward)) return false;
         const toLeft = toward === 'left';
         const src = (toLeft ? mv.b : mv.a).state.doc.toString();
         const destView = toLeft ? mv.a : mv.b;
         const dest = destView.state.doc.toString();
-        const changes = mv.chunks.map((ch) => (toLeft
+        const changes = chunks.map((ch) => (toLeft
             ? blockCopyEdit(src, dest, ch.fromB, ch.toB, ch.fromA, ch.toA)
             : blockCopyEdit(src, dest, ch.fromA, ch.toA, ch.fromB, ch.toB)));
         destView.dispatch({ changes, userEvent: 'input.copy' });
         return true;
+    }
+
+    /**
+     * Keep both versions of chunk `index` in the side `toward` points at, the
+     * left side's lines first or the right side's (`order`: 'left-first' |
+     * 'right-first'). The combined block is selected in that side, ready to be
+     * edited into its final form.
+     */
+    combineChunk(index, toward, order = 'left-first') {
+        const mv = this.mergeView;
+        const chunk = mv && mv.chunks[index];
+        if (!chunk || !canCopyToward(this.merge, toward)) return false;
+        const toLeft = toward === 'left';
+        const srcView = toLeft ? mv.b : mv.a;
+        const dest = toLeft ? mv.a : mv.b;
+        // The source is the right side when merging into the left.
+        const srcFirst = toLeft ? order === 'right-first' : order === 'left-first';
+        const src = srcView.state.doc.toString();
+        const text = dest.state.doc.toString();
+        const edit = toLeft
+            ? blockCombineEdit(src, text, chunk.fromB, chunk.toB, chunk.fromA, chunk.toA, srcFirst)
+            : blockCombineEdit(src, text, chunk.fromA, chunk.toA, chunk.fromB, chunk.toB, srcFirst);
+        dest.dispatch({
+            changes: { from: edit.from, to: edit.to, insert: edit.insert },
+            selection: { anchor: edit.select.from, head: edit.select.to },
+            effects: EditorView.scrollIntoView(edit.select.from, { y: 'center' }),
+            userEvent: 'input.copy',
+        });
+        this._hoverChunk = null;
+        dest.focus();
+        return true;
+    }
+
+    // ── Choosing how to merge a conflict ─────────────────────────────────────
+
+    /** The chunk the cursor is in, or the next one after it. */
+    _currentChunkIndex() {
+        const at = this._chunkAtCursor();
+        return at.inside >= 0 ? at.inside : at.next;
+    }
+
+    /**
+     * Offer every way to settle chunk `index`, for each side that can be
+     * written: take the other side's version, or keep both in either order.
+     */
+    openMergeMenu(index, anchorEl = null) {
+        const mv = this.mergeView;
+        const chunk = mv && mv.chunks[index];
+        this.closeMergeMenu();
+        if (!chunk) return false;
+        const kind = chunkKind(chunk);
+        const menu = el('div', 'merge-menu');
+        menu.setAttribute('role', 'menu');
+        const items = [];
+        const item = (label, run) => {
+            const b = el('button', 'merge-menu-item', label);
+            b.setAttribute('role', 'menuitem');
+            b.addEventListener('click', () => {
+                this.closeMergeMenu();
+                run();
+            });
+            menu.appendChild(b);
+            items.push(b);
+        };
+        for (const toward of ['left', 'right']) {
+            if (!canCopyToward(this.merge, toward)) continue;
+            menu.appendChild(el('div', 'merge-menu-heading',
+                toward === 'left' ? t('Result on the left') : t('Result on the right')));
+            item(toward === 'left' ? t('Use the right version') : t('Use the left version'),
+                () => this.copyChunk(index, toward));
+            if (kind === 'both') {
+                item(t('Keep both: left, then right'), () => this.combineChunk(index, toward, 'left-first'));
+                item(t('Keep both: right, then left'), () => this.combineChunk(index, toward, 'right-first'));
+            }
+        }
+        if (!items.length) return false;
+        menu.appendChild(el('div', 'merge-menu-note', t('Both sides stay editable: adjust the result by hand afterwards.')));
+
+        menu.addEventListener('mousedown', (e) => e.stopPropagation());
+        menu.addEventListener('keydown', (e) => {
+            const at = items.indexOf(document.activeElement);
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                this.closeMergeMenu();
+                this.focus();
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const step = e.key === 'ArrowDown' ? 1 : -1;
+                items[(at + step + items.length) % items.length].focus();
+            }
+            e.stopPropagation();
+        });
+        this.container.appendChild(menu);
+
+        // Next to the band's button, or by the change when opened from the keys.
+        const host = this.container.getBoundingClientRect();
+        let x = host.left + host.width / 2;
+        let y = host.top + 80;
+        if (anchorEl) {
+            const r = anchorEl.getBoundingClientRect();
+            x = r.left;
+            y = r.bottom + 4;
+        } else {
+            const span = this._chunkSpan(chunk);
+            y = mv.a.documentTop + span.top;
+        }
+        const w = menu.offsetWidth || 240;
+        const h = menu.offsetHeight || 200;
+        menu.style.left = `${Math.max(host.left + 8, Math.min(x - w / 2, host.right - w - 8))}px`;
+        menu.style.top = `${Math.max(host.top + 8, Math.min(y, host.bottom - h - 8))}px`;
+
+        this._menu = menu;
+        this._onMenuOutside = (e) => {
+            if (this._menu && !this._menu.contains(e.target)) this.closeMergeMenu();
+        };
+        document.addEventListener('mousedown', this._onMenuOutside, true);
+        items[0].focus();
+        return true;
+    }
+
+    closeMergeMenu() {
+        if (!this._menu) return;
+        this._menu.remove();
+        this._menu = null;
+        document.removeEventListener('mousedown', this._onMenuOutside, true);
+    }
+
+    // ── Sync points ──────────────────────────────────────────────────────────
+
+    /**
+     * Say that the cursor lines on the two sides belong together; the
+     * comparison is cut there and those lines face each other. On a line pair
+     * that already is a sync point, removes it. A point that would cross
+     * another one replaces it.
+     */
+    toggleSyncPoint() {
+        const mv = this.mergeView;
+        if (!mv) return false;
+        const a = mv.a.state.doc.lineAt(mv.a.state.selection.main.head).from;
+        const b = mv.b.state.doc.lineAt(mv.b.state.selection.main.head).from;
+        const anchors = this.merge.anchors;
+        const same = anchors.findIndex((p) => p.a === a && p.b === b);
+        if (same >= 0) {
+            anchors.splice(same, 1);
+        } else {
+            const keep = anchors.filter((p) => (p.a < a && p.b < b) || (p.a > a && p.b > b));
+            keep.push({ a, b });
+            keep.sort((x, y) => x.a - y.a);
+            anchors.splice(0, anchors.length, ...keep);
+        }
+        this._rediff();
+        return true;
+    }
+
+    clearSyncPoints() {
+        if (!this.merge.anchors.length) return;
+        this.merge.anchors.splice(0);
+        this._rediff();
+    }
+
+    /**
+     * Recompute the comparison with the texts as they are. The merge view only
+     * rediffs on an edit, so it is given one that changes nothing — kept out of
+     * the undo history — instead of being rebuilt, which would lose that history.
+     */
+    _rediff() {
+        if (!this.mergeView) {
+            this._mountEditors();
+            return;
+        }
+        const view = [this.mergeView.a, this.mergeView.b].find((v) => v.state.doc.length);
+        if (view) {
+            this._rediffing = true;
+            try {
+                view.dispatch({
+                    changes: { from: 0, to: 1, insert: view.state.sliceDoc(0, 1) },
+                    annotations: Transaction.addToHistory.of(false),
+                });
+            } finally {
+                this._rediffing = false;
+            }
+        }
+        this._queueRefresh();
+    }
+
+    _applySyncLines() {
+        const anchors = this.merge.anchors;
+        const key = anchors.map((p) => `${p.a}:${p.b}`).join(',');
+        if (key === this._appliedSyncKey) return;
+        this._appliedSyncKey = key;
+        if (!this.mergeView) return;
+        this.mergeView.a.dispatch({ effects: setSyncLines.of(anchors.map((p) => p.a)) });
+        this.mergeView.b.dispatch({ effects: setSyncLines.of(anchors.map((p) => p.b)) });
     }
 
     // ── Toolbar toggles ──────────────────────────────────────────────────────
@@ -980,6 +1724,115 @@ export class MergeEditor {
         // the changes on screen are not recomputed. Rebuilding is what applies
         // it now — and loses nothing, since the texts live on the tab.
         this._mountEditors();
+    }
+
+    toggleDetails() {
+        this.showDetails = !this.showDetails;
+        writeFlag('diff_showDetails', this.showDetails);
+        this.detailsBtn.classList.toggle('active', this.showDetails);
+        this.detailsEl.hidden = !this.showDetails;
+        this._appliedDetailsKey = '';
+        this._renderDetails();
+        // The panes got shorter or taller.
+        this._scheduleControlLayout();
+    }
+
+    /**
+     * Fill the line details: the cursor line of the active side and the line
+     * it faces, each wrapped in full, with the words that differ marked —
+     * and, where the other side has text this one lacks, a caret where it goes.
+     */
+    _renderDetails() {
+        const pane = this.detailsEl;
+        if (!pane || !this.showDetails) return;
+        const docs = this._docs();
+        const ed = this._activeEditor();
+        if (!docs || !ed) { pane.textContent = ''; return; }
+        const side = this.mergeView && ed === this.mergeView.a ? 'a' : 'b';
+        const line = ed.state.doc.lineAt(ed.state.selection.main.head).number;
+        const chunks = this._chunks();
+        const at = lineCounterpart(chunks, docs.a, docs.b, side, line);
+        const chunk = at.chunk >= 0 ? chunks[at.chunk] : null;
+        const inline = this._inline;
+
+        // Redrawn only when something it shows changed: a document (each edit
+        // makes a new one), the lines, or the word being looked at.
+        const key = [side, at.a, at.b, at.chunk,
+            inline ? `${inline.fromA}:${inline.toA}:${inline.fromB}:${inline.toB}` : ''].join('|');
+        if (key === this._appliedDetailsKey && docs.a === this._detailsDocA && docs.b === this._detailsDocB) return;
+        this._appliedDetailsKey = key;
+        this._detailsDocA = docs.a;
+        this._detailsDocB = docs.b;
+
+        const kind = chunk ? chunkKind(chunk) : null;
+        pane.textContent = '';
+        pane.dataset.kind = kind || 'same';
+        if (!chunk) pane.appendChild(el('div', 'merge-details-note', t('This line is the same on both sides.')));
+        else if (kind === 'ws') pane.appendChild(el('div', 'merge-details-note', t('Only whitespace differs here, and whitespace is being ignored.')));
+
+        for (const s of ['a', 'b']) {
+            const doc = docs[s];
+            const n = at[s];
+            const row = el('div', `merge-details-row is-${s === 'a' ? 'left' : 'right'}${s === side ? ' is-cursor' : ''}`);
+            const label = s === 'a' ? t('Left') : t('Right');
+            row.appendChild(el('span', 'merge-details-label', n ? `${label} ${n}` : label));
+            const text = el('div', 'merge-details-text');
+            if (!n) {
+                text.classList.add('is-missing');
+                text.textContent = s === 'a' ? t('No such line on the left: it exists on the right only.')
+                    : t('No such line on the right: it exists on the left only.');
+            } else {
+                this._fillDetailsLine(text, doc.line(n), chunk, s === 'a', inline);
+            }
+            row.appendChild(text);
+            pane.appendChild(row);
+        }
+    }
+
+    /** One line's text, with its changed words and insertion points marked. */
+    _fillDetailsLine(target, line, chunk, isA, inline) {
+        const LIMIT = 20000;
+        const marks = [];
+        if (chunk && chunk.changes) {
+            const base = isA ? chunk.fromA : chunk.fromB;
+            for (const c of chunk.changes) {
+                const from = base + (isA ? c.fromA : c.fromB);
+                const to = base + (isA ? c.toA : c.toB);
+                if (to < line.from || from > line.to) continue;
+                // A change with nothing on this side, at this line: where the
+                // other side's words go. (An empty range at the line's very end
+                // belongs to it too.)
+                if (from === to && (from < line.from || from > line.to)) continue;
+                const current = !!inline && (isA ? inline.fromA === from && inline.toA === to : inline.fromB === from && inline.toB === to);
+                marks.push({ from: Math.max(from, line.from) - line.from, to: Math.min(to, line.to) - line.from, current });
+            }
+        }
+        const text = line.text;
+        let pos = 0;
+        const plain = (upto) => {
+            if (upto > pos) target.appendChild(document.createTextNode(text.slice(pos, upto)));
+            pos = Math.max(pos, upto);
+        };
+        for (const m of marks) {
+            if (m.from >= LIMIT) break;
+            plain(m.from);
+            if (m.to > m.from) {
+                const span = el('span', `merge-details-chg${m.current ? ' is-current' : ''}`, text.slice(m.from, m.to));
+                target.appendChild(span);
+                pos = m.to;
+            } else {
+                const caret = el('span', `merge-details-ins${m.current ? ' is-current' : ''}`);
+                caret.title = t('Text the other side has goes here');
+                target.appendChild(caret);
+            }
+        }
+        if (text.length > LIMIT) {
+            plain(LIMIT);
+            target.appendChild(el('span', 'merge-details-more', t('… {n} more characters', { n: text.length - LIMIT })));
+        } else {
+            plain(text.length);
+        }
+        if (!text.length) target.appendChild(el('span', 'merge-details-empty', t('(empty line)')));
     }
 
     toggleShowWhitespace() {
@@ -1032,8 +1885,11 @@ export class MergeEditor {
             case 'next-inline': this.navigateInline(1); return true;
             case 'copy-left': return this.copyAtCursor('left');
             case 'copy-right': return this.copyAtCursor('right');
+            case 'merge-menu': return this.openMergeMenu(this._currentChunkIndex());
+            case 'sync-point': return this.toggleSyncPoint();
             case 'ignore-whitespace': this.toggleIgnoreWhitespace(); return true;
             case 'show-whitespace': this.toggleShowWhitespace(); return true;
+            case 'toggle-details': this.toggleDetails(); return true;
             default: return false;
         }
     }
@@ -1105,7 +1961,7 @@ export class MergeEditor {
         if (!map) return;
         map.querySelectorAll('.diff-minimap-mark').forEach((n) => n.remove());
         const scroller = this._scroller();
-        const chunks = this._chunks();
+        const chunks = this._chunks().filter(isShown);
         const total = scroller ? scroller.scrollHeight : 0;
         this._minimapTotal = total;
         if (!total || !chunks.length) {
@@ -1117,7 +1973,7 @@ export class MergeEditor {
         const scrollTop = scroller.getBoundingClientRect().top - scroller.scrollTop;
         const place = (ed, from, to) => {
             const top = ed.lineBlockAt(from).top + ed.documentTop - scrollTop;
-            const end = ed.lineBlockAt(Math.max(from, Math.min(ed.state.doc.length, to) - 1)).bottom
+            const end = ed.lineBlockAt(ed.state.doc.line(lastLineOf(ed.state.doc, from, Math.max(to, from + 1))).from).bottom
                 + ed.documentTop - scrollTop;
             return { top, height: Math.max(2, end - top) };
         };
@@ -1132,7 +1988,8 @@ export class MergeEditor {
             } else {
                 box = place(this.unifiedView, ch.fromB, Math.max(ch.toB, ch.fromB + 1));
             }
-            const mark = el('div', `diff-minimap-mark ${onLeft && onRight ? 'is-mod' : onRight ? 'is-add' : 'is-del'}`);
+            const kind = chunkKind(ch);
+            const mark = el('div', `diff-minimap-mark ${kind === 'both' ? 'is-mod' : kind === 'right' ? 'is-add' : 'is-del'}`);
             mark.style.top = `${(box.top / total) * 100}%`;
             mark.style.height = `${Math.max(0.4, (box.height / total) * 100)}%`;
             frag.appendChild(mark);

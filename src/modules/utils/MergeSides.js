@@ -20,7 +20,6 @@
  * The text lives on the tab's file object, not in the view, so switching tabs
  * or redrawing the view loses nothing and a background tab can still be saved.
  */
-import * as Diff from 'diff';
 
 /** Build a side. A side with nowhere to write cannot be writable. */
 export function makeSide({ label = '', text = '', writable = false, target = null, live = false, onLive = null } = {}) {
@@ -63,12 +62,23 @@ export function canCopyToward(merge, toward) {
  * copied; one is added back unless the destination block reaches the end of
  * its document — which keeps the line count right on both kinds of edge.
  *
+ * Two more edges come from a file whose last line has no line break: lines
+ * added after it need a break in front of them, and lines removed from the end
+ * take the break before them along.
+ *
  * Returns `{ from, to, insert }` in `dest` coordinates.
  */
 export function blockCopyEdit(src, dest, srcFrom, srcTo, destFrom, destTo) {
     let insert = src.slice(srcFrom, Math.max(srcFrom, srcTo - 1));
-    if (srcFrom !== srcTo && destTo <= dest.length) insert += '\n';
-    return { from: destFrom, to: Math.min(dest.length, destTo), insert };
+    let from = destFrom;
+    const to = Math.min(dest.length, destTo);
+    if (srcFrom !== srcTo) {
+        if (destFrom === destTo && destFrom === dest.length && dest.length && !dest.endsWith('\n')) insert = `\n${insert}`;
+        else if (destTo <= dest.length) insert += '\n';
+    } else if (destTo > dest.length && from > 0 && dest[from - 1] === '\n') {
+        from -= 1;
+    }
+    return { from, to, insert };
 }
 
 /** Apply `blockCopyEdit` to a string. */
@@ -77,68 +87,38 @@ export function applyBlockCopy(src, dest, srcFrom, srcTo, destFrom, destTo) {
     return dest.slice(0, edit.from) + edit.insert + dest.slice(edit.to);
 }
 
+/**
+ * The edit that keeps BOTH versions of a block in `dest`: the destination's
+ * own lines and the source's, one after the other (`srcFirst` puts the source's
+ * first). Ranges as for `blockCopyEdit`.
+ *
+ * Returns `{ from, to, insert, select }`, where `select` is the combined block
+ * in the document after the edit — what the user goes on to edit by hand.
+ */
+export function blockCombineEdit(src, dest, srcFrom, srcTo, destFrom, destTo, srcFirst = false) {
+    if (srcFrom === srcTo) {
+        // Nothing to add: the destination's lines already are "both".
+        const end = Math.max(destFrom, Math.min(dest.length, destTo) - (destTo <= dest.length ? 1 : 0));
+        return { from: destFrom, to: destFrom, insert: '', select: { from: destFrom, to: end } };
+    }
+    if (destFrom === destTo) {
+        const edit = blockCopyEdit(src, dest, srcFrom, srcTo, destFrom, destTo);
+        const lead = edit.insert.startsWith('\n') ? 1 : 0;
+        const tail = !lead && edit.insert.endsWith('\n') ? 1 : 0;
+        return { ...edit, select: { from: edit.from + lead, to: edit.from + edit.insert.length - tail } };
+    }
+    const srcText = src.slice(srcFrom, Math.max(srcFrom, srcTo - 1));
+    const destText = dest.slice(destFrom, Math.max(destFrom, destTo - 1));
+    const body = srcFirst ? `${srcText}\n${destText}` : `${destText}\n${srcText}`;
+    return {
+        from: destFrom,
+        to: Math.min(dest.length, destTo),
+        insert: destTo <= dest.length ? `${body}\n` : body,
+        select: { from: destFrom, to: destFrom + body.length },
+    };
+}
+
 /** Comparison key for a line when whitespace is ignored. */
 export function whitespaceKey(line) {
     return String(line).replace(/\s+/g, ' ').trim();
-}
-
-function lineStarts(lines) {
-    const starts = new Array(lines.length);
-    let pos = 0;
-    for (let i = 0; i < lines.length; i++) {
-        starts[i] = pos;
-        pos += lines[i].length + 1;
-    }
-    return starts;
-}
-
-/**
- * A line diff that treats lines differing only in whitespace as equal, as
- * character ranges `{ fromA, toA, fromB, toB }` — the shape @codemirror/merge's
- * `diffConfig.override` returns.
- *
- * Whole lines, each range from the start of its first line to the start of the
- * line after its last. A block that runs to the end of both documents also
- * takes the line break before it, since the last line has none of its own.
- */
-export function whitespaceInsensitiveChanges(a, b) {
-    const linesA = a.split('\n');
-    const linesB = b.split('\n');
-    const parts = Diff.diffArrays(linesA, linesB, {
-        comparator: (x, y) => whitespaceKey(x) === whitespaceKey(y),
-    });
-
-    const blocks = [];
-    let i = 0;
-    let j = 0;
-    let open = null;
-    for (const part of parts) {
-        const n = part.count ?? part.value.length;
-        if (part.added || part.removed) {
-            if (!open) open = { fromA: i, toA: i, fromB: j, toB: j };
-            if (part.added) { j += n; open.toB = j; } else { i += n; open.toA = i; }
-        } else {
-            if (open) { blocks.push(open); open = null; }
-            i += n;
-            j += n;
-        }
-    }
-    if (open) blocks.push(open);
-
-    const startsA = lineStarts(linesA);
-    const startsB = lineStarts(linesB);
-    const at = (starts, text, lineIndex) => (lineIndex < starts.length ? starts[lineIndex] : text.length);
-
-    return blocks.map((blk) => {
-        let fromA = at(startsA, a, blk.fromA);
-        let fromB = at(startsB, b, blk.fromB);
-        const toA = at(startsA, a, blk.toA);
-        const toB = at(startsB, b, blk.toB);
-        const atEnd = blk.toA === linesA.length && blk.toB === linesB.length;
-        if (atEnd && blk.fromA > 0 && blk.fromB > 0) {
-            fromA -= 1;
-            fromB -= 1;
-        }
-        return { fromA, toA, fromB, toB };
-    });
 }

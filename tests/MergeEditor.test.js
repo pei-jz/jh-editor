@@ -65,6 +65,11 @@ describe('mergeKeyAction', () => {
         expect(mergeKeyAction(key('ArrowRight', { altKey: true, shiftKey: true }))).toBe('copy-right');
     });
 
+    it('opens the merge choices on Alt+M and sets a sync point on Alt+S', () => {
+        expect(mergeKeyAction(key('m', { altKey: true }))).toBe('merge-menu');
+        expect(mergeKeyAction(key('S', { altKey: true }))).toBe('sync-point');
+    });
+
     it('keeps Alt+Up / Alt+Down, Alt+I and Alt+W', () => {
         expect(mergeKeyAction(key('ArrowUp', { altKey: true }))).toBe('prev-change');
         expect(mergeKeyAction(key('ArrowDown', { altKey: true }))).toBe('next-change');
@@ -98,7 +103,7 @@ describe('MergeEditor', () => {
 
     it('offers copy buttons only toward the writable side', () => {
         open(readOnly('a\n'), writable('b\n'));
-        const buttons = [...editor._renderCopyControl().querySelectorAll('button')];
+        const buttons = [...editor._renderCopyControl().querySelectorAll('.merge-copy-btn')];
         expect(buttons.map((b) => b.dataset.toward)).toEqual(['right']);
     });
 
@@ -131,7 +136,7 @@ describe('MergeEditor', () => {
     it('copies both ways when both sides are writable', async () => {
         const { file } = open(writable('a\nb\n'), writable('a\nB\n'));
         await tick();
-        const buttons = [...editor._renderCopyControl().querySelectorAll('button')];
+        const buttons = [...editor._renderCopyControl().querySelectorAll('.merge-copy-btn')];
         expect(buttons.map((b) => b.dataset.toward)).toEqual(['left', 'right']);
 
         expect(editor.copyChunk(0, 'left')).toBe(true);
@@ -170,7 +175,11 @@ describe('MergeEditor', () => {
         expect(editor.mergeView.chunks).toHaveLength(1);
         editor.toggleIgnoreWhitespace();
         await tick();
-        expect(editor.mergeView.chunks).toHaveLength(0);
+        // Kept as a chunk for the alignment, but not a change.
+        expect(editor.mergeView.chunks.map((c) => c.kind)).toEqual(['ws']);
+        expect(host.querySelector('.diff-sum-none')).not.toBeNull();
+        expect(editor.navigateInline(1)).toBe(false);
+        expect(editor.copyAll('right')).toBe(false);
         expect(file.merge.left.text).toBe('a\n  b\n');
     });
 
@@ -293,5 +302,210 @@ describe('MergeEditor current change', () => {
         expect(editor.runKeyAction('copy-right')).toBe(true);
         await tick();
         expect(file.merge.right.text).toBe('one\ntwo\n');
+    });
+});
+
+describe('MergeEditor kinds of change', () => {
+    const both = (left, right) => open(
+        { label: 'L', text: left, writable: true, target: { kind: 'custom', save } },
+        writable(right),
+    );
+
+    it('marks lines only on the left, only on the right, and conflicts differently', async () => {
+        open(readOnly('k\ngone\nk2\nold\nend\n'), writable('k\nk2\nnew\nend\nadded\n'));
+        await tick();
+        expect(editor.mergeView.chunks.map((c) => c.kind)).toEqual(['left', 'both', 'right']);
+        const a = editor.mergeView.a.dom;
+        const b = editor.mergeView.b.dom;
+        expect(a.querySelector('.cm-merge-kind-left').textContent).toBe('gone');
+        expect(a.querySelector('.cm-merge-kind-both').textContent).toBe('old');
+        expect(b.querySelector('.cm-merge-kind-both').textContent).toBe('new');
+        expect(b.querySelector('.cm-merge-kind-right').textContent).toBe('added');
+        const chips = [...host.querySelectorAll('.diff-sum-kind')].map((c) => c.className);
+        expect(chips).toEqual(['diff-sum-kind is-left', 'diff-sum-kind is-right', 'diff-sum-kind is-both']);
+    });
+
+    it('pads the side that is behind, so paired lines face each other', async () => {
+        open(readOnly('top\nfoo(a, b);\nlet x = 1;\nend\n'),
+            writable('top\nfoo(a, c);\nsomething else entirely\nlet x = 2;\nend\n'));
+        await tick();
+        const pads = editor.mergeView.a.dom.querySelectorAll('.cm-merge-pad');
+        expect(pads).toHaveLength(1);
+        // One line's worth: "something else entirely" has no partner on the left.
+        expect(pads[0].querySelectorAll('.cm-merge-pad-line')).toHaveLength(1);
+        expect(editor.mergeView.b.dom.querySelectorAll('.cm-merge-pad')).toHaveLength(0);
+    });
+
+    it('keeps both versions of a conflict, in the order asked, selected for editing', async () => {
+        const { file } = both('a\nL\nz\n', 'a\nR\nz\n');
+        await tick();
+        expect(editor.combineChunk(0, 'right', 'left-first')).toBe(true);
+        await tick();
+        expect(file.merge.right.text).toBe('a\nL\nR\nz\n');
+        expect(selected(editor.mergeView.b)).toBe('L\nR');
+
+        editor.undo();
+        await tick();
+        expect(editor.combineChunk(0, 'left', 'left-first')).toBe(true);
+        await tick();
+        expect(file.merge.left.text).toBe('a\nL\nR\nz\n');
+    });
+
+    it('offers keep-both only for a conflict, and only toward writable sides', async () => {
+        open(readOnly('a\nL\nz\n'), writable('a\nR\nz\nextra\n'));
+        await tick();
+        expect(editor.openMergeMenu(0)).toBe(true);
+        const items = () => [...host.querySelectorAll('.merge-menu-item')].map((b) => b.textContent);
+        expect(items()).toEqual(['Use the left version', 'Keep both: left, then right', 'Keep both: right, then left']);
+        host.querySelectorAll('.merge-menu-item')[2].click();
+        await tick();
+        expect(host.querySelector('.merge-menu')).toBeNull();
+        expect(editor.file.merge.right.text).toBe('a\nR\nL\nz\nextra\n');
+
+        // An addition has no "both".
+        expect(editor.openMergeMenu(editor.mergeView.chunks.length - 1)).toBe(true);
+        expect(items()).toEqual(['Use the left version']);
+        editor.closeMergeMenu();
+    });
+
+    it('steps over lines with no partner as one inline change, without the line break', async () => {
+        open(readOnly('a\nc\n'), writable('a\nb1\nb2\nc\n'));
+        await tick();
+        editor.navigateInline(1);
+        expect(selected(editor.mergeView.b)).toBe('b1\nb2');
+    });
+});
+
+describe('MergeEditor line details', () => {
+    const rows = () => [...host.querySelectorAll('.merge-details-row')];
+    const cursorOn = (view, n, ch = 0) => view.dispatch({ selection: { anchor: view.state.doc.line(n).from + ch } });
+
+    it('toggles with Alt+D and remembers the choice', async () => {
+        expect(mergeKeyAction({ key: 'd', altKey: true, shiftKey: false, ctrlKey: false, metaKey: false })).toBe('toggle-details');
+        open(readOnly('a\n'), writable('b\n'));
+        await tick();
+        expect(host.querySelector('.merge-details').hidden).toBe(true);
+        editor.runKeyAction('toggle-details');
+        expect(host.querySelector('.merge-details').hidden).toBe(false);
+        expect(localStorage.getItem('diff_showDetails')).toBe('true');
+    });
+
+    it('shows the cursor line above the line it faces, with the changed words marked', async () => {
+        localStorage.setItem('diff_showDetails', 'true');
+        open(readOnly('top\nconst value = compute(alpha, beta);\nend\n'),
+            writable('top\nconst value = compute(alpha, gamma);\nend\n'));
+        await tick();
+        cursorOn(editor.mergeView.b, 2);
+        await tick();
+        const [left, right] = rows();
+        expect(left.querySelector('.merge-details-label').textContent).toContain('2');
+        expect(left.querySelector('.merge-details-text').textContent).toBe('const value = compute(alpha, beta);');
+        expect(left.querySelector('.merge-details-chg').textContent).toBe('beta');
+        expect(right.querySelector('.merge-details-chg').textContent).toBe('gamma');
+        expect(right.classList.contains('is-cursor')).toBe(true);
+    });
+
+    it('follows the word being looked at with Alt+Right', async () => {
+        localStorage.setItem('diff_showDetails', 'true');
+        open(readOnly('a b c\n'), writable('A b C\n'));
+        await tick();
+        editor.navigateInline(1);
+        editor.navigateInline(1);
+        await tick();
+        expect(rows()[1].querySelector('.merge-details-chg.is-current').textContent).toBe('C');
+    });
+
+    it('says when the other side has no such line, and when nothing differs', async () => {
+        localStorage.setItem('diff_showDetails', 'true');
+        open(readOnly('a\nc\n'), writable('a\nnew\nc\n'));
+        await tick();
+        cursorOn(editor.mergeView.b, 2);
+        await tick();
+        expect(rows()[0].querySelector('.merge-details-text').classList.contains('is-missing')).toBe(true);
+        expect(host.querySelector('.merge-details').dataset.kind).toBe('right');
+        cursorOn(editor.mergeView.b, 3);
+        await tick();
+        expect(host.querySelector('.merge-details').dataset.kind).toBe('same');
+        // An unchanged line is matched by counting past the change: c faces c.
+        expect(rows()[0].querySelector('.merge-details-label').textContent).toContain('2');
+        expect(rows()[1].querySelector('.merge-details-label').textContent).toContain('3');
+    });
+
+    it('marks where text only the other side has goes', async () => {
+        localStorage.setItem('diff_showDetails', 'true');
+        open(readOnly('call(a);\n'), writable('call(a, b);\n'));
+        await tick();
+        cursorOn(editor.mergeView.a, 1);
+        await tick();
+        expect(rows()[0].querySelector('.merge-details-ins')).not.toBeNull();
+        expect(rows()[1].querySelector('.merge-details-chg').textContent).toBe(', b');
+    });
+});
+
+describe('MergeEditor with whitespace ignored', () => {
+    it('steps over whitespace-only chunks, counts only real changes, and copies only those', async () => {
+        localStorage.setItem('diff_ignoreWhitespace', 'true');
+        const { file } = open(readOnly('a\n  b\nc\nd\n'), writable('a\nb\nc\nD\n'));
+        await tick();
+        expect(editor.mergeView.chunks.map((c) => c.kind)).toEqual(['ws', 'both']);
+        expect(host.querySelector('.diff-sum-blocks').textContent).toContain('1');
+        editor.navigate(1);
+        await tick();
+        // Landed on "D", not on the indentation-only line.
+        expect(editor.mergeView.b.state.doc.lineAt(editor.mergeView.b.state.selection.main.head).text).toBe('D');
+        expect(editor.navLabel.textContent).toContain('1');
+        expect(editor.copyAll('right')).toBe(true);
+        await tick();
+        // The real change came across; the indentation stayed the right side's.
+        expect(file.merge.right.text).toBe('a\nb\nc\nd\n');
+    });
+
+    it('shows no whitespace-only chunks in the unified view', async () => {
+        localStorage.setItem('diff_ignoreWhitespace', 'true');
+        open(readOnly('a\n  b\nc\n'), writable('a\nb\nc\n'));
+        await tick();
+        editor.toggleViewMode();
+        await tick();
+        expect(editor._chunks()).toHaveLength(0);
+    });
+});
+
+describe('MergeEditor sync points', () => {
+    const cursorOnLine = (view, n) => view.dispatch({ selection: { anchor: view.state.doc.line(n).from } });
+
+    it('lines up the two cursor lines, survives edits, and can be cleared', async () => {
+        const { file } = open(readOnly('x\nshared\ny\n'), writable('shared\np\nq\n'));
+        await tick();
+        expect(editor.mergeView.chunks.some((c) => c.kind === 'left')).toBe(true);
+
+        cursorOnLine(editor.mergeView.a, 1);
+        cursorOnLine(editor.mergeView.b, 3);
+        expect(editor.runKeyAction('sync-point')).toBe(true);
+        await tick();
+        expect(file.merge.anchors).toEqual([{ a: 0, b: 9 }]);
+        expect(editor.mergeView.chunks.every((c) => c.fromA === 0)).toBe(true);
+        expect(editor.mergeView.a.dom.querySelector('.cm-merge-sync').textContent).toBe('x');
+        expect(editor.mergeView.b.dom.querySelector('.cm-merge-sync').textContent).toBe('q');
+        // Recomputing is not an edit: nothing to undo, nothing unsaved.
+        expect(file.isDirty).toBe(false);
+
+        // Typing above the point keeps it on its line.
+        editor.mergeView.b.dispatch({ changes: { from: 0, insert: 'new\n' } });
+        await tick();
+        expect(file.merge.anchors).toEqual([{ a: 0, b: 13 }]);
+
+        editor.clearSyncPoints();
+        await tick();
+        expect(file.merge.anchors).toEqual([]);
+        expect(host.querySelector('.cm-merge-sync')).toBeNull();
+    });
+
+    it('removes a sync point when set again on the same lines', async () => {
+        const { file } = open(readOnly('a\nb\n'), writable('c\nd\n'));
+        await tick();
+        editor.toggleSyncPoint();
+        expect(file.merge.anchors).toHaveLength(1);
+        editor.toggleSyncPoint();
+        expect(file.merge.anchors).toHaveLength(0);
     });
 });
