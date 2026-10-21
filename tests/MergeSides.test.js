@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     makeSide, sideDirty, mergeDirty, canCopyToward, blockCopyEdit, applyBlockCopy,
-    whitespaceInsensitiveChanges,
+    blockCombineEdit,
 } from '../src/modules/utils/MergeSides.js';
 
 describe('MergeSides: sides', () => {
@@ -71,26 +71,35 @@ describe('MergeSides: copying a block', () => {
     });
 });
 
-describe('MergeSides: ignoring whitespace', () => {
-    it('reports no change when lines differ only in whitespace', () => {
-        expect(whitespaceInsensitiveChanges('a\n  b\t\nc', 'a\nb\n c')).toEqual([]);
+describe('MergeSides: a file whose last line has no line break', () => {
+    // Ranges as utils/LineDiff.js reports them: the side without lines sits
+    // at the very end, after the last character.
+    it('adds lines after that last line with a break in front of them', () => {
+        expect(applyBlockCopy('x\ny', 'x', 2, 4, 1, 1)).toBe('x\ny');
     });
 
-    it('still reports a real change, as whole-line character ranges', () => {
-        expect(whitespaceInsensitiveChanges('a\nb\nc', 'a\nB\nc'))
-            .toEqual([{ fromA: 2, toA: 4, fromB: 2, toB: 4 }]);
+    it('removes lines at the end together with the break before them', () => {
+        expect(applyBlockCopy('x', 'x\ny', 1, 1, 2, 4)).toBe('x');
+    });
+});
+
+describe('MergeSides: keeping both versions', () => {
+    const apply = (dest, e) => dest.slice(0, e.from) + e.insert + dest.slice(e.to);
+
+    it('puts the destination first, or the source first', () => {
+        const left = 'a\nL1\nL2\nz\n';
+        const right = 'a\nR\nz\n';
+        // Into the right: the source is the left block (2..8), the destination 2..4.
+        expect(apply(right, blockCombineEdit(left, right, 2, 8, 2, 4, false))).toBe('a\nR\nL1\nL2\nz\n');
+        const first = blockCombineEdit(left, right, 2, 8, 2, 4, true);
+        const text = apply(right, first);
+        expect(text).toBe('a\nL1\nL2\nR\nz\n');
+        // What is selected afterwards is the combined block, for editing.
+        expect(text.slice(first.select.from, first.select.to)).toBe('L1\nL2\nR');
     });
 
-    it('takes the line break before a change at the very end', () => {
-        const a = 'x\n  keep\ny';
-        const b = 'x\nkeep\nY';
-        const [c] = whitespaceInsensitiveChanges(a, b);
-        expect(a.slice(c.fromA, c.toA)).toBe('\ny');
-        expect(b.slice(c.fromB, c.toB)).toBe('\nY');
-    });
-
-    it('handles lines added on one side only', () => {
-        const [c] = whitespaceInsensitiveChanges('a\nc', 'a\nb\nc');
-        expect(c).toEqual({ fromA: 2, toA: 2, fromB: 2, toB: 4 });
+    it('keeps the line count right at the end of a file without a final break', () => {
+        const e = blockCombineEdit('a\nL', 'a\nR', 2, 4, 2, 4, true);
+        expect(apply('a\nR', e)).toBe('a\nL\nR');
     });
 });
