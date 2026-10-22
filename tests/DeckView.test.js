@@ -640,3 +640,76 @@ describe('DeckView — map documents', () => {
         }
     });
 });
+
+describe('DeckHostKeys — Esc / F5 for decks whose engine predates the editor hand-off', async () => {
+    const { withHostKeys } = await import('../src/modules/utils/DeckHostKeys.js');
+    const NEW_ENGINE = DECK.replace('/* engine */', "postHost({ type: 'present-exit' });");
+
+    /** The shim, run inside a real child frame so window.parent is the test window. */
+    function frameWithShim() {
+        const html = withHostKeys(DECK);
+        const code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+        const iframe = document.createElement('iframe');
+        document.body.appendChild(iframe);
+        const w = iframe.contentWindow;
+        w.eval(code);
+        const engineKeys = vi.fn();
+        w.document.addEventListener('keydown', engineKeys);
+        // jsdom gives the frame its own handle on the parent window, not the test's `window`
+        const toHost = vi.spyOn(w.parent, 'postMessage').mockImplementation(() => {});
+        const press = (key, init = {}) => {
+            const ev = new w.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+            w.document.body.dispatchEvent(ev);
+            return ev;
+        };
+        const hostSays = (data) => w.dispatchEvent(new w.MessageEvent('message', { data: { jhdeck: DeckEdit.PROTOCOL, ...data }, source: w.parent }));
+        return { iframe, w, engineKeys, toHost, press, hostSays };
+    }
+
+    it('is added to an old deck, ahead of its engine, and left out of a deck that already hands the keys over', () => {
+        const old = withHostKeys(DECK);
+        expect(old).toContain("tell('present-exit')");
+        expect(old.indexOf("tell('present-exit')")).toBeLessThan(old.indexOf('/* engine */'));
+        expect(withHostKeys(NEW_ENGINE)).toBe(NEW_ENGINE);
+    });
+
+    it('stops F5 reloading the editor and asks the editor to present instead', () => {
+        const f = frameWithShim();
+        try {
+            const ev = f.press('F5');
+            expect(ev.defaultPrevented).toBe(true);
+            expect(f.engineKeys).not.toHaveBeenCalled();
+            expect(f.toHost).toHaveBeenCalledWith({ jhdeck: DeckEdit.PROTOCOL, type: 'present' }, '*');
+            expect(f.press('r', { ctrlKey: true }).defaultPrevented).toBe(true);
+        } finally { f.toHost.mockRestore(); f.iframe.remove(); }
+    });
+
+    it('turns Esc into "end the presentation" only while presenting', () => {
+        const f = frameWithShim();
+        try {
+            f.press('Escape');
+            expect(f.engineKeys).toHaveBeenCalledTimes(1); // not presenting: the deck keeps its own Esc
+            f.hostSays({ type: 'present', on: true });
+            const ev = f.press('Escape');
+            expect(ev.defaultPrevented).toBe(true);
+            expect(f.engineKeys).toHaveBeenCalledTimes(1);
+            expect(f.toHost).toHaveBeenCalledWith({ jhdeck: DeckEdit.PROTOCOL, type: 'present-exit' }, '*');
+        } finally { f.toHost.mockRestore(); f.iframe.remove(); }
+    });
+
+    it('leaves Esc to the deck while its overview is open or a box is being edited', () => {
+        const f = frameWithShim();
+        try {
+            f.hostSays({ type: 'present', on: true });
+            const overview = f.w.document.createElement('div');
+            overview.className = 'deck-overview';
+            f.w.document.body.appendChild(overview);
+            f.press('Escape');
+            overview.remove();
+            f.w.document.body.classList.add('deck-editing');
+            f.press('Escape');
+            expect(f.engineKeys).toHaveBeenCalledTimes(2);
+            expect(f.toHost).not.toHaveBeenCalled();
+        } finally { f.toHost.mockRestore(); f.iframe.remove(); }
+    });
+});
