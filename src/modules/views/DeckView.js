@@ -11,6 +11,7 @@ import {
     recordDeckEdit, undoDeckEdit, slideIndexAt,
     buildSlideRequest, applySlidesReply, remapByIndex,
 } from '../utils/DeckHost.js';
+import { withHostKeys } from '../utils/DeckHostKeys.js';
 
 /** クリップボードへ (Tauri の WebView で navigator.clipboard が使えないときはプラグインで) */
 async function copyText(text) {
@@ -632,7 +633,7 @@ export class DeckView extends BaseView {
         this.ready = false;
         this.editable = false;
         this._syncEditButton();
-        this.frame.srcdoc = buildPreviewDocument(this.file.content, this.file.path);
+        this.frame.srcdoc = buildPreviewDocument(withHostKeys(this.file.content), this.file.path);
     }
 
     /** マップ文書か (ソースの meta で決める。ソース表示で書き換えられても読み込みのたびに合わせる) */

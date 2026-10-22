@@ -14,6 +14,7 @@ import { emitTo } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildPreviewDocument } from './modules/ui/HtmlPreview.js';
 import { DeckEdit, applyAudienceMessage } from './modules/utils/DeckAudience.js';
+import { withHostKeys } from './modules/utils/DeckHostKeys.js';
 
 const win = getCurrentWebviewWindow();
 const frame = document.getElementById('deck');
@@ -33,7 +34,7 @@ async function start() {
         win.listen('deck-audience:load', ({ payload }) => {
             ready = false;
             pending = { index: payload.index || 0, step: payload.step || 0 };
-            frame.srcdoc = buildPreviewDocument(payload.content, payload.path);
+            frame.srcdoc = buildPreviewDocument(withHostKeys(payload.content), payload.path);
         }),
         win.listen('deck-audience:goto', ({ payload }) => {
             if (ready) post({ type: 'goto', index: payload.index, step: payload.step });
