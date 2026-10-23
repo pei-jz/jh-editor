@@ -43,10 +43,10 @@ export const THEMES = [
     { id: 'solarized-dark', label: 'Solarized Dark', dark: true, bootBg: '#002b36' },
     { id: 'solarized-light', label: 'Solarized Light', dark: false, bootBg: '#fdf6e3' },
     { id: 'paper', label: 'Paper', dark: false, bootBg: '#e7dab9' },
-    { id: 'paper-dark', label: 'Paper Dark', dark: true, bootBg: '#2a2621' },
+    { id: 'paper-dark', label: 'Paper Dark', dark: true, bootBg: '#221a13' },
     { id: 'bamboo-ancient', label: 'Bamboo Slip', dark: true, bootBg: '#2f2518' },
     { id: 'sumi-e', label: 'Ink Brush', dark: false, bootBg: '#ece8df' },
-    { id: 'sumi-e-dark', label: 'Ink Brush Dark', dark: true, bootBg: '#26282d' },
+    { id: 'sumi-e-dark', label: 'Ink Brush Dark', dark: true, bootBg: '#0f0f0f' },
     { id: 'nord', label: 'Nord', dark: true, bootBg: '#3b4252' },
     // Hanging Scroll is deliberately NOT dark: its mounting is indigo, but the
     // sheet you actually read is moon-white silk, so code, diagrams and

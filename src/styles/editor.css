@@ -1761,6 +1761,10 @@ body.theme-solarized-light .md-view-mode-toggle {
    line up in one only line up in a fixed pitch. */
 .stf__page.plain-text-page {
     font-family: var(--editor-font-family);
+    /* The editor's size and line pitch, not prose's: CodeMirrorView splits
+       this book into pages by counting lines of --editor-line-height-px. */
+    font-size: var(--editor-font-size) !important;
+    line-height: var(--editor-line-height-px, 22px) !important;
     padding: 15px 5px !important;
 }
 
@@ -1978,6 +1982,8 @@ body.theme-solarized-light .md-view-mode-toggle {
    prose and stays in a fixed pitch. */
 .md-body {
     font-family: var(--font-body);
+    font-size: var(--prose-font-size);
+    line-height: var(--prose-line-height);
 }
 
 /* Prevent shadows from blocking selection or clicks */
@@ -1988,10 +1994,10 @@ body.theme-solarized-light .md-view-mode-toggle {
     pointer-events: none !important;
 }
 
-/* Match editor font setting dynamically */
+/* Prose size: follows the editor setting a step up (see --prose-font-size). */
 .stf__page {
-    font-size: var(--editor-font-size) !important;
-    line-height: var(--editor-line-height-px, 22px) !important;
+    font-size: var(--prose-font-size) !important;
+    line-height: var(--prose-line-height) !important;
 }
 
 /* Horizontal scrollbar for long lines */

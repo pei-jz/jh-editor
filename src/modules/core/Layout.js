@@ -2,6 +2,7 @@ import { EL } from './Constants.js';
 import { State } from './Store.js';
 import { applyTheme } from '../ui/SettingsModal.js';
 import { DEFAULT_THEME } from '../utils/Themes.js';
+import { applyProseFont, getProseFont, applyProseSize, getProseSize, stepProseSize } from '../utils/ProseFont.js';
 
 /**
  * Show or hide the explorer.
@@ -39,6 +40,18 @@ export function initLayout() {
     window.addEventListener('wheel', (e) => {
         if (e.ctrlKey) {
             e.preventDefault();
+            // Over a rendered document the wheel sizes the document, not the
+            // code: the two are separate settings, and stepping the code size
+            // could never take a document below its automatic 15px floor.
+            // The plain-text book is code-sized and stays with the editor.
+            const t = e.target instanceof Element ? e.target : null;
+            if (t && t.closest('.md-body, .markdown-mode') && !t.closest('.plain-text-page')) {
+                const pt = stepProseSize(e.deltaY < 0 ? 0.5 : -0.5);
+                const input = document.getElementById('prose-size-input');
+                if (input) input.value = String(pt);
+                window.dispatchEvent(new CustomEvent('fontSettingsChanged', { detail: { proseSize: pt } }));
+                return;
+            }
             const currentSize = parseFloat(localStorage.getItem('settings_fontSize')) || 11.5;
             let newSize = currentSize;
             if (e.deltaY < 0) {
@@ -122,6 +135,10 @@ function loadSettings() {
     const sizePx = sizePt * 1.33333;
     const lineHeightPx = Math.round(sizePx * 1.5);
     document.documentElement.style.setProperty('--editor-line-height-px', `${lineHeightPx}px`);
+
+    // Document (Markdown) font
+    applyProseFont(getProseFont());
+    applyProseSize(getProseSize());
 }
 
 export function saveFontSize(size) {

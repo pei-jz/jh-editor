@@ -265,6 +265,9 @@ export class MarkdownView extends BaseView {
             // owns this pane may repaginate; focus can be in the other pane.
             const owner = this.container.__mdViewOwner;
             if (!this.container.isConnected || !owner || owner.deref() !== this) return;
+            // Block heights were measured at the old size; the cache is keyed
+            // on page width only, so it has to go when the type changes.
+            this._blockHeightCache = null;
             if (State.markdownViewMode === 'book') {
                 if (this.file) {
                     this.render(this.file.content, this.file);

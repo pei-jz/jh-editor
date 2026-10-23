@@ -41,9 +41,32 @@ describe('prose is set in a reading font', () => {
         const value = decl.slice(0, decl.indexOf(';'));
         expect(value).not.toContain('--font-mono');
         expect(value).not.toContain('--font-main');
-        // Latin first, Japanese after: the serifs below carry no kana, so the
-        // Japanese runs fall through to the mincho on their own.
-        expect(value).toMatch(/Mincho|明朝/);
+        // A screen-hinted gothic by default. Mincho at reading sizes on a
+        // 100%-scaled screen antialiased to grey: measured in the app, its ink
+        // averaged luminance 170 where Meiryo's averaged 137.
+        expect(value).toMatch(/Meiryo/);
+        expect(value).not.toMatch(/Mincho|明朝/);
+    });
+
+    it('sets prose in the same face on every theme, paper and ink included', () => {
+        // The paper themes once overrode it with a mincho: ClearType's colour
+        // fringe on its hairline horizontals read as a shadow on every stroke.
+        const decls = themes.match(/--font-body:[^;]*/g);
+        for (const d of decls) expect(d).not.toMatch(/Mincho|明朝/);
+    });
+
+    it('sets one prose size for both reading modes, a step above the code size', () => {
+        // Scroll mode took the 10pt UI size and book mode the editor's, so one
+        // document read at two sizes.
+        expect(themes).toMatch(/--prose-font-size:\s*max\(calc\(var\(--editor-font-size\)\s*\+[^,]+,\s*15px\)/);
+        const [scroll] = blocksFor(editor, '.md-body');
+        expect(scroll).toMatch(/font-size:\s*var\(--prose-font-size\)/);
+        const book = blocksFor(editor, '.stf__page').join('\n');
+        expect(book).toMatch(/font-size:\s*var\(--prose-font-size\)/);
+        // The plain-text book is paginated by counting editor lines.
+        const [plain] = blocksFor(editor, '.stf__page.plain-text-page');
+        expect(plain).toMatch(/font-size:\s*var\(--editor-font-size\)/);
+        expect(plain).toMatch(/line-height:\s*var\(--editor-line-height-px/);
     });
 
     it('uses it for the blocks, in both reading modes', () => {

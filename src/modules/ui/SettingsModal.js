@@ -20,6 +20,7 @@ import {
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
 import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
 import { syncNativeBackground } from '../utils/NativeBackground.js';
+import { getProseFont, setProseFont, getProseSize, setProseSize } from '../utils/ProseFont.js';
 import {
     globalTheme, setGlobalTheme, workspaceTheme, setWorkspaceTheme, effectiveTheme, noteAppliedTheme,
 } from '../utils/WorkspaceTheme.js';
@@ -448,6 +449,27 @@ export function initSettingsModal() {
         fontSizeInput.addEventListener('change', (e) => {
             const newSize = e.target.value;
             Layout.saveFontSize(newSize);
+        });
+    }
+
+    // Document (Markdown) font
+    const proseFontSelector = document.getElementById('prose-font-selector');
+    if (proseFontSelector) {
+        proseFontSelector.value = getProseFont();
+        proseFontSelector.addEventListener('change', (e) => {
+            proseFontSelector.value = setProseFont(e.target.value);
+        });
+    }
+    // Blank = automatic (follows the editor size, never below 15px).
+    const proseSizeInput = document.getElementById('prose-size-input');
+    if (proseSizeInput) {
+        const size = getProseSize();
+        proseSizeInput.value = size === null ? '' : String(size);
+        proseSizeInput.addEventListener('change', (e) => {
+            const stored = setProseSize(e.target.value);
+            proseSizeInput.value = stored === null ? '' : String(stored);
+            // Book mode repaginates on this, as it does for the editor size.
+            window.dispatchEvent(new CustomEvent('fontSettingsChanged', { detail: { proseSize: stored } }));
         });
     }
 

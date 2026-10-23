@@ -77,8 +77,8 @@
         if (theme === 'nord') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#3b4252; }';
         if (theme === 'kakejiku') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e8edf1; }';
         if (theme === 'kakejiku-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#232c3f; }';
-        if (theme === 'sumi-e-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#26282d; }';
-        if (theme === 'paper-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#2a2621; }';
+        if (theme === 'sumi-e-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#0f0f0f; }';
+        if (theme === 'paper-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#221a13; }';
       } else {
         document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ffffff; }';
       }
@@ -424,6 +424,25 @@
               <label data-i18n="Font Size (pt)">Font Size (pt)</label>
               <div style="width: 400px;">
                 <input type="number" id="font-size-input" min="6" max="32" value="11.5" step="0.5" style="width: 100%; padding: 5px;">
+              </div>
+            </div>
+            <div class="settings-option">
+              <label for="prose-font-selector" data-i18n="Document Font (Markdown)">Document Font (Markdown)</label>
+              <div style="width: 400px;">
+                <select id="prose-font-selector" style="width: 100%; padding: 5px;">
+                  <option value="meiryo" data-i18n="Default (Meiryo)">Default (Meiryo)</option>
+                  <option value="yu-gothic" data-i18n="Yu Gothic">Yu Gothic</option>
+                  <option value="biz-ud-gothic" data-i18n="BIZ UD Gothic">BIZ UD Gothic</option>
+                  <option value="ud-kyokasho" data-i18n="UD Digital Textbook">UD Digital Textbook</option>
+                  <option value="mincho" data-i18n="Mincho">Mincho</option>
+                </select>
+              </div>
+            </div>
+            <div class="settings-option">
+              <label for="prose-size-input" data-i18n="Document Font Size (pt)">Document Font Size (pt)</label>
+              <div style="width: 400px;">
+                <input type="number" id="prose-size-input" min="6" max="32" step="0.5" style="width: 100%; padding: 5px;"
+                       placeholder="Automatic (editor size + 1.5, at least 15px)" data-i18n-placeholder="Automatic (editor size + 1.5, at least 15px)">
               </div>
             </div>
             <div class="settings-option">

@@ -2,10 +2,15 @@
 :root {
     --bg-color: #ffffff;
     /* NOTE: --border-color set below; kept translucent for a softer, refined look */
-    --sidebar-bg: #ffffff;
+    --sidebar-bg: #f7f8fa;   /* a step off the page, so the file list reads as its own pane */
     --header-bg: #f1f3f5;
     --border-color: rgba(0, 0, 0, 0.09);
-    --text-color: #343a40;
+    /* Was #343a40. 11.5:1 on paper, but text is strokes, not a fill: measured
+       on screen at 100% scaling, the ink of 12-13px CJK averaged luminance
+       ~170 of 255 and only 0.5% of its pixels reached the declared colour —
+       it read as grey. #1f2328 (GitHub's body ink) puts the cores of the
+       strokes where the eye expects black without going to pure #000. */
+    --text-color: #1f2328;
     /* Calmer than the Bootstrap blue this used to be (#0d6efd, S98%).
        Everything around it sits at S10-17%, so an accent at near-maximum
        saturation reads as shouting rather than as emphasis — and 130 rules
@@ -47,23 +52,49 @@
        しないと 1 文字ずつのフォールバックになり、Windows では簡体字
        が SimSun (宋体) に落ちて UI の大きさでは粗く見える。漢字は
        日中韓で共有されるため、先に並べた面が全部取る。だから言語
-       ごとに分ける必要があり、下の :lang() がそれを担う。 */
-    --font-main: system-ui, -apple-system, BlinkMacSystemFont,
+       ごとに分ける必要があり、下の :lang() がそれを担う。
+       system-ui を先頭に置くと、日本語の Windows ではかなも漢字も
+       游ゴシック UI が取る。線が細く字幅も詰まっていて、等倍表示では
+       薄く、字が重なって見えた。実測ではメイリオの方が一段濃い。
+       system-ui は Mac 以外の受け皿として末尾に残す。 */
+    --font-main: -apple-system, BlinkMacSystemFont,
         "Segoe WPC", "Segoe UI", "Helvetica Neue",
-        "Yu Gothic UI", "Meiryo", "Hiragino Sans",
-        sans-serif;
+        "Meiryo", "メイリオ", "Hiragino Sans", "Yu Gothic UI",
+        system-ui, sans-serif;
     --font-mono: 'HackGen Console', 'HackGen', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Hack', 'Consolas', 'BIZ UDGothic', 'BIZ UDゴシック', monospace;
 
     /* Prose. Not --font-main (that is the chrome) and emphatically not
        --font-mono, which is what rendered Markdown used to inherit in book
        mode: a document set in the code font reads as a listing of itself.
-       Latin faces first and Japanese after, because the serifs below carry no
-       kana or kanji — the Latin runs take the first stack, the Japanese runs
-       fall through to the mincho. Code keeps --font-mono: every pre and code
-       rule names it outright. */
-    --font-body: 'Charter', 'Iowan Old Style', 'Source Serif 4', 'Georgia',
-        'BIZ UDPMincho', 'BIZ UDP明朝', 'Yu Mincho', '游明朝',
-        'Hiragino Mincho ProN', 'Noto Serif JP', serif;
+
+       A gothic, not the mincho this used to be. Mincho horizontals are thinner
+       than a device pixel at reading sizes, so on a 100%-scaled Windows screen
+       they antialias to a wash: measured in the app at 12.7px, mincho ink
+       averaged luminance 170, Meiryo 137 with three times the pixels at full
+       ink; Yu Gothic UI (147) and BIZ UDPGothic (162) sat between. Meiryo is
+       hinted for the screen and the others are not.
+
+       The paper and ink themes kept the mincho for a while and showed why
+       not: ClearType's colour fringe is as wide as a mincho horizontal, so
+       the strokes looked shadowed, and the Latin runs (Georgia) sat heavier
+       than the kana beside them. Those themes carry their character in the
+       surfaces and the chrome; prose, headings included, is Meiryo on all.
+
+       Latin first: Segoe UI carries no kana or kanji, so the Japanese runs fall
+       through to the gothic. :lang() below swaps the CJK face per language.
+       Code keeps --font-mono: every pre and code rule names it outright. */
+    --font-body: 'Segoe UI', 'Meiryo', 'メイリオ', 'Yu Gothic UI',
+        'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    /* Prose size, shared by both reading modes. Scroll mode used to take the
+       10pt UI size and book mode the code editor's size, so one document read
+       at two sizes. It follows the editor setting (and Ctrl+wheel zoom) but
+       sits a step above it: a size picked for a fixed-pitch code face is a
+       size too small for a page of text. Default 10.5pt -> 12pt (16px).
+       Never below 15px unless asked: a small code size (8.5pt) put documents at 13.3px,
+       where Claude's and Codex's viewers set the same README at ~16 / ~14.5.
+       A size set in Settings (ProseFont.js) replaces all of this, floor included. */
+    --prose-font-size: max(calc(var(--editor-font-size) + 1.5pt), 15px);
+    --prose-line-height: 1.7;
     --editor-font-family: var(--font-mono);
     --editor-font-size: 11.5pt;
 
@@ -74,12 +105,12 @@
 
     /* UI element colors */
     --gutter-color: #237893;
-    --tab-inactive-color: #6c757d;
+    --tab-inactive-color: #666e76;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(13, 110, 253, 0.1);
 
     /* Markdown Premium Styles */
-    --code-color: #d63384;
+    --code-color: #24292f;   /* was Bootstrap pink, 3.97:1 and loud; the grey box marks code */
     --code-bg: rgba(175, 184, 193, 0.2);
     --code-border: rgba(175, 184, 193, 0.4);
     --blockquote-bg: rgba(13, 110, 253, 0.05);
@@ -93,9 +124,9 @@
     --cm-selection-bg: rgba(51, 144, 255, 0.18);
 
     /* Git Status Colors */
-    --git-modified-color: #b07d2b; /* Darker orange for light mode readability */
-    --git-staged-color: #2ea043;
-    --git-untracked-color: #2ea043;
+    --git-modified-color: #936924; /* 4.5:1 on the file list */
+    --git-staged-color: #258136;
+    --git-untracked-color: #258136;
 }
 
 /* Defaults that are derived from another token belong on `body`, NOT on :root.
@@ -177,10 +208,10 @@ body.theme-dark {
 
     /* UI element colors */
     --gutter-color: #858585;
-    --tab-inactive-color: #858585;
+    --tab-inactive-color: #8e8e8e;
     --tree-item-color: #cccccc;
     --tree-item-active-bg: rgba(55, 148, 255, 0.12);
-    --text-secondary: #858585;
+    --text-secondary: #8e8e8e;
 
     /* Markdown Premium Styles */
     --code-color: #ff7b72;
@@ -244,10 +275,10 @@ body.theme-midnight {
 
     /* UI element colors */
     --gutter-color: #676e95;
-    --tab-inactive-color: #676e95;
+    --tab-inactive-color: #7c82a4;
     --tree-item-color: #a6accd;
     --tree-item-active-bg: rgba(199, 146, 234, 0.12);
-    --text-secondary: #676e95;
+    --text-secondary: #7c82a4;
 
     /* Markdown Premium Styles */
     --code-color: #ff92d0;
@@ -288,13 +319,13 @@ body.theme-latte {
 
     /* UI element colors */
     --gutter-color: #8c8fa1;
-    --tab-inactive-color: #8c8fa1;
+    --tab-inactive-color: #666876;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(234, 118, 203, 0.1);
-    --text-secondary: #8c8fa1;
+    --text-secondary: #666876;
 
     /* Markdown Premium Styles */
-    --code-color: #ea76cb;
+    --code-color: #984d84;   /* pink darkened to 4.5:1 */
     --code-bg: rgba(234, 118, 203, 0.1);
     --code-border: rgba(234, 118, 203, 0.25);
     --blockquote-bg: rgba(234, 118, 203, 0.08);
@@ -304,9 +335,9 @@ body.theme-latte {
     --selection-color: #000000;
 
     /* Git Status Colors */
-    --git-modified-color: #b07d2b;
-    --git-staged-color: #2ea043;
-    --git-untracked-color: #2ea043;
+    --git-modified-color: #896122;
+    --git-staged-color: #237832;
+    --git-untracked-color: #237832;
 }
 
 /* Solarized Dark Theme (Enhanced contrast) */
@@ -352,10 +383,10 @@ body.theme-solarized-dark {
 
     /* UI element colors */
     --gutter-color: #6d8a90;
-    --tab-inactive-color: #6d8a90;
+    --tab-inactive-color: #879fa4;
     --tree-item-color: #b0bec5;
     --tree-item-active-bg: rgba(38, 139, 210, 0.15);
-    --text-secondary: #6d8a90;
+    --text-secondary: #879fa4;
 
     /* Markdown Premium Styles */
     --code-color: #2aa198;
@@ -384,7 +415,7 @@ body.theme-solarized-light {
     --sidebar-bg: #eee8d5;
     --header-bg: #eee8d5;
     --border-color: rgba(0, 0, 0, 0.09);
-    --text-color: #657b83;
+    --text-color: #586e75;   /* base01 (was base00, 4.13:1) */
     --primary-color: #268bd2;
     /* White on this came to 3.68:1 where the accent is used as a
        fill. The palette already has a darkest ink; use that. */
@@ -402,7 +433,7 @@ body.theme-solarized-light {
     --hl-built-in: #2aa198;
     --hl-literal: #268bd2;
     --hl-string: #2aa198;
-    --hl-comment: #93a1a1;
+    --hl-comment: #657b83;   /* base00 (was base1, 2.5:1) */
     --hl-function: #b58900;
     --hl-variable: #586e75;
     --hl-number: #d33682;
@@ -411,10 +442,10 @@ body.theme-solarized-light {
 
     /* UI element colors */
     --gutter-color: #93a1a1;
-    --tab-inactive-color: #93a1a1;
+    --tab-inactive-color: #657b83;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(38, 139, 210, 0.1);
-    --text-secondary: #93a1a1;
+    --text-secondary: #657b83;
 
     /* Markdown Premium Styles */
     --code-color: #cb4b16;
@@ -427,9 +458,9 @@ body.theme-solarized-light {
     --selection-color: #000000;
 
     /* Git Status Colors */
-    --git-modified-color: #b58900; /* Solarized yellow */
-    --git-staged-color: #859900; /* Solarized green */
-    --git-untracked-color: #859900;
+    --git-modified-color: #846400; /* Solarized yellow, darkened to 4.5:1 */
+    --git-staged-color: #606e00; /* Solarized green, darkened */
+    --git-untracked-color: #606e00;
 }
 
 /* --- Dark Mode UI Elements (Buttons, Inputs, Checkboxes) --- */
@@ -580,7 +611,7 @@ body.theme-paper {
     --hl-built-in: #2f6f6a;       /* teal ink */
     --hl-literal: #a0304f;
     --hl-string: #5f7d4f;         /* green ink */
-    --hl-comment: #9a8f77;        /* pencil */
+    --hl-comment: #706857;        /* pencil, pressed harder (was 2.65:1) */
     --hl-function: #b5761f;       /* brown ink */
     --hl-variable: #35507a;       /* blue ink */
     --hl-number: #6b8fbf;
@@ -588,7 +619,7 @@ body.theme-paper {
 
     /* UI element colors */
     --gutter-color: #a5946b;
-    --tab-inactive-color: #8a7c5f;
+    --tab-inactive-color: #695e48;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(178, 58, 72, 0.10);
     --text-secondary: #6d6350;    /* pencil */
@@ -608,9 +639,9 @@ body.theme-paper {
     --cm-selection-bg: rgba(178, 58, 72, 0.18);
 
     /* Git Status Colors */
-    --git-modified-color: #c98a2e; /* amber ink */
-    --git-staged-color: #5f7d4f;   /* green ink */
-    --git-untracked-color: #5f7d4f;
+    --git-modified-color: #81581d; /* amber ink, 4.5:1 on the desk */
+    --git-staged-color: #4e6741;   /* green ink */
+    --git-untracked-color: #4e6741;
 
     /* Handwriting font (desk chrome only; code stays monospace below). */
     --font-hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
@@ -618,7 +649,7 @@ body.theme-paper {
     /* Paper decoration toggles: the ruled sheet, the red margin, the
        vignette. Set one to transparent to switch that decoration off. */
     --paper-chrome-font: var(--font-hand);
-    --paper-rule-color: rgba(90, 120, 170, 0.16);
+    --paper-rule-color: rgba(90, 120, 170, 0.08);   /* was 0.16: the lines competed with the ink */
     --paper-rule-size: 27px;
     --paper-margin-color: rgba(178, 58, 72, 0.45);
     --paper-vignette: rgba(120, 90, 40, 0.16);
@@ -763,16 +794,26 @@ body.theme-bamboo-ancient {
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     --bamboo-chrome-font: var(--font-textbook);
 
-    /* Bamboo fibre grain (faint fractal noise). */
-    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4 0.06' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.09'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
-    /* The rods of a hanging scroll: slats only, no binding cords.
-       --slip draws its cords at 17% and 82% of the element's height, which on
-       a 30px bar puts them 5px and 25px in and turns the whole strip into
-       stripes. The bars want the segments and nothing else. */
-    --slip-bar: repeating-linear-gradient(90deg,transparent 0px,transparent 42px,rgba(0,0,0,0.55) 42px,rgba(0,0,0,0.55) 45px),repeating-linear-gradient(90deg,rgba(0,0,0,0.28) 0px,rgba(0,0,0,0) 6px,rgba(220,205,160,0.09) 15px,rgba(255,255,255,0) 26px,rgba(0,0,0,0.12) 38px,rgba(0,0,0,0.28) 45px),linear-gradient(180deg,rgba(225,205,165,0.07) 0%,rgba(0,0,0,0.10) 55%,rgba(0,0,0,0.30) 100%);
+    /* 牘 — the planed board you read on. The old grain stretched noise along
+       the slat ('0.4 0.06', alpha 0.09) and read as jagged stripes running
+       through the text. This is long, fine fibre at a third of the strength:
+       the surface is wood, but nothing in it competes with a stroke. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 0.008' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.03'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23a)'/%3E%3C/svg%3E");
 
-    /* A bundle of vertically bound slats + two binding cords. */
-    --slip: linear-gradient(180deg,transparent 0%,transparent 17%,rgba(0,0,0,0.55) 17%,rgba(0,0,0,0.55) calc(17% + 3px),rgba(220,205,160,0.08) calc(17% + 4px),transparent calc(17% + 6px),transparent 82%,rgba(0,0,0,0.55) 82%,rgba(0,0,0,0.55) calc(82% + 3px),rgba(220,205,160,0.08) calc(82% + 4px),transparent calc(82% + 6px),transparent 100%),repeating-linear-gradient(90deg,transparent 0px,transparent 42px,rgba(0,0,0,0.65) 42px,rgba(0,0,0,0.65) 46px),repeating-linear-gradient(90deg,rgba(0,0,0,0.35) 0px,rgba(0,0,0,0) 5px,rgba(220,205,160,0.10) 14px,rgba(255,255,255,0) 24px,rgba(0,0,0,0.15) 38px,rgba(0,0,0,0.35) 46px),radial-gradient(130% 95% at 50% 42%,rgba(225,205,165,0.04) 0%,rgba(0,0,0,0) 42%,rgba(0,0,0,0.6) 100%);
+    /* 簡 — a bundle of slips, for the desk around the pages and the two bars.
+       Real slips are about a centimetre wide and sit edge to edge: 18px
+       slats with a 1px seam and a 1px catch-light, not 42px planks with a
+       4px black gap. Three periods (18 / 54 / 126px) vary the tone slat to
+       slat so the bundle doesn't read as a printed stripe. */
+    --slip-slats:
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.42) 0 1px, rgba(225,200,150,0.07) 1px 2px, transparent 2px 18px),
+        repeating-linear-gradient(90deg, rgba(225,200,150,0.035) 0 18px, transparent 18px 36px, rgba(0,0,0,0.06) 36px 54px),
+        repeating-linear-gradient(90deg, transparent 0 72px, rgba(0,0,0,0.07) 72px 90px, transparent 90px 108px, rgba(225,200,150,0.04) 108px 126px),
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.10) 0, transparent 5px, transparent 13px, rgba(0,0,0,0.10) 18px);
+    /* Twisted hemp cord, drawn as its own layer (sized and placed in the rule
+       that uses it). */
+    --slip-cord: repeating-linear-gradient(65deg, #241a0f 0 2px, #6a5233 2px 3px, #4a3822 3px 5px);
+    --slip-bar: var(--slip-slats), linear-gradient(180deg, rgba(225,205,165,0.06) 0%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0.28) 100%);
 }
 
 /* A hanging scroll: bamboo at the rods, paper in between.
@@ -812,6 +853,23 @@ body.theme-bamboo-ancient .markdown-mode,
 body.theme-bamboo-ancient .stf__page {
     background-image: var(--grain);
     background-attachment: local;
+}
+
+/* Book mode: the pages are boards laid on a bound bundle of slips. The
+   bundle is only ever seen in the margin around the pages, so it can be as
+   literal as it likes — slats, and two cords near the ends the way real
+   bundles were tied — without a line of it crossing the text. */
+body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook) {
+    background-color: var(--sidebar-bg);
+    background-image: var(--slip-cord), var(--slip-cord), var(--slip-slats);
+    background-size: 100% 5px, 100% 5px, auto;
+    background-position: 0 9%, 0 91%, 0 0;
+    background-repeat: repeat-x, repeat-x, repeat;
+    background-attachment: scroll;
+}
+
+body.theme-bamboo-ancient .md-book-flipbook .stf__page {
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 /* Mincho serif on the chrome… */
@@ -960,9 +1018,9 @@ body.theme-sumi-e {
     --selection-color: #1c1c1c;
     --cm-selection-bg: rgba(74, 107, 53, 0.16);
 
-    --git-modified-color: #a8791f;
-    --git-staged-color: #4a7a4a;
-    --git-untracked-color: #4a7a4a;
+    --git-modified-color: #805c18;
+    --git-staged-color: #426d42;
+    --git-untracked-color: #426d42;
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     /* The chrome is a tool, not a page: the UI sans. Mincho at tree and tab
@@ -1113,10 +1171,10 @@ body.theme-nord {
     --hl-operator: #eceff4;
 
     --gutter-color: #94a2bd;
-    --tab-inactive-color: #94a2bd;
+    --tab-inactive-color: #99a7c0;
     --tree-item-color: #d8dee9;
     --tree-item-active-bg: rgba(136, 192, 208, 0.14);
-    --text-secondary: #94a2bd;
+    --text-secondary: #99a7c0;
 
     --code-color: #ebcb8b;          /* nord13 */
     --code-bg: rgba(235, 203, 139, 0.10);
@@ -1246,9 +1304,9 @@ body.theme-kakejiku {
     --selection-color: #2b2f36;
     --cm-selection-bg: rgba(115, 84, 16, 0.14);
 
-    --git-modified-color: #b07d2b;
-    --git-staged-color: #3a7a6a;
-    --git-untracked-color: #3a7a6a;
+    --git-modified-color: #886022;
+    --git-staged-color: #367162;
+    --git-untracked-color: #367162;
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     --kakejiku-chrome-font: var(--font-textbook);
@@ -1687,22 +1745,24 @@ body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
    colour kept quiet, so the green of the day version is not carried over.
    ========================================================================== */
 body.theme-sumi-e-dark {
-    --bg-color: #26282d;            /* night washi */
-    --sidebar-bg: #202226;
-    /* The mount bands sit below the desk, as in the day version. At #232529
-       they were lighter than the sidebar beside them. */
-    --header-bg: #1c1d21;
-    --border-color: #3a3d44;
+    /* 墨 — close to black. The sheet was #26282d, a blue-grey that read as
+       slate rather than ink; the surfaces now sit a few steps above black,
+       neutral with the faintest warmth, the way a ground of sumi does. The
+       order is kept: mount bands darkest, then the desk, then the sheet. */
+    --bg-color: #141414;            /* night washi, inked */
+    --sidebar-bg: #0f0f0f;
+    --header-bg: #0b0b0b;
+    --border-color: #2a2a2a;
     --text-color: #e6e4dd;          /* moonlight ink */
     --primary-color: #8ea6b8;       /* 青墨 — blue-grey ink, kept low in chroma */
     --text-on-primary: #141c22;
-    --active-tab-bg: #2e3137;
+    --active-tab-bg: #1c1c1c;
     --active-tab-border: #8ea6b8;
-    --hover-color: #2c2e34;
-    --bg-color-secondary: #2c2e34;
-    --bg-active: #2e3137;
+    --hover-color: #1e1e1e;
+    --bg-color-secondary: #1c1c1c;
+    --bg-active: #242424;
     --radius: 6px;
-    --table-header-bg: #2c2e34;
+    --table-header-bg: #1c1c1c;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
@@ -1809,27 +1869,27 @@ body.theme-sumi-e-dark code {
     letter-spacing: normal;
 }
 
-body.theme-sumi-e-dark option { background-color: #26282d; color: #e6e4dd; }
+body.theme-sumi-e-dark option { background-color: #141414; color: #e6e4dd; }
 
 body.theme-sumi-e-dark button,
 body.theme-sumi-e-dark select,
 body.theme-sumi-e-dark input[type="text"],
 body.theme-sumi-e-dark input[type="password"] {
-    background-color: #2c2e34;
+    background-color: #1c1c1c;
     color: #e6e4dd;
-    border: 1px solid #3a3d44;
+    border: 1px solid #2a2a2a;
     color-scheme: dark;
 }
-body.theme-sumi-e-dark button:hover { background-color: #2e3137; }
+body.theme-sumi-e-dark button:hover { background-color: #242424; }
 body.theme-sumi-e-dark input[type="checkbox"] {
     accent-color: var(--primary-color);
     color-scheme: dark;
     cursor: pointer;
 }
 body.theme-sumi-e-dark #explorer-search {
-    background-color: #2c2e34;
+    background-color: #1c1c1c;
     color: #e6e4dd;
-    border: 1px solid #3a3d44;
+    border: 1px solid #2a2a2a;
 }
 body.theme-sumi-e-dark #explorer-search::placeholder { color: #a0a098; }
 body.theme-sumi-e-dark .modal-content input,
@@ -1842,20 +1902,26 @@ body.theme-sumi-e-dark .modal-content select { color: #e6e4dd !important; }
    #d4705e. The handwritten chrome and ruled lines are kept, re-lit for dark.
    ========================================================================== */
 body.theme-paper-dark {
-    --bg-color: #2a2621;            /* night kraft paper */
-    --sidebar-bg: #242019;
-    --header-bg: #242019;
-    --border-color: #453e33;
-    --text-color: #e8e2d6;          /* white chalk / moonlight pen */
-    --primary-color: #d4705e;       /* red pen, brightened */
+    /* Kraft, not grey. The sheet was #2a2621 on a #242019 desk: a warm
+       charcoal one step off the desk, with nothing about it that said paper.
+       Paper reads as paper by three things — a fibre you can just see, a
+       sheet distinct from what it lies on, and a hue. The sheet is now
+       brown kraft paper with a fibre grain, on a darker desk, and casts a
+       shadow there (see below). */
+    --bg-color: #382c20;            /* kraft paper at night */
+    --sidebar-bg: #221a13;          /* the desk */
+    --header-bg: #221a13;
+    --border-color: #55452f;
+    --text-color: #efe5d2;          /* white chalk / moonlight pen */
+    --primary-color: #e08a72;       /* red pen, lifted for kraft (5.2:1) */
     --text-on-primary: #2a0e0a;
-    --active-tab-bg: #2a2621;
-    --active-tab-border: #d4705e;
-    --hover-color: #332e26;
-    --bg-color-secondary: #312c25;
-    --bg-active: #332e26;
+    --active-tab-bg: #382c20;
+    --active-tab-border: #e08a72;
+    --hover-color: #3f3226;
+    --bg-color-secondary: #40332a;
+    --bg-active: #46382a;
     --radius: 6px;
-    --table-header-bg: #312c25;
+    --table-header-bg: #40332a;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
@@ -1865,27 +1931,27 @@ body.theme-paper-dark {
     --hl-built-in: #8fc9a8;
     --hl-literal: #e08a94;
     --hl-string: #9fbf8f;
-    --hl-comment: #a89f90;
+    --hl-comment: #b3a690;
     --hl-function: #e0c08a;
     --hl-variable: #c8bfae;
     --hl-number: #8fb4e0;
-    --hl-operator: #e8e2d6;
+    --hl-operator: #efe5d2;
 
-    --gutter-color: #a89f90;
-    --tab-inactive-color: #a89f90;
-    --tree-item-color: #e8e2d6;
-    --tree-item-active-bg: rgba(212, 112, 94, 0.14);
+    --gutter-color: #b3a690;
+    --tab-inactive-color: #b3a690;
+    --tree-item-color: #efe5d2;
+    --tree-item-active-bg: rgba(224, 138, 114, 0.14);
     --text-secondary: #b0a89a;
 
-    --code-color: #9cb8d6;          /* blue-black ink, lifted for the dark */
-    --code-bg: rgba(156, 184, 214, 0.10);
-    --code-border: rgba(156, 184, 214, 0.25);
+    --code-color: #a9c3dd;          /* blue-black ink, lifted for the dark */
+    --code-bg: rgba(169, 195, 221, 0.10);
+    --code-border: rgba(169, 195, 221, 0.25);
     --danger-base: #e0806e;
     --blockquote-bg: rgba(232, 226, 214, 0.05);
 
-    --selection-bg: rgba(212, 112, 94, 0.28);
-    --selection-color: #e8e2d6;
-    --cm-selection-bg: rgba(212, 112, 94, 0.24);
+    --selection-bg: rgba(224, 138, 114, 0.28);
+    --selection-color: #efe5d2;
+    --cm-selection-bg: rgba(224, 138, 114, 0.24);
 
     --git-modified-color: #d9a44a;
     --git-staged-color: #8fc9a8;
@@ -1895,13 +1961,15 @@ body.theme-paper-dark {
     --paper-chrome-font: var(--font-hand);
     --paper-rule-color: rgba(232, 226, 214, 0.045);  /* was 0.10: read as a grid, not a ruled page */
     --paper-rule-size: 27px;
-    --paper-margin-color: rgba(212, 112, 94, 0.28);
+    --paper-margin-color: rgba(224, 138, 114, 0.28);
     --paper-vignette: rgba(0, 0, 0, 0.35);
+    /* Kraft fibre: short, isotropic flecks, faint enough to sit under text. */
+    --kraft-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='k'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.06'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23k)'/%3E%3C/svg%3E");
 }
 
 body.theme-paper-dark {
     background:
-        radial-gradient(140% 120% at 20% -10%, rgba(80, 72, 58, 0.4), transparent 60%),
+        radial-gradient(140% 120% at 20% -10%, rgba(90, 70, 48, 0.35), transparent 60%),
         radial-gradient(160% 140% at 115% 120%, var(--paper-vignette), transparent 55%),
         var(--sidebar-bg);
 }
@@ -1935,8 +2003,19 @@ body.theme-paper-dark code {
 body.theme-paper-dark .markdown-mode,
 body.theme-paper-dark .stf__page.md-body {
     background-image:
+        var(--kraft-fibre),
         repeating-linear-gradient(0deg, transparent 0 calc(var(--paper-rule-size) - 1px), var(--paper-rule-color) calc(var(--paper-rule-size) - 1px) var(--paper-rule-size));
     background-attachment: local;
+}
+
+/* In book mode the sheet lies on the desk: the margin round the pages is
+   desk, and the pages cast a shadow on it. */
+body.theme-paper-dark .markdown-mode:has(> .md-book-flipbook) {
+    background-color: var(--sidebar-bg);
+    background-image: none;
+}
+body.theme-paper-dark .md-book-flipbook .stf__page {
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.55);
 }
 
 body.theme-paper-dark #explorer {
@@ -1950,31 +2029,31 @@ body.theme-paper-dark .search-modal {
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
 }
 
-body.theme-paper-dark option { background-color: #2a2621; color: #e8e2d6; }
+body.theme-paper-dark option { background-color: #382c20; color: #efe5d2; }
 
 body.theme-paper-dark button,
 body.theme-paper-dark select,
 body.theme-paper-dark input[type="text"],
 body.theme-paper-dark input[type="password"] {
-    background-color: #312c25;
-    color: #e8e2d6;
-    border: 1px solid #453e33;
+    background-color: #40332a;
+    color: #efe5d2;
+    border: 1px solid #55452f;
     color-scheme: dark;
 }
-body.theme-paper-dark button:hover { background-color: #332e26; }
+body.theme-paper-dark button:hover { background-color: #3f3226; }
 body.theme-paper-dark input[type="checkbox"] {
     accent-color: var(--primary-color);
     color-scheme: dark;
     cursor: pointer;
 }
 body.theme-paper-dark #explorer-search {
-    background-color: #312c25;
-    color: #e8e2d6;
-    border: 1px solid #453e33;
+    background-color: #40332a;
+    color: #efe5d2;
+    border: 1px solid #55452f;
 }
-body.theme-paper-dark #explorer-search::placeholder { color: #a89f90; }
+body.theme-paper-dark #explorer-search::placeholder { color: #b3a690; }
 body.theme-paper-dark .modal-content input,
-body.theme-paper-dark .modal-content select { color: #e8e2d6 !important; }
+body.theme-paper-dark .modal-content select { color: #efe5d2 !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    DERIVED TOKENS
@@ -2021,7 +2100,7 @@ body {
        Mixing toward transparent rather than toward a grey keeps these legible
        on whatever surface they land on, including a translucent one. */
     --text-muted: color-mix(in srgb, var(--text-color) 68%, transparent);
-    --text-faint: color-mix(in srgb, var(--text-color) 45%, transparent);
+    --text-faint: color-mix(in srgb, var(--text-color) 55%, transparent);
     --text-on-primary: #fff;
 
     /* ── The accent, at usable strengths ──────────────────────────────
@@ -2078,10 +2157,14 @@ body.theme-paper-dark {
         "Segoe WPC", "Segoe UI", "Helvetica Neue",
         "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC",
         "Noto Sans SC", sans-serif;
+    --font-body: "Segoe UI", "Microsoft YaHei", "PingFang SC",
+        "Noto Sans SC", sans-serif;
 }
 
 :root:lang(ko) {
     --font-main: system-ui, -apple-system, BlinkMacSystemFont,
         "Segoe WPC", "Segoe UI", "Helvetica Neue",
         "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    --font-body: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
+        "Noto Sans KR", sans-serif;
 }

@@ -37,7 +37,7 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
             '--code-color', '--code-bg', '--code-border', '--blockquote-bg',
             '--selection-bg', '--selection-color', '--cm-selection-bg',
             '--git-modified-color', '--git-staged-color', '--git-untracked-color',
-            '--shadow-sm', '--shadow-md', '--shadow-lg', '--grain', '--slip'];
+            '--shadow-sm', '--shadow-md', '--shadow-lg', '--grain', '--slip-slats', '--slip-cord'];
         for (const t of tokens) expect(block).toContain(`${t}:`);
     });
 
@@ -66,7 +66,7 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
     // near-black line every 46px cut across the names.
     it('keeps the bamboo on the two bars', () => {
         expect(block).toContain("--grain: url(\"data:image/svg+xml,");
-        expect(block).toContain('--slip: linear-gradient(180deg,');
+        expect(block).toContain('--slip-slats:');
 
         // The desk and the file list are paper now.
         expect(themes).toContain('background: var(--grain), var(--sidebar-bg);');
@@ -78,9 +78,8 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         expect(explorer, 'the slats are what made the file names hard to read')
             .not.toContain('--slip');
 
-        // The rods carry it instead, with a texture of their own: --slip draws
-        // binding cords at 17% and 82% of the height, which on a 30px bar
-        // turns the whole strip into stripes.
+        // The rods carry the slats, without the cords: on a 30px bar a cord
+        // near each end turns the whole strip into stripes.
         expect(block).toContain('--slip-bar:');
         const bars = themes.indexOf('body.theme-bamboo-ancient #custom-titlebar,');
         expect(bars).toBeGreaterThan(-1);
@@ -96,6 +95,24 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         const rule = themes.slice(idx, themes.indexOf('}', idx));
         expect(rule).toContain('background-image: var(--grain);');
         expect(rule).not.toContain('--slip');
+    });
+
+    // The bundle — slats and two cords — is drawn only where nothing is
+    // read: the margin round the pages in book mode.
+    it('lays the pages on a bound bundle in book mode', () => {
+        const sel = 'body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook) {';
+        const idx = themes.indexOf(sel);
+        expect(idx).toBeGreaterThan(-1);
+        const rule = themes.slice(idx, themes.indexOf('}', idx));
+        expect(rule).toContain('var(--slip-cord), var(--slip-cord), var(--slip-slats)');
+    });
+
+    // The old grain stretched its noise along the slat at alpha 0.09 and read
+    // as jagged stripes through the text.
+    it('keeps the reading grain faint', () => {
+        const slope = /--grain:[^;]*slope='([\d.]+)'/.exec(block);
+        expect(slope).toBeTruthy();
+        expect(Number(slope[1])).toBeLessThanOrEqual(0.04);
     });
 
     // Every Markdown block carries .md-body too. A texture on .md-body was

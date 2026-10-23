@@ -68,7 +68,7 @@ describe('titlebar readability', () => {
     it('clears 4.5:1 on every theme, filename and path alike', () => {
         // text/header per theme, plus the two themes that set their own ink.
         const pairs = [
-            ['#343a40', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
+            ['#1f2328', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
             ['#4c4f69', '#e6e9ef'], ['#b0bec5', '#073642'], ['#073642', '#eee8d5'],
             ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#e4dfd2'],
             ['#eceff4', '#343b49'], ['#eef1f6', '#3a4868'],
@@ -484,7 +484,7 @@ describe('the status bar itself', () => {
     it('clears 4.5:1 on every theme', () => {
         // text/header per theme, and the two that set their own chrome ink.
         const pairs = [
-            ['#343a40', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
+            ['#1f2328', '#f1f3f5'], ['#d4d4d4', '#252526'], ['#c5cbe0', '#1a1c25'],
             ['#4c4f69', '#e6e9ef'], ['#b0bec5', '#073642'], ['#073642', '#eee8d5'],
             ['#243049', '#e7dab9'], ['#e8e0cc', '#2f2518'], ['#1c1c1c', '#e4dfd2'],
             ['#eceff4', '#343b49'],
