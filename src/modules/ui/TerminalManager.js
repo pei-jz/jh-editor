@@ -9,7 +9,10 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { EL } from '../core/Constants.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { ContextMenu } from './ContextMenu.js';
-import { themeById, DEFAULT_THEME } from '../utils/Themes.js';
+import { themeById } from '../utils/Themes.js';
+import { appliedTheme } from '../utils/WorkspaceTheme.js';
+import { terminalScrollback } from '../utils/TerminalPrefs.js';
+import { Toast } from './Toast.js';
 
 /**
  * ANSI の 16 色。
@@ -157,6 +160,7 @@ class TerminalManager {
             letterSpacing: 0,
             lineHeight: 1.1,
             rightClickSelectsWord: true,
+            scrollback: terminalScrollback(),
         });
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
@@ -357,6 +361,13 @@ class TerminalManager {
         return true;
     }
 
+    /** 保持する行数を、動いている端末にもすぐ反映する。 */
+    applyScrollback(lines) {
+        for (const s of this.sessions.values()) {
+            s.term.options.scrollback = lines;
+        }
+    }
+
     applyTheme() {
         if (!this.term) return;
         // Computed once below, then handed to every session.
@@ -367,11 +378,9 @@ class TerminalManager {
         // どのテーマかはレジストリに聞く。ここでクラス名を並べていると、
         // テーマを足すたびにこの関数へ if が増え、足し忘れたテーマだけ
         // 配色が崩れる。
-        let themeId = DEFAULT_THEME;
-        try {
-            themeId = localStorage.getItem('theme') || DEFAULT_THEME;
-        } catch (_) { /* localStorage が無くても既定で動く */ }
-        const entry = themeById(themeId);
+        // localStorage の 'theme' は全体設定でしかない。ワークスペースごとの
+        // テーマがあるので、いま画面に出ているものを聞く。
+        const entry = themeById(appliedTheme());
         const isDark = entry ? entry.dark : true;
 
         const bg = style.getPropertyValue('--bg-color').trim();
@@ -482,30 +491,58 @@ class TerminalManager {
         });
 
         // Dropping a file types its full path — the terminal is where you want
-        // the path, not the contents. stopPropagation keeps App.js's global
-        // file-drop handler from opening the file as a tab instead.
-        host.addEventListener('dragover', (e) => {
-            if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+        // the path, not the contents. Files from outside the app and rows from
+        // the explorer both count.
+        //
+        // The whole panel is the target, header and session list included:
+        // the canvas alone is a smaller target than it looks, and a drop that
+        // missed it fell through to App.js, which opened the file as a tab.
+        const zone = EL.terminal.panel || host;
+        const kindOf = (dt) => {
+            const types = Array.from((dt && dt.types) || []);
+            if (types.includes('application/x-editor-item')) return 'explorer';
+            if (types.includes('Files')) return 'files';
+            return null;
+        };
+        const clearHighlight = () => zone.classList.remove('terminal-drop-target');
+
+        zone.addEventListener('dragover', (e) => {
+            if (!kindOf(e.dataTransfer)) return;
             e.preventDefault();
             e.stopPropagation();
             e.dataTransfer.dropEffect = 'copy';
+            zone.classList.add('terminal-drop-target');
+        });
+        zone.addEventListener('dragleave', (e) => {
+            if (!zone.contains(e.relatedTarget)) clearHighlight();
         });
 
-        host.addEventListener('drop', (e) => {
-            const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
-            if (!files.length) return;
+        zone.addEventListener('drop', (e) => {
+            clearHighlight();
+            const kind = kindOf(e.dataTransfer);
+            if (!kind) return;
             e.preventDefault();
             e.stopPropagation();
-            // The DOM drop carries names only; the host knows the full paths.
-            // A bare name is still typed where it cannot tell.
-            resolveDroppedPaths(files).then((paths) => {
-                const text = (paths.length ? paths : files.map((f) => f.name))
-                    .filter(Boolean)
-                    .map(quoteForShell)
+            const type = (paths) => {
+                // Explorer paths use forward slashes; the shell wants the OS form.
+                const text = paths.filter(Boolean)
+                    .map((p) => quoteForShell(/^[a-zA-Z]:\//.test(p) ? p.replace(/\//g, '\\') : p))
                     .join(' ');
+                if (!this.term && text) {
+                    Toast.info(t('Open a terminal first.'));
+                    return;
+                }
                 if (text) this.pasteText(text);
                 this.term?.focus();
-            });
+            };
+            if (kind === 'explorer') {
+                type((e.dataTransfer.getData('text/plain') || '').split('\n'));
+                return;
+            }
+            const files = Array.from(e.dataTransfer.files || []);
+            // The DOM drop carries names only; the host knows the full paths.
+            // A bare name is still typed where it cannot tell.
+            resolveDroppedPaths(files).then((paths) => type(paths.length ? paths : files.map((f) => f.name)));
         });
     }
 

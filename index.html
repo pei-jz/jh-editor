@@ -373,6 +373,15 @@
               <select id="theme-selector"></select>
             </div>
             <div class="settings-option">
+              <label for="workspace-theme-selector" data-i18n="Theme for this workspace">Theme for this workspace</label>
+              <select id="workspace-theme-selector">
+                <option value="" data-i18n="Same as the theme above">Same as the theme above</option>
+              </select>
+            </div>
+            <div class="settings-description" style="margin: -6px 0 4px;" data-i18n="Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.">
+              Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.
+            </div>
+            <div class="settings-option">
               <label data-i18n="Language">Language</label>
               <select id="language-selector">
                 <option value="en">English</option>
@@ -394,6 +403,12 @@
                 <option value="double" data-i18n="Double-click (a single click selects)">Double-click (a single click selects)</option>
                 <option value="single" data-i18n="Single click">Single click</option>
               </select>
+            </div>
+            <div class="settings-option">
+              <label for="terminal-scrollback-input" data-i18n="Terminal: lines kept for scrolling back">Terminal: lines kept for scrolling back</label>
+              <div style="width: 400px;">
+                <input type="number" id="terminal-scrollback-input" min="1000" max="200000" step="1000" style="width: 100%; padding: 5px;">
+              </div>
             </div>
             <div class="settings-option">
               <label data-i18n="Editor Font (Monospace)">Editor Font (Monospace)</label>

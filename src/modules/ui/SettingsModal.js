@@ -18,8 +18,14 @@ import {
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
-import { THEMES, themeClasses, isKnownTheme, DEFAULT_THEME } from '../utils/Themes.js';
+import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
 import { syncNativeBackground } from '../utils/NativeBackground.js';
+import {
+    globalTheme, setGlobalTheme, workspaceTheme, setWorkspaceTheme, effectiveTheme, noteAppliedTheme,
+} from '../utils/WorkspaceTheme.js';
+import {
+    terminalScrollback, setTerminalScrollback, SCROLLBACK_MIN, SCROLLBACK_MAX,
+} from '../utils/TerminalPrefs.js';
 
 /**
  * Fill in the About block at the bottom of the General tab.
@@ -352,7 +358,7 @@ export function initSettingsModal() {
     }
 
     // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+    const savedTheme = globalTheme();
     // Build the picker from the registry rather than from markup: a theme
     // added to Themes.js appears here without anyone remembering to add an
     // <option>, and the label goes through t() like every other string.
@@ -366,8 +372,47 @@ export function initSettingsModal() {
         }
     }
 
-    applyTheme(savedTheme);
+    applyTheme(effectiveTheme(State.currentDir));
     if (themeSelector) themeSelector.value = savedTheme;
+
+    // This workspace's own theme. The first option, "same as the global
+    // theme", is what every workspace starts with.
+    const wsThemeSelector = document.getElementById('workspace-theme-selector');
+    if (wsThemeSelector && wsThemeSelector.options.length <= 1) {
+        for (const th of THEMES) {
+            const opt = document.createElement('option');
+            opt.value = th.id;
+            opt.textContent = t(th.label);
+            opt.setAttribute('data-i18n', th.label);
+            wsThemeSelector.appendChild(opt);
+        }
+    }
+    const syncWorkspaceThemeSelector = () => {
+        if (!wsThemeSelector) return;
+        const dir = State.currentDir;
+        wsThemeSelector.disabled = !dir;
+        wsThemeSelector.value = (dir && workspaceTheme(dir)) || '';
+    };
+    syncWorkspaceThemeSelector();
+    if (wsThemeSelector) {
+        wsThemeSelector.onchange = (e) => {
+            if (!State.currentDir) return;
+            setWorkspaceTheme(State.currentDir, e.target.value || null);
+            applyTheme(effectiveTheme(State.currentDir));
+        };
+    }
+
+    const scrollbackInput = document.getElementById('terminal-scrollback-input');
+    if (scrollbackInput) {
+        scrollbackInput.min = String(SCROLLBACK_MIN);
+        scrollbackInput.max = String(SCROLLBACK_MAX);
+        scrollbackInput.value = String(terminalScrollback());
+        scrollbackInput.addEventListener('change', () => {
+            const lines = setTerminalScrollback(scrollbackInput.value);
+            scrollbackInput.value = String(lines);
+            terminalManager.applyScrollback(lines);
+        });
+    }
 
     // View Mode Selector
     const viewModeSelector = document.getElementById('view-mode-selector');
@@ -641,8 +686,10 @@ export function initSettingsModal() {
                 viewModeSelector.value = isCompact ? 'compact' : 'normal';
             }
             if (themeSelector) {
-                themeSelector.value = localStorage.getItem('theme') || DEFAULT_THEME;
+                themeSelector.value = globalTheme();
             }
+            syncWorkspaceThemeSelector();
+            if (scrollbackInput) scrollbackInput.value = String(terminalScrollback());
             const explorerOpen = document.getElementById('explorer-open-selector');
             if (explorerOpen) explorerOpen.value = explorerOpensOn();
 
@@ -698,9 +745,10 @@ export function initSettingsModal() {
 
     if (themeSelector) {
         themeSelector.onchange = (e) => {
-            const theme = e.target.value;
-            applyTheme(theme);
-            localStorage.setItem('theme', theme);
+            setGlobalTheme(e.target.value);
+            // A workspace with a theme of its own keeps it; the global one
+            // shows wherever there is none.
+            applyTheme(effectiveTheme(State.currentDir));
         };
     }
 
@@ -1459,6 +1507,7 @@ export function applyTheme(theme) {
     // Derived from the registry, not repeated here. A theme missing from this
     // list used to leave TWO theme classes on <body> at once, after which the
     // palette depended on stylesheet order rather than on the setting.
+    noteAppliedTheme(theme);
     document.body.classList.remove(...themeClasses());
     if (theme && theme !== 'light' && isKnownTheme(theme)) {
         document.body.classList.add(`theme-${theme}`);

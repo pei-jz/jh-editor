@@ -281,9 +281,11 @@ describe('the theme registry is the single source', () => {
     it('decides the default theme once', () => {
         expect(isKnownTheme(DEFAULT_THEME)).toBe(true);
 
-        // Everything that can import reads the registry.
+        // Everything that can import reads the registry. SettingsModal reads
+        // the global theme through WorkspaceTheme, so it must not name one.
+        expect(read('src/modules/ui/SettingsModal.js')).not.toMatch(/getItem\('theme'\)/);
         for (const rel of ['src/modules/core/Layout.js',
-                           'src/modules/ui/SettingsModal.js']) {
+                           'src/modules/utils/WorkspaceTheme.js']) {
             const src = read(rel);
             expect(src, `${rel} still hardcodes a default`)
                 .not.toMatch(/getItem\('theme'\) \|\| '/);

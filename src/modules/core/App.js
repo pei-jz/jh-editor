@@ -3,7 +3,7 @@ import { EL } from './Constants.js';
 import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
-import { openFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
+import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -20,7 +20,8 @@ import { initWelcomeScreen, showWelcomeScreen, hideWelcomeScreen } from '../ui/W
 import { toggleWorkspaceMenu } from '../ui/WorkspaceMenu.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
 import { TabSearch } from '../ui/TabSearch.js';
-import { initSettingsModal } from '../ui/SettingsModal.js';
+import { initSettingsModal, applyTheme } from '../ui/SettingsModal.js';
+import { effectiveTheme } from '../utils/WorkspaceTheme.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
 import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
 import { applyIcons, iconEl } from '../ui/Icons.js';
@@ -209,7 +210,7 @@ async function bootstrap() {
     // 2. Initialize UI Components
     try {
         initLayout();
-        initExplorer(openFile, { closeFileByPath, closeFilesUnderDir });   // Pass callback for 'OpenFile' and 'CloseFile'
+        initExplorer(openFile, { closeFileByPath, closeFilesUnderDir, retargetOpenFile });   // Pass callback for 'OpenFile' and 'CloseFile'
         initSearch(renderEditor); // Pass callback for 'renderEditor'
         initVimMode();
         initSettingsModal();
@@ -292,6 +293,7 @@ async function bootstrap() {
      */
     function startWorkspaceless() {
         State.currentDir = '';
+        applyTheme(effectiveTheme(''));
         State.isExplorerVisible = false;
         if (EL.explorer) EL.explorer.style.display = 'none';
         showMainLayout();
@@ -356,6 +358,9 @@ async function bootstrap() {
 
         // 2. Set State and Root (per-window; the backend keys this by window).
         State.currentDir = path;
+        // Each workspace can carry its own theme (Settings), so windows on
+        // different projects can be told apart at a glance.
+        applyTheme(effectiveTheme(path));
         sessionResume(); // now scoped to the NEW workspace
         // Every way in (Welcome screen, the explorer's workspace menu, a
         // workspace passed on the command line) lands in the history.
@@ -874,10 +879,12 @@ async function bootstrap() {
     };
 
     // Places with their own use for a dropped file keep it: the terminal types
-    // the path, and a Markdown block editor saves an image next to the note.
+    // the path, the file tree copies it into the folder it lands on, and a
+    // Markdown block editor saves an image next to the note.
     const keepsOwnDrop = (target, files) => {
         if (!target || typeof target.closest !== 'function') return false;
-        if (EL.terminal && EL.terminal.container && EL.terminal.container.contains(target)) return true;
+        if (EL.terminal && EL.terminal.panel && EL.terminal.panel.contains(target)) return true;
+        if (State.currentDir && target.closest('#file-list')) return true;
         return !!target.closest('.md-block, .block-editor')
             && files.length > 0 && files.every((f) => /^image\//.test(f.type || ''));
     };
