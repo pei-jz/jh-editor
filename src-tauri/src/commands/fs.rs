@@ -292,6 +292,170 @@ pub fn copy_file_cmd(source: String, dest: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// True when `inner` is `outer` itself or somewhere beneath it. Copying or
+/// moving a folder into itself would recurse until the disk is full.
+fn is_same_or_inside(outer: &std::path::Path, inner: &std::path::Path) -> bool {
+    let canon = |p: &std::path::Path| -> Option<std::path::PathBuf> {
+        // `inner` does not exist yet: resolve its nearest existing ancestor
+        // and put the rest back on.
+        let mut tail = Vec::new();
+        let mut cur = p.to_path_buf();
+        loop {
+            if let Ok(c) = cur.canonicalize() {
+                let mut c = c;
+                for part in tail.iter().rev() {
+                    c.push(part);
+                }
+                return Some(c);
+            }
+            let name = cur.file_name()?.to_os_string();
+            tail.push(name);
+            cur = cur.parent()?.to_path_buf();
+        }
+    };
+    match (canon(outer), canon(inner)) {
+        (Some(o), Some(i)) => i.starts_with(&o),
+        _ => false,
+    }
+}
+
+fn copy_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    let meta = fs::symlink_metadata(src)?;
+    if meta.is_dir() {
+        fs::create_dir(dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            copy_recursive(&entry.path(), &dst.join(entry.file_name()))?;
+        }
+        Ok(())
+    } else {
+        fs::copy(src, dst).map(|_| ())
+    }
+}
+
+/// Copy a file or a whole folder to `dest`, which must not exist yet.
+///
+/// `copy_file_cmd` is `fs::copy`, which refuses a folder and silently
+/// overwrites a file. Paste and Ctrl+drop need neither.
+#[command(async)]
+pub fn copy_path(source: String, dest: String) -> Result<(), String> {
+    let src = std::path::Path::new(&source);
+    let dst = std::path::Path::new(&dest);
+    if dst.exists() {
+        return Err(format!("already exists: {}", dest));
+    }
+    if src.is_dir() && is_same_or_inside(src, dst) {
+        return Err("cannot copy a folder into itself".into());
+    }
+    copy_recursive(src, dst).map_err(|e| e.to_string())
+}
+
+/// Move a file or folder to `dest`, which must not exist yet.
+///
+/// A rename cannot cross drives, so that case falls back to copy-then-delete.
+#[command(async)]
+pub fn move_path(source: String, dest: String) -> Result<(), String> {
+    let src = std::path::Path::new(&source);
+    let dst = std::path::Path::new(&dest);
+    if dst.exists() {
+        return Err(format!("already exists: {}", dest));
+    }
+    if src.is_dir() && is_same_or_inside(src, dst) {
+        return Err("cannot move a folder into itself".into());
+    }
+    match fs::rename(src, dst) {
+        Ok(()) => Ok(()),
+        Err(rename_err) => {
+            copy_recursive(src, dst).map_err(|_| rename_err.to_string())?;
+            let removed = if src.is_dir() { fs::remove_dir_all(src) } else { fs::remove_file(src) };
+            removed.map_err(|e| e.to_string())
+        }
+    }
+}
+
+/// Send files and folders to the Recycle Bin.
+///
+/// The explorer's Delete used to be `remove_dir_all` — gone for good, from a
+/// key that sits next to Backspace. Every file manager the user knows puts
+/// things in the bin instead.
+#[command(async)]
+pub fn trash_paths(paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::Shell::{
+            SHFileOperationW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT,
+            FO_DELETE, SHFILEOPSTRUCTW,
+        };
+        // pFrom is a list of NUL-terminated paths ending in an extra NUL, and
+        // the shell wants backslashes.
+        let mut from: Vec<u16> = Vec::new();
+        for p in &paths {
+            from.extend(p.replace('/', "\\").encode_utf16());
+            from.push(0);
+        }
+        from.push(0);
+        let mut op: SHFILEOPSTRUCTW = Default::default();
+        op.wFunc = FO_DELETE;
+        op.pFrom = from.as_ptr();
+        op.fFlags = (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT) as u16;
+        let code = unsafe { SHFileOperationW(&mut op) };
+        if code != 0 {
+            return Err(format!("could not move to the Recycle Bin (code {code:#x})"));
+        }
+        if op.fAnyOperationsAborted != 0 {
+            return Err("cancelled".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        for p in &paths {
+            remove_file(p.clone())?;
+        }
+        Ok(())
+    }
+}
+
+/// Put files on the OS clipboard, as a file manager's Copy does, so they can
+/// be pasted into Explorer. Returns the clipboard's sequence number afterwards:
+/// the explorer compares it on paste to tell whether anything newer was copied
+/// since.
+#[command]
+pub fn clipboard_set_files(paths: Vec<String>) -> Result<u32, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use clipboard_win::{formats, Clipboard, Setter};
+        let native: Vec<String> = paths.iter().map(|p| p.replace('/', "\\")).collect();
+        {
+            let _clip = Clipboard::new_attempts(10).map_err(|e| e.to_string())?;
+            clipboard_win::raw::empty().map_err(|e| e.to_string())?;
+            formats::FileList.write_clipboard(&native[..]).map_err(|e| e.to_string())?;
+        }
+        Ok(clipboard_sequence())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = paths;
+        Ok(0)
+    }
+}
+
+/// The OS clipboard's change counter (0 where there is none).
+#[command]
+pub fn clipboard_sequence() -> u32 {
+    #[cfg(target_os = "windows")]
+    {
+        clipboard_win::raw::seq_num().map(|n| n.get()).unwrap_or(0)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        0
+    }
+}
+
 /// Size and modification time, for the status bar and the save-conflict check.
 ///
 /// This exists because the JS side cannot get it. `@tauri-apps/plugin-fs`'s

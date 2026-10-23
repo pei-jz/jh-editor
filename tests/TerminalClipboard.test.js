@@ -27,15 +27,17 @@ describe('terminal clipboard & drop wiring', () => {
 
     it('binds a context menu, middle-click paste and a file drop', () => {
         expect(src).toContain("host.addEventListener('contextmenu'");
-        expect(src).toContain("host.addEventListener('drop'");
-        expect(src).toContain("host.addEventListener('dragover'");
+        // The whole panel takes the drop, not only the xterm canvas.
+        expect(src).toContain('const zone = EL.terminal.panel || host;');
+        expect(src).toContain("zone.addEventListener('drop'");
+        expect(src).toContain("zone.addEventListener('dragover'");
         expect(src).toMatch(/e\.button !== 1/);
     });
 
     // App.js listens for 'drop' on document and opens the file as a TAB. Without
     // stopPropagation a path dropped on the terminal would do both.
     it('keeps a terminal drop away from the global file-drop handler', () => {
-        const drop = src.slice(src.indexOf("host.addEventListener('drop'"));
+        const drop = src.slice(src.indexOf("zone.addEventListener('drop'"));
         const body = drop.slice(0, drop.indexOf('\n        });'));
         expect(body).toContain('e.preventDefault()');
         expect(body).toContain('e.stopPropagation()');

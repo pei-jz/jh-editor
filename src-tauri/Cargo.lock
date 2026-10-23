@@ -2341,6 +2341,7 @@ dependencies = [
  "webview2-com",
  "windows-core 0.61.2",
  "windows-registry",
+ "windows-sys 0.60.2",
  "zip 1.1.4",
 ]
 

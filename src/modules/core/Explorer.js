@@ -13,9 +13,17 @@ import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { save } from '@tauri-apps/plugin-dialog';
 import { showAlert } from '../ui/Dialog.js';
 import { invoke } from '@tauri-apps/api/core';
+import { isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 
 let openFileCallback = null;
+// { type: 'copy' | 'cut', paths, seq }. `seq` is the OS clipboard's change
+// counter right after we put the same files there: if it has moved on by the
+// time of a paste, something newer was copied (in Explorer, say) and that wins.
 let clipboardAction = null;
+// Rows being dragged out of this explorer. dataTransfer cannot be read during
+// dragover, and dragover is where a drop onto the dragged folder itself has to
+// be refused.
+let dragPaths = null;
 
 // Virtual Explorer Instance
 let vExplorer = null;
@@ -26,7 +34,11 @@ class VirtualExplorer {
         this.flatItems = [];
         this.dirCache = new Map(); // path -> entries[]
         this.selectedPaths = new Set();
-        this.lastClickedIndex = -1;
+        // Where a Shift+click / Shift+arrow range starts. A path rather than an
+        // index: opening a folder shifts every index below it.
+        this.anchorPath = null;
+        // Folder a drag is currently over, drawn as the drop target.
+        this.dropTargetDir = null;
         this.rowHeight = 26; // px
         this.gitStatus = { staged: new Set(), modified: new Set(), untracked: new Set() };
 
@@ -105,6 +117,109 @@ class VirtualExplorer {
             const header = document.getElementById('explorer-header');
             if (header) header.classList.remove('active');
         });
+
+        // A click on the empty space below the rows clears the selection, as
+        // in every file manager.
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest && e.target.closest('.tree-item')) return;
+            if (this.selectedPaths.size === 0) return;
+            this.selectedPaths.clear();
+            this.redraw();
+        });
+
+        // The empty space is the workspace root as a drop target. Rows handle
+        // their own drops and stop them, so whatever reaches here missed a row.
+        this.container.addEventListener('dragover', (e) => {
+            this.autoScrollWhileDragging(e);
+            if (e.target.closest && e.target.closest('.tree-item')) return;
+            if (!this.rootPath || !acceptsDrop(e, this.rootPath)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = dropEffectFor(e);
+            this.setDropTarget(this.rootPath);
+        });
+        this.container.addEventListener('dragleave', (e) => {
+            if (!this.container.contains(e.relatedTarget)) this.setDropTarget(null);
+        });
+        this.container.addEventListener('drop', (e) => {
+            if (e.target.closest && e.target.closest('.tree-item')) return;
+            if (!this.rootPath || !acceptsDrop(e, this.rootPath)) return;
+            e.preventDefault();
+            this.setDropTarget(null);
+            handleDropEvent(e, this.rootPath);
+        });
+    }
+
+    /** Redraw the visible rows (selection, focus, drop target) without re-reading the tree. */
+    redraw() {
+        this.scroller.onScroll();
+    }
+
+    /** The selected paths that are rows right now, top to bottom. */
+    selectionInOrder() {
+        return this.flatItems.filter(it => this.selectedPaths.has(it.path)).map(it => it.path);
+    }
+
+    /**
+     * What a command acts on: the whole selection when the cursor is part of
+     * it, otherwise the row under the cursor. A path inside another selected
+     * folder is dropped — deleting or moving the folder already covers it.
+     */
+    targetPaths() {
+        const item = this.flatItems[this.focusedIndex];
+        let paths = (item && !this.selectedPaths.has(item.path))
+            ? [item.path]
+            : this.selectionInOrder();
+        if (!paths.length && item) paths = [item.path];
+        return outermostPaths(paths);
+    }
+
+    selectOnly(index) {
+        const item = this.flatItems[index];
+        this.selectedPaths.clear();
+        if (item) {
+            this.selectedPaths.add(item.path);
+            this.anchorPath = item.path;
+        }
+    }
+
+    /** Select every row between the anchor and `index`; `additive` keeps what was selected. */
+    selectRangeTo(index, additive = false) {
+        let anchor = this.anchorPath ? this.flatItems.findIndex(x => x.path === this.anchorPath) : -1;
+        if (anchor < 0) anchor = this.focusedIndex >= 0 ? this.focusedIndex : index;
+        if (!additive) this.selectedPaths.clear();
+        const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+        for (let i = from; i <= to; i++) {
+            if (this.flatItems[i]) this.selectedPaths.add(this.flatItems[i].path);
+        }
+        if (!this.anchorPath && this.flatItems[anchor]) this.anchorPath = this.flatItems[anchor].path;
+    }
+
+    /**
+     * Move the cursor the way a keyboard does in a file manager: plain moves
+     * the selection with it, Shift extends from the anchor, Ctrl moves the
+     * cursor alone (Ctrl+Space then picks rows one by one).
+     */
+    moveCursor(index, e) {
+        if (index < 0 || index >= this.flatItems.length) return;
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (e.shiftKey) this.selectRangeTo(index, ctrl);
+        else if (!ctrl) this.selectOnly(index);
+        this.setFocus(index);
+    }
+
+    setDropTarget(dir) {
+        if (this.dropTargetDir === dir) return;
+        this.dropTargetDir = dir;
+        this.container.classList.toggle('drop-target-root', !!dir && dir === this.rootPath);
+        this.redraw();
+    }
+
+    /** Scroll when a drag hovers near the top or bottom edge. */
+    autoScrollWhileDragging(e) {
+        const rect = this.container.getBoundingClientRect();
+        const edge = Math.min(32, rect.height / 4);
+        if (e.clientY < rect.top + edge) this.container.scrollTop -= this.rowHeight / 2;
+        else if (e.clientY > rect.bottom - edge) this.container.scrollTop += this.rowHeight / 2;
     }
 
     /** Tear down listeners so a re-init can't leave ghost handlers behind. */
@@ -131,12 +246,28 @@ class VirtualExplorer {
         // open or delete from here during a rename.
         if (this._renaming) return;
 
+        const ctrl = e.ctrlKey || e.metaKey;
+        const last = this.flatItems.length - 1;
+        const page = Math.max(1, Math.floor(this.container.clientHeight / this.rowHeight) - 1);
+
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            this.setFocus(Math.min(this.flatItems.length - 1, this.focusedIndex + 1));
+            this.moveCursor(this.focusedIndex < 0 ? 0 : Math.min(last, this.focusedIndex + 1), e);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            this.setFocus(Math.max(0, this.focusedIndex - 1));
+            this.moveCursor(Math.max(0, this.focusedIndex - 1), e);
+        } else if (e.key === 'Home') {
+            e.preventDefault();
+            this.moveCursor(0, e);
+        } else if (e.key === 'End') {
+            e.preventDefault();
+            this.moveCursor(last, e);
+        } else if (e.key === 'PageDown') {
+            e.preventDefault();
+            this.moveCursor(Math.min(last, Math.max(0, this.focusedIndex) + page), e);
+        } else if (e.key === 'PageUp') {
+            e.preventDefault();
+            this.moveCursor(Math.max(0, this.focusedIndex - page), e);
         } else if (e.key === 'ArrowRight') {
             // Expand
             e.preventDefault();
@@ -150,7 +281,7 @@ class VirtualExplorer {
                         if (this.focusedIndex + 1 < this.flatItems.length) {
                             const next = this.flatItems[this.focusedIndex + 1];
                             if (next.level > item.level) {
-                                this.setFocus(this.focusedIndex + 1);
+                                this.moveCursor(this.focusedIndex + 1, {});
                             }
                         }
                     }
@@ -171,7 +302,7 @@ class VirtualExplorer {
                 } else if (item.parent) {
                     // Find parent index
                     const parentIndex = this.flatItems.findIndex(x => x.path === item.parent);
-                    if (parentIndex >= 0) this.setFocus(parentIndex);
+                    if (parentIndex >= 0) this.moveCursor(parentIndex, {});
                 }
             }
         } else if (e.key === 'Enter') {
@@ -182,15 +313,39 @@ class VirtualExplorer {
                 else if (openFileCallback) openFileCallback(item.path);
             }
         } else if (e.key === 'Delete') {
+            // The whole selection, not just the row under the cursor — the
+            // context menu always did this, the key did not. Shift+Delete
+            // skips the Recycle Bin, as it does in Explorer.
+            e.preventDefault();
+            const paths = this.targetPaths();
+            if (paths.length) handleDelete(paths, { permanent: e.shiftKey });
+        } else if (e.key === 'Escape') {
+            if (this.focusedIndex >= 0 && this.selectedPaths.size > 1) {
+                e.preventDefault();
+                this.selectOnly(this.focusedIndex);
+                this.redraw();
+            }
+        } else if (ctrl && e.key === ' ') {
             e.preventDefault();
             const item = this.flatItems[this.focusedIndex];
-            if (item) handleDelete(item.path);
-        } else if (e.ctrlKey) {
+            if (item) {
+                if (this.selectedPaths.has(item.path)) this.selectedPaths.delete(item.path);
+                else this.selectedPaths.add(item.path);
+                this.anchorPath = item.path;
+                this.redraw();
+            }
+        } else if (ctrl && !e.altKey) {
             const item = this.flatItems[this.focusedIndex];
-            if (e.key === 'c' || e.key === 'C') {
-                if (item) handleCopy(item.path);
+            if (e.key === 'a' || e.key === 'A') {
+                e.preventDefault();
+                this.flatItems.forEach(it => this.selectedPaths.add(it.path));
+                this.redraw();
+            } else if (e.key === 'c' || e.key === 'C') {
+                const paths = this.targetPaths();
+                if (paths.length) handleCopy(paths);
             } else if (e.key === 'x' || e.key === 'X') {
-                if (item) handleCut(item.path);
+                const paths = this.targetPaths();
+                if (paths.length) handleCut(paths);
             } else if (e.key === 'v' || e.key === 'V') {
                 // Paste into current dir (if dir) or parent (if file)
                 if (item) {
@@ -299,13 +454,21 @@ class VirtualExplorer {
         // A newer refresh superseded us — leave the UI to it.
         if (gen !== this._refreshGen) return;
 
+        // Rows deleted, moved or hidden by a collapse are no longer selectable.
+        if (this.selectedPaths.size) {
+            const present = new Set(this.flatItems.map(x => x.path));
+            for (const p of [...this.selectedPaths]) {
+                if (!present.has(p)) this.selectedPaths.delete(p);
+            }
+        }
+
         this.scroller.update(this.flatItems.length);
 
         // Restore Focus
         if (focusedPath) {
             const newIndex = this.flatItems.findIndex(x => x.path === focusedPath);
             if (newIndex >= 0) {
-                // Determine if we should scroll? 
+                // Determine if we should scroll?
                 // If it was visible, keep it visible. 
                 // setFocus handles visibility check.
                 this.setFocus(newIndex);
@@ -524,6 +687,14 @@ class VirtualExplorer {
             div.classList.add('selected');
         }
 
+        if (clipboardAction && clipboardAction.type === 'cut' && clipboardAction.paths.includes(item.path)) {
+            div.classList.add('cut');
+        }
+
+        if (this.dropTargetDir && item.path === this.dropTargetDir) {
+            div.classList.add('drop-target');
+        }
+
         if (State.activeTabIndex >= 0 && State.openFiles[State.activeTabIndex]) {
             const activePath = State.openFiles[State.activeTabIndex].path;
             if (activePath === item.path) {
@@ -537,28 +708,21 @@ class VirtualExplorer {
 
         div.onclick = (e) => {
             e.stopPropagation();
-            if (e.ctrlKey || e.metaKey) {
+            const ctrl = e.ctrlKey || e.metaKey;
+            if (e.shiftKey) {
+                // Shift: range from the anchor; Ctrl+Shift adds the range.
+                this.selectRangeTo(index, ctrl);
+                this.setFocus(index);
+            } else if (ctrl) {
                 if (this.selectedPaths.has(item.path)) {
                     this.selectedPaths.delete(item.path);
                 } else {
                     this.selectedPaths.add(item.path);
                 }
+                this.anchorPath = item.path;
                 this.setFocus(index);
-                this.lastClickedIndex = index;
-                this.refresh();
-            } else if (e.shiftKey && this.lastClickedIndex !== -1) {
-                const start = Math.min(this.lastClickedIndex, index);
-                const end = Math.max(this.lastClickedIndex, index);
-                this.selectedPaths.clear();
-                for (let i = start; i <= end; i++) {
-                    if (this.flatItems[i]) this.selectedPaths.add(this.flatItems[i].path);
-                }
-                this.setFocus(index);
-                this.refresh();
             } else {
-                this.selectedPaths.clear();
-                this.selectedPaths.add(item.path);
-                this.lastClickedIndex = index;
+                this.selectOnly(index);
                 // A file opens on a single click. A folder, by default, only
                 // gets selected — opening and closing it is a double-click,
                 // Enter, ← / → or its chevron (settings: ExplorerPrefs).
@@ -580,7 +744,11 @@ class VirtualExplorer {
                 this.setFocus(index);
                 this.refresh();
             }
-            // Ensure explorer retains focus after click so Delete/F2/etc. work
+            // Ensure explorer retains focus after click so Delete/F2/etc. work.
+            // At once as well as later: the re-render above detached the row
+            // that was clicked, which drops focus to <body> until then, and a
+            // key pressed in that gap went nowhere.
+            if (!this._renaming) this.container.focus({ preventScroll: true });
             setTimeout(() => this.container.focus(), 50);
         };
 
@@ -645,6 +813,7 @@ class VirtualExplorer {
                         return;
                     }
                     await FS.rename(item.path, newPath);
+                    retargetTabs(item.path, newPath);
                     if (this.dirCache) this.dirCache.delete(parent);
                     await loadExplorer();
                 } catch (err) {
@@ -699,53 +868,61 @@ class VirtualExplorer {
         div.draggable = true;
         div.addEventListener('dragstart', (e) => {
             e.stopPropagation();
-            // Support multi-item drag: use selected paths
-            const dragPaths = this.selectedPaths.has(item.path)
-                ? Array.from(this.selectedPaths)
-                : [item.path];
+            // Dragging an unselected row drags that row alone, and selects it,
+            // as in Explorer. Dragging a selected one takes the whole selection.
+            if (!this.selectedPaths.has(item.path)) {
+                this.selectOnly(parseInt(div.dataset.index, 10));
+            }
+            const paths = this.selectionInOrder();
+            dragPaths = outermostPaths(paths.length ? paths : [item.path]);
             e.dataTransfer.setData('text/plain', dragPaths.join('\n'));
             e.dataTransfer.setData('application/x-editor-item', 'true');
-            e.dataTransfer.effectAllowed = 'move';
-            // Style dragged items
-            div.style.opacity = '0.5';
-            const onDragEnd = () => { div.style.opacity = ''; };
-            div.addEventListener('dragend', onDragEnd, { once: true });
+            e.dataTransfer.effectAllowed = 'copyMove';
+            // No redraw here: replacing the row being dragged would leave the
+            // drag without a source element.
+            div.classList.add('selected');
+        });
+        div.addEventListener('dragend', () => {
+            dragPaths = null;
+            this.setDropTarget(null);
         });
 
         div.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            this.setFocus(parseInt(div.dataset.index)); // Focus on right click
+            const index = parseInt(div.dataset.index, 10);
 
-            if (!this.selectedPaths.has(item.path)) {
-                this.selectedPaths.clear();
-                this.selectedPaths.add(item.path);
-                this.lastClickedIndex = parseInt(div.dataset.index);
-                this.refresh();
-            }
+            // Right-clicking outside the selection selects that row instead;
+            // inside it keeps the selection, so the menu acts on all of it.
+            if (!this.selectedPaths.has(item.path)) this.selectOnly(index);
+            this.setFocus(index); // Focus on right click
 
-            const paths = Array.from(this.selectedPaths);
+            const paths = this.targetPaths();
             const isDir = item.type === 'DIRECTORY';
+            const hereDir = isDir ? item.path : FS.getParentDir(item.path);
+            const count = paths.length > 1 ? ` (${paths.length})` : '';
             const menuItems = [
                 { label: t('Refresh'), action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
                 { type: 'separator' },
-                { label: t('New File'), action: () => handleNewFile(isDir ? item.path : FS.getParentDir(item.path)) },
-                { label: t('New Folder'), action: () => handleNewFolder(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('New File'), action: () => handleNewFile(hereDir) },
+                { label: t('New Folder'), action: () => handleNewFolder(hereDir) },
                 { type: 'separator' },
-                { label: t('Rename'), action: () => handleRename(paths[0]) },
-                { label: `Delete (${paths.length})`, action: () => handleDelete(paths) },
+                { label: t('Cut') + count, action: () => handleCut(paths) },
+                { label: t('Copy') + count, action: () => handleCopy(paths) },
+                { label: t('Paste'), action: () => handlePaste(hereDir) },
                 { type: 'separator' },
-                { label: `Cut (${paths.length})`, action: () => handleCut(paths) },
-                { label: `Copy (${paths.length})`, action: () => handleCopy(paths) },
-                { label: t('Paste'), action: () => handlePaste(isDir ? item.path : FS.getParentDir(item.path)) },
+                { label: t('Copy Path'), action: () => copyPathsAsText(paths, false) },
+                { label: t('Copy Relative Path'), action: () => copyPathsAsText(paths, true) },
+                { type: 'separator' },
+                { label: t('Rename'), action: () => handleRename(item.path) },
+                { label: t('Delete') + count, action: () => handleDelete(paths) },
                 { type: 'separator' },
                 { label: t('Find in Folder'), action: () => {
                     // Grep within this folder (a file → its parent folder).
-                    const dir = isDir ? item.path : FS.getParentDir(item.path);
-                    GrepModal.show(dir);
+                    GrepModal.show(hereDir);
                 } },
                 { type: 'separator' },
-                { label: isDir ? 'Reveal in File Manager' : 'Reveal in File Manager',
+                { label: t('Reveal in File Manager'),
                   action: async () => {
                       try {
                           await invoke('reveal_in_file_manager', { path: item.path });
@@ -785,52 +962,123 @@ class VirtualExplorer {
             ContextMenu.show(e, menuItems);
         });
 
-        // Drop target: directories accept drops to move into them;
-        // files accept drops to move into their parent directory.
-        const isDropTarget = item.type === 'DIRECTORY' || item.type === 'FILE';
-        if (isDropTarget) {
-            const targetDir = item.type === 'DIRECTORY' ? item.path : FS.getParentDir(item.path);
+        // Drop target: a folder takes the drop itself, a file passes it to the
+        // folder it sits in — and the folder is what gets highlighted.
+        const targetDir = item.type === 'DIRECTORY' ? item.path : FS.getParentDir(item.path);
 
-            div.addEventListener('dragover', (e) => {
-                e.preventDefault();
+        div.addEventListener('dragover', (e) => {
+            this.autoScrollWhileDragging(e);
+            if (!acceptsDrop(e, targetDir)) {
+                // Still ours to answer: letting it bubble would make the empty
+                // area offer the workspace root instead.
                 e.stopPropagation();
-                // Check if we're dragging a child of this target — prevent self-drop
-                const srcPaths = (e.dataTransfer.getData('text/plain') || '').split('\n').filter(Boolean);
-                const isSelfOrChild = srcPaths.some(src => {
-                    const normalized = src.replace(/\\/g, '/');
-                    const normalizedTarget = (item.type === 'DIRECTORY' ? item.path : FS.getParentDir(item.path)).replace(/\\/g, '/');
-                    return normalized === normalizedTarget || normalizedTarget.startsWith(normalized + '/');
-                });
-                if (isSelfOrChild) {
+                if (dragPaths) {
+                    e.preventDefault();
                     e.dataTransfer.dropEffect = 'none';
-                    div.style.opacity = '';
-                } else {
-                    e.dataTransfer.dropEffect = 'move';
-                    div.style.outline = '1px dashed var(--primary-color, #3b82f6)';
-                    div.style.outlineOffset = '-1px';
                 }
-            });
-            div.addEventListener('dragleave', (e) => {
+                this.setDropTarget(null);
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = dropEffectFor(e);
+            this.setDropTarget(targetDir);
+
+            // Hovering on a closed folder for a moment opens it, so a drop can
+            // go deeper than what is already expanded.
+            if (item.type === 'DIRECTORY' && !item.expanded) {
+                const now = Date.now();
+                if (this._hoverOpen && this._hoverOpen.path === item.path) {
+                    if (now - this._hoverOpen.since > 700) {
+                        this._hoverOpen = null;
+                        this.toggle(item);
+                    }
+                } else {
+                    this._hoverOpen = { path: item.path, since: now };
+                }
+            } else {
+                this._hoverOpen = null;
+            }
+        });
+        div.addEventListener('drop', async (e) => {
+            if (!acceptsDrop(e, targetDir)) {
                 e.preventDefault();
                 e.stopPropagation();
-                div.style.outline = '';
-                div.style.outlineOffset = '';
-            });
-            div.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                div.style.outline = '';
-                div.style.outlineOffset = '';
-                await handleDropEvent(e, targetDir);
-            });
-        }
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            this._hoverOpen = null;
+            this.setDropTarget(null);
+            await handleDropEvent(e, targetDir);
+        });
     }
+}
+
+/** Normalised for comparison: forward slashes, no trailing slash, case-folded (Windows). */
+function normPath(p) {
+    return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+/** `inner` is `outer` or somewhere beneath it. */
+function isSameOrInside(outer, inner) {
+    const o = normPath(outer);
+    const i = normPath(inner);
+    return i === o || i.startsWith(o + '/');
+}
+
+/** Drop duplicates and paths that sit inside another path of the list. Order is kept. */
+export function outermostPaths(paths) {
+    const out = [];
+    for (const p of paths) {
+        if (out.some(q => normPath(q) === normPath(p))) continue;
+        if (paths.some(q => normPath(q) !== normPath(p) && isSameOrInside(q, p))) continue;
+        out.push(p);
+    }
+    return out;
+}
+
+/**
+ * A name for a copy landing in `dir` that overwrites nothing: `name.txt` if
+ * it is free, then `name copy.txt`, `name copy 2.txt`, … Folders are not split
+ * at a dot.
+ */
+export async function freeCopyName(dir, name, isDir, exists = FS.exists) {
+    if (!(await exists(FS.joinPath(dir, name)))) return name;
+    const dot = isDir ? -1 : name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : '';
+    for (let n = 1; n < 1000; n++) {
+        const candidate = `${stem} copy${n === 1 ? '' : ' ' + n}${ext}`;
+        if (!(await exists(FS.joinPath(dir, candidate)))) return candidate;
+    }
+    throw new Error(`no free name for ${name}`);
+}
+
+/** Whether what is being dragged over `targetDir` can be dropped there. */
+function acceptsDrop(e, targetDir) {
+    const dt = e.dataTransfer;
+    if (!dt) return false;
+    if (dragPaths) {
+        // A folder cannot go into itself or anything beneath it.
+        return !dragPaths.some(src => isSameOrInside(src, targetDir));
+    }
+    const types = Array.from(dt.types || []);
+    if (types.includes('application/x-editor-item')) return true;
+    return isExternalFileDrag(dt);
+}
+
+/** Ctrl copies, plain moves — Explorer's rule. Files from outside the app are copied. */
+function dropEffectFor(e) {
+    if (!dragPaths) return 'copy';
+    return (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
 }
 
 // --- Init & Exports ---
 
 let closeFileCallback = null;
 let closeFilesUnderDirCallback = null;
+let retargetOpenFileCallback = null;
 
 const explorerActions = {
     'explorer:nav': (e) => {
@@ -855,6 +1103,7 @@ export function initExplorer(openCallback, cbObj) {
     if (cbObj) {
         if (cbObj.closeFileByPath) closeFileCallback = cbObj.closeFileByPath;
         if (cbObj.closeFilesUnderDir) closeFilesUnderDirCallback = cbObj.closeFilesUnderDir;
+        if (cbObj.retargetOpenFile) retargetOpenFileCallback = cbObj.retargetOpenFile;
     }
 
     const container = document.getElementById('file-list');
@@ -902,6 +1151,8 @@ export function initExplorer(openCallback, cbObj) {
         ContextMenu.show(e, [
             { label: t('New File'), action: () => handleNewFile(State.currentDir) },
             { label: t('New Folder'), action: () => handleNewFolder(State.currentDir) },
+            { type: 'separator' },
+            { label: t('Paste'), action: () => handlePaste(State.currentDir) },
             { type: 'separator' },
             { label: t('Reveal in File Manager'), action: async () => {
                 try {
@@ -1268,103 +1519,239 @@ function handleRename(path) {
     }
 }
 
-async function handleDelete(pathOrPaths) {
-    const paths = Array.isArray(pathOrPaths) ? pathOrPaths : [pathOrPaths];
-    const targetName = paths.length === 1 ? paths[0].split('/').pop() : `${paths.length} items`;
-    const shouldDelete = await showCustomConfirm('Delete', `Delete ${targetName}?`);
+/**
+ * Tabs showing `oldPath`, or anything under it when it is a folder, follow the
+ * file to `newPath`. Otherwise the next save writes it back where it was.
+ */
+function retargetTabs(oldPath, newPath) {
+    if (!retargetOpenFileCallback) return;
+    const o = String(oldPath).replace(/\\/g, '/');
+    const n = String(newPath).replace(/\\/g, '/');
+    const open = [...(State.openFiles || []), ...(State.rightOpenFiles || [])];
+    const seen = new Set();
+    for (const f of open) {
+        if (!f || !f.path || seen.has(f.path)) continue;
+        seen.add(f.path);
+        const p = String(f.path).replace(/\\/g, '/');
+        if (p === o) retargetOpenFileCallback(f.path, n);
+        else if (p.startsWith(o + '/')) retargetOpenFileCallback(f.path, n + p.slice(o.length));
+    }
+}
+
+/** Put the cursor on `path` once the tree has been rebuilt, if it is a row. */
+function focusPath(path) {
+    if (!vExplorer || !path) return;
+    const index = vExplorer.flatItems.findIndex(x => normPath(x.path) === normPath(path));
+    if (index >= 0) {
+        vExplorer.selectOnly(index);
+        vExplorer.setFocus(index);
+    }
+}
+
+async function handleDelete(pathOrPaths, { permanent = false } = {}) {
+    const paths = outermostPaths(Array.isArray(pathOrPaths) ? pathOrPaths : [pathOrPaths]);
+    if (!paths.length) return;
+    const what = paths.length === 1 ? FS.getBasename(paths[0]) : t('{n} items', { n: paths.length });
+    const message = permanent
+        ? t('Permanently delete {name}? This cannot be undone.', { name: what })
+        : t('Move {name} to the Recycle Bin?', { name: what });
+    const shouldDelete = await showCustomConfirm(t('Delete'), message);
     if (!shouldDelete) return;
 
+    // Where the cursor goes afterwards: the first surviving row below the
+    // deleted ones, or the one above — not back to the top of the tree.
+    let after = null;
+    if (vExplorer) {
+        const gone = (p) => paths.some(d => isSameOrInside(d, p));
+        const first = vExplorer.flatItems.findIndex(x => gone(x.path));
+        if (first >= 0) {
+            const next = vExplorer.flatItems.slice(first + 1).find(x => !gone(x.path))
+                || vExplorer.flatItems.slice(0, first).reverse().find(x => !gone(x.path));
+            after = next ? next.path : null;
+        }
+    }
+
     for (const path of paths) {
-        if (closeFileCallback) closeFileCallback(path);
-        if (closeFilesUnderDirCallback) closeFilesUnderDirCallback(path);
-        await FS.removeFile(path);
+        if (closeFileCallback) await closeFileCallback(path);
+        if (closeFilesUnderDirCallback) await closeFilesUnderDirCallback(path);
+    }
+    try {
+        if (permanent) {
+            for (const path of paths) await FS.removeFile(path);
+        } else {
+            // The Recycle Bin, as in Explorer. This used to delete outright.
+            await FS.trashPaths(paths);
+        }
+    } catch (err) {
+        showAlert(t('Delete failed: {error}', { error: (err && err.message) || err }), { title: t('Delete'), kind: 'error' });
+    }
+    if (clipboardAction) {
+        clipboardAction.paths = clipboardAction.paths.filter(p => !paths.some(d => isSameOrInside(d, p)));
+        if (!clipboardAction.paths.length) clipboardAction = null;
     }
     await loadExplorer(true); // Force Refresh
+    focusPath(after);
 }
 
-function handleCopy(paths) { 
-    const p = Array.isArray(paths) ? paths : [paths];
-    clipboardAction = { type: 'copy', paths: p }; 
-}
-function handleCut(paths) { 
-    const p = Array.isArray(paths) ? paths : [paths];
-    clipboardAction = { type: 'cut', paths: p }; 
+/**
+ * Copy or cut: remembered here for Paste, and put on the OS clipboard as well
+ * so the files can be pasted into Explorer too.
+ */
+async function setClipboard(type, paths) {
+    const list = outermostPaths(Array.isArray(paths) ? paths : [paths]);
+    const entry = { type, paths: list, seq: null };
+    clipboardAction = entry;
+    if (vExplorer) vExplorer.redraw(); // dims the cut rows, undims the previous cut
+    try {
+        entry.seq = await FS.setClipboardFiles(list);
+    } catch (e) {
+        console.warn('Explorer: could not put the files on the OS clipboard', e);
+    }
 }
 
+function handleCopy(paths) {
+    return setClipboard('copy', paths);
+}
+function handleCut(paths) {
+    return setClipboard('cut', paths);
+}
+
+/** Copy Path / Copy Relative Path: one path per line, as text. */
+async function copyPathsAsText(paths, relative) {
+    const root = State.currentDir ? String(State.currentDir).replace(/\\/g, '/').replace(/\/+$/, '') : '';
+    const lines = paths.map((p) => {
+        const fwd = String(p).replace(/\\/g, '/');
+        if (relative && root && isSameOrInside(root, fwd)) return fwd.slice(root.length + 1) || '.';
+        // Absolute paths in the OS's own form, ready for a shell or a dialog.
+        return fwd.replace(/\//g, '\\');
+    });
+    try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+    } catch (e) {
+        console.warn('Explorer: copy path failed', e);
+    }
+}
+
+/**
+ * Paste into `targetDir`.
+ *
+ * Our own Copy/Cut wins only while it is still the latest thing on the OS
+ * clipboard. It used to win for good: once anything had been copied in the
+ * tree, files copied in Explorer afterwards could never be pasted here.
+ */
 async function handlePaste(targetDir) {
-    if (clipboardAction && clipboardAction.paths && clipboardAction.paths.length > 0) {
-        try {
-            for (const path of clipboardAction.paths) {
-                const filename = path.split(/[/\\]/).pop();
-                const destPath = FS.joinPath(targetDir, filename);
-                if (clipboardAction.type === 'copy') await FS.copyFile(path, destPath);
-                else await FS.rename(path, destPath);
-            }
-            if (clipboardAction.type === 'cut') clipboardAction = null;
-            await loadExplorer(true);
-        } catch (e) { showAlert(e.message, { title: 'Explorer', kind: 'error' }); }
+    if (!targetDir) return;
+    let osSeq = null;
+    try { osSeq = await FS.clipboardSequence(); } catch (_) { /* no OS clipboard: ours it is */ }
+    const ours = clipboardAction && clipboardAction.paths.length ? clipboardAction : null;
+    const oursIsLatest = !!ours && (!osSeq || !ours.seq || osSeq === ours.seq);
+
+    let type = 'copy';
+    let sources = [];
+    if (oursIsLatest) {
+        type = ours.type;
+        sources = ours.paths;
     } else {
-        const files = await FS.pasteFiles();
-        if (files && files.length > 0) {
-            for (const src of files) {
-                const name = src.split(/[/\\]/).pop();
-                const dest = FS.joinPath(targetDir, name);
-                try { await FS.copyFile(src, dest); } catch (e) { }
-            }
-            await loadExplorer(true);
-        }
+        try { sources = (await FS.pasteFiles()) || []; } catch (_) { sources = []; }
     }
+    if (!sources.length) return;
+
+    const done = await transferInto(targetDir, sources, type === 'cut' ? 'move' : 'copy');
+    if (type === 'cut' && clipboardAction === ours) clipboardAction = null;
+    await loadExplorer(true);
+    if (done.length) focusPath(done[done.length - 1]);
 }
 
-async function handleDropEvent(e, targetDir) {
-    const rawData = e.dataTransfer.getData('text/plain');
-    if (!rawData) return;
-    const srcPaths = rawData.split('\n').filter(Boolean);
-    if (srcPaths.length === 0) return;
-
+/**
+ * Copy or move `sources` into `targetDir`. Returns the paths created.
+ *
+ * A copy never overwrites: a name already taken gets " copy" added, which
+ * also makes Ctrl+C, Ctrl+V in the same folder a duplicate. A move onto a
+ * taken name is refused and reported — quietly replacing a file is the one
+ * thing a move must not do.
+ */
+async function transferInto(targetDir, sources, mode) {
     const errors = [];
-    for (const srcPath of srcPaths) {
-        // Normalize path separators
-        const normalizedSrc = srcPath.replace(/\\/g, '/');
-        const normalizedTarget = targetDir.replace(/\\/g, '/');
-
-        // Prevent dropping onto self or a child
-        if (normalizedSrc === normalizedTarget || normalizedTarget.startsWith(normalizedSrc + '/')) {
-            continue;
-        }
-
-        const fileName = normalizedSrc.split('/').pop();
-        const destPath = FS.joinPath(targetDir, fileName);
-
-        // Skip if source === destination
-        if (normalizedSrc === normalizedTarget + '/' + fileName) continue;
-
+    const created = [];
+    for (const src of outermostPaths(sources)) {
+        const fwd = String(src).replace(/\\/g, '/');
+        const name = FS.getBasename(fwd);
         try {
-            // Check destination exists
-            if (await FS.exists(destPath)) {
-                errors.push(`"${fileName}" already exists at destination`);
-                continue;
+            if (mode === 'copy') {
+                if (isSameOrInside(fwd, targetDir)) {
+                    errors.push(t('{name}: cannot copy a folder into itself', { name }));
+                    continue;
+                }
+                let isDir = false;
+                try { isDir = await invoke('path_is_dir', { path: fwd }); } catch (_) { /* treat as a file */ }
+                const dest = FS.joinPath(targetDir, await freeCopyName(targetDir, name, isDir));
+                await FS.copyPath(fwd, dest);
+                created.push(dest);
+            } else {
+                // Already where it is going: nothing to do, nothing to report.
+                if (normPath(FS.getParentDir(fwd)) === normPath(targetDir)) continue;
+                if (isSameOrInside(fwd, targetDir)) {
+                    errors.push(t('{name}: cannot move a folder into itself', { name }));
+                    continue;
+                }
+                const dest = FS.joinPath(targetDir, name);
+                if (await FS.exists(dest)) {
+                    errors.push(t('{name} already exists in the destination', { name }));
+                    continue;
+                }
+                await FS.movePath(fwd, dest);
+                retargetTabs(fwd, dest);
+                created.push(dest);
             }
-            await FS.rename(srcPath, destPath);
         } catch (err) {
-            errors.push(`${fileName}: ${err.message || err}`);
+            errors.push(`${name}: ${(err && err.message) || err}`);
         }
     }
-
-    if (errors.length > 0) {
-        showAlert('Move failed:\n' + errors.join('\n'), { title: 'Move', kind: 'error' });
+    if (errors.length) {
+        showAlert(errors.join('\n'), { title: mode === 'copy' ? t('Copy') : t('Move'), kind: 'error' });
     }
+    return created;
+}
 
-    // Clear cut clipboard if we moved the cut items
-    if (clipboardAction && clipboardAction.type === 'cut') {
-        const cutMoved = srcPaths.every(src => {
-            const normalizedSrc = src.replace(/\\/g, '/');
-            return clipboardAction.paths.some(cp => cp.replace(/\\/g, '/') === normalizedSrc);
-        });
-        if (cutMoved) clipboardAction = null;
+/**
+ * A drop onto the tree. Rows dragged within it move (Ctrl: copy); files
+ * dragged in from outside the app are copied in.
+ */
+async function handleDropEvent(e, targetDir) {
+    const dt = e.dataTransfer;
+    const internal = dragPaths;
+    dragPaths = null;
+    let sources;
+    let mode;
+    if (internal) {
+        sources = internal;
+        mode = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
+    } else if (Array.from(dt.types || []).includes('application/x-editor-item')) {
+        sources = (dt.getData('text/plain') || '').split('\n').filter(Boolean);
+        mode = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
+    } else {
+        // Read the File objects now: the drop's dataTransfer is emptied once
+        // this handler returns, and the paths are only known asynchronously.
+        const files = Array.from(dt.files || []);
+        sources = await resolveDroppedPaths(files);
+        mode = 'copy';
+        if (!sources.length && files.length) {
+            showAlert(t('Could not open the dropped files.'), { title: t('Copy'), kind: 'error' });
+            return;
+        }
+    }
+    if (!sources.length) return;
+
+    const done = await transferInto(targetDir, sources, mode);
+
+    // Cut-then-dragged: the cut is used up.
+    if (mode === 'move' && clipboardAction && clipboardAction.type === 'cut') {
+        clipboardAction.paths = clipboardAction.paths.filter(p => !sources.some(src => normPath(src) === normPath(p)));
+        if (!clipboardAction.paths.length) clipboardAction = null;
     }
 
     await loadExplorer(true);
+    if (done.length) focusPath(done[done.length - 1]);
 }
 
 export function showExplorerStatus(scanned, total, found, path, percent) {

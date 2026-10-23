@@ -318,3 +318,28 @@ export async function exists(path) {
 export async function pasteFiles() {
     return await invoke('paste_files');
 }
+
+/** Copy a file or a whole folder to `dest`. Fails if `dest` already exists. */
+export async function copyPath(source, dest) {
+    await invoke('copy_path', { source, dest });
+}
+
+/** Move a file or folder to `dest` (across drives too). Fails if `dest` exists. */
+export async function movePath(source, dest) {
+    await invoke('move_path', { source, dest });
+}
+
+/** Send files and folders to the Recycle Bin. */
+export async function trashPaths(paths) {
+    await invoke('trash_paths', { paths });
+}
+
+/** Put files on the OS clipboard; resolves to the clipboard's sequence number. */
+export async function setClipboardFiles(paths) {
+    return await invoke('clipboard_set_files', { paths });
+}
+
+/** The OS clipboard's change counter. */
+export async function clipboardSequence() {
+    return await invoke('clipboard_sequence');
+}

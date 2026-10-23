@@ -112,27 +112,50 @@
     background-color: var(--hover-color);
 }
 
-.tree-item.selected {
-    background-color: var(--tree-item-active-bg, rgba(13, 110, 253, 0.08));
-    border-left: 3px solid rgba(13, 110, 253, 0.4);
+/* Selection and cursor are two different things, drawn two different ways.
+   Every selected row gets the same solid fill, so a multi-selection reads as
+   one; the cursor (the row the keys act from) is an outline on top. The old
+   rules filled only the cursor row strongly, which made the other selected
+   rows look unselected and Delete look like it would take just the one. */
+/* #file-list in front: the themes' own `body.theme-x .tree-item:hover` would
+   otherwise outrank it, and the selected row under the mouse lost its fill. */
+#file-list .tree-item.selected {
+    background-color: var(--selection-bg);
+    color: var(--selection-color, var(--text-color));
+    border-left: 3px solid var(--accent-color);
+}
+
+#file-list .tree-item.selected .tree-label {
+    color: var(--selection-color, var(--text-color)) !important;
 }
 
 .tree-item:focus,
 .tree-item.focused {
-    background-color: var(--selection-bg);
-    color: var(--selection-color, var(--text-color));
-    border-left: 3px solid var(--accent-color);
-    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--accent-color);
 }
 
-.tree-item.focused .tree-label {
-    color: var(--selection-color, var(--text-color)) !important;
+/* While the tree does not have the keyboard, the selection stays visible
+   but steps back, and the cursor ring goes. */
+#file-list:not(:focus-within) .tree-item.selected {
+    background-color: color-mix(in srgb, var(--selection-bg) 60%, transparent);
+}
+#file-list:not(:focus-within) .tree-item.focused {
+    box-shadow: none;
 }
 
-.tree-item.selected.focused {
-    background-color: var(--selection-bg);
-    color: var(--selection-color, var(--text-color));
-    border-left: 3px solid var(--accent-color);
+/* Cut, waiting for Paste: dimmed like Explorer does. */
+.tree-item.cut .tree-icon,
+.tree-item.cut .tree-label {
+    opacity: 0.5;
+}
+
+/* Drop target while dragging: the folder that will receive the drop. */
+#file-list .tree-item.drop-target {
+    background-color: color-mix(in srgb, var(--accent-color) 22%, transparent);
+    box-shadow: inset 0 0 0 1px var(--accent-color);
+}
+#file-list.drop-target-root {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-color) 60%, transparent);
 }
 
 .tree-item.clicked {

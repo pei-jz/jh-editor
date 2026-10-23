@@ -20,6 +20,8 @@ const MAY_STAY_SYNC = new Set([
     'create_app_window',    // window creation belongs on the main thread
     'take_launch_path',     // in-memory map
     'paste_files',          // clipboard
+    'clipboard_set_files',  // clipboard
+    'clipboard_sequence',   // clipboard
     // Hands the walk to its own thread and returns at once. It must stay in
     // call order: the generation it takes is what cancels the older search.
     'start_grep',

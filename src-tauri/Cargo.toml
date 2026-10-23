@@ -76,6 +76,9 @@ windows-registry = "0.6"
 # wry already uses, so nothing new is built or downloaded.
 webview2-com = "0.38"
 windows-core = "0.61"
+# Recycle Bin for the explorer's Delete (commands/fs.rs trash_paths).
+# Already in the tree through other crates; only the feature is new.
+windows-sys = { version = "0.60", features = ["Win32_UI_Shell"] }
 
 [profile.release]
 lto = true
