@@ -83,8 +83,12 @@ pub fn create_window(app: &AppHandle, path: &str) -> Result<String, String> {
     Ok(label)
 }
 
+/// Async on purpose. A plain `fn` command runs on the main thread, and building
+/// a webview from there deadlocks on Windows: the window's frame appeared
+/// (hidden, as built) but its WebView2 never came up, so the frontend that
+/// shows it never ran: "open in a new window" did nothing visible.
 #[tauri::command]
-pub fn create_app_window(app: AppHandle, path: Option<String>) -> Result<String, String> {
+pub async fn create_app_window(app: AppHandle, path: Option<String>) -> Result<String, String> {
     create_window(&app, &path.unwrap_or_default())
 }
 

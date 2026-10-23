@@ -17,7 +17,6 @@ const MAY_STAY_SYNC = new Set([
     'get_launch_args',      // process args, in memory
     'expand_env_path',      // string work only
     'open_devtools',        // window API
-    'create_app_window',    // window creation belongs on the main thread
     'take_launch_path',     // in-memory map
     'paste_files',          // clipboard
     'clipboard_set_files',  // clipboard
