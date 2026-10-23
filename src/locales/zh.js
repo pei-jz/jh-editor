@@ -764,7 +764,6 @@ export default {
     'No file matches the filter.': '没有与筛选匹配的文件。',
     'No history.': '没有历史记录。',
     'Open Changes in Editor': '在编辑器中打开更改',
-    'Open in Editor': '在编辑器中打开',
     'Pick the two refs to diff.': '选择要比较的两个引用。',
     'Pick two different refs.': '请选择两个不同的引用。',
     'Previous file (Ctrl+Up)': '上一个文件 (Ctrl+↑)',
@@ -780,4 +779,8 @@ export default {
     '{head} is already part of {base}; showing the direct comparison.': '{head} 已包含在 {base} 中，显示直接比较。',
     '{name} has unsaved changes. Save them before moving to another file?': '{name} 有未保存的更改。切换到其他文件前要保存吗？',
     '{n} files': '{n} 个文件',
+    'Author': '作者',
+    'Date': '日期',
+    'Parents': '父提交',
+    'Show details': '显示/隐藏详细信息',
 };

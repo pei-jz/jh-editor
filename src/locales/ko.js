@@ -764,7 +764,6 @@ export default {
     'No file matches the filter.': '필터와 일치하는 파일이 없습니다.',
     'No history.': '기록이 없습니다.',
     'Open Changes in Editor': '변경 사항을 편집기에서 열기',
-    'Open in Editor': '편집기에서 열기',
     'Pick the two refs to diff.': '비교할 두 참조를 선택하세요.',
     'Pick two different refs.': '서로 다른 두 참조를 선택하세요.',
     'Previous file (Ctrl+Up)': '이전 파일 (Ctrl+↑)',
@@ -780,4 +779,8 @@ export default {
     '{head} is already part of {base}; showing the direct comparison.': '{head}은(는) 이미 {base}에 포함되어 있어 직접 비교합니다.',
     '{name} has unsaved changes. Save them before moving to another file?': '{name}에 저장하지 않은 변경 사항이 있습니다. 다른 파일로 이동하기 전에 저장할까요?',
     '{n} files': '파일 {n}개',
+    'Author': '작성자',
+    'Date': '날짜',
+    'Parents': '부모',
+    'Show details': '자세히 보기/숨기기',
 };

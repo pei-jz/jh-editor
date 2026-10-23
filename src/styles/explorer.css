@@ -975,24 +975,188 @@ body.theme-solarized-dark .tree-icon {
     border-left-width: 1px;
 }
 
-.git-commit-open-editor {
+/* The selected commit: two lines of summary, the full record on click, then
+   its files — which get the rest of the pane. */
+.git-cd {
+    font-size: 12px;
+}
+
+.git-cd-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 6px 0 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.git-cd-caret {
+    display: inline-flex;
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: transform 0.12s ease;
+}
+
+.git-cd.is-expanded .git-cd-caret {
+    transform: rotate(90deg);
+}
+
+.git-cd-hash {
+    flex-shrink: 0;
+    font-family: monospace;
+    color: var(--primary-color);
+}
+
+.git-cd-subject {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.git-cd-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    font-size: 11px;
-    color: var(--text-color);
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 22px;
+    padding: 0;
     background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.git-cd-btn:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+
+.git-cd-btn.git-commit-open-editor {
+    color: var(--primary-color);
+}
+
+.git-cd-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    padding: 1px 8px 6px 25px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.git-cd-count {
+    font-weight: 600;
+}
+
+.git-cd-count:empty {
+    display: none;
+}
+
+.git-cd-ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 5px;
+    font-size: 10px;
+    border-radius: 3px;
+    background: rgba(63,185,80,0.15);
+    color: #3fb950;
+    white-space: nowrap;
+}
+
+.git-cd-ref.is-tag {
+    background: rgba(56,139,253,0.15);
+    color: #58a6ff;
+}
+
+/* The full record, folded away until asked for. */
+.git-cd-full {
+    display: none;
+    padding: 6px 10px 8px 25px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(127,127,127,0.05);
+}
+
+.git-cd.is-expanded .git-cd-full {
+    display: block;
+}
+
+.git-cd-full > div {
+    display: flex;
+    gap: 6px;
+    line-height: 1.6;
+}
+
+.git-cd-key {
+    min-width: 58px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.git-cd-val {
+    color: var(--text-color);
+    user-select: text;
+    word-break: break-all;
+}
+
+.git-cd-mono {
+    font-family: monospace;
+}
+
+.git-cd-full > .git-cd-message {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    user-select: text;
+}
+
+.git-cd-files .git-commit-file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 12px;
     cursor: pointer;
     white-space: nowrap;
 }
 
-.git-commit-open-editor:hover {
+.git-cd-files .git-commit-file-item:hover {
     background: var(--hover-color);
-    border-color: var(--primary-color);
 }
+
+.git-cd-status {
+    width: 12px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.git-cd-file-name {
+    flex-shrink: 0;
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The folder, dimmed after the name: the name is what you look for. */
+.git-cd-file-dir {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10.5px;
+    opacity: 0.55;
+}
+
 
 /* ── Git comparison tab (views/GitCompareView.js) ─────────────────────────
    The changed files down the left, as tall as the editor; the selected file's

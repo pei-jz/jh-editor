@@ -163,3 +163,76 @@ describe('createFilterSelect', () => {
         expect(picker.getValue()).toBe('release'); // 'main' is gone
     });
 });
+
+/* In the Compare Branches dialog, a repository with many branches opened the
+   list over its own input: the list was clipped by the dialog, and bringing
+   the selected branch into view scrolled the dialog itself. */
+describe('where the list opens', () => {
+    const rect = (top, height = 24) => ({
+        top, bottom: top + height, left: 40, right: 340, width: 300, height, x: 40, y: top,
+    });
+    const make = (inputTop) => {
+        document.body.innerHTML = '';
+        const many = Array.from({ length: 80 }, (_, i) => `branch-${i}`);
+        const picker = createFilterSelect({ items: many, value: 'branch-70' });
+        document.body.appendChild(picker.element);
+        const input = picker.element.querySelector('.filter-select-input');
+        input.getBoundingClientRect = () => rect(inputTop);
+        const list = picker.element.querySelector('.filter-select-list');
+        return { picker, input, list };
+    };
+
+    it('opens below the input, sized to the room there', () => {
+        window.innerHeight = 800;
+        const { input, list } = make(200);
+        input.dispatchEvent(new Event('focus'));
+        expect(list.style.top).toBe('226px');
+        expect(list.style.bottom).toBe('auto');
+        expect(list.style.left).toBe('40px');
+        expect(list.style.width).toBe('300px');
+        expect(parseInt(list.style.maxHeight, 10)).toBeLessThanOrEqual(260);
+        expect(list.classList.contains('upward')).toBe(false);
+    });
+
+    it('stays below even when the room there is short, as long as it is usable', () => {
+        window.innerHeight = 800;
+        const { input, list } = make(640);   // 136px left below
+        input.dispatchEvent(new Event('focus'));
+        expect(list.classList.contains('upward')).toBe(false);
+        expect(list.style.maxHeight).toBe('128px');
+    });
+
+    it('opens upward only at the very bottom of the window, and never over the input', () => {
+        window.innerHeight = 800;
+        const { input, list } = make(740);
+        input.dispatchEvent(new Event('focus'));
+        expect(list.classList.contains('upward')).toBe(true);
+        // Its bottom edge sits above the input's top edge.
+        expect(list.style.bottom).toBe(`${800 - 740 + 2}px`);
+        expect(list.style.top).toBe('auto');
+    });
+
+    it('brings the selected option into view by scrolling the list, not its ancestors', () => {
+        const { input } = make(200);
+        const spy = vi.fn();
+        Element.prototype.scrollIntoView = spy;
+        try {
+            input.dispatchEvent(new Event('focus'));
+            key(input, 'ArrowDown');
+            expect(spy).not.toHaveBeenCalled();
+        } finally {
+            delete Element.prototype.scrollIntoView;
+        }
+    });
+
+    it('stops following the window once closed', () => {
+        const { input, list } = make(200);
+        const remove = vi.spyOn(window, 'removeEventListener');
+        input.dispatchEvent(new Event('focus'));
+        key(input, 'Escape');
+        expect(list.classList.contains('open')).toBe(false);
+        expect(remove).toHaveBeenCalledWith('resize', expect.any(Function));
+        expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function), true);
+        remove.mockRestore();
+    });
+});

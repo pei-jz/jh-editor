@@ -764,7 +764,6 @@ export default {
     'No file matches the filter.': '絞り込みに一致するファイルはありません。',
     'No history.': '履歴はありません。',
     'Open Changes in Editor': '変更をエディターで開く',
-    'Open in Editor': 'エディターで開く',
     'Pick the two refs to diff.': '比較する 2 つの参照を選んでください。',
     'Pick two different refs.': '異なる 2 つの参照を選んでください。',
     'Previous file (Ctrl+Up)': '前のファイル (Ctrl+↑)',
@@ -780,4 +779,8 @@ export default {
     '{head} is already part of {base}; showing the direct comparison.': '{head} はすでに {base} に含まれているため、直接比較しています。',
     '{name} has unsaved changes. Save them before moving to another file?': '{name} に未保存の変更があります。別のファイルへ移る前に保存しますか？',
     '{n} files': '{n} ファイル',
+    'Author': '作者',
+    'Date': '日時',
+    'Parents': '親',
+    'Show details': '詳細を表示／隠す',
 };
