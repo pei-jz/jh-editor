@@ -49,8 +49,11 @@ function _injectStyles() {
         font-size: 9px; opacity: 0.6; pointer-events: none;
         color: var(--text-color);
     }
+    /* Fixed, and placed under the input by place(): an absolute list was
+       clipped by a dialog's overflow, and scrolling it into view scrolled the
+       dialog instead — the input went off the top. */
     .filter-select-list {
-        position: absolute; left: 0; right: 0; top: calc(100% + 2px);
+        position: fixed; left: 0; top: 0;
         z-index: 1000;
         max-height: 260px; overflow-y: auto;
         background: var(--bg-color);
@@ -165,22 +168,68 @@ export function createFilterSelect({
         list.querySelectorAll('.filter-select-option').forEach((el) => {
             const on = Number(el.dataset.index) === i;
             el.classList.toggle('active', on);
-            // Guarded: jsdom (and any non-layout host) has no scrollIntoView.
-            if (on && typeof el.scrollIntoView === 'function') {
-                el.scrollIntoView({ block: 'nearest' });
+            // Scroll the LIST only. scrollIntoView scrolls every ancestor that
+            // can scroll — a dialog with overflow: hidden included — and with
+            // the current branch far down a long list it pushed the input out
+            // of the dialog.
+            if (on) {
+                const top = el.offsetTop;
+                const bottom = top + el.offsetHeight;
+                if (top < list.scrollTop) list.scrollTop = top;
+                else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
             }
         });
     };
 
+    /** Tallest the list gets, and the least room below before it opens upward. */
+    const MAX_HEIGHT = 260;
+    const MIN_BELOW = 120;
+
+    /**
+     * Put the list under the input, as tall as the room below allows. Upward
+     * only when there is almost no room below and more above — near the bottom
+     * of the window — so it never covers the input it belongs to.
+     */
+    const place = () => {
+        const r = input.getBoundingClientRect();
+        const below = window.innerHeight - r.bottom - 8;
+        const above = r.top - 8;
+        const up = below < MIN_BELOW && above > below;
+        list.style.left = `${r.left}px`;
+        list.style.width = `${r.width}px`;
+        if (up) {
+            list.style.top = 'auto';
+            list.style.bottom = `${window.innerHeight - r.top + 2}px`;
+            list.style.maxHeight = `${Math.min(MAX_HEIGHT, above)}px`;
+        } else {
+            list.style.bottom = 'auto';
+            list.style.top = `${r.bottom + 2}px`;
+            list.style.maxHeight = `${Math.max(80, Math.min(MAX_HEIGHT, below))}px`;
+        }
+        list.classList.toggle('upward', up);
+    };
+
+    // A fixed list does not follow its input when something scrolls or the
+    // window resizes, so it is placed again while open.
+    const follow = () => { if (list.classList.contains('open')) place(); };
+    const track = (on) => {
+        const method = on ? 'addEventListener' : 'removeEventListener';
+        window[method]('resize', follow);
+        window[method]('scroll', follow, true);
+    };
+
     const open = () => {
-        render(''); // always start from the full list, like a dropdown
+        if (!list.classList.contains('open')) track(true);
         list.classList.add('open');
+        place();
+        render(''); // always start from the full list, like a dropdown
         // While the list is open Enter picks an option and Escape closes the
         // list — neither belongs to a surrounding dialog. See Dialog.js.
         element.dataset.dialogKeys = 'own';
     };
 
     const close = () => {
+        if (list.classList.contains('open')) track(false);
         list.classList.remove('open');
         delete element.dataset.dialogKeys;
         // Free text is not a value: snap back to whatever is actually selected.
@@ -198,7 +247,11 @@ export function createFilterSelect({
     input.addEventListener('focus', () => { open(); input.select(); });
     input.addEventListener('mousedown', () => { if (!list.classList.contains('open')) open(); });
     input.addEventListener('input', () => {
-        list.classList.add('open');
+        if (!list.classList.contains('open')) {
+            track(true);
+            list.classList.add('open');
+            place();
+        }
         element.dataset.dialogKeys = 'own';
         render(input.value);
     });
