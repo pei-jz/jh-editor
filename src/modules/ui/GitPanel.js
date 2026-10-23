@@ -1768,137 +1768,119 @@ class GitPanel {
                 : await invoke('git_commit_files', { path: State.gitRoot, hash: hash });
             if (files.length === 0) return;
 
-            // If only one file changed, show its diff directly
-            if (files.length === 1) {
-                await this._openCommitCompare(entry || hash, files[0].path);
-                return;
-            }
-
-            // Multiple files: show a file list in the Git panel for the user to pick.
+            // The files under the summary, to pick from.
             this._showCommitFileList(hash, message, files);
+
+            // If only one file changed, show its diff directly
+            if (files.length === 1) await this._openCommitCompare(entry || hash, files[0].path);
         } catch (e) {
             console.error('Failed to get commit diff:', e);
         }
     }
 
-    /** Show commit detail info (hash, author, email, date, branches, tags). */
+    /**
+     * The selected commit, summarised in two lines above its files: hash and
+     * subject, then author, date, refs and the file count. The full record
+     * (whole hash, e-mail, exact date, parents, full message) opens on click.
+     *
+     * It used to be a block of labelled rows plus a second header over the
+     * file list repeating the hash and subject, which together took most of
+     * the pane and left room for two or three files.
+     */
     _showCommitDetail(hash) {
-        // Find the full entry from lastHistory
-        const entry = (this._lastHistory || []).find(e => e.hash === hash);
+        const entry = (this._lastHistory || []).find(e => e.hash === hash)
+            || (this._fullHistory || []).find(e => e.hash === hash);
         if (!entry) return;
 
         const panel = this._showDetailPanel();
         if (!panel) return;
-
-        // Fresh panel for the selected commit (shown below the history graph).
         panel.innerHTML = '';
 
-        const detail = document.createElement('div');
-        detail.className = 'git-commit-detail-container';
-        detail.style.cssText = 'padding:10px 12px;';
+        const expanded = localStorage.getItem('git_detail_expanded') === 'true';
+        const box = document.createElement('div');
+        box.className = 'git-cd' + (expanded ? ' is-expanded' : '');
+        box.dataset.hash = hash;
 
-        // Parse refs for branches and tags
-        let branchesHtml = '';
-        let tagsHtml = '';
-        if (entry.refs) {
-            const refs = entry.refs.split(', ').map(r => r.trim()).filter(Boolean);
-            refs.forEach(r => {
-                if (r.includes('tag:')) {
-                    const tagName = r.replace('tag:', '').trim();
-                    tagsHtml += `<span style="background:rgba(56,139,253,0.15);color:#58a6ff;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" class="jh-icon-row">${svgIcon('tag', { size: 10 })}${tagName}</span>`;
-                } else if (r.startsWith('HEAD ->') || r.includes('origin/') || r.includes('->')) {
-                    branchesHtml += `<span style="background:rgba(63,185,80,0.15);color:#3fb950;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;" class="jh-icon-row">${svgIcon('branch', { size: 10 })}${r}</span>`;
-                } else {
-                    branchesHtml += `<span style="background:rgba(63,185,80,0.15);color:#3fb950;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;">${r}</span>`;
-                }
-            });
-        }
+        const refs = String(entry.refs || '').split(',').map((r) => r.trim()).filter(Boolean);
+        const refsHtml = refs.map((r) => {
+            const tag = r.startsWith('tag:');
+            const name = tag ? r.replace(/^tag:\s*/, '') : r.replace(/^HEAD -> /, 'HEAD → ');
+            return `<span class="git-cd-ref${tag ? ' is-tag' : ''}">${tag ? svgIcon('tag', { size: 9 }) : ''}${escapeHtml(name)}</span>`;
+        }).join('');
+        const parents = (entry.parents || []).map((p) => p.substring(0, 7)).join(', ');
+        const openLabel = escapeHtml(t('Open Changes in Editor'));
 
-        detail.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--text-color);">${entry.hash}</span>
-                <button class="git-commit-detail-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>
+        box.innerHTML = `
+            <div class="git-cd-summary" title="${escapeHtml(t('Show details'))}">
+                <span class="git-cd-caret">${svgIcon('chevron-right', { size: 11 })}</span>
+                <span class="git-cd-hash">${escapeHtml(entry.short_hash || hash.substring(0, 7))}</span>
+                <span class="git-cd-subject">${escapeHtml(entry.message)}</span>
+                <button class="git-cd-btn git-commit-open-editor" title="${openLabel}" aria-label="${openLabel}">${svgIcon('compare', { size: 13 })}</button>
+                <button class="git-cd-btn git-commit-detail-close" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>
             </div>
-            <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-secondary);">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="min-width:50px;opacity:0.7;">Author:</span>
-                    <span style="color:var(--text-color);">${entry.author}</span>
-                    <span style="opacity:0.5;">&lt;${entry.author_email || ''}&gt;</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="min-width:50px;opacity:0.7;">Date:</span>
-                    <span>${entry.date}</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="min-width:50px;opacity:0.7;">Message:</span>
-                    <span style="color:var(--text-color);">${entry.message}</span>
-                </div>
-                ${(branchesHtml || tagsHtml) ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                    <span style="min-width:50px;opacity:0.7;">Refs:</span>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;">${branchesHtml}${tagsHtml}</div>
-                </div>` : ''}
-                ${entry.parents && entry.parents.length > 1 ? `<div style="display:flex;align-items:center;gap:6px;">
-                    <span style="min-width:50px;opacity:0.7;">Merge:</span>
-                    <span style="font-family:monospace;font-size:10px;">${entry.parents.map(p => p.substring(0, 7)).join(', ')}</span>
-                </div>` : ''}
+            <div class="git-cd-meta">
+                <span class="git-cd-author">${escapeHtml(entry.author)}</span>
+                <span class="git-cd-date" title="${escapeHtml(entry.iso_date || '')}">${escapeHtml(entry.date)}</span>
+                <span class="git-cd-count"></span>
+                ${refsHtml}
             </div>
+            <div class="git-cd-full">
+                <div><span class="git-cd-key">${escapeHtml(t('Commit'))}</span><span class="git-cd-val git-cd-mono">${escapeHtml(entry.hash)}</span></div>
+                <div><span class="git-cd-key">${escapeHtml(t('Author'))}</span><span class="git-cd-val">${escapeHtml(entry.author)} &lt;${escapeHtml(entry.author_email || '')}&gt;</span></div>
+                <div><span class="git-cd-key">${escapeHtml(t('Date'))}</span><span class="git-cd-val">${escapeHtml(entry.iso_date || entry.date)}</span></div>
+                ${parents ? `<div><span class="git-cd-key">${escapeHtml(t('Parents'))}</span><span class="git-cd-val git-cd-mono">${escapeHtml(parents)}</span></div>` : ''}
+                <div class="git-cd-message">${escapeHtml(entry.message)}</div>
+            </div>
+            <div class="git-cd-files"></div>
         `;
 
-        detail.querySelector('.git-commit-detail-close').onclick = () => this._hideDetailPanel();
+        const summary = box.querySelector('.git-cd-summary');
+        summary.onclick = (e) => {
+            if (e.target.closest('button')) return;
+            const open = !box.classList.contains('is-expanded');
+            box.classList.toggle('is-expanded', open);
+            try { localStorage.setItem('git_detail_expanded', String(open)); } catch (_) { /* private mode */ }
+        };
+        box.querySelector('.git-commit-detail-close').onclick = () => this._hideDetailPanel();
+        box.querySelector('.git-commit-open-editor').onclick = () => this._openCommitCompare(entry);
 
-        panel.appendChild(detail);
+        panel.appendChild(box);
     }
 
-    /** Show a clickable file list inside the Git panel for multi-file commits. */
+    /** The commit's files, under its summary; each opens in the comparison tab. */
     _showCommitFileList(hash, message, files) {
         const panel = this._showDetailPanel();
         if (!panel) return;
+        let box = panel.querySelector(`.git-cd[data-hash="${cssEscape(hash)}"]`);
+        if (!box) {
+            this._showCommitDetail(hash);
+            box = panel.querySelector(`.git-cd[data-hash="${cssEscape(hash)}"]`);
+        }
+        if (!box) return;
 
-        // Remove any existing file list (keep the detail info above it).
-        const existing = panel.querySelector('.git-commit-file-list-container');
-        if (existing) existing.remove();
+        const count = box.querySelector('.git-cd-count');
+        if (count) count.textContent = t('{n} files', { n: files.length });
 
-        const listContainer = document.createElement('div');
-        listContainer.className = 'git-commit-file-list-container';
-        listContainer.style.cssText = 'border-top:1px solid var(--border-color);';
-
-        // Commit info header
-        const header = document.createElement('div');
-        header.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:8px;';
-        header.innerHTML = `<span style="font-weight:600;font-size:12px;">${hash.substring(0, 7)}</span>
-            <span style="color:var(--text-secondary);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(this._truncate(message, 40))}</span>
-            <span style="color:var(--text-secondary);font-size:11px;white-space:nowrap;">${escapeHtml(t('{n} files', { n: files.length }))}</span>
-            <button class="git-commit-open-editor" title="${escapeHtml(t('Open Changes in Editor'))}" aria-label="${escapeHtml(t('Open Changes in Editor'))}">${svgIcon('compare', { size: 12 })}<span>${escapeHtml(t('Open in Editor'))}</span></button>
-            <button class="git-commit-file-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;" title="Close" data-i18n-title="Close" aria-label="Close">${svgIcon('close', { size: 13 })}</button>`;
-        listContainer.appendChild(header);
-
-        // Close button handler
-        header.querySelector('.git-commit-file-close').onclick = () => listContainer.remove();
-        // The whole commit in an editor tab: the list as tall as the editor,
-        // and Ctrl+Up / Ctrl+Down to walk it.
-        header.querySelector('.git-commit-open-editor').onclick = () => this._openCommitCompare(hash);
-
-        // File list
+        const list = box.querySelector('.git-cd-files');
+        list.innerHTML = '';
         files.forEach(f => {
             const item = document.createElement('div');
             item.className = 'git-commit-file-item';
-            item.style.cssText = 'padding:5px 12px 5px 24px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;border-bottom:1px solid var(--border-color);';
-
-            const statusColor = f.status === 'A' ? '#3fb950' : f.status === 'D' ? '#f85149' : '#d29922';
-            item.innerHTML = `<span style="color:${statusColor};font-weight:600;font-size:10px;min-width:12px;">${escapeHtml(f.status)}</span>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-family);">${escapeHtml(f.path)}</span>`;
             item.title = f.old_path ? `${f.old_path} → ${f.path}` : f.path;
-
-            item.onmouseenter = () => item.style.background = 'var(--bg-color-hover, rgba(127,127,127,0.1))';
-            item.onmouseleave = () => item.style.background = '';
-            item.onclick = async () => {
-                await this._openCommitCompare(hash, f.path);
-            };
-
-            listContainer.appendChild(item);
+            const status = document.createElement('span');
+            status.className = `git-cd-status gcv-st-${f.status}`;
+            status.textContent = f.status;
+            const name = document.createElement('span');
+            name.className = 'git-cd-file-name';
+            const cut = f.path.lastIndexOf('/');
+            name.textContent = cut >= 0 ? f.path.slice(cut + 1) : f.path;
+            const dir = document.createElement('span');
+            dir.className = 'git-cd-file-dir';
+            dir.textContent = cut >= 0 ? f.path.slice(0, cut) : '';
+            item.append(status, name, dir);
+            item.onclick = () => this._openCommitCompare(hash, f.path);
+            list.appendChild(item);
         });
-
-        panel.appendChild(listContainer);
     }
 
     _truncate(str, n) {

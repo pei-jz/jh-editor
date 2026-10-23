@@ -187,3 +187,53 @@ describe('next / previous file among the working changes', () => {
             .toEqual(['src/deep/a.js', 'src/b.js', 'z.txt']);
     });
 });
+
+/* The commit detail took most of the pane — labelled rows, then a second
+   header repeating hash and subject over the files — and left room for two or
+   three files. It is two lines now, with the full record a click away. */
+describe('commit detail', () => {
+    const box = () => panel.element.querySelector('.git-cd');
+
+    it('sums the commit up in two lines and folds the rest away', () => {
+        panel._renderHistory(LOG);
+        panel._showCommitDetail('f1');
+        expect(box().querySelector('.git-cd-hash').textContent).toBe('f1');
+        expect(box().querySelector('.git-cd-subject').textContent).toBe('feat');
+        expect(box().classList.contains('is-expanded')).toBe(false);
+        // One header only: no second one over the file list.
+        expect(panel.element.querySelectorAll('.git-commit-file-list-container')).toHaveLength(0);
+    });
+
+    it('opens the full record on click, and remembers that', () => {
+        panel._renderHistory(LOG);
+        panel._showCommitDetail('m1');
+        box().querySelector('.git-cd-subject').click();
+        expect(box().classList.contains('is-expanded')).toBe(true);
+        expect(box().querySelector('.git-cd-full').textContent).toContain('a@x');
+        panel._showCommitDetail('f1');
+        expect(box().classList.contains('is-expanded')).toBe(true);
+    });
+
+    it('lists the files under the summary, with the count beside the author', () => {
+        panel._renderHistory(LOG);
+        panel._showCommitDetail('f1');
+        panel._showCommitFileList('f1', 'feat', [
+            { status: 'M', path: 'src/ui/a.js' }, { status: 'A', path: 'b.txt' },
+        ]);
+        expect(box().querySelector('.git-cd-count').textContent).toBe('2 files');
+        const items = [...box().querySelectorAll('.git-commit-file-item')];
+        expect(items.map((i) => i.querySelector('.git-cd-file-name').textContent)).toEqual(['a.js', 'b.txt']);
+        expect(items[0].querySelector('.git-cd-file-dir').textContent).toBe('src/ui');
+    });
+
+    it('opens the commit in the editor from an icon button', async () => {
+        panel._renderHistory(LOG);
+        panel._showCommitDetail('f1');
+        const btn = box().querySelector('.git-commit-open-editor');
+        expect(btn.textContent.trim()).toBe('');
+        expect(btn.getAttribute('aria-label')).toBe('Open Changes in Editor');
+        btn.click();
+        await flush();
+        expect(opened[0].compare.to.rev).toBe('f1');
+    });
+});
