@@ -48,6 +48,8 @@ pub struct GitLogEntry {
     pub author: String,
     pub author_email: String,
     pub date: String,
+    /// Author date as ISO 8601, for the tooltip; `date` is the relative one.
+    pub iso_date: String,
     pub parents: Vec<String>,
     pub refs: String,
 }
@@ -159,13 +161,58 @@ pub async fn git_unstage(path: String, file: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Fields of one `git log` line, separated by the ASCII unit separator.
+///
+/// The separator used to be `|`, which a commit subject is free to contain:
+/// "fix: a | b" shifted every later field by one, so the author became the
+/// date and the parents vanished from the graph. The subject also goes LAST,
+/// so even a subject holding the separator itself only lengthens itself.
+const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%aI%x1f%P%x1f%D%x1f%s";
+
+fn parse_log_line(line: &str) -> Option<GitLogEntry> {
+    let parts: Vec<&str> = line.splitn(9, '\x1f').collect();
+    if parts.len() < 9 || parts[0].is_empty() {
+        return None;
+    }
+    Some(GitLogEntry {
+        hash: parts[0].to_string(),
+        short_hash: parts[1].to_string(),
+        author: parts[2].to_string(),
+        author_email: parts[3].to_string(),
+        date: parts[4].to_string(),
+        iso_date: parts[5].to_string(),
+        parents: parts[6].split_whitespace().map(|s| s.to_string()).collect(),
+        refs: parts[7].to_string(),
+        message: parts[8].to_string(),
+    })
+}
+
+/// The history shown in the Git panel.
+///
+/// `rev` picks whose history: empty for the checked-out branch, `--all` for
+/// every branch, remote and tag, or a ref name for just that one. Date order
+/// rather than git's default, because the default can list a parent above one
+/// of its children when clocks disagree — and the graph then has nowhere to
+/// draw the line from.
 #[tauri::command]
-pub async fn git_log(path: String, count: Option<u32>) -> Result<Vec<GitLogEntry>, String> {
-    let count_val = count.unwrap_or(30);
-    let count_str = count_val.to_string();
+pub async fn git_log(path: String, count: Option<u32>, rev: Option<String>) -> Result<Vec<GitLogEntry>, String> {
+    let count_str = count.unwrap_or(30).to_string();
+
+    let mut args: Vec<String> = vec!["log".into(), LOG_FORMAT.into(), "--date-order".into(), "-n".into(), count_str];
+    match rev.as_deref().map(str::trim) {
+        None | Some("") => {}
+        Some("--all") => args.push("--all".into()),
+        // A ref can never start with '-', so this is a name, not an option;
+        // the `--` keeps a ref that looks like a path from being read as one.
+        Some(r) if !r.starts_with('-') => {
+            args.push(r.to_string());
+            args.push("--".into());
+        }
+        Some(r) => return Err(format!("git_log: not a revision: {}", r)),
+    }
 
     let output = git_command()
-        .args(["log", "--format=%H|%h|%s|%an|%ae|%ar|%P|%D", "-n", &count_str])
+        .args(&args)
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -175,47 +222,7 @@ pub async fn git_log(path: String, count: Option<u32>) -> Result<Vec<GitLogEntry
     }
 
     let stdout = decode_git_bytes(&output.stdout);
-    let entries: Vec<GitLogEntry> = stdout
-        .lines()
-        .filter(|l| !l.is_empty())
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split('|').collect();
-            if parts.len() >= 6 {
-                // Format: %H|%h|%s|%an|%ae|%ar|%P|%D
-                let author_email = if parts.len() > 4 { parts[4].to_string() } else { "".to_string() };
-                let date = if parts.len() > 5 { parts[5].to_string() } else { "".to_string() };
-                let parents_str = if parts.len() > 6 { parts[6] } else { "" };
-                let parents: Vec<String> = parents_str.split_whitespace().map(|s| s.to_string()).collect();
-                let refs = if parts.len() > 7 { parts[7].to_string() } else { "".to_string() };
-                Some(GitLogEntry {
-                    hash: parts[0].to_string(),
-                    short_hash: parts[1].to_string(),
-                    message: parts[2].to_string(),
-                    author: parts[3].to_string(),
-                    author_email,
-                    date,
-                    parents,
-                    refs,
-                })
-            } else if parts.len() == 5 {
-                // Fallback if no parents/refs
-                Some(GitLogEntry {
-                    hash: parts[0].to_string(),
-                    short_hash: parts[1].to_string(),
-                    message: parts[2].to_string(),
-                    author: parts[3].to_string(),
-                    author_email: "".to_string(),
-                    date: parts[4].to_string(),
-                    parents: vec![],
-                    refs: "".to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(entries)
+    Ok(stdout.lines().filter_map(parse_log_line).collect())
 }
 
 /// Push the current branch.
@@ -529,12 +536,36 @@ pub async fn git_discard(path: String, file: String, status: String) -> Result<(
 pub struct GitCommitFile {
     pub status: String,
     pub path: String,
+    /// Where a renamed or copied file came from: the path to read on the
+    /// older side. Absent for every other status.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
 }
 
+/// One `--name-status` line: `M\tpath`, or `R100\told\tnew` for a rename.
+///
+/// The status keeps its first letter only (R100 becomes R). For a rename the
+/// file is listed under its NEW path, and the old one is kept so the left side
+/// can still be read — reading the new path at the old revision finds nothing.
+fn parse_name_status(line: &str) -> Option<GitCommitFile> {
+    let parts: Vec<&str> = line.split('\t').collect();
+    if parts.len() < 2 || parts[0].is_empty() {
+        return None;
+    }
+    let status = parts[0].chars().next().unwrap_or('M').to_string();
+    let path = parts[parts.len() - 1].to_string();
+    let old_path = if parts.len() >= 3 { Some(parts[1].to_string()) } else { None };
+    Some(GitCommitFile { status, path, old_path })
+}
+
+/// The files one commit changed, compared with its first parent.
+///
+/// --root makes the very first commit list its files as added; without it
+/// diff-tree prints nothing for a commit that has no parent.
 #[tauri::command]
 pub async fn git_commit_files(path: String, hash: String) -> Result<Vec<GitCommitFile>, String> {
     let output = git_command()
-        .args(["diff-tree", "--no-commit-id", "--name-status", "-r", &hash])
+        .args(["diff-tree", "--no-commit-id", "--name-status", "-r", "-M", "--root", &hash])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -544,34 +575,20 @@ pub async fn git_commit_files(path: String, hash: String) -> Result<Vec<GitCommi
     }
 
     let stdout = decode_git_bytes(&output.stdout);
-    let files: Vec<GitCommitFile> = stdout
-        .lines()
-        .filter(|line| !line.is_empty())
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() >= 2 {
-                let status_char = parts[0..1].join("");
-                Some(GitCommitFile {
-                    status: status_char,
-                    path: parts[1].to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(files)
+    Ok(stdout.lines().filter_map(parse_name_status).collect())
 }
 
 /// List files that differ between two revisions.
-/// `to_rev` empty ("") means compare `from_rev` against the working tree.
+/// An empty to_rev means compare from_rev against the working tree.
 #[tauri::command]
 pub async fn git_diff_files(path: String, from_rev: String, to_rev: String) -> Result<Vec<GitCommitFile>, String> {
-    let mut args: Vec<String> = vec!["diff".into(), "--name-status".into(), from_rev.clone()];
+    let mut args: Vec<String> = vec!["diff".into(), "--name-status".into(), "-M".into(), from_rev.clone()];
     if !to_rev.is_empty() {
         args.push(to_rev.clone());
     }
+    // Revisions end here: a file that happens to share a branch's name must
+    // not turn the command into a path filter.
+    args.push("--".into());
     let output = git_command()
         .args(&args)
         .current_dir(&path)
@@ -583,25 +600,7 @@ pub async fn git_diff_files(path: String, from_rev: String, to_rev: String) -> R
     }
 
     let stdout = decode_git_bytes(&output.stdout);
-    let files: Vec<GitCommitFile> = stdout
-        .lines()
-        .filter(|line| !line.is_empty())
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() >= 2 {
-                Some(GitCommitFile {
-                    // Status can be like "R100"/"C075"; keep just the first char.
-                    status: parts[0].chars().next().unwrap_or('M').to_string(),
-                    // For renames/copies the new path is the last field.
-                    path: parts[parts.len() - 1].to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(files)
+    Ok(stdout.lines().filter_map(parse_name_status).collect())
 }
 
 #[tauri::command]
@@ -699,4 +698,39 @@ pub async fn git_exec(args: Vec<String>, cwd: String) -> Result<String, String> 
     let stderr = decode_git_bytes(&output.stderr);
     let detail = if stderr.trim().is_empty() { stdout } else { stderr };
     Err(format!("git {} failed: {}", args.join(" "), detail.trim()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_subject_with_the_old_separator_stays_whole() {
+        let line = "abc\x1fa\x1fPei\x1fp@x\x1f2 days ago\x1f2026-10-21T10:00:00+09:00\x1fp1 p2\x1fHEAD -> master\x1ffix: a | b";
+        let e = parse_log_line(line).unwrap();
+        assert_eq!(e.message, "fix: a | b");
+        assert_eq!(e.author, "Pei");
+        assert_eq!(e.parents, vec!["p1", "p2"]);
+        assert_eq!(e.refs, "HEAD -> master");
+        assert_eq!(e.iso_date, "2026-10-21T10:00:00+09:00");
+    }
+
+    #[test]
+    fn a_root_commit_has_no_parents() {
+        let e = parse_log_line("abc\x1fa\x1fPei\x1fp@x\x1fnow\x1f\x1f\x1f\x1finit").unwrap();
+        assert!(e.parents.is_empty());
+        assert_eq!(e.message, "init");
+        assert!(parse_log_line("").is_none());
+    }
+
+    #[test]
+    fn a_rename_keeps_where_it_came_from() {
+        let r = parse_name_status("R087\told/a.js\tnew/a.js").unwrap();
+        assert_eq!(r.status, "R");
+        assert_eq!(r.path, "new/a.js");
+        assert_eq!(r.old_path.as_deref(), Some("old/a.js"));
+        let m = parse_name_status("M\tsrc/x.rs").unwrap();
+        assert_eq!((m.status.as_str(), m.path.as_str(), m.old_path), ("M", "src/x.rs", None));
+        assert!(parse_name_status("").is_none());
+    }
 }
