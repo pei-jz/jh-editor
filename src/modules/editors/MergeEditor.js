@@ -664,6 +664,23 @@ export class MergeEditor {
 
         const actions = el('div', 'diff-toolbar-actions');
 
+        // A comparison that is one file of several (Git) can step to the
+        // others; the keys were the only way, and nothing said they existed.
+        const fileNav = this.merge.nav;
+        if (fileNav) {
+            const files = el('div', 'diff-nav diff-file-nav');
+            const prev = this._button('⇡', t('Previous file (Ctrl+Up)'), () => fileNav.onPrevFile());
+            const next = this._button('⇣', t('Next file (Ctrl+Down)'), () => fileNav.onNextFile());
+            files.appendChild(prev);
+            if (Number.isInteger(fileNav.count) && fileNav.count > 0 && fileNav.index >= 0) {
+                files.appendChild(el('span', 'diff-nav-label', t('File {i} / {n}', { i: fileNav.index + 1, n: fileNav.count })));
+                prev.disabled = fileNav.index === 0;
+                next.disabled = fileNav.index >= fileNav.count - 1;
+            }
+            files.appendChild(next);
+            actions.appendChild(files);
+        }
+
         this.summaryEl = el('div', 'diff-summary');
         actions.appendChild(this.summaryEl);
 

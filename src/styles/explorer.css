@@ -772,67 +772,96 @@ body.theme-solarized-dark .tree-icon {
     min-height: 48px;
 }
 
+/* Lane colours of the commit graph (utils/GitGraph.js). Saturated enough to
+   tell apart on a light sidebar and a dark one alike; a theme may override. */
+.git-panel-v2 {
+    --git-lane-0: #3b82f6;
+    --git-lane-1: #22a55b;
+    --git-lane-2: #f59e0b;
+    --git-lane-3: #d946ef;
+    --git-lane-4: #14b8a6;
+    --git-lane-5: #ef4444;
+    --git-lane-6: #8b5cf6;
+    --git-lane-7: #ca8a04;
+}
+
+/* One SVG per row, all the same width, so the lines meet across rows. */
 .git-hist-graph-part {
-    width: 40px;
     flex-shrink: 0;
     position: relative;
-    background: rgba(0,0,0,0.05);
+    overflow: hidden;
+    padding-left: 4px;
 }
 
-.git-graph-col {
+.git-graph-svg {
+    display: block;
+    overflow: visible;
+}
+
+/* History filters: whose history, and a text search. */
+.git-history-filters {
     display: flex;
-    height: 100%;
-    justify-content: center;
+    gap: 6px;
+    padding: 4px 10px;
+    align-items: center;
 }
 
-.git-graph-lane {
-    width: 8px;
-    position: relative;
-    display: flex;
-    justify-content: center;
+.git-history-ref {
+    flex: 0 0 42%;
+    min-width: 0;
 }
 
-.vertical-line::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0;
-    width: 2px;
-    background: var(--primary-color);
-    opacity: 0.3;
+.git-history-search-input {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    font-size: 11px;
+    background: var(--bg-color-secondary, var(--bg-color));
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
 }
 
-.commit-dot {
-    z-index: 2;
+.git-history-more {
+    display: block;
+    margin: 4px auto 8px;
+    padding: 3px 14px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
 }
 
-.commit-dot::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0;
-    width: 2px;
-    background: var(--primary-color);
-    opacity: 0.3;
-}
-
-.commit-dot .dot {
-    width: 8px;
-    height: 8px;
-    background: var(--primary-color);
-    border-radius: 50%;
-    margin-top: 14px;
-    position: relative;
-    box-shadow: 0 0 5px var(--primary-color);
+.git-history-more:hover {
+    color: var(--text-color);
+    background: var(--hover-color);
 }
 
 /* Git History Ultra Compact V4 */
 .git-history-item-compact-v4 {
     display: flex;
     align-items: stretch;
-    border-bottom: 1px solid rgba(255,255,255,0.015);
-    min-height: 28px; /* Extra compact */
+    height: 26px; /* = ROW_HEIGHT in GitGraph.js: the lines join across rows */
+    cursor: pointer;
 }
 
-/* Commit marked as the base for a history comparison. */
+.git-history-item-compact-v4:hover {
+    background: var(--hover-color);
+}
+
+/* The commit whose details are showing. */
+.git-history-item-compact-v4.is-active {
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.git-history-item-compact-v4.is-head .git-hist-msg-v4 {
+    font-weight: 600;
+}
+
+/* Commit picked as the base for a history comparison. */
 .git-history-item-compact-v4.git-compare-base {
     background: color-mix(in srgb, var(--primary-color) 18%, transparent);
     box-shadow: inset 2px 0 0 var(--primary-color);
@@ -840,8 +869,9 @@ body.theme-solarized-dark .tree-icon {
 
 .git-hist-content-v4 {
     flex: 1;
-    padding: 0 8px;
+    padding: 0 8px 0 4px;
     min-width: 0;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -852,7 +882,7 @@ body.theme-solarized-dark .tree-icon {
     color: var(--primary-color);
     font-family: monospace;
     opacity: 0.8;
-    width: 45px;
+    width: 50px;
     flex-shrink: 0;
 }
 
@@ -865,56 +895,342 @@ body.theme-solarized-dark .tree-icon {
 }
 
 .git-hist-date-v4 {
-    width: 65px;
+    width: 70px;
     flex-shrink: 0;
-    opacity: 0.4;
+    opacity: 0.5;
     font-size: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .git-hist-msg-v4 {
     flex: 1;
+    min-width: 40px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     opacity: 0.9;
 }
 
-.lane-initial.vertical-line::after,
-.lane-initial.commit-dot::after {
-    top: 50%; /* Start from dot center */
+/* The message is what a row is read for. In a narrow sidebar the fixed
+   author and date columns used to squeeze it to nothing (and scroll the
+   panel sideways); they step aside instead, and stay in the tooltip. */
+#git-list-history {
+    container-type: inline-size;
 }
 
-.lane-terminal.vertical-line::after,
-.lane-terminal.commit-dot::after {
-    bottom: 50%; /* Stop at dot center */
+@container (max-width: 420px) {
+    .git-hist-author-v4 { display: none; }
+}
+
+@container (max-width: 320px) {
+    .git-hist-date-v4 { display: none; }
+    .git-hist-hash-v4 { width: auto; }
 }
 
 /* Branch Refs Tags V4 */
 .git-refs-container-v4 {
     display: flex;
     gap: 3px;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .git-ref-tag-v4 {
-    font-size: 9px;
-    padding: 0 4px;
-    border-radius: 2px;
-    background: rgba(255,255,255,0.05);
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 9.5px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: rgba(127,127,127,0.1);
     color: var(--text-secondary);
     white-space: nowrap;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(127,127,127,0.25);
+    /* A branch badge wears the colour of its lane. */
+    border-left: 3px solid var(--ref-lane, rgba(127,127,127,0.25));
+}
+
+.git-ref-tag-v4[data-ref]:hover {
+    border-color: var(--primary-color);
+    border-left-color: var(--ref-lane, var(--primary-color));
 }
 
 .git-ref-head-v4 {
     background: rgba(55, 148, 255, 0.15);
     color: #3794ff;
+    font-weight: 600;
 }
 
 .git-ref-remote-v4 {
     background: rgba(226, 192, 141, 0.1);
-    color: #e2c08d;
+    color: #c9a26b;
 }
+
+.git-ref-tagname-v4 {
+    background: rgba(56,139,253,0.08);
+    color: #58a6ff;
+    border-left-width: 1px;
+}
+
+.git-commit-open-editor {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.git-commit-open-editor:hover {
+    background: var(--hover-color);
+    border-color: var(--primary-color);
+}
+
+/* ── Git comparison tab (views/GitCompareView.js) ─────────────────────────
+   The changed files down the left, as tall as the editor; the selected file's
+   diff beside them. */
+.gcv {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    color: var(--text-color);
+}
+
+.gcv-list-pane {
+    width: 300px;
+    min-width: 160px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--sidebar-bg, var(--bg-color));
+}
+
+.gcv-resizer {
+    width: 4px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: var(--border-color);
+}
+
+.gcv-resizer:hover,
+.gcv-resizer.resizing {
+    background: var(--primary-color);
+}
+
+.gcv-diff-pane {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.gcv-diff-host {
+    flex: 1;
+    min-height: 0;
+}
+
+.gcv-placeholder {
+    margin: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.gcv-head {
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gcv-head-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gcv-sides {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.gcv-rev {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--editor-font-family, monospace);
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(127,127,127,0.12);
+}
+
+.gcv-rev.is-worktree {
+    background: color-mix(in srgb, var(--git-staged-color, #3fb950) 18%, transparent);
+}
+
+.gcv-arrow {
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+.gcv-tools {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.gcv-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.gcv-tool:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+
+.gcv-stats {
+    display: flex;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.gcv-count {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.gcv-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    max-height: 4.5em;
+    overflow: auto;
+}
+
+.gcv-filter {
+    margin: 6px 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text-color);
+    background: var(--bg-color-secondary, var(--bg-color));
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.gcv-tree {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    font-size: 12.5px;
+    padding-bottom: 8px;
+    outline: none;
+}
+
+.gcv-dir,
+.gcv-file {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding-right: 10px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.gcv-dir:hover,
+.gcv-file:hover {
+    background: var(--hover-color);
+}
+
+.gcv-file.is-selected {
+    background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.gcv-tree:focus .gcv-file.is-selected {
+    box-shadow: inset 2px 0 0 var(--primary-color);
+}
+
+.gcv-caret {
+    display: inline-flex;
+    width: 12px;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.gcv-dir-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gcv-dir-count {
+    margin-left: auto;
+    font-size: 10.5px;
+    opacity: 0.55;
+}
+
+.gcv-status {
+    width: 14px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.gcv-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--editor-font-family, monospace);
+}
+
+.gcv-file-from {
+    font-size: 10.5px;
+    opacity: 0.55;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gcv-st-A { color: var(--git-staged-color, #3fb950); }
+.gcv-st-D { color: var(--code-color, #f85149); }
+.gcv-st-M,
+.gcv-st-T { color: var(--git-modified-color, #d29922); }
+.gcv-st-R,
+.gcv-st-C { color: #58a6ff; }
+
+.gcv-empty {
+    padding: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
 
 /* Ensure #app takes exactly remaining height after titlebar */
 #app {

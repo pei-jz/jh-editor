@@ -29,6 +29,7 @@ import { CompareView } from '../editors/CompareView.js';
 import { TaskNotificationPanel } from '../ai/TaskNotificationPanel.js';
 import { SearchResultsView } from '../views/SearchResultsView.js';
 import { DirDiffView } from '../views/DirDiffView.js';
+import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
@@ -160,13 +161,23 @@ export function toggleWhitespace() {
  * `id` names the comparison: opening the same one again brings its tab to the
  * front, and replaces the texts only when nothing in it is unsaved.
  */
-export function openMergeTab({ id, title, path = '', left, right, nav = null }) {
+export function openMergeTab({ id, title, path = '', left, right, nav = null, replaces = null }) {
     const pane = activePane();
     const openFiles = paneFiles(pane);
     const virtualPath = `diff://${id || path || 'temp'}`;
     const merge = { title: title || '', path: path || '', nav, left: makeSide(left), right: makeSide(right) };
 
-    const existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
+    let existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
+    // Walking files with Ctrl+Up / Ctrl+Down: the comparison being left takes
+    // the new one's place instead of leaving a tab behind for every file
+    // passed — unless something in it is unsaved.
+    if (existingIndex < 0 && replaces) {
+        const old = openFiles.findIndex((f) => f.path === `diff://${replaces}`);
+        if (old >= 0 && !mergeDirty(openFiles[old].merge)) {
+            openFiles[old].path = virtualPath;
+            existingIndex = old;
+        }
+    }
     if (existingIndex >= 0) {
         const existing = openFiles[existingIndex];
         const keep = mergeDirty(existing.merge);
@@ -188,6 +199,52 @@ export function openMergeTab({ id, title, path = '', left, right, nav = null }) 
         viewMode: 'diff',
         isDirty: false,
         merge,
+    };
+    openFiles.push(file);
+    setActiveTab(openFiles.length - 1, pane);
+    return file;
+}
+
+/**
+ * Open a Git comparison as one tab: the changed files listed on its left, the
+ * selected file's diff beside them (GitCompareView). `compare` is described
+ * there; `select` picks the file to show first.
+ *
+ * Opening the same comparison again (same `id`) brings its tab forward and
+ * lists the files afresh — unless the file showing has unsaved edits, which
+ * are never thrown away to do it.
+ */
+export function openGitCompareTab({ id, title, compare, select = '' }) {
+    const pane = activePane();
+    const openFiles = paneFiles(pane);
+    const virtualPath = `diff://gitcompare:${id}`;
+    const gitCompare = { ...compare, selected: select || '' };
+
+    const existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
+    if (existingIndex >= 0) {
+        const existing = openFiles[existingIndex];
+        const keep = mergeDirty(existing.merge);
+        if (!keep) {
+            existing.gitCompare = { ...gitCompare, collapsed: existing.gitCompare?.collapsed || [] };
+            existing.merge = null;
+            existing.isDirty = false;
+        } else if (select && existing.gitCompare) {
+            existing.gitCompare.selected = existing.gitCompare.selected || select;
+        }
+        setActiveTab(existingIndex, pane);
+        if (!keep) renderEditor(pane);
+        return existing;
+    }
+
+    const file = {
+        name: title || 'Compare',
+        path: virtualPath,
+        content: '',
+        type: 'diff',
+        viewMode: 'diff',
+        isDirty: false,
+        merge: null,
+        gitCompare,
     };
     openFiles.push(file);
     setActiveTab(openFiles.length - 1, pane);
@@ -576,10 +633,14 @@ export function renderEditor(targetPane = null) {
 
         // Special Case: Diff View
         if (file.type === 'diff' || file.viewMode === 'diff') {
-            const view = new MergeEditor(container, file, {
+            const options = {
                 onDirtyChange: () => renderTabs(),
                 onSave: () => saveFile(file),
-            });
+            };
+            // A Git comparison: its file list, and the diff of one of them.
+            const view = file.gitCompare
+                ? new GitCompareView(container, file, options)
+                : new MergeEditor(container, file, options);
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -1332,6 +1393,8 @@ window.app.getLineCount = () => {
 
 window.app.openFile = openFile;
 window.app.openMergeTab = openMergeTab;
+window.app.openGitCompareTab = openGitCompareTab;
+window.app.focusEditor = (options) => focusEditor(options);
 window.app.compareTwoFiles = compareTwoFiles;
 
 /** Open a folder-vs-folder comparison in its own tab. */
@@ -2436,7 +2499,10 @@ export function updateToolbar() {
     const current = getActiveFile();
     if (current) {
         const fullPath = current.path;
-        if (!fullPath) {
+        // A virtual tab (diff://, agent://, …) has no folder to show: its path
+        // is an id, and split as one it filled the title bar with crumbs that
+        // led nowhere.
+        if (!fullPath || /^[a-z][a-z0-9+.-]*:\/\//i.test(fullPath)) {
             renderPathCrumbs('');
             if (EL.currentFileLabel) EL.currentFileLabel.textContent = current.name || 'Untitled';
             return;
