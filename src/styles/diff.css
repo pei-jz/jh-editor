@@ -571,3 +571,77 @@
     pointer-events: none;
     min-height: 6px;
 }
+
+/* --- Three-way merge of a conflicted file (ConflictEditor) --- */
+
+/* One scroller for all three panes: they are padded to the same height row
+   for row, so a single vertical scrollbar keeps them lined up. */
+.conflict-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    scrollbar-gutter: stable;
+}
+
+.conflict-pane {
+    flex: 1 1 0;
+    min-width: 0;
+    border-left: 1px solid var(--border-color);
+}
+
+.conflict-pane:first-child {
+    border-left: none;
+}
+
+.conflict-pane .cm-editor {
+    height: auto;
+}
+
+.conflict-pane .cm-scroller {
+    overflow-y: visible !important;
+}
+
+/* The result is what gets saved: set it slightly apart. */
+.conflict-pane-result {
+    background: color-mix(in srgb, var(--primary-color) 3%, transparent);
+}
+
+.conflict-headers {
+    padding-right: 0;
+}
+
+.conflict-headers .merge-header + .merge-header {
+    border-left: 1px solid var(--border-color);
+}
+
+.conflict-status {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--danger-color, #f85149);
+}
+
+.conflict-status.is-done {
+    color: var(--git-staged-color, #3fb950);
+}
+
+/* The buttons keep their size; the file name gives way, and only it. */
+.conflict-editor .diff-toolbar-title {
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+
+.conflict-editor .diff-toolbar-title strong {
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.conflict-editor .diff-toolbar-actions {
+    flex: 0 0 auto;
+}
+
+.conflict-editor .conflict-status {
+    margin-right: 4px;
+    white-space: nowrap;
+}

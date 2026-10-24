@@ -10,6 +10,10 @@ import { icon as svgIcon } from './Icons.js';
 import { layoutGraph, graphRowSvg, graphWidth } from '../utils/GitGraph.js';
 import { buildFileTree, fileOrder } from '../utils/GitCompare.js';
 import { listChangedFiles } from '../utils/GitDiffFiles.js';
+import { parseMerged } from '../utils/ConflictRegions.js';
+import {
+    mergeBranch, rebaseBranch, resetBranch, undoLastCommit, continueOperation,
+} from './GitBranchOps.js';
 
 // Moved to utils/GitCompare.js so the comparison tab can share it; still
 // exported here for the code (and tests) that know it by this address.
@@ -57,6 +61,38 @@ function escapeHtml(value) {
     return String(value == null ? '' : value)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Conflict markers git leaves in a file: a line starting with seven `<`, one
+ * of seven `>`, each at the start of a line and followed by a space or the end
+ * of the line. A line of `=======` alone is too common (Markdown headings) to
+ * count on its own.
+ */
+/** Both sides still have the file, so its lines can be merged. */
+export function mergeable(code) {
+    return code !== 'DD' && code[0] !== 'D' && code[1] !== 'D';
+}
+
+export function hasConflictMarkers(text) {
+    return /^<{7}(?: |$)/m.test(text) && /^>{7}(?: |$)/m.test(text);
+}
+
+/**
+ * What staging `path` ('.' for everything, `dir/` for a folder) would stage,
+ * and which conflicted files it would sweep up with it.
+ *
+ * `git add` on a conflicted file marks it resolved, markers and all, so Stage
+ * All and the folder buttons must not reach one. When they would, the other
+ * changes under `path` are listed to be staged by name instead.
+ */
+export function stagePlan(path, status) {
+    const prefix = path === '.' ? '' : path.replace(/[/\\]+$/, '') + '/';
+    const inside = (p) => prefix === '' || p === prefix.slice(0, -1) || p.startsWith(prefix);
+    const blocked = ((status && status.conflicted) || []).map((c) => c.path).filter(inside);
+    if (!blocked.length) return { blocked, paths: null };
+    const changed = [...(status.modified || []), ...(status.deleted || []), ...(status.untracked || [])];
+    return { blocked, paths: changed.filter(inside) };
 }
 
 export function cleanRef(name) {
@@ -204,11 +240,23 @@ class GitPanel {
                     <button id="git-pull-btn" title="Pull">⤓</button>
                     <button id="git-push-btn" title="Push">⤒</button>
                     <button id="git-pr-btn" title="New Pull Request">PR</button>
+                    <button id="git-more-btn" title="${t('More Actions…')}" aria-label="More Actions">⋯</button>
                     <button id="git-refresh-btn" title="${t('Refresh Status')}" aria-label="Refresh Status">${svgIcon('refresh', { size: 13 })}</button>
                 </div>
             </div>
             
             <div class="git-v2-content">
+                <div class="git-operation-banner" id="git-operation-banner" hidden></div>
+
+                <section class="git-section git-section-conflicts" id="git-section-conflicts" hidden>
+                    <div class="git-section-header">
+                        <span class="git-section-arrow jh-icon-rotate is-open">${svgIcon('chevron-right', { size: 11 })}</span>
+                        <span>MERGE CONFLICTS</span>
+                        <span class="git-count" id="git-count-conflicts">0</span>
+                    </div>
+                    <div class="git-section-list" id="git-list-conflicts"></div>
+                </section>
+
                 <section class="git-section" id="git-section-changes">
                     <div class="git-section-header">
                         <span class="git-section-arrow jh-icon-rotate is-open">${svgIcon('chevron-right', { size: 11 })}</span>
@@ -290,14 +338,14 @@ class GitPanel {
         this.element.querySelector('#git-pull-btn').onclick = () => this.executeGit('git_pull');
         this.element.querySelector('#git-push-btn').onclick = () => this.push();
         this.element.querySelector('#git-pr-btn').onclick = () => this.createPullRequest();
+        this.element.querySelector('#git-more-btn').onclick = (e) => ContextMenu.show(e, this._moreMenuItems());
         
         this.element.querySelector('#git-stage-all-btn').onclick = () => this.stageFile('.');
         this.element.querySelector('#git-unstage-all-btn').onclick = () => this.unstageFile('.');
 
         this.element.querySelector('#git-commit-modal-btn').onclick = () => {
-            const overlay = this.element.querySelector('#git-commit-overlay');
-            overlay.style.display = 'flex';
-            this.element.querySelector('#git-commit-input').focus();
+            const op = this._lastStatus && this._lastStatus.operation;
+            this.openCommitModal(op && op.kind === 'merge' ? op.message : '');
         };
 
         this.element.querySelector('#git-commit-cancel').onclick = () => {
@@ -413,10 +461,20 @@ class GitPanel {
     async executeGit(command) {
         if (!State.gitRoot) return;
         try {
-            const result = await invoke(command, { path: State.gitRoot });
+            await invoke(command, { path: State.gitRoot });
             this.refresh();
         } catch (e) {
-            showAlert(`Git Error: ${e}`, { title: 'Git', kind: 'error' });
+            // A pull that stops on conflicts fails too, but has left the
+            // repository mid-merge: the panel has to show that, and the
+            // conflicts say more than git's stderr does.
+            await this.refresh();
+            const count = this._conflicts().length;
+            if (count) {
+                showAlert(t('Git stopped with {count} conflicted files. Resolve them under MERGE CONFLICTS, then commit the merge.', { count }),
+                    { title: 'Git', kind: 'warning' });
+            } else {
+                showAlert(`Git Error: ${e}`, { title: 'Git', kind: 'error' });
+            }
         }
     }
 
@@ -602,6 +660,370 @@ class GitPanel {
 
         this._renderFileList(changesList, changes, 'stage');
         this._renderFileList(stagedList, status.staged.map(f => ({ path: f, status: 'S' })), 'unstage');
+        this._renderConflicts(this._conflicts());
+        this._renderOperationBanner(status.operation || null, this._conflicts().length);
+    }
+
+    /** Unmerged paths from the last status: [{ path, code }]. */
+    _conflicts() {
+        return (this._lastStatus && this._lastStatus.conflicted) || [];
+    }
+
+    /**
+     * The conflicted files, flat and in path order. A tree would hide them in
+     * closed folders, and every one of them needs attention.
+     */
+    _renderConflicts(conflicts) {
+        const section = this.element.querySelector('#git-section-conflicts');
+        const list = this.element.querySelector('#git-list-conflicts');
+        section.hidden = conflicts.length === 0;
+        this.element.querySelector('#git-count-conflicts').textContent = conflicts.length;
+        list.innerHTML = '';
+        this._bindTreeKeys();
+
+        const sorted = [...conflicts].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+        for (const c of sorted) {
+            const cut = c.path.lastIndexOf('/');
+            const name = c.path.slice(cut + 1);
+            const dir = cut > 0 ? c.path.slice(0, cut) : '';
+            const row = document.createElement('div');
+            row.className = 'git-tree-item git-file git-conflict-item';
+            row.tabIndex = -1;
+            row.dataset.gitPath = c.path;
+            row.dataset.gitKind = 'file';
+            row.dataset.conflictCode = c.code;
+            row.innerHTML = `
+                <span class="git-status-badge c" title="${escapeHtml(this._conflictLabel(c.code))}">!</span>
+                <span class="git-tree-label" title="${escapeHtml(c.path)}">${escapeHtml(name)}</span>
+                <span class="git-conflict-dir">${escapeHtml(dir)}</span>
+                <div class="git-file-actions">
+                    <button class="git-action-btn git-resolve-btn" title="${escapeHtml(t('Mark as Resolved'))}">${svgIcon('check', { size: 11 })}</button>
+                </div>
+            `;
+            row.onclick = () => this.openConflict(c);
+            row.oncontextmenu = (e) => {
+                e.preventDefault();
+                ContextMenu.show(e, this._conflictMenuItems(c));
+            };
+            row.querySelector('.git-resolve-btn').onclick = (e) => {
+                e.stopPropagation();
+                this.markResolved(c);
+            };
+            list.appendChild(row);
+        }
+    }
+
+    /** What a two-letter unmerged code means, for the badge's tooltip. */
+    _conflictLabel(code) {
+        switch (code) {
+            case 'UU': return t('Conflict: both modified');
+            case 'AA': return t('Conflict: both added');
+            case 'DD': return t('Conflict: both deleted');
+            case 'AU': return t('Conflict: added by current');
+            case 'UA': return t('Conflict: added by incoming');
+            case 'DU': return t('Conflict: deleted by current');
+            case 'UD': return t('Conflict: deleted by incoming');
+            default: return t('Conflict');
+        }
+    }
+
+    /**
+     * "Current" is HEAD and "incoming" what is being brought in — git's ours
+     * and theirs. During a rebase HEAD is the branch being rebased onto, so the
+     * names are only spelled out for a merge, where they cannot mislead.
+     */
+    _sideNames() {
+        const status = this._lastStatus || {};
+        const op = status.operation;
+        if (op && op.kind === 'merge') {
+            return { current: status.branch || 'HEAD', incoming: op.name || 'MERGE_HEAD' };
+        }
+        // Rebasing, HEAD is the branch being rebased onto, and the commit
+        // being replayed — the incoming side — is the rebased branch's own.
+        if (op && op.kind === 'rebase') return { current: '', incoming: op.name || '' };
+        return { current: '', incoming: '' };
+    }
+
+    _conflictMenuItems(c) {
+        const names = this._sideNames();
+        const currentGone = c.code[0] === 'D';
+        const incomingGone = c.code[1] === 'D';
+        const items = [];
+        if (c.code !== 'DD') {
+            if (mergeable(c.code)) {
+                items.push({ label: t('Open in 3-Way Merge'), action: () => this.openConflict(c) });
+            }
+            items.push({ label: t('Open File as Text'), action: () => this.openConflictAsText(c) });
+            items.push({ type: 'separator' });
+            items.push({
+                label: currentGone ? t('Accept Deletion (current)')
+                    : names.current ? t('Keep Current Version ({name})', { name: names.current })
+                        : t('Keep Current Version'),
+                action: () => this.takeSide(c, 'ours'),
+            });
+            items.push({
+                label: incomingGone ? t('Accept Deletion (incoming)')
+                    : names.incoming ? t('Take Incoming Version ({name})', { name: names.incoming })
+                        : t('Take Incoming Version'),
+                action: () => this.takeSide(c, 'theirs'),
+            });
+            items.push({ type: 'separator' });
+        }
+        items.push({ label: t('Mark as Resolved'), action: () => this.markResolved(c) });
+        items.push({ type: 'separator' });
+        items.push({ label: t('Copy Path'), action: () => this._copyText(c.path) });
+        return items;
+    }
+
+    /**
+     * Open a conflicted file in the three-way merge view. A file with a side
+     * that deleted it, or a binary one, has no lines to merge: it opens as
+     * text, and the menu's "keep / take" decides it.
+     *
+     * @param {object} [o.replaces]  the merge tab this one takes the place of
+     */
+    async openConflict(c, { replaces = null } = {}) {
+        if (!mergeable(c.code) || !window.app?.openConflictTab) {
+            await this.openConflictAsText(c);
+            return;
+        }
+        let versions;
+        try {
+            versions = await invoke('git_conflict_versions', { path: State.gitRoot, file: c.path });
+        } catch (e) {
+            showAlert(`${t('Could not read the conflicting versions')}: ${e}`, { title: 'Git', kind: 'error' });
+            return;
+        }
+        if (versions.binary || versions.ours == null || versions.theirs == null) {
+            if (versions.binary && window.showToast) {
+                window.showToast(t('A binary file cannot be merged line by line. Keep one version from the menu.'));
+            }
+            await this.openConflictAsText(c);
+            return;
+        }
+        window.app.openConflictTab({
+            repo: State.gitRoot,
+            path: c.path,
+            versions,
+            regions: parseMerged(versions.merged),
+            labels: this._sideNames(),
+            replaces,
+        });
+    }
+
+    /**
+     * The merge view saved its result and wants the file marked resolved:
+     * stage it, then move on to the next conflict in the same tab.
+     */
+    async resolvedInMergeView(repo, path, tab) {
+        if (repo !== State.gitRoot) return;
+        try {
+            await this._git(['add', '--', path]);
+        } catch (e) {
+            showAlert(String(e), { title: t('Mark as Resolved'), kind: 'error' });
+            return;
+        }
+        await this.refresh();
+        const next = this._conflicts().filter((c) => mergeable(c.code))
+            .sort((a, b) => (a.path < b.path ? -1 : 1))[0];
+        if (next) {
+            const replaces = tab && tab.path ? tab.path.replace(/^diff:\/\//, '') : null;
+            await this.openConflict(next, { replaces });
+        } else if (window.showToast) {
+            window.showToast(this._conflicts().length
+                ? t('Marked resolved. The remaining conflicts need a version chosen from the menu.')
+                : t('All conflicts are resolved. Commit the merge to finish.'));
+        }
+    }
+
+    /**
+     * Open the conflicted file as it is on disk, markers and all — as text.
+     * A rendered view reads the markers as markup: `>>>>>>> feature-x` came
+     * out of the Markdown view as seven nested quotes.
+     */
+    async openConflictAsText(c) {
+        if (c.code === 'DD' || !window.app?.openFile) return;
+        const fullPath = `${State.gitRoot}/${c.path}`.replace(/\\/g, '/');
+        try {
+            await window.app.openFile(fullPath, false, null, true);
+        } catch (e) {
+            showAlert(`${t('Could not open the file')}: ${e}`, { title: 'Git', kind: 'error' });
+        }
+    }
+
+    /**
+     * Resolve by taking one side whole. A side that deleted the file resolves
+     * it by deleting; otherwise git writes that side's version and the file is
+     * staged as resolved.
+     */
+    async takeSide(c, side) {
+        const gone = side === 'ours' ? c.code[0] === 'D' : c.code[1] === 'D';
+        const name = c.path.split('/').pop();
+        const ok = await showConfirm(
+            gone ? t('Delete "{name}" and mark the conflict resolved?', { name })
+                : side === 'ours'
+                    ? t('Replace "{name}" with the current version and mark it resolved? Edits made to it so far are lost.', { name })
+                    : t('Replace "{name}" with the incoming version and mark it resolved? Edits made to it so far are lost.', { name }),
+            { title: t('Resolve Conflict'), kind: 'warning', okLabel: t('Resolve') },
+        );
+        if (!ok) return;
+        try {
+            if (gone) {
+                await this._git(['rm', '--quiet', '--', c.path]);
+            } else {
+                await this._git(['checkout', `--${side}`, '--', c.path]);
+                await this._git(['add', '--', c.path]);
+            }
+        } catch (e) {
+            showAlert(String(e), { title: t('Resolve Conflict'), kind: 'error' });
+        }
+        this.refresh();
+    }
+
+    /**
+     * Stage the file as it stands. Git takes conflict markers left in it
+     * without complaint, so look for them first.
+     */
+    async markResolved(c) {
+        const fullPath = `${State.gitRoot}/${c.path}`.replace(/\\/g, '/');
+        let text = null;
+        if (c.code !== 'DD') {
+            try {
+                const data = await invoke('read_file_auto_detect', { path: fullPath });
+                text = data ? data.content : null;
+            } catch (e) { /* not on disk: resolved by deleting it */ }
+        }
+        if (text !== null && hasConflictMarkers(text)) {
+            const ok = await showConfirm(
+                t('"{name}" still contains conflict markers (<<<<<<< / >>>>>>>). Mark it resolved anyway?', { name: c.path.split('/').pop() }),
+                { title: t('Mark as Resolved'), kind: 'warning', okLabel: t('Mark as Resolved') },
+            );
+            if (!ok) return;
+        }
+        try {
+            await this._git(text === null ? ['rm', '--quiet', '--', c.path] : ['add', '--', c.path]);
+        } catch (e) {
+            showAlert(String(e), { title: t('Mark as Resolved'), kind: 'error' });
+        }
+        this.refresh();
+    }
+
+    _git(args) {
+        return invoke('git_exec', { args, cwd: State.gitRoot });
+    }
+
+    /**
+     * What git is in the middle of, with the way out of it. Shown while there
+     * is an operation to finish or abort, or conflicts with no operation (a
+     * stash pop leaves those).
+     */
+    _renderOperationBanner(op, conflictCount) {
+        const banner = this.element.querySelector('#git-operation-banner');
+        if (!op && !conflictCount) {
+            banner.hidden = true;
+            banner.innerHTML = '';
+            return;
+        }
+        banner.hidden = false;
+        const name = op ? op.name : '';
+        const title = !op ? t('Unresolved conflicts')
+            : op.kind === 'merge' ? t('Merging {name}', { name })
+                : op.kind === 'rebase' ? t('Rebasing {name}', { name })
+                    : op.kind === 'cherry-pick' ? t('Cherry-picking {name}', { name })
+                        : t('Reverting {name}', { name });
+        const detail = conflictCount
+            ? t('{count} conflicted files', { count: conflictCount })
+            : t('All conflicts resolved');
+        banner.classList.toggle('has-conflicts', conflictCount > 0);
+        banner.innerHTML = `
+            <div class="git-operation-text">
+                <span class="git-operation-title">${escapeHtml(title)}</span>
+                <span class="git-operation-detail">${escapeHtml(detail)}</span>
+            </div>
+            <div class="git-operation-actions"></div>
+        `;
+        const actions = banner.querySelector('.git-operation-actions');
+        if (op) {
+            const abort = document.createElement('button');
+            abort.className = 'git-operation-abort';
+            abort.textContent = t('Abort');
+            abort.onclick = () => this.abortOperation(op);
+            actions.appendChild(abort);
+        }
+        if (op && op.kind !== 'merge') {
+            if (op.kind !== 'revert') {
+                const skip = document.createElement('button');
+                skip.className = 'git-operation-skip';
+                skip.textContent = t('Skip');
+                skip.title = t('Leave out the commit that stopped and go on with the rest');
+                skip.onclick = () => continueOperation(this, op.kind, 'skip');
+                actions.appendChild(skip);
+            }
+            const cont = document.createElement('button');
+            cont.className = 'git-operation-continue primary-btn';
+            cont.textContent = t('Continue');
+            cont.disabled = conflictCount > 0;
+            cont.title = conflictCount > 0 ? t('Resolve every conflict first') : '';
+            cont.onclick = () => continueOperation(this, op.kind, 'continue');
+            actions.appendChild(cont);
+        }
+        if (op && op.kind === 'merge') {
+            const commit = document.createElement('button');
+            commit.className = 'git-operation-commit primary-btn';
+            commit.textContent = t('Commit Merge');
+            commit.disabled = conflictCount > 0;
+            commit.title = conflictCount > 0 ? t('Resolve every conflict first') : '';
+            commit.onclick = () => this.openCommitModal(op.message);
+            actions.appendChild(commit);
+        }
+    }
+
+    /** The toolbar's "⋯": branch operations, as in VS Code's Source Control menu. */
+    _moreMenuItems() {
+        const branch = this._activeBranch || 'HEAD';
+        const op = this._lastStatus && this._lastStatus.operation;
+        const items = [
+            { label: t('Merge Branch into {branch}…', { branch }), action: () => mergeBranch(this) },
+            { label: t('Rebase {branch}…', { branch }), action: () => rebaseBranch(this) },
+            { type: 'separator' },
+            { label: t('Reset {branch}…', { branch }), action: () => resetBranch(this) },
+            { label: t('Undo Last Commit'), action: () => undoLastCommit(this) },
+        ];
+        if (op) {
+            items.push({ type: 'separator' });
+            items.push({ label: t('Abort'), action: () => this.abortOperation(op) });
+        }
+        return items;
+    }
+
+    /** Open the first conflict that can be merged line by line (after an operation stops). */
+    openFirstConflict() {
+        const next = this._conflicts().filter((c) => mergeable(c.code))
+            .sort((a, b) => (a.path < b.path ? -1 : 1))[0];
+        if (next) this.openConflict(next);
+    }
+
+    /** Open the commit dialog, filling in `message` when nothing is typed yet. */
+    openCommitModal(message = '') {
+        const overlay = this.element.querySelector('#git-commit-overlay');
+        const input = this.element.querySelector('#git-commit-input');
+        if (message && !input.value.trim()) input.value = message;
+        overlay.style.display = 'flex';
+        input.focus();
+    }
+
+    async abortOperation(op) {
+        const ok = await showConfirm(
+            t('Abort and go back to where things stood before it started? Conflict resolutions and other changes made since are discarded.'),
+            { title: t('Abort'), kind: 'warning', okLabel: t('Abort') },
+        );
+        if (!ok) return;
+        try {
+            await this._git([op.kind, '--abort']);
+        } catch (e) {
+            showAlert(String(e), { title: t('Abort'), kind: 'error' });
+        }
+        this.refresh();
     }
 
     async _loadBranches(activeBranch) {
@@ -740,6 +1162,8 @@ class GitPanel {
                 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                 e.preventDefault();
                 e.stopPropagation();
+                // A conflicted file has no diff to step to.
+                if (row.closest('#git-list-conflicts')) return;
                 const isStaged = !!row.closest('#git-list-staged');
                 const list = this._getDiffFileList(isStaged);
                 const at = list.findIndex((f) => f.path === path || f.path.startsWith(`${path}/`));
@@ -1232,6 +1656,15 @@ class GitPanel {
             }
         }
         items.push({ type: 'separator' });
+        const branch = this._activeBranch || 'HEAD';
+        items.push({
+            label: t('Reset {branch} to Here…', { branch }),
+            action: () => resetBranch(this, entry.hash, `${short}  ${entry.message || ''}`.trim()),
+        });
+        if (/(^|, )HEAD( ->|$|,)/.test(entry.refs || '') && (entry.parents || []).length) {
+            items.push({ label: t('Undo Last Commit'), action: () => undoLastCommit(this) });
+        }
+        items.push({ type: 'separator' });
         items.push({ label: t('Copy Commit Hash'), action: () => this._copyText(entry.hash) });
         ContextMenu.show(e, items);
     }
@@ -1258,6 +1691,12 @@ class GitPanel {
             action: () => this._compareRefs(name, '', {}),
         });
         items.push({ label: t('Compare with Branch…'), action: () => this._compareWithPickedRef({ ...entry, hash: name, short_hash: name }) });
+        items.push({ type: 'separator' });
+        if (current && name !== current) {
+            items.push({ label: t('Merge into {branch}…', { branch: current }), action: () => mergeBranch(this, name) });
+            items.push({ label: t('Rebase {branch} onto {name}…', { branch: current, name }), action: () => rebaseBranch(this, name) });
+        }
+        items.push({ label: t('Reset {branch} to Here…', { branch: current || 'HEAD' }), action: () => resetBranch(this, name, name) });
         items.push({ type: 'separator' });
         items.push({ label: t('Show Only This Branch'), action: () => this._setHistoryRef(name) });
         items.push({ label: t('Copy Name'), action: () => this._copyText(name) });
@@ -1924,7 +2363,19 @@ class GitPanel {
     }
 
     async stageFile(path) {
-        await invoke('git_add', { path: State.gitRoot, file: path });
+        const plan = stagePlan(path, this._lastStatus);
+        try {
+            if (!plan.paths) {
+                await invoke('git_add', { path: State.gitRoot, file: path });
+            } else {
+                if (plan.paths.length) await this._git(['add', '-A', '--', ...plan.paths]);
+                if (window.showToast) {
+                    window.showToast(t('Conflicted files were left unstaged. Mark each one resolved once it is fixed.'));
+                }
+            }
+        } catch (e) {
+            showAlert(`Git Error: ${e}`, { title: 'Git', kind: 'error' });
+        }
         this.refresh();
     }
 

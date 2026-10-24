@@ -38,7 +38,34 @@ pub struct GitStatus {
     pub modified: Vec<String>,
     pub deleted: Vec<String>,
     pub untracked: Vec<String>,
+    /// Unmerged paths. They used to be spread over `modified` and `deleted`,
+    /// where nothing told them apart from an ordinary change.
+    pub conflicted: Vec<GitConflict>,
+    /// A merge, rebase, cherry-pick or revert that stopped half way.
+    pub operation: Option<GitOperation>,
 }
+
+/// One unmerged path and its two-letter porcelain code: `UU` both modified,
+/// `AA` both added, `DD` both deleted, `AU`/`UA` added by us/them, `DU`/`UD`
+/// deleted by us/them.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct GitConflict {
+    pub path: String,
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct GitOperation {
+    /// "merge", "rebase", "cherry-pick" or "revert".
+    pub kind: String,
+    /// What is being brought in: the merged branch, the picked commit.
+    pub name: String,
+    /// The message git prepared for the commit that will finish it
+    /// (MERGE_MSG), without its comment lines. Empty when there is none.
+    pub message: String,
+}
+
+const CONFLICT_CODES: [&str; 7] = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitLogEntry {
@@ -66,14 +93,21 @@ pub async fn git_status(path: String) -> Result<GitStatus, String> {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
 
-    let stdout = decode_git_bytes(&output.stdout);
+    let mut status = parse_porcelain(&decode_git_bytes(&output.stdout));
+    status.operation = detect_operation(&path);
+    Ok(status)
+}
+
+/// Sort `git status --porcelain -b` output into the panel's groups.
+fn parse_porcelain(stdout: &str) -> GitStatus {
     let mut lines = stdout.lines();
-    
+
     let mut branch = String::from("unknown");
     let mut staged = Vec::new();
     let mut modified = Vec::new();
     let mut deleted = Vec::new();
     let mut untracked = Vec::new();
+    let mut conflicted = Vec::new();
 
     if let Some(first_line) = lines.next() {
         if first_line.starts_with("## ") {
@@ -86,8 +120,14 @@ pub async fn git_status(path: String) -> Result<GitStatus, String> {
         let status = &line[0..2];
         let file = line[3..].to_string();
 
-        // Worktree-deleted: " D" (space then D) or "UD"/"DD" (conflict) → the
-        // file is gone on disk but still in HEAD, so we can diff HEAD→empty.
+        // Before the deletion test below, which "UD" and "DD" would also pass.
+        if CONFLICT_CODES.contains(&status) {
+            conflicted.push(GitConflict { path: file, code: status.to_string() });
+            continue;
+        }
+
+        // Worktree-deleted: " D" (space then D) → the file is gone on disk but
+        // still in HEAD, so we can diff HEAD→empty.
         if status.starts_with('D') || (status.len() == 2 && status.ends_with('D')) {
             if status.starts_with("D ") {
                 staged.push(file);
@@ -101,7 +141,6 @@ pub async fn git_status(path: String) -> Result<GitStatus, String> {
             "M " | "A " | "R " | "C " => staged.push(file),
             " M" | " D" => { if status == " D" { deleted.push(file); } else { modified.push(file); } },
             "??" => untracked.push(file),
-            "UU" => modified.push(file), // Conflict
             _ => {
                 if status.starts_with('M') || status.starts_with('A') {
                     staged.push(file);
@@ -112,7 +151,198 @@ pub async fn git_status(path: String) -> Result<GitStatus, String> {
         }
     }
 
-    Ok(GitStatus { branch, staged, modified, deleted, untracked })
+    GitStatus { branch, staged, modified, deleted, untracked, conflicted, operation: None }
+}
+
+/// The operation git is in the middle of, read from the marker files it leaves
+/// in the git directory.
+///
+/// The paths come from `rev-parse --git-path`, because in a linked worktree
+/// `.git` is a file and the markers live elsewhere.
+fn detect_operation(repo: &str) -> Option<GitOperation> {
+    const MARKERS: [&str; 6] = [
+        "MERGE_HEAD", "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD", "MERGE_MSG",
+    ];
+    let mut args = vec!["rev-parse"];
+    for m in MARKERS {
+        args.push("--git-path");
+        args.push(m);
+    }
+    let output = git_command().args(&args).current_dir(repo).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let base = std::path::Path::new(repo);
+    let paths: Vec<std::path::PathBuf> = decode_git_bytes(&output.stdout)
+        .lines()
+        .map(|p| base.join(p.trim()))
+        .collect();
+    if paths.len() != MARKERS.len() {
+        return None;
+    }
+    let read = |p: &std::path::Path| std::fs::read(p).ok().map(|b| decode_git_bytes(&b));
+    let message = read(&paths[5]).map(|m| strip_comment_lines(&m)).unwrap_or_default();
+
+    let kind = if paths[0].is_file() {
+        "merge"
+    } else if paths[1].is_dir() || paths[2].is_dir() {
+        "rebase"
+    } else if paths[3].is_file() {
+        "cherry-pick"
+    } else if paths[4].is_file() {
+        "revert"
+    } else {
+        return None;
+    };
+
+    let name = match kind {
+        "merge" => merged_name(&message)
+            .or_else(|| read(&paths[0]).map(|h| short_hash(&h)))
+            .unwrap_or_default(),
+        "rebase" => [&paths[1], &paths[2]]
+            .iter()
+            .find_map(|d| read(&d.join("head-name")))
+            .map(|h| h.trim().trim_start_matches("refs/heads/").to_string())
+            .unwrap_or_default(),
+        "cherry-pick" => read(&paths[3]).map(|h| short_hash(&h)).unwrap_or_default(),
+        _ => read(&paths[4]).map(|h| short_hash(&h)).unwrap_or_default(),
+    };
+    Some(GitOperation { kind: kind.to_string(), name, message })
+}
+
+/// Everything the three-way merge view needs for one conflicted file.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConflictVersions {
+    /// Stage 1, the common ancestor. None when the file did not exist there
+    /// (both sides added it).
+    pub base: Option<String>,
+    /// Stage 2: HEAD's version. None when HEAD deleted the file.
+    pub ours: Option<String>,
+    /// Stage 3: the version being brought in. None when it deleted the file.
+    pub theirs: Option<String>,
+    /// `git merge-file --diff3` over the three, with markers MARKER_SIZE long:
+    /// git's own result, conflicts and all. Empty when a side is missing.
+    pub merged: String,
+    /// What is on disk now, if anything — the text saving will replace.
+    pub worktree: Option<String>,
+    pub encoding: String,
+    pub eol: String,
+    /// A NUL byte in any version: there is no text to merge.
+    pub binary: bool,
+}
+
+/// Longer than any marker a person would type, so text in the file that
+/// happens to look like a conflict is never read as one.
+pub const MARKER_SIZE: usize = 32;
+
+/// The three versions of a conflicted file and git's merge of them.
+///
+/// Every version is decoded with ONE encoding — the one the working-tree file
+/// is in — so a Shift_JIS file does not come back as three different guesses.
+/// The merge runs on temporary copies: the working-tree file is left alone,
+/// whatever the user has already done to it.
+#[tauri::command]
+pub async fn git_conflict_versions(path: String, file: String) -> Result<ConflictVersions, String> {
+    let stage = |n: u8| -> Option<Vec<u8>> {
+        let out = git_command()
+            .args(["show", &format!(":{}:{}", n, file)])
+            .current_dir(&path)
+            .output()
+            .ok()?;
+        out.status.success().then_some(out.stdout)
+    };
+    let base = stage(1);
+    let ours = stage(2);
+    let theirs = stage(3);
+    let worktree = std::fs::read(std::path::Path::new(&path).join(&file)).ok();
+
+    let has_nul = |b: &Option<Vec<u8>>| b.as_ref().map_or(false, |b| b.contains(&0));
+    let binary = has_nul(&base) || has_nul(&ours) || has_nul(&theirs) || has_nul(&worktree);
+
+    let sample = worktree.as_ref().or(ours.as_ref()).or(theirs.as_ref());
+    let encoding = match sample {
+        Some(bytes) if !binary => {
+            let mut detector = EncodingDetector::new();
+            detector.feed(bytes, true);
+            detector.guess(None, true)
+        }
+        _ => encoding_rs::UTF_8,
+    };
+    let eol = if sample.map_or(false, |b| b.windows(2).any(|w| w == b"\r\n")) { "\r\n" } else { "\n" };
+    let decode = |b: &[u8]| encoding.decode(b).0.to_string();
+
+    let merged = match (&ours, &theirs) {
+        (Some(o), Some(t)) if !binary => {
+            let empty = Vec::new();
+            decode(&merge_file(&path, o, base.as_ref().unwrap_or(&empty), t)?)
+        }
+        _ => String::new(),
+    };
+
+    Ok(ConflictVersions {
+        base: base.as_deref().map(decode),
+        ours: ours.as_deref().map(decode),
+        theirs: theirs.as_deref().map(decode),
+        merged,
+        worktree: worktree.as_deref().filter(|_| !binary).map(decode),
+        encoding: encoding.name().to_string(),
+        eol: eol.to_string(),
+        binary,
+    })
+}
+
+/// `git merge-file -p --diff3` over three byte strings, through temp files.
+/// Its exit code is the number of conflicts, so only a failure to run or a
+/// negative code (an error) is an error.
+fn merge_file(repo: &str, ours: &[u8], base: &[u8], theirs: &[u8]) -> Result<Vec<u8>, String> {
+    static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("jh-merge-{}-{}", std::process::id(), n));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let run = || -> Result<Vec<u8>, String> {
+        let files = [("ours", ours), ("base", base), ("theirs", theirs)];
+        for (name, bytes) in files {
+            std::fs::write(dir.join(name), bytes).map_err(|e| e.to_string())?;
+        }
+        let output = git_command()
+            .args(["merge-file", "-p", "--diff3", &format!("--marker-size={}", MARKER_SIZE),
+                "-L", "ours", "-L", "base", "-L", "theirs"])
+            .arg(dir.join("ours"))
+            .arg(dir.join("base"))
+            .arg(dir.join("theirs"))
+            .current_dir(repo)
+            .output()
+            .map_err(|e| e.to_string())?;
+        match output.status.code() {
+            Some(c) if (0..128).contains(&c) => Ok(output.stdout),
+            _ => Err(format!("git merge-file failed: {}", String::from_utf8_lossy(&output.stderr).trim())),
+        }
+    };
+    let result = run();
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+/// MERGE_MSG as the commit will carry it: git drops the `#` lines itself.
+fn strip_comment_lines(msg: &str) -> String {
+    msg.lines()
+        .filter(|l| !l.starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+/// The branch named in "Merge branch 'x'" / "Merge remote-tracking branch 'origin/x'".
+fn merged_name(message: &str) -> Option<String> {
+    let first = message.lines().next()?;
+    let start = first.find('\'')? + 1;
+    let len = first[start..].find('\'')?;
+    Some(first[start..start + len].to_string()).filter(|s| !s.is_empty())
+}
+
+fn short_hash(h: &str) -> String {
+    h.trim().chars().take(7).collect()
 }
 
 
@@ -732,5 +962,92 @@ mod tests {
         let m = parse_name_status("M\tsrc/x.rs").unwrap();
         assert_eq!((m.status.as_str(), m.path.as_str(), m.old_path), ("M", "src/x.rs", None));
         assert!(parse_name_status("").is_none());
+    }
+
+    #[test]
+    fn every_unmerged_code_is_a_conflict() {
+        let out = "## master\nUU both.txt\nAA added.txt\nDD gone.txt\nAU au.txt\nUA ua.txt\nDU du.txt\nUD ud.txt\n";
+        let s = parse_porcelain(out);
+        let codes: Vec<&str> = s.conflicted.iter().map(|c| c.code.as_str()).collect();
+        assert_eq!(codes, ["UU", "AA", "DD", "AU", "UA", "DU", "UD"]);
+        assert_eq!(s.conflicted[0], GitConflict { path: "both.txt".into(), code: "UU".into() });
+        // None of them leaks into the ordinary groups.
+        assert!(s.modified.is_empty() && s.deleted.is_empty() && s.staged.is_empty());
+    }
+
+    #[test]
+    fn ordinary_changes_sort_as_before() {
+        let s = parse_porcelain("## main...origin/main [ahead 1]\nM  staged.rs\n M work.rs\n D gone.rs\nD  removed.rs\n?? 新規.md\n");
+        assert_eq!(s.branch, "main");
+        assert_eq!(s.staged, ["staged.rs", "removed.rs"]);
+        assert_eq!(s.modified, ["work.rs"]);
+        assert_eq!(s.deleted, ["gone.rs"]);
+        assert_eq!(s.untracked, ["新規.md"]);
+        assert!(s.conflicted.is_empty());
+        assert!(s.operation.is_none());
+    }
+
+    #[test]
+    fn the_merged_branch_comes_from_merge_msg() {
+        assert_eq!(merged_name("Merge branch 'feature-x'").as_deref(), Some("feature-x"));
+        assert_eq!(merged_name("Merge remote-tracking branch 'origin/main' into dev").as_deref(), Some("origin/main"));
+        assert_eq!(merged_name("Merge commit 'abc1234'").as_deref(), Some("abc1234"));
+        assert!(merged_name("no quotes").is_none());
+        assert_eq!(strip_comment_lines("Merge branch 'x'\n\n# Conflicts:\n#\tfile.txt\n"), "Merge branch 'x'");
+    }
+
+    /// A real repository stopped on a conflict, so the marker files and
+    /// `--git-path` are exercised the way the panel meets them.
+    #[test]
+    fn a_stopped_merge_is_detected() {
+        let dir = std::env::temp_dir().join(format!("jh-git-conflict-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = dir.to_str().unwrap();
+        let git = |args: &[&str]| {
+            git_command()
+                .args(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"])
+                .args(args)
+                .current_dir(&dir)
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-q", "-b", "main"]);
+        std::fs::write(dir.join("f.txt"), "base\n").unwrap();
+        git(&["add", "f.txt"]);
+        git(&["commit", "-q", "-m", "base"]);
+        git(&["checkout", "-q", "-b", "feature-x"]);
+        std::fs::write(dir.join("f.txt"), "theirs\n").unwrap();
+        git(&["commit", "-q", "-am", "theirs"]);
+        git(&["checkout", "-q", "main"]);
+        std::fs::write(dir.join("f.txt"), "ours\n").unwrap();
+        git(&["commit", "-q", "-am", "ours"]);
+
+        assert!(detect_operation(repo).is_none());
+        let merged = git(&["merge", "feature-x"]);
+        assert!(!merged.status.success());
+
+        let op = detect_operation(repo).expect("merge in progress");
+        assert_eq!(op.kind, "merge");
+        assert_eq!(op.name, "feature-x");
+        assert!(op.message.starts_with("Merge branch 'feature-x'"));
+        assert!(!op.message.contains('#'));
+
+        let out = git(&["status", "--porcelain", "-b", "-uall"]);
+        let s = parse_porcelain(&decode_git_bytes(&out.stdout));
+        assert_eq!(s.conflicted, vec![GitConflict { path: "f.txt".into(), code: "UU".into() }]);
+
+        let v = tauri::async_runtime::block_on(git_conflict_versions(repo.into(), "f.txt".into())).unwrap();
+        assert_eq!(v.base.as_deref(), Some("base\n"));
+        assert_eq!(v.ours.as_deref(), Some("ours\n"));
+        assert_eq!(v.theirs.as_deref(), Some("theirs\n"));
+        let m = |c: char| c.to_string().repeat(MARKER_SIZE);
+        assert_eq!(v.merged, format!("{} ours\nours\n{} base\nbase\n{}\ntheirs\n{} theirs\n", m('<'), m('|'), m('='), m('>')));
+        assert!(v.worktree.as_deref().unwrap().contains("<<<<<<< HEAD"));
+        assert!(!v.binary);
+
+        git(&["merge", "--abort"]);
+        assert!(detect_operation(repo).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
