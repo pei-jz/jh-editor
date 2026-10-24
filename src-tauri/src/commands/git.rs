@@ -23,12 +23,77 @@ fn git_command() -> Command {
     // Prevent git from quoting non-ASCII filenames (e.g. Japanese) as octal escapes.
     // With this, filenames are emitted as raw UTF-8.
     cmd.args(["-c", "core.quotepath=false"]);
+    // There is no terminal to ask on. Without this, a git that wants a
+    // password and has no askpass may wait for one that never comes.
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
     cmd
+}
+
+/// A git command that may need credentials. Its questions (user name,
+/// password, SSH passphrase) go to the dialog in `window` — see askpass.rs —
+/// unless the user has an askpass program of their own configured.
+fn git_command_interactive(window: &str, repo: &str) -> Command {
+    let own = git_command()
+        .args(["config", "--get", "core.askPass"])
+        .current_dir(repo)
+        .output()
+        .map(|o| o.status.success() && !o.stdout.trim_ascii().is_empty())
+        .unwrap_or(false);
+    let mut cmd = git_command();
+    crate::askpass::configure(&mut cmd, window, own);
+    cmd
+}
+
+/// Git refused the credentials: whatever was remembered for this session is
+/// wrong, and using it again would only fail again.
+fn note_auth_failure(stderr: &str) {
+    if is_auth_failure(stderr) {
+        if let Some(b) = crate::askpass::broker() {
+            b.forget_all();
+        }
+    }
+}
+
+pub fn is_auth_failure(stderr: &str) -> bool {
+    let s = stderr.to_ascii_lowercase();
+    ["authentication failed", "could not read username", "could not read password",
+        "permission denied (publickey", "http 401", "error: 403", "returned error: 403",
+        "invalid username or password", "terminal prompts disabled"]
+        .iter()
+        .any(|needle| s.contains(needle))
+}
+
+/// Subcommands that talk to a remote and may be asked for credentials.
+fn needs_credentials(args: &[String]) -> bool {
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == "-c" || a == "-C" {
+            it.next();
+            continue;
+        }
+        if a.starts_with('-') {
+            continue;
+        }
+        return matches!(a.as_str(), "fetch" | "pull" | "push" | "clone" | "ls-remote" | "remote" | "submodule");
+    }
+    false
+}
+
+/// The editor's dialog answered a credential question (see askpass.rs).
+#[tauri::command]
+pub async fn git_askpass_reply(
+    id: u64,
+    answer: Option<String>,
+    password: Option<String>,
+    remember: Option<bool>,
+) -> Result<bool, String> {
+    let b = crate::askpass::broker().ok_or("askpass is not running")?;
+    Ok(b.reply(id, crate::askpass::Reply { answer, password, remember: remember.unwrap_or(false) }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -463,6 +528,7 @@ pub async fn git_log(path: String, count: Option<u32>, rev: Option<String>) -> R
 /// all three omitted this is the plain push it always was.
 #[tauri::command]
 pub async fn git_push(
+    window: tauri::WebviewWindow,
     path: String,
     remote: Option<String>,
     branch: Option<String>,
@@ -479,7 +545,7 @@ pub async fn git_push(
         }
     }
 
-    let output = git_command()
+    let output = git_command_interactive(window.label(), &path)
         .args(&args)
         .current_dir(&path)
         .output()
@@ -487,6 +553,7 @@ pub async fn git_push(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        note_auth_failure(&stderr);
         return Err(stderr);
     }
 
@@ -615,30 +682,34 @@ pub async fn gh_pr_create(
 }
 
 #[tauri::command]
-pub async fn git_pull(path: String) -> Result<String, String> {
-    let output = git_command()
+pub async fn git_pull(window: tauri::WebviewWindow, path: String) -> Result<String, String> {
+    let output = git_command_interactive(window.label(), &path)
         .args(["pull"])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        note_auth_failure(&stderr);
+        return Err(stderr);
     }
 
     Ok(decode_git_bytes(&output.stdout))
 }
 
 #[tauri::command]
-pub async fn git_fetch(path: String) -> Result<String, String> {
-    let output = git_command()
+pub async fn git_fetch(window: tauri::WebviewWindow, path: String) -> Result<String, String> {
+    let output = git_command_interactive(window.label(), &path)
         .args(["fetch", "--all"])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        note_auth_failure(&stderr);
+        return Err(stderr);
     }
 
     Ok(decode_git_bytes(&output.stdout))
@@ -907,12 +978,17 @@ pub async fn git_ignore(path: String, file: String) -> Result<(), String> {
 /// that `cleanRef` was written to undo cannot happen here, because there is no
 /// shell left to do the quoting.
 #[tauri::command]
-pub async fn git_exec(args: Vec<String>, cwd: String) -> Result<String, String> {
+pub async fn git_exec(window: tauri::WebviewWindow, args: Vec<String>, cwd: String) -> Result<String, String> {
     if args.is_empty() {
         return Err("git_exec: no arguments given".into());
     }
 
-    let output = git_command()
+    let mut cmd = if needs_credentials(&args) {
+        git_command_interactive(window.label(), &cwd)
+    } else {
+        git_command()
+    };
+    let output = cmd
         .args(&args)
         .current_dir(&cwd)
         .output()
@@ -926,6 +1002,7 @@ pub async fn git_exec(args: Vec<String>, cwd: String) -> Result<String, String> 
     // git writes the useful part to stderr; fall back to stdout when it is
     // silent, so the caller never gets an empty error message.
     let stderr = decode_git_bytes(&output.stderr);
+    note_auth_failure(&stderr);
     let detail = if stderr.trim().is_empty() { stdout } else { stderr };
     Err(format!("git {} failed: {}", args.join(" "), detail.trim()))
 }
@@ -962,6 +1039,26 @@ mod tests {
         let m = parse_name_status("M\tsrc/x.rs").unwrap();
         assert_eq!((m.status.as_str(), m.path.as_str(), m.old_path), ("M", "src/x.rs", None));
         assert!(parse_name_status("").is_none());
+    }
+
+    #[test]
+    fn only_remote_commands_may_ask_for_credentials() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(needs_credentials(&v(&["fetch", "--all"])));
+        assert!(needs_credentials(&v(&["-c", "x=y", "push", "origin"])));
+        assert!(needs_credentials(&v(&["ls-remote", "origin"])));
+        assert!(!needs_credentials(&v(&["-c", "core.editor=true", "rebase", "main"])));
+        assert!(!needs_credentials(&v(&["status"])));
+        assert!(!needs_credentials(&v(&["log", "push"])));
+    }
+
+    #[test]
+    fn refused_credentials_are_recognised() {
+        assert!(is_auth_failure("remote: Invalid username or password.
+fatal: Authentication failed for 'https://h/'"));
+        assert!(is_auth_failure("fatal: could not read Username for 'https://h': terminal prompts disabled"));
+        assert!(is_auth_failure("git@h: Permission denied (publickey)."));
+        assert!(!is_auth_failure("fatal: refusing to merge unrelated histories"));
     }
 
     #[test]
