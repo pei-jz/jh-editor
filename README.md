@@ -4,11 +4,14 @@ A local-first desktop text editor built with **Tauri 2**, **vanilla JavaScript**
 
 <p align="center">
   <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
     <img src="docs/images/hero-light.png" alt="J.H Editor in Book mode, with the file tree and tab bar" width="820">
   </picture>
 </p>
 <p align="center">
-  <em>Book mode &mdash; a page-turning reading view for long documents, with highlighting intact</em>
+  <em>Book mode &mdash; a page-turning reading view for long documents, with Mermaid,
+  tables and math intact. Shown in Hanging Scroll, the default theme; the screenshots
+  follow GitHub's light / dark setting.</em>
 </p>
 
 J.H Editor is aimed at being the editor you leave open all day — a fast default for
@@ -17,12 +20,18 @@ Git panel when you need them. It is not trying to be an IDE. Where AI is concern
 plays the **companion** role: it exposes the document you are editing to an external
 agent over MCP, rather than embedding an LLM stack of its own.
 
+Double-click to editable, in well under a second. The window stays hidden until the
+editor is actually ready, so there is no white flash and no empty frame.
+
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/csv-table.png" alt="A Shift_JIS CSV file opened as a spreadsheet grid" width="820">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/csv-dark.png">
+    <img src="docs/images/csv-light.png" alt="A Shift_JIS CSV file opened as a spreadsheet grid" width="820">
+  </picture>
 </p>
 <p align="center">
   <em>CSV opens as a grid &mdash; sort, resize, transpose, Excel-style insert/delete.
@@ -30,7 +39,32 @@ agent over MCP, rather than embedding an LLM stack of its own.
 </p>
 
 <p align="center">
-  <img src="docs/images/mermaid.png" alt="The Mermaid recipe helper, listing diagram types and syntax snippets" width="820">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/diff-dark.png">
+    <img src="docs/images/diff-light.png" alt="Two Java files side by side in the merge view" width="820">
+  </picture>
+</p>
+<p align="center">
+  <em>Compare is a two-way merge &mdash; left-only, right-only and conflicting changes in
+  their own colours, &larr; / &rarr; per change, and either side editable</em>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/office-dark.png">
+    <img src="docs/images/office-light.png" alt="An Excel design document shown in the read-only Office preview" width="820">
+  </picture>
+</p>
+<p align="center">
+  <em><code>.xlsx</code> opens in milliseconds as a read-only preview that keeps the sheet's
+  column widths, merged cells and borders &mdash; a 方眼紙 design document still looks like one</em>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/mermaid-dark.png">
+    <img src="docs/images/mermaid-light.png" alt="The Mermaid recipe helper, listing diagram types and syntax snippets" width="820">
+  </picture>
 </p>
 <p align="center">
   <em>The Mermaid recipe helper &mdash; pick a diagram type and click the syntax you need,
@@ -38,8 +72,14 @@ agent over MCP, rather than embedding an LLM stack of its own.
 </p>
 
 <p align="center">
-  <em>Double-click to editable, in well under a second. The window stays hidden until
-  the editor is actually ready, so there is no white flash and no empty frame.</em>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/deck-dark.png">
+    <img src="docs/images/deck-light.png" alt="A jh-presentation deck opened as slides, with the slide list and speaker notes" width="820">
+  </picture>
+</p>
+<p align="center">
+  <em>A jh-presentation deck opens as slides &mdash; slide list, speaker notes,
+  presenter view, and text fixed in place</em>
 </p>
 
 ---
@@ -58,6 +98,7 @@ switches modes; the current mode is always shown in the status bar.
 | **Structure** | Tree + source dual pane for JSON / XML / HTML / JSP, with drag-and-drop node manipulation |
 | **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
 | **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
+| **3-way merge** | For a Git conflict: base, ours and theirs lined up row for row with the result. One click takes a side (or both); *Save and mark resolved* moves on to the next conflicted file |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
 | **Deck** | A [jh-presentation](https://github.com/pei-jz/jh-presentation) deck shown as slides. Double-click a box to fix its text in place; only that text changes in the source |
 | **Office preview** | Read-only look inside `.xlsx` / `.xlsm` / `.xls` / `.ods` / `.docx` / `.pptx`, without waiting for Excel or Word to start |
@@ -71,12 +112,22 @@ switches modes; the current mode is always shown in the status bar.
 - **Paste or drop an image** — it is saved next to the document and linked relatively
 - Click any diagram or image to open it full-size in a lightbox
 - Reusable document **templates**
+- **Document font** — choose the face and size used for Markdown prose (Meiryo by
+  default, Yu Gothic, BIZ UD Gothic, …), the same in the scrolling and the page-turning view
+- The block editor and the Mermaid helper go full screen with `F11` (or `Ctrl+Alt+F`);
+  `Ctrl+S` saves without closing the block editor
 - Prose is set in a reading face and code stays in the editor's fixed pitch, in both the
   scrolling and the page-turning view
 
 ### 🗂️ Files & search
 
-- **Explorer** — virtual-scrolled tree, filter box, drag-and-drop, multi-workspace, "Reveal in File Explorer"
+- **Explorer** — a virtual-scrolled tree that behaves like an ordinary file manager:
+  multi-select with the usual keys, drag to move or copy, `Delete` to the Recycle Bin,
+  copy and paste to and from Windows Explorer (never overwriting a same-named file),
+  *Copy path* / *Copy relative path*, "Reveal in File Explorer", and open tabs that
+  follow a moved or renamed file
+- **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
+  switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
 - **File search** (`Ctrl+P`), **tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
 - **Compare** two files from the explorer, or two whole **folders** (recursive: differing files
@@ -159,10 +210,21 @@ the numbers, which is what a "let me just check something" open is after.
 
 ### 🐙 Git
 
-- **Status panel** — branch selector, stage/unstage, commit, push/pull/fetch
-- **Diff against HEAD** for modified, added and deleted files
-- **History graph** — commit list with search, per-commit file lists, two-revision comparison,
-  and working-tree ↔ commit comparison
+- **Status panel** — branch selector (filterable), stage/unstage, commit, push/pull/fetch
+- **Compare in an editor tab** — modified, added, deleted and untracked files against
+  HEAD, from a click or the context menu; the working-tree side stays editable, and
+  `Ctrl+↑` / `Ctrl+↓` step through the changed files
+- **History graph** — commit list with search, a branch filter, per-commit file lists,
+  two-revision comparison, and working-tree ↔ commit comparison
+- **Merge, rebase, reset** — plus *Undo last commit*. Uncommitted changes are carried
+  across; when a merge or rebase stops on a conflict, the first conflicted file opens
+  in the 3-way merge view
+- **Conflicts** — listed in their own section, with the merge/rebase state shown at the
+  top; take one side from the context menu, or resolve line by line in the 3-way view.
+  *Stage All* leaves conflicted files alone
+- **Authentication in the editor** — username / password and SSH key passphrase prompts
+  appear as an editor dialog, optionally remembered until J.H Editor closes. Git
+  Credential Manager keeps working as before
 - Status badges: `M` modified · `U` untracked · `D` deleted · `S` staged
 
 ### 🤖 AI (J.H AI Agent integration)
@@ -191,10 +253,42 @@ the agent's model calls back into the editor for context.
 
 ### 🎨 Customization
 
-- **11 themes** — Light, Dark, Midnight, Latte, Solarized Light, Solarized Dark, Paper, Bamboo Slip, Ink Brush, Nord, Hanging Scroll
-- **Fonts** — separate family/size for editor, UI and terminal
-- **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`)
-- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar)
+- **14 themes** (see [Themes](#-themes)), and a **theme per workspace** so windows on
+  different projects are easy to tell apart
+- **Fonts** — separate family/size for editor, UI, Markdown documents and terminal
+- **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`) and a command
+  palette (`Ctrl+Shift+P`)
+- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar).
+  Dropping a file anywhere on it types the full path; the scrollback length is a setting
+
+---
+
+## 🎨 Themes
+
+<p align="center">
+  <img src="docs/images/themes.png" alt="The same Java file in each of the 14 themes" width="820">
+</p>
+
+| Theme | Base | Character |
+|-------|------|-----------|
+| Light | light | Plain white editor and explorer |
+| Dark | dark | Neutral charcoal |
+| Midnight | dark | Near-black with a blue-purple cast |
+| Latte | light | Warm cream |
+| Solarized Light | light | Solarized, with body text darkened for contrast |
+| Solarized Dark | dark | Solarized, with contrast raised |
+| Paper | light | Aged paper on a desk, ruled lines behind Markdown |
+| Paper Dark | dark | Kraft paper at night; Book mode lays the sheet on a desk |
+| Ink Brush (墨絵) | light | Washi, with ink-wash mountains along the mount |
+| Ink Brush Dark | dark | Near-black ink |
+| **Hanging Scroll (掛軸)** — default | light | Indigo brocade mount around moon-white silk |
+| Hanging Scroll Dark | dark | Deep indigo silk, gold-damask mount, vermillion seal |
+| Nord | dark | Nord's own palette, form controls included |
+| Bamboo Slip (竹簡) | dark | Bamboo slips bound with cord, Mincho on the chrome |
+
+*Base* is what the editor surface is, and it decides the syntax, Mermaid and terminal
+palettes. Hanging Scroll counts as light: its mount is indigo, but the sheet you read is
+pale silk. To add a theme, see [docs/THEMING.md](docs/THEMING.md).
 
 ---
 
@@ -204,7 +298,7 @@ the agent's model calls back into the editor for context.
 graph TB
     subgraph Frontend ["Frontend — vanilla ES modules + CodeMirror 6"]
         App[App.js] --> Editor[Editor.js<br/>tabs, panes, view dispatch]
-        Editor --> Views[Views: CodeMirror / Markdown /<br/>Structure / CSV / LargeFile / DirDiff]
+        Editor --> Views[Views: CodeMirror / Markdown / Structure /<br/>CSV / Office / Deck / LargeFile / DirDiff]
         Editor --> Panes[Panes.js<br/>split-pane state]
         Editor --> Session[Session.js<br/>tabs + drafts]
         App --> Explorer[Explorer + Git panel]
@@ -340,11 +434,11 @@ jh-editor/
 │   ├── modules/
 │   │   ├── ai/            # JhAiMcp (MCP surface), jhai-adapter, activity dock
 │   │   ├── core/          # App, Editor, Panes, Session, Store, Explorer, shortcuts
-│   │   ├── editors/       # Csv, Diff, Structure, Table, Compare, Vim
+│   │   ├── editors/       # Csv, Merge (2-way), Conflict (3-way), Structure, Table, Compare, Vim
 │   │   ├── lsp/           # LspClient, completion / hover / diagnostics widgets
-│   │   ├── ui/            # Modals, Git panel, search, terminal, HTML preview, Mermaid helper
+│   │   ├── ui/            # Modals, Git panel + auth dialog, search, terminal, HTML preview, Mermaid helper
 │   │   ├── utils/         # Parsers, highlighters, Markdown, VirtualScroll, FileSystem
-│   │   ├── views/         # CodeMirror, Markdown, Structure, Csv, LargeFile, DirDiff, Office
+│   │   ├── views/         # CodeMirror, Markdown, Structure, Csv, LargeFile, DirDiff, Office, Deck, GitCompare
 │   │   └── workers/       # CSV / parser / formatter web workers
 │   └── styles/            # Themes and component CSS
 ├── src-tauri/
@@ -366,6 +460,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+S` | Save |
 | `Ctrl+N` / `Ctrl+W` | New file / Close tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
+| `Ctrl+Shift+P` | Command palette |
 | `Ctrl+P` | File search |
 | `Ctrl+T` | Tab search |
 | `Ctrl+G` | Workspace grep (supports globs) |
@@ -375,14 +470,17 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Shift+E` | Toggle view mode (Text ⇄ Structure / Table / Markdown) |
 | `Ctrl+Alt+P` | Toggle preview (Markdown / HTML) |
 | `Ctrl+Alt+B` | Book mode |
-| `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
+| `F11` / `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
+| `Ctrl+Alt+O` | Recent workspaces |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |
 | `Ctrl+\` | Split editor right |
 | `Ctrl+Shift+\` | Focus other pane |
 | `Ctrl+Shift+W` | Close split |
 | `Ctrl+Shift+D` / `Ctrl+Alt+D` | Compare with file / Compare scratch text |
+| `Alt+M` / `Alt+S` / `Alt+D` / `Alt+I` | Compare: keep both / sync point / line details / ignore whitespace |
 | `Ctrl+Space` | Inline AI |
+| `Ctrl+Alt+C` | AI chat |
 | `F12` / `Shift+F12` | Go to definition / Find references |
 | `Ctrl+Alt+V` | Vim mode |
 | `Ctrl+Alt+W` | Whitespace markers |
@@ -427,7 +525,9 @@ goes through `utils/SanitizeHtml.js` before it reaches the DOM — script tags,
 event-handler attributes and `javascript:` URLs are removed, while tables, task
 lists, code highlighting, images and Mermaid blocks are kept. Mermaid runs at
 `securityLevel: 'strict'`, so a diagram's `click` directive cannot call into the
-page. HTML files preview inside a sandboxed iframe with scripts off by default.
+page. AI task results go through the same sanitiser, and file names and error
+messages are always inserted as text, never as markup. HTML files preview inside a
+sandboxed iframe with scripts off by default.
 
 Git runs through `git_exec`, which takes an argument array — there is no general
 shell command reachable from the webview.
