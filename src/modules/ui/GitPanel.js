@@ -69,6 +69,22 @@ function escapeHtml(value) {
  * of the line. A line of `=======` alone is too common (Markdown headings) to
  * count on its own.
  */
+/**
+ * A git failure for an alert. A refused or cancelled sign-in says so in words
+ * before git's own text, which reads like a crash ("could not read Username …
+ * terminal prompts disabled").
+ */
+export function gitErrorText(err, prefix = 'Git Error') {
+    const detail = String(err && err.message ? err.message : err).trim();
+    const auth = /authentication failed|could not read (username|password)|permission denied \(publickey|terminal prompts disabled|invalid username or password|\b40[13]\b/i;
+    if (auth.test(detail)) {
+        return `${t('Sign-in to the remote failed or was cancelled. Check the user name and password (or access token) and try again.')}
+
+${detail}`;
+    }
+    return `${prefix}: ${detail}`;
+}
+
 /** Both sides still have the file, so its lines can be merged. */
 export function mergeable(code) {
     return code !== 'DD' && code[0] !== 'D' && code[1] !== 'D';
@@ -473,7 +489,7 @@ class GitPanel {
                 showAlert(t('Git stopped with {count} conflicted files. Resolve them under MERGE CONFLICTS, then commit the merge.', { count }),
                     { title: 'Git', kind: 'warning' });
             } else {
-                showAlert(`Git Error: ${e}`, { title: 'Git', kind: 'error' });
+                showAlert(gitErrorText(e), { title: 'Git', kind: 'error' });
             }
         }
     }
@@ -1774,7 +1790,7 @@ class GitPanel {
             }
             this.refresh();
         } catch (e) {
-            showAlert(`Push failed: ${e}`, { title: 'Git', kind: 'error' });
+            showAlert(gitErrorText(e, 'Push failed'), { title: 'Git', kind: 'error' });
         }
     }
 
@@ -1822,7 +1838,7 @@ class GitPanel {
                 });
                 this.refresh();
             } catch (e) {
-                showAlert(`Push failed: ${e}`, { title: 'Git', kind: 'error' });
+                showAlert(gitErrorText(e, 'Push failed'), { title: 'Git', kind: 'error' });
                 return;
             }
         }

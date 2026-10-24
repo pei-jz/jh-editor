@@ -166,7 +166,9 @@ describe('no general shell command is exposed to the webview', () => {
 
     it('git runs through an argument array, not a command line', () => {
         const git = read('src-tauri/src/commands/git.rs');
-        expect(git).toMatch(/pub async fn git_exec\(args: Vec<String>/);
+        // The window comes first only so credential questions reach it
+        // (askpass.rs); the command is still an argument array.
+        expect(git).toMatch(/pub async fn git_exec\((window: tauri::WebviewWindow, )?args: Vec<String>/);
         expect(read('src-tauri/src/lib.rs')).toContain('commands::git::git_exec');
         expect(read('src-tauri/src/lib.rs')).not.toContain('commands::app::run_command');
     });

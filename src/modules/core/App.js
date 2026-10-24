@@ -32,6 +32,7 @@ import { GotoLineModal } from '../ui/GotoLineModal.js';
 import { focusExplorer } from './Explorer.js';
 import { terminalManager } from '../ui/TerminalManager.js';
 import GitPanel from '../ui/GitPanel.js';
+import { initGitAuth } from '../ui/GitAuthDialog.js';
 import { lspClient } from '../lsp/LspClient.js';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { NotesPanel } from '../ui/NotesPanel.js';
@@ -818,6 +819,8 @@ async function bootstrap() {
     // active view first, global action second. Anything else would give a
     // command two behaviours depending on how it was invoked.
     initCommandPalette((cmd) => delegateToView(cmd)(null));
+    // Git's credential questions (user name, password, SSH passphrase).
+    initGitAuth();
 
     // Skip GLOBAL as it's handled separately above. IMPORTANT: only register
     // the view-delegation fallback for commands that NO module has already

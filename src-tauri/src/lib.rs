@@ -1,5 +1,6 @@
 mod models;
 mod commands;
+pub mod askpass;
 
 use tauri::Manager;
 use crate::commands::lsp::{LspState, start_lsp, stop_lsp, lsp_did_open, lsp_did_change, lsp_did_close, lsp_request};
@@ -74,6 +75,7 @@ pub fn run() {
             commands::window::take_launch_path,
             commands::git::git_exec,
             commands::git::git_conflict_versions,
+            commands::git::git_askpass_reply,
             commands::app::expand_env_path,
             commands::parser::parse_structured_data,
             commands::parser::get_node_children,
@@ -131,6 +133,11 @@ pub fn run() {
             commands::large_file::editable_save,
             commands::large_file::editable_close,
         ])
+        // Git's credential questions come to the editor's dialog (askpass.rs).
+        .setup(|app| {
+            askpass::start(app.handle().clone());
+            Ok(())
+        })
         .manage(commands::pty::PtyState::default())
         .manage(commands::fs::WorkspaceState::default())
         .manage(LspState::default())
