@@ -1,4 +1,5 @@
 import { t } from '../utils/I18n.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 export const TabSearch = {
     show(files, onSelect) {
@@ -48,7 +49,7 @@ export const TabSearch = {
                 const name = pathStr ? pathStr.replace(/\\/g, '/').split('/').pop() : item.file.name || 'Untitled';
                 const dir = pathStr ? pathStr.replace(/\\/g, '/').replace('/' + name, '') : '';
 
-                li.innerHTML = `<span class="name">${name}</span><span class="dir">${dir}</span>`;
+                li.innerHTML = `<span class="name">${escapeHtml(name)}</span><span class="dir">${escapeHtml(dir)}</span>`;
                 li.onclick = () => selectAndClose(item.index);
                 list.appendChild(li);
             });

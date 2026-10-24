@@ -14,6 +14,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { showAlert } from '../ui/Dialog.js';
 import { invoke } from '@tauri-apps/api/core';
 import { isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 let openFileCallback = null;
 // { type: 'copy' | 'cut', paths, seq }. `seq` is the OS clipboard's change
@@ -613,7 +614,7 @@ class VirtualExplorer {
 
         container.innerHTML = `
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; font-weight: 500;">Scanning: ${currentPath}</span>
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; font-weight: 500;">Scanning: ${escapeHtml(currentPath)}</span>
                 <span style="font-weight: 600; color: var(--primary-color);">${percent}%</span>
             </div>
             <div class="explorer-progress-container" style="background: rgba(255,255,255,0.08); height: 4px; border-radius: 2px; overflow: hidden; margin-bottom: 4px;">

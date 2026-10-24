@@ -91,7 +91,9 @@ class ToastManager {
         toast.style.borderLeft = `4px solid ${borderLeftColor}`;
         // The icon now takes the toast's own text colour, so it stays legible on
         // every theme instead of being whatever the OS emoji font painted.
-        toast.innerHTML = `<span style="display:inline-flex;color:${borderLeftColor};">${svgIcon(iconName, { size: 15 })}</span><span style="white-space: pre-wrap;">${message}</span>`;
+        toast.innerHTML = `<span style="display:inline-flex;color:${borderLeftColor};">${svgIcon(iconName, { size: 15 })}</span><span style="white-space: pre-wrap;"></span>`;
+        // Messages carry file names and error text, so they go in as text.
+        toast.lastElementChild.textContent = message == null ? '' : String(message);
 
         this.container.appendChild(toast);
 

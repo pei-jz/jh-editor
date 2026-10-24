@@ -19,15 +19,6 @@ import { icon as svgIcon } from '../ui/Icons.js';
 import { t } from '../utils/I18n.js';
 const MAX_HISTORY = 20;
 
-function renderMarkdown(md) {
-    const text = md || '';
-    try {
-        if (typeof marked !== 'undefined' && marked.parse) return marked.parse(text);
-    } catch (_) { /* fall through */ }
-    const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<pre style="white-space:pre-wrap;margin:0;">${esc}</pre>`;
-}
-
 function btn(label, primary = false) {
     const b = document.createElement('button');
     b.textContent = label;

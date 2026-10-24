@@ -1339,15 +1339,15 @@ class GitPanel {
                 // Folder-level stage/unstage button
                 let folderActionHtml = '';
                 if (actionType === 'stage') {
-                    folderActionHtml = `<button class="git-action-btn git-stage-btn git-folder-action" data-folder-path="${fullPath}" title="Stage All in Folder"><svg viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg></button>`;
+                    folderActionHtml = `<button class="git-action-btn git-stage-btn git-folder-action" data-folder-path="${escapeHtml(fullPath)}" title="Stage All in Folder"><svg viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg></button>`;
                 } else if (actionType === 'unstage') {
-                    folderActionHtml = `<button class="git-action-btn git-unstage-btn git-folder-action" data-folder-path="${fullPath}" title="Unstage All in Folder"><svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6"/></svg></button>`;
+                    folderActionHtml = `<button class="git-action-btn git-unstage-btn git-folder-action" data-folder-path="${escapeHtml(fullPath)}" title="Unstage All in Folder"><svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6"/></svg></button>`;
                 }
 
                 div.innerHTML = `
                     <span class="git-tree-arrow" style="display: inline-block; width: 12px; text-align: center; margin-right: 6px; font-size: 10px; opacity: ${hasNoChildren ? '0.3' : '0.7'};">${isExpanded && !hasNoChildren ? '▼' : '▶'}</span>
                     <span class="git-tree-icon" style="margin-right: 6px;">${svgIcon(hasNoChildren ? 'folder-open' : 'folder', { size: 13 })}</span>
-                    <span class="git-tree-label" style="font-weight: 500;">${node.name}</span>
+                    <span class="git-tree-label" style="font-weight: 500;">${escapeHtml(node.name)}</span>
                     <div class="git-file-actions" style="margin-left: auto;">
                         ${folderActionHtml}
                     </div>
@@ -1393,19 +1393,19 @@ class GitPanel {
                         const isUntracked = file.status === 'U';
                         const isDeleted = file.status === 'D';
                         actionHtml = `
-                            <button class="git-action-btn git-discard-btn" data-path="${file.path}" title="${isDeleted ? 'Restore File' : 'Discard Changes'}"><svg viewBox="0 0 12 12"><path d="M3 6a3 3 0 1 1 5.1 2.1L7 9"/></svg></button>
-                            ${isUntracked ? `<button class="git-action-btn git-ignore-btn" data-path="${file.path}" title="Ignore File"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4"/><line x1="3" y1="6" x2="9" y2="6"/></svg></button>` : ''}
-                            ${!isDeleted ? `<button class="git-action-btn git-stage-btn" data-path="${file.path}" title="Stage Change"><svg viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg></button>` : ''}
+                            <button class="git-action-btn git-discard-btn" data-path="${escapeHtml(file.path)}" title="${isDeleted ? 'Restore File' : 'Discard Changes'}"><svg viewBox="0 0 12 12"><path d="M3 6a3 3 0 1 1 5.1 2.1L7 9"/></svg></button>
+                            ${isUntracked ? `<button class="git-action-btn git-ignore-btn" data-path="${escapeHtml(file.path)}" title="Ignore File"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4"/><line x1="3" y1="6" x2="9" y2="6"/></svg></button>` : ''}
+                            ${!isDeleted ? `<button class="git-action-btn git-stage-btn" data-path="${escapeHtml(file.path)}" title="Stage Change"><svg viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg></button>` : ''}
                         `;
                     } else {
                         actionHtml = `
-                            <button class="git-action-btn git-unstage-btn" data-path="${file.path}" title="Unstage Change"><svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6"/></svg></button>
+                            <button class="git-action-btn git-unstage-btn" data-path="${escapeHtml(file.path)}" title="Unstage Change"><svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6"/></svg></button>
                         `;
                     }
 
                     div.innerHTML = `
                         <span class="git-status-badge ${file.status.toLowerCase()}" title="${this._statusLabel(file.status)}" style="margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; font-size: 8px; font-weight: bold; border-radius: 2px;">${file.status}</span>
-                        <span class="git-tree-label" title="${file.path}">${filename}</span>
+                        <span class="git-tree-label" title="${escapeHtml(file.path)}">${escapeHtml(filename)}</span>
                         <div class="git-file-actions">
                             ${actionHtml}
                         </div>

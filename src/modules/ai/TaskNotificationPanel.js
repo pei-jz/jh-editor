@@ -16,6 +16,7 @@ import { State } from '../core/Store.js';
 import { t } from '../utils/I18n.js';
 import { icon as svgIcon } from '../ui/Icons.js';
 import { showAlert } from '../ui/Dialog.js';
+import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 
 export class TaskNotificationPanel {
     constructor() {
@@ -572,7 +573,7 @@ export class TaskNotificationPanel {
                                     Approval Required
                                 </h4>
                                 <div style="font-size: 13px; margin-bottom: 12px; line-height: 1.4;">
-                                    ${pendingApproval.data?.message || 'The agent requires your confirmation to proceed.'}
+                                    ${this._escapeHtml(pendingApproval.data?.message || 'The agent requires your confirmation to proceed.')}
                                 </div>
                                 ${pendingApproval.data?.command ? `<pre style="background: var(--surface-sunken); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap;">${this._escapeHtml(pendingApproval.data.command)}</pre>` : ''}
                                 <div class="tnp-approval-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -618,7 +619,7 @@ export class TaskNotificationPanel {
                     let finalResponseHtml = '';
                     if (task.status === 'completed' && task.finalResponse) {
                         const rendered = (typeof marked !== 'undefined') 
-                            ? marked.parse(task.finalResponse)
+                            ? sanitizeHtml(marked.parse(task.finalResponse))
                             : `<p>${this._escapeHtml(task.finalResponse)}</p>`;
                         finalResponseHtml = `
                             <div class="tnp-final-response" style="margin-bottom: 16px; padding: 16px; background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 8px;">
@@ -649,11 +650,11 @@ export class TaskNotificationPanel {
                                         return `
                                             <div class="tnp-file-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-sunken); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px;">
                                                 <div style="display: flex; flex-direction: column; min-width: 0; text-align: left;">
-                                                    <span style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" class="jh-icon-row">${svgIcon('file', { size: 12 })}${basename}</span>
-                                                    <span style="font-size: 10px; opacity: 0.6; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: monospace;" title="${filePath}">${filePath}</span>
+                                                    <span style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" class="jh-icon-row">${svgIcon('file', { size: 12 })}${this._escapeHtml(basename)}</span>
+                                                    <span style="font-size: 10px; opacity: 0.6; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: monospace;" title="${this._escapeHtml(filePath)}">${this._escapeHtml(filePath)}</span>
                                                 </div>
                                                 <div style="display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px;">
-                                                    <button class="tnp-btn-file-open jh-icon-row" data-path="${filePath}" style="padding: 4px 10px; font-size: 11px; background: var(--control-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">${svgIcon('folder-open', { size: 11 })}Open</button>
+                                                    <button class="tnp-btn-file-open jh-icon-row" data-path="${this._escapeHtml(filePath)}" style="padding: 4px 10px; font-size: 11px; background: var(--control-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text-color); cursor: pointer;">${svgIcon('folder-open', { size: 11 })}Open</button>
                                                     ${filePath ? `
                                                         <button class="tnp-btn-file-diff jh-icon-row" data-task-id="${task.id}" data-file-idx="${fIdx}" style="padding: 4px 10px; font-size: 11px; background: var(--primary-color); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 500;">${svgIcon('search', { size: 11 })}Diff</button>
                                                     ` : ''}
@@ -672,7 +673,7 @@ export class TaskNotificationPanel {
                         errorHtml = `
                             <div class="tnp-error" style="margin-bottom: 16px; padding: 16px; background: rgba(244, 67, 54, 0.08); border: 1px solid rgba(244, 67, 54, 0.25); border-radius: 8px; color: #ff6b6b; font-size: 13px;">
                                 <h4 class="jh-icon-row" style="margin: 0 0 6px 0; font-weight: bold; font-size: 13px;">${svgIcon('x-circle', { size: 13 })}Task Failed</h4>
-                                <div>${task.errorMessage}</div>
+                                <div>${this._escapeHtml(task.errorMessage)}</div>
                             </div>
                         `;
                     }
@@ -870,7 +871,7 @@ export class TaskNotificationPanel {
 
     _escapeHtml(str) {
         if (!str) return '';
-        return str.replace(/&/g, "&amp;")
+        return String(str).replace(/&/g, "&amp;")
                   .replace(/</g, "&lt;")
                   .replace(/>/g, "&gt;")
                   .replace(/"/g, "&quot;");

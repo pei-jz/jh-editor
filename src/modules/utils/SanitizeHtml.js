@@ -90,4 +90,15 @@ export function escapeAttr(value) {
         .replace(/>/g, '&gt;');
 }
 
-export default { sanitizeHtml, escapeAttr };
+/**
+ * Escape a value being interpolated into HTML text.
+ *
+ * The same five characters as escapeAttr, so one helper is safe in either
+ * position. Use this for anything taken from a document, a file name, git or
+ * a language server before it reaches innerHTML.
+ */
+export function escapeHtml(value) {
+    return escapeAttr(value);
+}
+
+export default { sanitizeHtml, escapeAttr, escapeHtml };

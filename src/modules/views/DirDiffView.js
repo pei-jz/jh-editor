@@ -112,7 +112,11 @@ export class DirDiffView {
             });
         } catch (err) {
             console.error('diff_directories failed', err);
-            this.listEl.innerHTML = `<div class="dd-empty">Comparison failed: ${String(err && err.message ? err.message : err)}</div>`;
+            // The error names the folders, so it goes in as text.
+            const empty = document.createElement('div');
+            empty.className = 'dd-empty';
+            empty.textContent = `Comparison failed: ${String(err && err.message ? err.message : err)}`;
+            this.listEl.replaceChildren(empty);
             return;
         }
         this._renderHead();

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sanitizeHtml, escapeAttr } from '../src/modules/utils/SanitizeHtml.js';
+import { sanitizeHtml, escapeAttr, escapeHtml } from '../src/modules/utils/SanitizeHtml.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
@@ -133,10 +133,24 @@ describe('rendered Markdown reaches the DOM sanitised', () => {
 
     it('sanitises AI output too — model text lands in the same document', () => {
         expect(read('src/modules/ui/AiChatPanel.js')).toMatch(/sanitizeHtml\(marked\.parse\(/);
-        // The activity dock is the other place a model's words are rendered,
-        // now that the InlineAI popup asks and closes rather than displaying
-        // an answer itself.
-        expect(read('src/modules/ai/JhAiActivityPanel.js')).toMatch(/marked\.parse\(/);
+        // The activity dock shows a model's summary as text and leaves the full
+        // result to a tab. It once carried a renderMarkdown that skipped the
+        // sanitiser; nothing called it, so it went rather than be fixed.
+        const dock = read('src/modules/ai/JhAiActivityPanel.js');
+        expect(dock).not.toContain('marked.parse');
+        expect(dock).toContain('body.textContent = summary');
+        // The agent task panel renders the final report as Markdown.
+        expect(read('src/modules/ai/TaskNotificationPanel.js')).toMatch(/sanitizeHtml\(marked\.parse\(task\.finalResponse\)\)/);
+    });
+
+    it('escapes what an agent task reports beside its final answer', () => {
+        // Error text, approval messages and file paths come from the model or
+        // from tools it ran — the same reach as the report itself.
+        const panel = read('src/modules/ai/TaskNotificationPanel.js');
+        expect(panel).toContain('${this._escapeHtml(task.errorMessage)}');
+        expect(panel).toMatch(/\$\{this\._escapeHtml\(pendingApproval\.data\?\.message/);
+        expect(panel).not.toMatch(/>\$\{filePath\}</);
+        expect(panel).not.toMatch(/data-path="\$\{filePath\}"/);
     });
 
     it('the InlineAI popup renders no model output at all', () => {
@@ -443,5 +457,44 @@ describe('images in a document', () => {
         const scope = conf.app.security.assetProtocol?.scope || [];
         expect(scope, 'the configured scope must not be a blanket allow')
             .not.toContain('**');
+    });
+});
+
+describe('text from a document or a file name is escaped before innerHTML', () => {
+    // The Markdown preview is sanitised, but other surfaces show pieces of the
+    // same document — the outline lists its headings verbatim. A heading such
+    // as `# <img src=x onerror=…>` ran as application script the moment the
+    // outline opened.
+    it('escapes headings in the outline', () => {
+        const outline = read('src/modules/ui/OutlineModal.js');
+        expect(outline).toContain('${prefix}${escapeHtml(item.text)}');
+        expect(outline).not.toMatch(/\$\{prefix\}\$\{item\.text\}/);
+    });
+
+    it('escapes a parse error, which can quote the document', () => {
+        expect(read('src/modules/views/StructureView.js')).toContain('<p>${escapeHtml(err.message)}</p>');
+    });
+
+    it('puts toast messages in as text', () => {
+        const toast = read('src/modules/ui/Toast.js');
+        expect(toast).toContain('toast.lastElementChild.textContent');
+        expect(toast).not.toMatch(/pre-wrap;">\$\{message\}/);
+    });
+
+    it('escapes file names and paths in lists', () => {
+        expect(read('src/modules/ui/TabSearch.js')).toContain('${escapeHtml(name)}');
+        expect(read('src/modules/ui/Modal.js')).toContain('${escapeHtml(file.name)}');
+        expect(read('src/modules/ui/FileSearchModal.js')).toContain('let nameHtml = escapeHtml(item.entry);');
+        expect(read('src/modules/ui/GrepModal.js')).toContain('${escapeHtml(_fileDisplayName(currentFile))}');
+        expect(read('src/modules/core/Explorer.js')).toContain('Scanning: ${escapeHtml(currentPath)}');
+        const git = read('src/modules/ui/GitPanel.js');
+        expect(git).not.toMatch(/data-path="\$\{file\.path\}"/);
+        expect(git).not.toMatch(/>\$\{node\.name\}</);
+        expect(git).not.toMatch(/>\$\{filename\}</);
+    });
+
+    it('escapeHtml neutralises markup and quotes', () => {
+        expect(escapeHtml('<img src=x onerror="a">&\'')).toBe('&lt;img src=x onerror=&quot;a&quot;&gt;&amp;&#39;');
+        expect(escapeHtml(null)).toBe('');
     });
 });

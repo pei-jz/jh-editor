@@ -1,6 +1,7 @@
 import { EL } from '../core/Constants.js';
 import { t } from '../utils/I18n.js';
 import { showConfirm } from './Dialog.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 /* --- Input Modal --- */
 /* --- Input Modal --- */
@@ -322,8 +323,8 @@ export function showTabSwitcher(files, activeIndex, onSwitch) {
             if (idx === selectedIndex) li.classList.add('selected');
 
             li.innerHTML = `
-                <span class="tab-switcher-name">${file.name}</span>
-                <span class="tab-switcher-path">${file.path || ''}</span>
+                <span class="tab-switcher-name">${escapeHtml(file.name)}</span>
+                <span class="tab-switcher-path">${escapeHtml(file.path || '')}</span>
             `;
             li.onclick = (e) => {
                 e.preventDefault(); // Prevent accidental double-triggers

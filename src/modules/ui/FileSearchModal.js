@@ -3,6 +3,7 @@ import { t } from '../utils/I18n.js';
 import { icon as svgIcon, iconEl, iconForFile } from './Icons.js';
 import { openFile } from '../core/Editor.js';
 import * as FS from '../utils/FileSystem.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 // Persistent file cache (survives modal close/reopen)
 const FILE_CACHE_LIMIT = 50000; // Max files to cache (paths only; a few MB)
@@ -109,15 +110,15 @@ export const FileSearchModal = {
                 // Highlight match
                 const rawQuery = input.value.trim();
                 const query = rawQuery.toLowerCase();
-                let nameHtml = item.entry;
+                let nameHtml = escapeHtml(item.entry);
                 if (currentRegex && currentRegex.test(item.entry)) {
-                    nameHtml = `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${item.entry}</span>`;
+                    nameHtml = `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${escapeHtml(item.entry)}</span>`;
                 } else if (query && !currentRegex) {
                     const matchIndex = item.entry.toLowerCase().indexOf(query);
                     if (matchIndex >= 0) {
-                        nameHtml = item.entry.substring(0, matchIndex) + 
-                                   `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${item.entry.substring(matchIndex, matchIndex + query.length)}</span>` + 
-                                   item.entry.substring(matchIndex + query.length);
+                        nameHtml = escapeHtml(item.entry.substring(0, matchIndex)) + 
+                                   `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${escapeHtml(item.entry.substring(matchIndex, matchIndex + query.length))}</span>` + 
+                                   escapeHtml(item.entry.substring(matchIndex + query.length));
                     }
                 }
 
@@ -134,7 +135,7 @@ export const FileSearchModal = {
                         <span style="opacity: 0.8; display: inline-flex;">${icon}</span>
                         <span style="flex-shrink: 0;">${nameHtml}</span>
                     </span>
-                    <span class="dir" title="${item.dir}">${displayDir}</span>
+                    <span class="dir" title="${escapeHtml(item.dir)}">${escapeHtml(displayDir)}</span>
                 `;
                 
                 li.onclick = () => selectAndClose(item);

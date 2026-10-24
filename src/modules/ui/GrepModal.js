@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { icon as svgIcon } from './Icons.js';
 import { t } from '../utils/I18n.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 // Ctrl+G: workspace grep. Pick a folder + subfolder toggle + options, run the
 // search, and show the results in a tab (see window.app.openSearchResults).
@@ -182,7 +183,7 @@ export const GrepModal = {
             cSub.style.display = 'none';
             const info = document.createElement('div');
             info.style.cssText = 'font-size:12px; opacity:0.75; display:flex; gap:6px; align-items:center;';
-            info.innerHTML = `<span style="opacity:0.7;">Target file:</span><span style="color:var(--primary-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_fileDisplayName(currentFile)}</span>`;
+            info.innerHTML = `<span style="opacity:0.7;">Target file:</span><span style="color:var(--primary-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_fileDisplayName(currentFile))}</span>`;
             info.title = currentFile.path || currentFile.name || '';
             box.insertBefore(info, opts);
         }

@@ -15,6 +15,7 @@ import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { Navigation } from '../utils/Navigation.js';
 import { showAlert } from '../ui/Dialog.js';
 import { isAtSavedState } from '../utils/DirtyState.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 /**
  * Why a JSON file has to stay read-only in the tree, or null.
@@ -269,7 +270,7 @@ export class StructureView extends BaseView {
                 treeContainer.innerHTML = `
                     <div style="padding:20px; color:var(--error-color);">
                         <h4>Parse Error</h4>
-                        <p>${err.message}</p>
+                        <p>${escapeHtml(err.message)}</p>
                         <button class="primary-btn" id="retry-structure-btn">Retry</button>
                     </div>
                 `;

@@ -2,6 +2,7 @@ import { State } from '../core/Store.js';
 import { t } from '../utils/I18n.js';
 import { getCurrentView } from '../core/Editor.js';
 import { MarkdownView } from '../views/MarkdownView.js';
+import { escapeHtml } from '../utils/SanitizeHtml.js';
 
 export const OutlineModal = {
     show() {
@@ -105,7 +106,7 @@ export const OutlineModal = {
                 const prefix = isMarkdown ? '<span style="color: var(--primary-color); opacity: 0.7; margin-right: 5px;">' + '#'.repeat(item.level) + '</span> ' : '';
                 li.innerHTML = `
                     <span class="name" style="padding-left: ${indent}px; opacity: ${1 - (item.level - 1) * 0.15};">
-                        ${prefix}${item.text}
+                        ${prefix}${escapeHtml(item.text)}
                     </span>
                 `;
                 
