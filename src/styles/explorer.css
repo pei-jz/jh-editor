@@ -547,6 +547,105 @@ body.theme-solarized-dark .tree-icon {
 .git-status-badge.u { background: var(--git-untracked-color); } /* Untracked (new) */
 .git-status-badge.d { background: #f85149; } /* Deleted */
 .git-status-badge.a { background: var(--git-untracked-color); } /* Added */
+.git-status-badge.c { background: var(--danger-color, #f85149); } /* Conflict */
+
+/* Conflicted files: red, with the folder beside the name — the list is flat. */
+.git-conflict-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    color: var(--danger-color, #f85149);
+}
+.git-conflict-item .git-status-badge {
+    width: 13px;
+    height: 13px;
+    line-height: 13px;
+    font-size: 9px;
+    flex-shrink: 0;
+}
+.git-conflict-item .git-tree-label {
+    flex: 0 0 auto;
+}
+.git-conflict-dir {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.git-conflict-item .git-file-actions {
+    margin-left: auto;
+}
+
+/* "Merging feature-x — 3 conflicted files  [Abort] [Commit Merge]" */
+.git-operation-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 8px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-color);
+    border-left: 3px solid var(--git-staged-color, var(--primary-color));
+    background: color-mix(in srgb, var(--git-staged-color, var(--primary-color)) 10%, transparent);
+}
+.git-operation-banner[hidden] {
+    display: none;
+}
+.git-operation-banner.has-conflicts {
+    border-left-color: var(--danger-color, #f85149);
+    background: color-mix(in srgb, var(--danger-color, #f85149) 10%, transparent);
+}
+.git-operation-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 140px;
+}
+.git-operation-title {
+    font-weight: 600;
+    color: var(--text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.git-operation-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.git-operation-banner.has-conflicts .git-operation-detail {
+    color: var(--danger-color, #f85149);
+}
+.git-operation-actions {
+    display: flex;
+    gap: 6px;
+}
+.git-operation-actions button {
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 11px;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+}
+.git-operation-actions button:hover:not(:disabled) {
+    background: var(--hover-color);
+}
+.git-operation-actions .git-operation-commit,
+.git-operation-actions .git-operation-continue {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+.git-operation-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
 
 /* Deleted files get a strikethrough so the red D reads clearly as "gone". */
 .git-tree-item.git-file .git-status-badge.d + .git-tree-label {

@@ -73,6 +73,7 @@ pub fn run() {
             commands::window::create_app_window,
             commands::window::take_launch_path,
             commands::git::git_exec,
+            commands::git::git_conflict_versions,
             commands::app::expand_env_path,
             commands::parser::parse_structured_data,
             commands::parser::get_node_children,

@@ -121,7 +121,10 @@ function _injectStyles() {
     .app-dialog-btn.primary {
         background: var(--primary-color);
         border-color: var(--primary-color);
-        color: var(--active-tab-bg, #fff);
+        /* The theme's own text-on-primary: the active tab's background was
+           used here, and in a theme with a dark accent and a light tab strip
+           that put blue-grey text on brown. */
+        color: var(--text-on-primary, var(--active-tab-bg, #fff));
         font-weight: 600;
     }
     .app-dialog-btn.primary:hover { filter: brightness(1.1); }

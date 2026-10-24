@@ -24,6 +24,8 @@ import { StructureView } from '../views/StructureView.js';
 import { markSaved, markSavedAs, isAtSavedState } from '../utils/DirtyState.js';
 import { CsvView } from '../views/CsvView.js';
 import { MergeEditor } from '../editors/MergeEditor.js';
+import { ConflictEditor } from '../editors/ConflictEditor.js';
+import { assemble as assembleConflicts } from '../utils/ConflictRegions.js';
 import { makeSide, mergeDirty, sideDirty } from '../utils/MergeSides.js';
 import { CompareView } from '../editors/CompareView.js';
 import { TaskNotificationPanel } from '../ai/TaskNotificationPanel.js';
@@ -246,6 +248,87 @@ export function openGitCompareTab({ id, title, compare, select = '' }) {
         merge: null,
         gitCompare,
     };
+    openFiles.push(file);
+    setActiveTab(openFiles.length - 1, pane);
+    return file;
+}
+
+/**
+ * Open the three-way merge of a conflicted file (ConflictEditor).
+ *
+ * It is a comparison tab: `merge.left` is the current version (read-only) and
+ * `merge.right` the result, written to the file on save. `merge.right.savedText`
+ * is what the file holds NOW — git's text with markers — so the tab starts out
+ * unsaved: the merged result is not on disk until it is saved.
+ *
+ *   versions   git_conflict_versions' result (base / ours / theirs / merged /
+ *              worktree / encoding / eol)
+ *   regions    parseMerged(versions.merged)
+ *   labels     { current, incoming } branch names, '' when not known
+ *
+ * Opening the same file again brings its tab forward; one with unsaved
+ * decisions is never rebuilt over.
+ */
+export function openConflictTab({ repo, path, versions, regions, labels, replaces = null }) {
+    const pane = activePane();
+    const openFiles = paneFiles(pane);
+    const id = `conflict:${repo}:${path}`;
+    const virtualPath = `diff://${id}`;
+
+    let existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
+    if (existingIndex >= 0) {
+        setActiveTab(existingIndex, pane);
+        return openFiles[existingIndex];
+    }
+
+    const { text, ranges } = assembleConflicts(regions, (c) => c.base);
+    const fullPath = `${repo}/${path}`.replace(/\\/g, '/');
+    const name = path.split('/').pop();
+    const merge = {
+        title: t('Merge: {name}', { name }),
+        path,
+        nav: null,
+        left: makeSide({ label: labels.current || 'HEAD', text: versions.ours || '' }),
+        right: makeSide({
+            label: path,
+            text,
+            writable: true,
+            target: { kind: 'path', path: fullPath, encoding: versions.encoding || 'UTF-8', eol: versions.eol || '\n' },
+        }),
+    };
+    merge.right.savedText = FS.normalizeToLF(versions.worktree || '');
+    const lf = (s) => FS.normalizeToLF(s || '');
+    const conflict = {
+        repo,
+        path,
+        labels,
+        regions,
+        base: lf(versions.base),
+        ours: lf(versions.ours),
+        theirs: lf(versions.theirs),
+        spans: ranges.map((r) => ({ ...r, state: 'open' })),
+        current: ranges.length ? 0 : -1,
+    };
+    const file = {
+        name: merge.title,
+        path: virtualPath,
+        content: '',
+        type: 'diff',
+        viewMode: 'diff',
+        isDirty: mergeDirty(merge),
+        merge,
+        conflict,
+    };
+
+    if (replaces) {
+        const old = openFiles.findIndex((f) => f.path === `diff://${replaces}`);
+        if (old >= 0 && !mergeDirty(openFiles[old].merge)) {
+            openFiles[old] = file;
+            setActiveTab(old, pane);
+            renderEditor(pane);
+            return file;
+        }
+    }
     openFiles.push(file);
     setActiveTab(openFiles.length - 1, pane);
     return file;
@@ -638,9 +721,11 @@ export function renderEditor(targetPane = null) {
                 onSave: () => saveFile(file),
             };
             // A Git comparison: its file list, and the diff of one of them.
-            const view = file.gitCompare
-                ? new GitCompareView(container, file, options)
-                : new MergeEditor(container, file, options);
+            const view = file.conflict
+                ? new ConflictEditor(container, file, options)
+                : file.gitCompare
+                    ? new GitCompareView(container, file, options)
+                    : new MergeEditor(container, file, options);
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -1393,6 +1478,7 @@ window.app.getLineCount = () => {
 
 window.app.openFile = openFile;
 window.app.openMergeTab = openMergeTab;
+window.app.openConflictTab = openConflictTab;
 window.app.openGitCompareTab = openGitCompareTab;
 window.app.focusEditor = (options) => focusEditor(options);
 window.app.compareTwoFiles = compareTwoFiles;
