@@ -1,5 +1,7 @@
 # J.H Editor
 
+**English** | [日本語](README.ja.md)
+
 A local-first desktop text editor built with **Tauri 2**, **vanilla JavaScript** and **CodeMirror 6**.
 
 <p align="center">
