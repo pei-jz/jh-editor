@@ -71,7 +71,8 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         // The desk and the file list are paper now.
         expect(themes).toContain('background: var(--grain), var(--sidebar-bg);');
 
-        const idx = themes.indexOf('body.theme-bamboo-ancient #explorer {');
+        // Shared with the light half, which differs only in palette.
+        const idx = themes.indexOf('body.theme-bamboo-ancient #explorer,\nbody.theme-bamboo-light #explorer {');
         expect(idx).toBeGreaterThan(-1);
         const explorer = themes.slice(idx, themes.indexOf('}', idx));
         expect(explorer).toContain('var(--grain)');
@@ -100,7 +101,7 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
     // The bundle — slats and two cords — is drawn only where nothing is
     // read: the margin round the pages in book mode.
     it('lays the pages on a bound bundle in book mode', () => {
-        const sel = 'body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook) {';
+        const sel = 'body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook),';
         const idx = themes.indexOf(sel);
         expect(idx).toBeGreaterThan(-1);
         const rule = themes.slice(idx, themes.indexOf('}', idx));

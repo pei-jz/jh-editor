@@ -4,14 +4,38 @@ How a theme is defined, and how to add one without touching five files.
 
 ---
 
+## Families and the mode
+
+What Settings offers is a **family** (Standard, Hanging Scroll, Nord …) and a
+**mode**: Light, Dark, or Match the system. Every family is exactly one light
+theme and one dark theme, so the mode never has to be greyed out and "match
+the system" always has somewhere to go. A theme with only one half does not
+fit, which is why Midnight was retired (to Mocha, Latte's dark) and Nord and
+Bamboo Slip gained light halves.
+
+- `theme` in localStorage still holds a theme id. Its family is the global
+  family; while the mode is fixed, which half it is *is* the mode.
+- `themeFollowSystem` is `'true'` when the mode follows the OS. A new install
+  follows; one that saved a theme before the mode existed keeps its choice.
+- A workspace's own theme is a family only. Light or dark is one decision for
+  every window, so they all turn dark together when the OS does.
+
+`WorkspaceTheme.effectiveTheme(dir)` puts the three together. `index.html`
+repeats the pairing for the pre-stylesheet paint, and a test holds the two
+together.
+
+---
+
 ## Adding a theme
 
-Two edits.
+A theme arrives as a family — its light and its dark half together.
 
-**1. `src/modules/utils/Themes.js`** — declare it:
+**1. `src/modules/utils/Themes.js`** — declare the family and both halves:
 
 ```js
-{ id: 'my-theme', label: 'My Theme', dark: true, bootBg: '#101418' },
+{ id: 'my-family', label: 'My Family' },                                // FAMILIES
+{ id: 'my-theme', family: 'my-family', dark: false, bootBg: '#eef1f4' }, // THEMES
+{ id: 'my-theme-dark', family: 'my-family', dark: true, bootBg: '#101418' },
 ```
 
 `dark` is not cosmetic. It decides which syntax palette CodeMirror builds,
@@ -46,8 +70,13 @@ body.theme-my-theme {
 }
 ```
 
-Then mirror `bootBg` into the anti-flash script in `index.html`, and add
-`'My Theme'` to `src/locales/{ja,zh,ko}.js`.
+Then mirror each `bootBg` and the `['my-theme', 'my-theme-dark']` pair into
+the boot script in `index.html`, and add `'My Family'` to
+`src/locales/{ja,zh,ko}.js`. Japanese family names are two characters
+(標準, 帳面, 水墨, 掛軸, 竹簡, 珈琲, 北欧, 日和).
+
+**Removing a theme**: add it to `RETIRED_THEMES` with its replacement, and the
+same move to the boot script. A saved setting naming it is moved on startup.
 
 `npm test` fails if you miss any of it. That is the point of the registry —
 every one of those omissions used to fail silently.
@@ -106,8 +135,8 @@ the same element's themed palette. A test pins this.
 ## Writing a themeable component
 
 **Never write a literal colour outside `themes.css`.** A literal is a colour
-that stays the same on all eleven themes; it looks correct on the one it was
-written against and wrong on the other ten.
+that stays the same on all sixteen themes; it looks correct on the one it was
+written against and wrong on the other fifteen.
 
 ```css
 /* No */

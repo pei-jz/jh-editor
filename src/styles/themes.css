@@ -230,73 +230,6 @@ body.theme-dark {
     --git-untracked-color: #73c991;
 }
 
-/* Midnight Theme (Deep Blue/Purple) */
-body.theme-midnight {
-    --bg-color: #0f111a;
-    --sidebar-bg: #1a1c25;
-    --header-bg: #1a1c25;
-    --border-color: rgba(255, 255, 255, 0.08);
-    --text-color: #c5cbe0;
-    /* Brighter text for Midnight */
-    --primary-color: #c792ea;
-    /* White on this accent came to 2.41:1 where the accent is used as a
-       fill. Same hue, dark enough to read: 7.37. */
-    --text-on-primary: #1c1526;
-    /* Pale Purple */
-    --active-tab-bg: #0f111a;
-    --active-tab-border: #c792ea;
-    --hover-color: #292d3e;
-    --bg-color-secondary: #090b10;
-    --bg-active: #1a1c25;
-    /* Darker active color for Midnight */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-
-    /* Syntax Highlighting (Midnight - Dracula-ish) */
-    --hl-keyword: #ff92d0;
-    /* Brighter Pink */
-    --hl-control-flow: #ff92d0;
-    --hl-built-in: #a3f7ff;
-    /* Brighter Cyan */
-    --hl-literal: #d6b5ff;
-    /* Brighter Purple */
-    /* Brighter Purple */
-    --hl-string: #ce9178;
-    /* VSCode Orange - Better Contrast */
-    --hl-comment: #8797c2;
-    --hl-comment: #8797c2;
-    /* Lighter Comment */
-    --hl-function: #8affaa;
-    /* Brighter Green */
-    --hl-variable: #ffffff;
-    /* White for vars to stand out */
-    --hl-number: #d6b5ff;
-    --hl-operator: #ffffff;
-    --table-header-bg: #1a1c25;
-
-    /* UI element colors */
-    --gutter-color: #676e95;
-    --tab-inactive-color: #7c82a4;
-    --tree-item-color: #a6accd;
-    --tree-item-active-bg: rgba(199, 146, 234, 0.12);
-    --text-secondary: #7c82a4;
-
-    /* Markdown Premium Styles */
-    --code-color: #ff92d0;
-    --code-bg: rgba(255, 146, 208, 0.1);
-    --code-border: rgba(255, 146, 208, 0.25);
-    --blockquote-bg: rgba(199, 146, 234, 0.08);
-
-    /* Selection Colors (Midnight mode) */
-    --selection-bg: #3d3460;
-    --selection-color: #ffffff;
-    --cm-selection-bg: rgba(130, 130, 220, 0.34);
-
-    /* Git Status Colors */
-    --git-modified-color: #e2c08d;
-    --git-staged-color: #81b88b;
-    --git-untracked-color: #73c991;
-}
-
 /* Latte Theme (Warm Light) */
 body.theme-latte {
     --bg-color: #eff1f5;
@@ -465,16 +398,12 @@ body.theme-solarized-light {
 
 /* --- Dark Mode UI Elements (Buttons, Inputs, Checkboxes) --- */
 body.theme-dark button,
-body.theme-midnight button,
 body.theme-solarized-dark button,
 body.theme-dark select,
-body.theme-midnight select,
 body.theme-solarized-dark select,
 body.theme-dark input[type="text"],
-body.theme-midnight input[type="text"],
 body.theme-solarized-dark input[type="text"],
 body.theme-dark input[type="password"],
-body.theme-midnight input[type="password"],
 body.theme-solarized-dark input[type="password"] {
     background-color: #3c3c3c;
     color: #e0e0e0;
@@ -492,7 +421,6 @@ body.theme-solarized-dark input[type="password"] {
 }
 
 body.theme-dark button:hover,
-body.theme-midnight button:hover,
 body.theme-solarized-dark button:hover {
     background-color: #4a4a4a;
 }
@@ -502,7 +430,6 @@ body.theme-solarized-dark button:hover {
 }
 
 body.theme-dark input[type="checkbox"],
-body.theme-midnight input[type="checkbox"],
 body.theme-solarized-dark input[type="checkbox"] {
     accent-color: var(--primary-color);
     color-scheme: dark;
@@ -510,8 +437,7 @@ body.theme-solarized-dark input[type="checkbox"] {
 }
 
 /* Fix Explorer Search Contrast */
-body.theme-dark #explorer-search,
-body.theme-midnight #explorer-search {
+body.theme-dark #explorer-search {
     background-color: #3c3c3c;
     color: #ffffff;
     border: 1px solid #555;
@@ -524,7 +450,6 @@ body.theme-solarized-dark #explorer-search {
 }
 
 body.theme-dark #explorer-search::placeholder,
-body.theme-midnight #explorer-search::placeholder,
 body.theme-solarized-dark #explorer-search::placeholder {
     color: #aaa;
 }
@@ -552,9 +477,7 @@ body.theme-solarized-dark #explorer-search::placeholder {
 }
 
 body.theme-dark .modal-content input,
-body.theme-midnight .modal-content input,
-body.theme-dark .modal-content select,
-body.theme-midnight .modal-content select {
+body.theme-dark .modal-content select {
     color: #fff !important;
     /* Force white text in modals for dark themes */
 }
@@ -575,8 +498,7 @@ body.theme-midnight .modal-content select {
 }
 
 /* Fix for Select dropdown options in dark mode (browser dependent but helpful) */
-body.theme-dark option,
-body.theme-midnight option {
+body.theme-dark option {
     background-color: #3c3c3c;
     color: #e0e0e0;
 }
@@ -820,29 +742,35 @@ body.theme-bamboo-ancient {
    The slats used to run behind the whole app and through the file list, where
    a 4px near-black line every 46px cut across the names. Reading surfaces keep
    the fibre grain; the slats live on the two bars only. */
+body.theme-bamboo-light,
 body.theme-bamboo-ancient {
     background: var(--grain), var(--sidebar-bg);
 }
 
 /* The file list reads like the editor, not like the desk it sits on. */
-body.theme-bamboo-ancient #explorer {
+body.theme-bamboo-ancient #explorer,
+body.theme-bamboo-light #explorer {
     background-image: var(--grain);
 }
 
 /* The rods. */
 body.theme-bamboo-ancient #custom-titlebar,
-body.theme-bamboo-ancient #status-bar {
+body.theme-bamboo-ancient #status-bar,
+body.theme-bamboo-light #custom-titlebar,
+body.theme-bamboo-light #status-bar {
     background-image: var(--grain), var(--slip-bar);
     background-color: var(--sidebar-bg);
 }
 
 /* The cords that would tie the rods: one line each, where the paper meets
    them. A gradient is enough — the bars are too short for the real binding. */
-body.theme-bamboo-ancient #custom-titlebar {
+body.theme-bamboo-ancient #custom-titlebar,
+body.theme-bamboo-light #custom-titlebar {
     border-bottom: 1px solid rgba(0, 0, 0, 0.55);
     box-shadow: 0 1px 0 rgba(220, 205, 160, 0.10);
 }
-body.theme-bamboo-ancient #status-bar {
+body.theme-bamboo-ancient #status-bar,
+body.theme-bamboo-light #status-bar {
     border-top: 1px solid rgba(0, 0, 0, 0.55);
     box-shadow: 0 -1px 0 rgba(220, 205, 160, 0.10);
 }
@@ -850,7 +778,9 @@ body.theme-bamboo-ancient #status-bar {
 /* Reading surfaces get the fibre grain only. The slat lines are 4px of near
    black every 46px; behind prose they cut straight through the text. */
 body.theme-bamboo-ancient .markdown-mode,
-body.theme-bamboo-ancient .stf__page {
+body.theme-bamboo-ancient .stf__page,
+body.theme-bamboo-light .markdown-mode,
+body.theme-bamboo-light .stf__page {
     background-image: var(--grain);
     background-attachment: local;
 }
@@ -859,7 +789,8 @@ body.theme-bamboo-ancient .stf__page {
    bundle is only ever seen in the margin around the pages, so it can be as
    literal as it likes — slats, and two cords near the ends the way real
    bundles were tied — without a line of it crossing the text. */
-body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook) {
+body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook),
+body.theme-bamboo-light .markdown-mode:has(> .md-book-flipbook) {
     background-color: var(--sidebar-bg);
     background-image: var(--slip-cord), var(--slip-cord), var(--slip-slats);
     background-size: 100% 5px, 100% 5px, auto;
@@ -868,7 +799,8 @@ body.theme-bamboo-ancient .markdown-mode:has(> .md-book-flipbook) {
     background-attachment: scroll;
 }
 
-body.theme-bamboo-ancient .md-book-flipbook .stf__page {
+body.theme-bamboo-ancient .md-book-flipbook .stf__page,
+body.theme-bamboo-light .md-book-flipbook .stf__page {
     box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
@@ -880,7 +812,15 @@ body.theme-bamboo-ancient .git-panel-v2,
 body.theme-bamboo-ancient .explorer-tab,
 body.theme-bamboo-ancient .modal-content,
 body.theme-bamboo-ancient .settings-modal-content,
-body.theme-bamboo-ancient button {
+body.theme-bamboo-ancient button,
+body.theme-bamboo-light #explorer,
+body.theme-bamboo-light #tab-bar,
+body.theme-bamboo-light #status-bar,
+body.theme-bamboo-light .git-panel-v2,
+body.theme-bamboo-light .explorer-tab,
+body.theme-bamboo-light .modal-content,
+body.theme-bamboo-light .settings-modal-content,
+body.theme-bamboo-light button {
     font-family: var(--bamboo-chrome-font);
     letter-spacing: 0;
 }
@@ -895,7 +835,17 @@ body.theme-bamboo-ancient select,
 body.theme-bamboo-ancient .block-cm,
 body.theme-bamboo-ancient .md-block pre,
 body.theme-bamboo-ancient .md-body pre,
-body.theme-bamboo-ancient code {
+body.theme-bamboo-ancient code,
+body.theme-bamboo-light .cm-editor,
+body.theme-bamboo-light .cm-content,
+body.theme-bamboo-light .stf__page,
+body.theme-bamboo-light textarea,
+body.theme-bamboo-light input,
+body.theme-bamboo-light select,
+body.theme-bamboo-light .block-cm,
+body.theme-bamboo-light .md-block pre,
+body.theme-bamboo-light .md-body pre,
+body.theme-bamboo-light code {
     font-family: var(--editor-font-family) !important;
     letter-spacing: normal;
 }
@@ -940,7 +890,11 @@ body.theme-bamboo-ancient .modal-content select {
 body.theme-bamboo-ancient .modal-content,
 body.theme-bamboo-ancient .settings-modal-content,
 body.theme-bamboo-ancient .git-commit-detail-panel,
-body.theme-bamboo-ancient .search-modal {
+body.theme-bamboo-ancient .search-modal,
+body.theme-bamboo-light .modal-content,
+body.theme-bamboo-light .settings-modal-content,
+body.theme-bamboo-light .git-commit-detail-panel,
+body.theme-bamboo-light .search-modal {
     box-shadow: var(--shadow-lg);
 }
 
@@ -2055,6 +2009,239 @@ body.theme-paper-dark #explorer-search::placeholder { color: #b3a690; }
 body.theme-paper-dark .modal-content input,
 body.theme-paper-dark .modal-content select { color: #efe5d2 !important; }
 
+/* ============================================================================
+   ☕ Mocha — Latte のダーク版 (latte-dark)
+   From docs/design/editor-theme-dark-proposal.html. Catppuccin Mocha, the
+   natural dark partner of Latte: base #1e1e2e, surface #313244, text
+   #cdd6f4, mauve accent #cba6f7. A standard dark theme with no art.
+
+   Removed once for being the same night as Midnight, and brought back when
+   Midnight went instead: every family now has a light and a dark half, and
+   Midnight had no day.
+   ========================================================================== */
+body.theme-latte-dark {
+    --bg-color: #1e1e2e;            /* Catppuccin Mocha base */
+    --sidebar-bg: #181825;
+    --header-bg: #181825;
+    --border-color: #45475a;
+    --text-color: #cdd6f4;
+    --primary-color: #cba6f7;       /* mauve */
+    --text-on-primary: #1e1e2e;
+    --active-tab-bg: #1e1e2e;
+    --active-tab-border: #cba6f7;
+    --hover-color: #313244;
+    --bg-color-secondary: #313244;
+    --bg-active: #313244;
+    --radius: 6px;
+    --table-header-bg: #313244;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
+
+    --hl-keyword: #cba6f7;
+    --hl-control-flow: #f38ba8;
+    --hl-built-in: #94e2d5;
+    --hl-literal: #cba6f7;
+    --hl-string: #a6e3a1;
+    --hl-comment: #a6adc8;
+    --hl-function: #89b4fa;
+    --hl-variable: #cdd6f4;
+    --hl-number: #fab387;
+    --hl-operator: #cdd6f4;
+
+    --gutter-color: #a6adc8;
+    --tab-inactive-color: #a6adc8;
+    --tree-item-color: #cdd6f4;
+    --tree-item-active-bg: rgba(203, 166, 247, 0.16);
+    --text-secondary: #a6adc8;
+
+    --code-color: #f9e2af;
+    --code-bg: rgba(249, 226, 175, 0.10);
+    --code-border: rgba(249, 226, 175, 0.25);
+    --blockquote-bg: rgba(203, 166, 247, 0.08);
+
+    --selection-bg: rgba(203, 166, 247, 0.28);
+    --selection-color: #cdd6f4;
+    --cm-selection-bg: rgba(203, 166, 247, 0.24);
+
+    --git-modified-color: #f9e2af;
+    --git-staged-color: #a6e3a1;
+    --git-untracked-color: #a6e3a1;
+}
+
+body.theme-latte-dark button,
+body.theme-latte-dark select,
+body.theme-latte-dark input[type="text"],
+body.theme-latte-dark input[type="password"] {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    color-scheme: dark;
+}
+body.theme-latte-dark button:hover { background-color: #45475a; }
+body.theme-latte-dark input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    color-scheme: dark;
+    cursor: pointer;
+}
+body.theme-latte-dark #explorer-search {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+}
+body.theme-latte-dark #explorer-search::placeholder { color: #a6adc8; }
+body.theme-latte-dark .modal-content input,
+body.theme-latte-dark .modal-content select { color: #cdd6f4 !important; }
+body.theme-latte-dark option { background-color: #1e1e2e; color: #cdd6f4; }
+
+/* ============================================================================
+   ❄ Nord Light — 北欧の昼 (nord-light)
+   Nord's Snow Storm greys (nord4-6) for the grounds and Polar Night (nord0)
+   for the ink. The Frost and Aurora colours are made for the dark ground and
+   sit at 2-3:1 on snow, so each keeps its hue and is darkened until it reads:
+   every foreground here is 4.7:1 or better on the sheet.
+   ========================================================================== */
+body.theme-nord-light {
+    --bg-color: #f2f4f8;            /* a step above nord6, for the sheet */
+    --sidebar-bg: #e5e9f0;          /* nord5 */
+    --header-bg: #d8dee9;           /* nord4 */
+    --border-color: #c5cdd9;
+    --text-color: #2e3440;          /* nord0 */
+    --primary-color: #4c6f99;       /* nord10, darkened */
+    --active-tab-bg: #f2f4f8;
+    --active-tab-border: #4c6f99;
+    --hover-color: #e5e9f0;
+    --bg-color-secondary: #e5e9f0;
+    --bg-active: #d8dee9;
+    --radius: 6px;
+    --table-header-bg: #e5e9f0;
+    --shadow-sm: 0 1px 2px rgba(46, 52, 64, 0.10);
+    --shadow-md: 0 3px 10px rgba(46, 52, 64, 0.14);
+    --shadow-lg: 0 8px 26px rgba(46, 52, 64, 0.18);
+
+    /* Syntax — Frost and Aurora, darkened for snow */
+    --hl-keyword: #4b6a94;          /* nord9 */
+    --hl-control-flow: #8c5a85;     /* nord15 */
+    --hl-built-in: #3b7574;         /* nord7 */
+    --hl-literal: #4b6a94;
+    --hl-string: #55723c;           /* nord14 */
+    --hl-comment: #5f6b80;          /* nord3 */
+    --hl-function: #2f6f86;         /* nord8 */
+    --hl-variable: #3b4252;         /* nord1 */
+    --hl-number: #8c5a85;
+    --hl-operator: #2e3440;
+
+    --gutter-color: #5f6b80;
+    --tab-inactive-color: #4c566a;  /* nord3 at full strength: 5.5:1 on the bands */
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(76, 111, 153, 0.14);
+    --text-secondary: #4c566a;
+
+    --code-color: #95502d;          /* nord12 */
+    --code-bg: rgba(149, 80, 45, 0.08);
+    --code-border: rgba(149, 80, 45, 0.22);
+    --blockquote-bg: rgba(76, 111, 153, 0.06);
+
+    --selection-bg: rgba(76, 111, 153, 0.22);
+    --selection-color: #2e3440;
+    --cm-selection-bg: rgba(76, 111, 153, 0.18);
+
+    --git-modified-color: #7d5e12;  /* nord13 */
+    --git-staged-color: #4f6b35;
+    --git-untracked-color: #4f6b35;
+}
+
+body.theme-nord-light option { background-color: #f2f4f8; color: #2e3440; }
+
+/* ============================================================================
+   🎋 Bamboo Slip Light — 青竹の簡 (bamboo-light)
+   The same bundle before it went into the ground: fresh slips still green at
+   the edges, brown ink, and the verdigris accent of the dark half deepened to
+   read on a pale board. Everything structural — the grain, the slats on the
+   two bars, the bound bundle round the book, the Mincho chrome — is shared
+   with bamboo-ancient below; only the palette and the slat shading differ.
+   ========================================================================== */
+body.theme-bamboo-light {
+    --bg-color: #f5f4e6;            /* a planed fresh board (editor) */
+    --sidebar-bg: #e2e4cf;          /* the desk: green bamboo */
+    --header-bg: #d6d9bd;
+    --border-color: #b9bc96;
+    --text-color: #2b2418;          /* brown-black ink */
+    --primary-color: #2f6f66;       /* 銅青, deepened */
+    --active-tab-bg: #f5f4e6;
+    --active-tab-border: #2f6f66;
+    --hover-color: #e9eadb;
+    --bg-color-secondary: #ecedd9;
+    --bg-active: #dfe1c8;
+    --radius: 6px;
+    --table-header-bg: #ecedd9;
+    --shadow-sm: 0 1px 2px rgba(60, 55, 25, 0.10);
+    --shadow-md: 0 3px 10px rgba(60, 55, 25, 0.14);
+    --shadow-lg: 0 8px 26px rgba(60, 55, 25, 0.18);
+
+    /* Syntax — the dark half's inks, deepened for a pale board */
+    --hl-keyword: #2f6f66;          /* verdigris */
+    --hl-control-flow: #8a4a6e;     /* cinnabar-purple */
+    --hl-built-in: #3d6f4a;         /* jade */
+    --hl-literal: #2f6f66;
+    --hl-string: #8a5a1c;           /* ochre */
+    --hl-comment: #6b6450;
+    --hl-function: #7a5a0a;         /* gold leaf, as ink */
+    --hl-variable: #4a4232;
+    --hl-number: #556b2a;
+    --hl-operator: #2b2418;
+
+    --gutter-color: #6b6450;
+    --tab-inactive-color: #4f4936;
+    --tree-item-color: var(--text-color);
+    --tree-item-active-bg: rgba(47, 111, 102, 0.14);
+    --text-secondary: #4f4936;
+
+    --code-color: #8a5a1c;
+    --code-bg: rgba(138, 90, 28, 0.08);
+    --code-border: rgba(138, 90, 28, 0.22);
+    --blockquote-bg: rgba(47, 111, 102, 0.06);
+
+    --selection-bg: rgba(47, 111, 102, 0.22);
+    --selection-color: #2b2418;
+    --cm-selection-bg: rgba(47, 111, 102, 0.18);
+
+    --git-modified-color: #7d5e12;
+    --git-staged-color: #3f6b3f;
+    --git-untracked-color: #3f6b3f;
+
+    --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
+    --bamboo-chrome-font: var(--font-textbook);
+
+    /* The same fibre as the dark slips; grey noise reads on either ground. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 0.008' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.03'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23a)'/%3E%3C/svg%3E");
+
+    /* Slats as on the dark half, but the seams are shadow on a pale board
+       rather than black on a charred one, and the catch-light is white. */
+    --slip-slats:
+        repeating-linear-gradient(90deg, rgba(70,65,30,0.22) 0 1px, rgba(255,255,240,0.35) 1px 2px, transparent 2px 18px),
+        repeating-linear-gradient(90deg, rgba(255,255,240,0.12) 0 18px, transparent 18px 36px, rgba(70,65,30,0.04) 36px 54px),
+        repeating-linear-gradient(90deg, transparent 0 72px, rgba(70,65,30,0.05) 72px 90px, transparent 90px 108px, rgba(255,255,240,0.10) 108px 126px),
+        repeating-linear-gradient(90deg, rgba(70,65,30,0.06) 0, transparent 5px, transparent 13px, rgba(70,65,30,0.06) 18px);
+    --slip-cord: repeating-linear-gradient(65deg, #6d5a34 0 2px, #b39d6a 2px 3px, #8c7647 3px 5px);
+    --slip-bar: var(--slip-slats), linear-gradient(180deg, rgba(255,255,240,0.25) 0%, rgba(70,65,30,0.04) 55%, rgba(70,65,30,0.12) 100%);
+}
+
+body.theme-bamboo-light #custom-titlebar {
+    border-bottom: 1px solid rgba(70, 65, 30, 0.30);
+    box-shadow: 0 1px 0 rgba(255, 255, 240, 0.50);
+}
+body.theme-bamboo-light #status-bar {
+    border-top: 1px solid rgba(70, 65, 30, 0.30);
+    box-shadow: 0 -1px 0 rgba(255, 255, 240, 0.50);
+}
+
+body.theme-bamboo-light .md-book-flipbook .stf__page {
+    box-shadow: 0 2px 14px rgba(60, 55, 25, 0.22), 0 0 0 1px rgba(70, 65, 30, 0.18);
+}
+
+body.theme-bamboo-light option { background-color: #f5f4e6; color: #2b2418; }
+
 /* ═══════════════════════════════════════════════════════════════════════
    DERIVED TOKENS
    ═══════════════════════════════════════════════════════════════════════
@@ -2130,13 +2317,13 @@ body {
 
 /* The dark family. One line each — everything above follows. */
 body.theme-dark,
-body.theme-midnight,
 body.theme-solarized-dark,
 body.theme-bamboo-ancient,
 body.theme-nord,
 body.theme-kakejiku-dark,
 body.theme-sumi-e-dark,
-body.theme-paper-dark {
+body.theme-paper-dark,
+body.theme-latte-dark {
     --theme-contrast: #fff;
     /* A raised surface on a dark theme should lift more than a light one
        drops; the same 6% mix reads as almost nothing against dark ink. */

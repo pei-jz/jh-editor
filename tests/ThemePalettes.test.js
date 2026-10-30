@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { THEMES, themeClasses, darkThemeClasses, DEFAULT_THEME, isKnownTheme } from '../src/modules/utils/Themes.js';
+import {
+    THEMES, FAMILIES, RETIRED_THEMES, themeClasses, darkThemeClasses, DEFAULT_THEME, isKnownTheme,
+    familyOf, variantOf,
+} from '../src/modules/utils/Themes.js';
 
 // Themes that carry their own syntax palette (CodeMirrorView.PALETTE_THEMES).
 // Two things have gone wrong with these before: a dark theme was handed the
@@ -51,7 +54,7 @@ const FOREGROUNDS = [
 ];
 
 const PALETTE_THEMES = ['bamboo-ancient', 'sumi-e', 'nord', 'kakejiku',
-    'kakejiku-dark', 'sumi-e-dark', 'paper-dark'];
+    'kakejiku-dark', 'sumi-e-dark', 'paper-dark', 'latte-dark', 'nord-light', 'bamboo-light'];
 
 // Which surface a foreground actually sits on. Hanging Scroll is a hybrid — a
 // light sheet inside dark indigo mounting — so its tab ink is pale ON PURPOSE
@@ -162,27 +165,33 @@ describe('removed themes', () => {
         expect(html).not.toContain('theme-paper-subtle');
     });
 
-    it('leaves no Mocha styling or class handling behind', () => {
-        for (const f of ['src/styles/themes.css', 'src/styles/base.css',
-            'src/modules/views/CodeMirrorView.js', 'src/modules/utils/Themes.js']) {
-            expect(read(f), f).not.toContain('latte-dark');
+    // Midnight had no light half, so it could not belong to a family. Mocha
+    // — removed earlier for being the same night — came back as Latte's dark.
+    it('leaves no Midnight styling or class handling behind', () => {
+        for (const f of ['src/styles/themes.css', 'src/styles/base.css', 'src/styles/editor.css',
+            'src/styles/structure.css', 'src/styles/titlebar.css', 'src/styles/csv.css',
+            'src/styles/explorer.css', 'src/modules/views/CodeMirrorView.js']) {
+            expect(read(f), f).not.toContain('body.theme-midnight');
         }
+        expect(isKnownTheme('midnight')).toBe(false);
     });
 
-    it('migrates a saved Mocha to Midnight on both startup paths', () => {
-        for (const f of ['index.html', 'src/modules/core/Layout.js']) {
-            const src = read(f);
-            expect(src, f).toContain("theme === 'latte-dark'");
-            expect(src, f).toContain("theme = 'midnight'");
+    // Layout.js migrates from RETIRED_THEMES; the boot script cannot import
+    // it and spells each move out, so the two are held together here.
+    it('migrates every retired theme in the boot script too', () => {
+        const html = read('index.html');
+        for (const [from, to] of Object.entries(RETIRED_THEMES)) {
+            expect(isKnownTheme(to), to).toBe(true);
+            const i = html.indexOf(`theme === '${from}'`);
+            expect(i, from).toBeGreaterThan(-1);
+            expect(html.slice(i, i + 120), from).toContain(`theme = '${to}'`);
         }
+        expect(read('src/modules/core/Layout.js')).toContain('RETIRED_THEMES[theme]');
     });
 
-    it('migrates a saved paper-subtle to Ink Brush on both startup paths', () => {
-        for (const f of ['index.html', 'src/modules/core/Layout.js']) {
-            const src = read(f);
-            expect(src, f).toContain("theme === 'paper-subtle'");
-            expect(src, f).toContain("theme = 'sumi-e'");
-        }
+    it("reads a workspace still set to a retired theme as its replacement's family", () => {
+        expect(familyOf('midnight')).toBe('coffee');
+        expect(familyOf('paper-subtle')).toBe('sumi-e');
     });
 
     it('leaves the bold Paper theme in place', () => {
@@ -194,21 +203,21 @@ describe('removed themes', () => {
 describe('theme labels', () => {
     const options = read('index.html');
 
-    it('names every theme in English', () => {
+    it('names every family in English', () => {
         // The label lives in the registry and is both the visible text and the
-        // i18n key; the <option> elements are built from it at startup.
+        // i18n key; the <option> elements are built from it at startup. A
+        // theme has no name of its own: it is its family plus the mode.
         for (const [value, label] of [
-            ['bamboo-ancient', 'Bamboo Slip'],
+            ['standard', 'Standard'],
+            ['bamboo', 'Bamboo Slip'],
             ['sumi-e', 'Ink Brush'],
             ['nord', 'Nord'],
             ['kakejiku', 'Hanging Scroll'],
-            ['kakejiku-dark', 'Hanging Scroll Dark'],
-            ['sumi-e-dark', 'Ink Brush Dark'],
-            ['paper-dark', 'Paper Dark'],
+            ['coffee', 'Coffee'],
         ]) {
-            const th = THEMES.find((t) => t.id === value);
-            expect(th, value).toBeTruthy();
-            expect(th.label).toBe(label);
+            const fam = FAMILIES.find((f) => f.id === value);
+            expect(fam, value).toBeTruthy();
+            expect(fam.label).toBe(label);
         }
     });
 
@@ -232,7 +241,7 @@ describe('dark-theme detection', () => {
     it('names every dark theme in one place', () => {
         // ThemeInfo delegates to the registry now, so the list is asserted
         // against the registry rather than against the text of that module.
-        for (const t of ['theme-dark', 'theme-midnight', 'theme-solarized-dark',
+        for (const t of ['theme-dark', 'theme-latte-dark', 'theme-solarized-dark',
             'theme-bamboo-ancient', 'theme-nord',
             'theme-kakejiku-dark', 'theme-sumi-e-dark',
             'theme-paper-dark']) {
@@ -243,7 +252,7 @@ describe('dark-theme detection', () => {
     // Their editor surface is light, whatever the chrome around it does.
     it('excludes the light themes, Hanging Scroll included', () => {
         for (const t of ['theme-sumi-e', 'theme-kakejiku', 'theme-paper',
-            'theme-latte', 'theme-solarized-light']) {
+            'theme-latte', 'theme-solarized-light', 'theme-nord-light', 'theme-bamboo-light']) {
             expect(darkThemeClasses(), t).not.toContain(t);
             expect(info, t).not.toContain(`'${t}'`);
         }
@@ -260,7 +269,7 @@ describe('dark-theme detection', () => {
             const src = read(f);
             expect(src, f).toContain('ThemeInfo.js');
             // A second hand-rolled allowlist would look like this.
-            expect(src, f).not.toContain("contains('theme-midnight')");
+            expect(src, f).not.toContain("contains('theme-nord')");
         }
     });
 });
@@ -297,7 +306,7 @@ describe('the theme registry is the single source', () => {
     // too early to import and has to name the default itself. That is the one
     // copy, and it has to agree.
     it('agrees with index.html about what the default IS', () => {
-        const m = html.match(/getItem\('theme'\) \|\| '([a-z-]+)'/);
+        const m = html.match(/(?:getItem\('theme'\)|saved) \|\| '([a-z-]+)'/);
         expect(m, 'index.html no longer picks a default theme').toBeTruthy();
         expect(m[1]).toBe(DEFAULT_THEME);
     });
@@ -348,7 +357,7 @@ describe('the theme registry is the single source', () => {
 
     it('builds the picker from the registry', () => {
         const settings = read('src/modules/ui/SettingsModal.js');
-        expect(settings).toContain('for (const th of THEMES)');
+        expect(settings).toContain('for (const fam of FAMILIES)');
         // The markup must NOT carry hand-written options any more, or the two
         // lists would drift apart again.
         expect(html).toContain('<select id="theme-selector"></select>');
@@ -361,6 +370,47 @@ describe('the theme registry is the single source', () => {
         // A sanity check on the flag itself: the registry and the CSS should
         // not disagree about Hanging Scroll, which is the one hybrid.
         expect(THEMES.find((t) => t.id === 'kakejiku').dark).toBe(false);
+    });
+});
+
+/* A family is a light theme and a dark theme. The mode picker never greys
+   out, and "follow the OS" always has somewhere to go, only because every
+   family has both halves — a theme with one would bring that back. */
+describe('theme families', () => {
+    const html = read('index.html');
+
+    it('gives every family exactly one light and one dark theme', () => {
+        for (const fam of FAMILIES) {
+            const members = THEMES.filter((t) => t.family === fam.id);
+            expect(members.filter((t) => !t.dark), `${fam.id} light`).toHaveLength(1);
+            expect(members.filter((t) => t.dark), `${fam.id} dark`).toHaveLength(1);
+        }
+    });
+
+    it('puts every theme in a family', () => {
+        const ids = FAMILIES.map((f) => f.id);
+        for (const t of THEMES) expect(ids, t.id).toContain(t.family);
+    });
+
+    it('finds either half of a family', () => {
+        expect(variantOf('kakejiku', false)).toBe('kakejiku');
+        expect(variantOf('kakejiku', true)).toBe('kakejiku-dark');
+        expect(variantOf('coffee', true)).toBe('latte-dark');
+        expect(variantOf('standard', false)).toBe('light');
+    });
+
+    // The boot script swaps to the OS's half before any module loads, from
+    // its own copy of the pairs.
+    it('agrees with index.html about which themes pair up', () => {
+        for (const fam of FAMILIES) {
+            const pair = `['${variantOf(fam.id, false)}', '${variantOf(fam.id, true)}']`;
+            expect(html, fam.id).toContain(pair);
+        }
+    });
+
+    it('agrees with index.html about who follows the OS by default', () => {
+        // A new install (no theme saved) follows; WorkspaceTheme.followSystem.
+        expect(html).toContain("follow === 'true' || (follow === null && !saved)");
     });
 });
 

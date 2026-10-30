@@ -51,24 +51,38 @@
       // 既定は Themes.js の DEFAULT_THEME と同じでなければならない。ここは
       // スタイルシート適用前に走るためモジュールを読めず、直書きになる。
       // 食い違うと起動直後の色と設定画面の表示がずれるので、テストで縛る。
-      let theme = localStorage.getItem('theme') || 'kakejiku';
-      // Paper (Subtle) was removed: its sheet was 6 RGB units from Ink Brush's,
-      // i.e. the same paper twice. Move anyone still on it across.
+      const saved = localStorage.getItem('theme');
+      let theme = saved || 'kakejiku';
+      // Removed themes move to their replacement (Themes.js RETIRED_THEMES).
+      // Paper (Subtle) was the same sheet as Ink Brush; Midnight had no light
+      // half, and Mocha is the same night with Latte for its day.
       if (theme === 'paper-subtle') {
         theme = 'sumi-e';
         localStorage.setItem('theme', theme);
       }
-      // Mocha was removed: a violet-accented dark navy, the same night as
-      // Midnight. Move anyone still on it across.
-      if (theme === 'latte-dark') {
-        theme = 'midnight';
+      if (theme === 'midnight') {
+        theme = 'latte-dark';
         localStorage.setItem('theme', theme);
+      }
+      // The mode may follow the OS (WorkspaceTheme.followSystem): a new
+      // install does, one that already saved a theme keeps it. Then the saved
+      // id only names the family, and the OS picks its half.
+      const follow = localStorage.getItem('themeFollowSystem');
+      if (follow === 'true' || (follow === null && !saved)) {
+        // [light, dark] of each family, as in Themes.js.
+        const pairs = [['light', 'dark'], ['paper', 'paper-dark'], ['sumi-e', 'sumi-e-dark'],
+          ['kakejiku', 'kakejiku-dark'], ['bamboo-light', 'bamboo-ancient'], ['latte', 'latte-dark'],
+          ['nord-light', 'nord'], ['solarized-light', 'solarized-dark']];
+        const pair = pairs.find((p) => p.includes(theme));
+        if (pair) theme = pair[window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0];
       }
       if (theme && theme !== 'light') {
         document.documentElement.classList.add('theme-' + theme);
         // Also update critical CSS to match specific theme if needed
-        if (theme === 'midnight') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#0f0f11; }';
         if (theme === 'latte') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#f0e8d0; }';
+        if (theme === 'latte-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#1e1e2e; }';
+        if (theme === 'nord-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e5e9f0; }';
+        if (theme === 'bamboo-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e2e4cf; }';
         if (theme === 'solarized-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#002b36; }';
         if (theme === 'solarized-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#fdf6e3; }';
         if (theme === 'paper') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e7dab9; }';
@@ -371,6 +385,14 @@
               <!-- Options are built from utils/Themes.js at startup;
                    adding a theme there is enough. -->
               <select id="theme-selector"></select>
+            </div>
+            <div class="settings-option">
+              <label for="theme-mode-selector" data-i18n="Mode">Mode</label>
+              <select id="theme-mode-selector">
+                <option value="light" data-i18n="Light">Light</option>
+                <option value="dark" data-i18n="Dark">Dark</option>
+                <option value="system" data-i18n="Match the system">Match the system</option>
+              </select>
             </div>
             <div class="settings-option">
               <label for="workspace-theme-selector" data-i18n="Theme for this workspace">Theme for this workspace</label>

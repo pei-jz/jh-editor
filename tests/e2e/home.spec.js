@@ -26,13 +26,18 @@ test.describe('JHEditor E2E', () => {
     const themeSelector = page.locator('#theme-selector');
     await expect(themeSelector).toBeVisible();
 
-    // Apply a non-default theme through the real onchange handler.
+    // Apply a non-default theme through the real onchange handlers: the
+    // family, then the mode.
+    const modeSelector = page.locator('#theme-mode-selector');
+    await modeSelector.selectOption('dark');
     await themeSelector.selectOption('nord');
-    await expect(page.locator('body')).toHaveClass(/theme-nord/);
+    await expect(page.locator('body')).toHaveClass(/theme-nord(\s|$)/);
+    await modeSelector.selectOption('light');
+    await expect(page.locator('body')).toHaveClass(/theme-nord-light/);
 
-    // Back to light: applyTheme removes every theme-* class.
-    await themeSelector.selectOption('light');
-    await expect(page.locator('body')).not.toHaveClass(/theme-(nord|dark|midnight|latte|sumi-e)/);
+    // Back to the standard light: applyTheme removes every theme-* class.
+    await themeSelector.selectOption('standard');
+    await expect(page.locator('body')).not.toHaveClass(/theme-(nord|dark|latte|sumi-e)/);
   });
 
   test('language selector switches the UI chrome to Japanese', async ({ page }) => {

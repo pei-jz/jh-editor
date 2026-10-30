@@ -110,7 +110,7 @@ describe('initMermaid', () => {
         expect(mermaidInit.mock.calls[0][0].themeVariables.darkMode).toBe(false);
     });
 
-    it.each(['theme-dark', 'theme-midnight', 'theme-solarized-dark'])('uses a dark palette for %s', (cls) => {
+    it.each(['theme-dark', 'theme-latte-dark', 'theme-solarized-dark'])('uses a dark palette for %s', (cls) => {
         document.body.className = cls;
         initMermaid();
         expect(mermaidInit.mock.calls[0][0].themeVariables.darkMode).toBe(true);

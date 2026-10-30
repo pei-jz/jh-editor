@@ -282,7 +282,8 @@ the agent's model calls back into the editor for context.
 
 ### 🎨 Customization
 
-- **14 themes** (see [Themes](#-themes)), and a **theme per workspace** so windows on
+- **8 themes, each light and dark**, following the OS if you like (see [Themes](#-themes)),
+  and a **theme per workspace** so windows on
   different projects are easy to tell apart
 - **Fonts** — separate family/size for editor, UI, Markdown documents and terminal
 - **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`) and a command
@@ -298,26 +299,24 @@ the agent's model calls back into the editor for context.
   <img src="docs/images/themes.png" alt="The same Java file in each of the 14 themes" width="820">
 </p>
 
-| Theme | Base | Character |
-|-------|------|-----------|
-| Light | light | Plain white editor and explorer |
-| Dark | dark | Neutral charcoal |
-| Midnight | dark | Near-black with a blue-purple cast |
-| Latte | light | Warm cream |
-| Solarized Light | light | Solarized, with body text darkened for contrast |
-| Solarized Dark | dark | Solarized, with contrast raised |
-| Paper | light | Aged paper on a desk, ruled lines behind Markdown |
-| Paper Dark | dark | Kraft paper at night; Book mode lays the sheet on a desk |
-| Ink Brush (墨絵) | light | Washi, with ink-wash mountains along the mount |
-| Ink Brush Dark | dark | Near-black ink |
-| **Hanging Scroll (掛軸)** — default | light | Indigo brocade mount around moon-white silk |
-| Hanging Scroll Dark | dark | Deep indigo silk, gold-damask mount, vermillion seal |
-| Nord | dark | Nord's own palette, form controls included |
-| Bamboo Slip (竹簡) | dark | Bamboo slips bound with cord, Mincho on the chrome |
+Pick a **theme** and a **mode** — Light, Dark, or *Match the system*, which follows the
+OS as it switches. Every theme has both halves.
 
-*Base* is what the editor surface is, and it decides the syntax, Mermaid and terminal
-palettes. Hanging Scroll counts as light: its mount is indigo, but the sheet you read is
-pale silk. To add a theme, see [docs/THEMING.md](docs/THEMING.md).
+| Theme | Light | Dark |
+|-------|-------|------|
+| Standard | Plain white editor and explorer | Neutral charcoal |
+| Paper | Aged paper on a desk, ruled lines behind Markdown | Kraft paper at night; Book mode lays the sheet on a desk |
+| Ink Brush (水墨) | Washi, with ink-wash mountains along the mount | Near-black ink |
+| **Hanging Scroll (掛軸)** — default | Indigo brocade mount around moon-white silk | Deep indigo silk, gold-damask mount, vermillion seal |
+| Bamboo Slip (竹簡) | Fresh green slips, brown ink | Charred slips bound with cord; Mincho on the chrome of both |
+| Coffee | Catppuccin Latte | Catppuccin Mocha |
+| Nord | Snow Storm greys, inks darkened to read | Nord's own palette, form controls included |
+| Solarized | Body text darkened for contrast | Contrast raised |
+
+Which half is showing decides the syntax, Mermaid and terminal palettes. Hanging Scroll's
+light half counts as light: its mount is indigo, but the sheet you read is pale silk. A
+workspace can pick its own theme; the mode is shared by every window. To add a theme, see
+[docs/THEMING.md](docs/THEMING.md).
 
 ---
 

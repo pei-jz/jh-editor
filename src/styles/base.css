@@ -123,7 +123,6 @@ body.display-mode-compact p {
 }
 
 body.theme-dark,
-body.theme-midnight,
 body.theme-solarized-dark {
     --scrollbar-thumb: rgba(255, 255, 255, 0.22);
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
@@ -139,9 +138,26 @@ body.theme-bamboo-ancient {
     --scrollbar-thumb-hover: rgba(232, 224, 204, 0.36);
 }
 
+/* 青竹 — fresh slips, brown-ink thumb. */
+body.theme-bamboo-light {
+    --scrollbar-thumb: rgba(70, 65, 30, 0.26);
+    --scrollbar-thumb-hover: rgba(70, 65, 30, 0.42);
+}
+
 body.theme-nord {
     --scrollbar-thumb: rgba(236, 239, 244, 0.22);
     --scrollbar-thumb-hover: rgba(236, 239, 244, 0.38);
+}
+
+body.theme-nord-light {
+    --scrollbar-thumb: rgba(46, 52, 64, 0.24);
+    --scrollbar-thumb-hover: rgba(46, 52, 64, 0.40);
+}
+
+/* Mocha — Catppuccin's text, faint. */
+body.theme-latte-dark {
+    --scrollbar-thumb: rgba(205, 214, 244, 0.24);
+    --scrollbar-thumb-hover: rgba(205, 214, 244, 0.40);
 }
 
 body.theme-sumi-e {

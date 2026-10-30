@@ -136,12 +136,12 @@
 }
 
 /* Light themes: darker hover */
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .titlebar-btn:hover,
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .titlebar-tool-btn:hover {
+body:not(.theme-dark):not(.theme-solarized-dark) .titlebar-btn:hover,
+body:not(.theme-dark):not(.theme-solarized-dark) .titlebar-tool-btn:hover {
     background-color: rgba(0, 0, 0, 0.07) !important;
 }
 
-body:not(.theme-dark):not(.theme-midnight):not(.theme-solarized-dark) .titlebar-btn.titlebar-close:hover {
+body:not(.theme-dark):not(.theme-solarized-dark) .titlebar-btn.titlebar-close:hover {
     background-color: #e81123 !important;
     color: #ffffff !important;
 }
