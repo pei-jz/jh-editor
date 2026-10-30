@@ -147,7 +147,10 @@ that tab; the current mode is always shown in the status bar.
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
 - **File search** (`Ctrl+P` or `Ctrl+Shift+R`) — the workspace's file list is indexed
-  once, then every keystroke narrows it in milliseconds. Globs work (`*設計*.xlsx`, or a
+  once, then every keystroke narrows it in milliseconds. The best match comes first —
+  exact name, then a name that starts with the query, then one that contains it, then
+  the folder path — and the letters in order are enough (`flsrch` finds
+  `FileSearch.js`); recently opened files win a tie. Globs work (`*設計*.xlsx`, or a
   path glob with `/`), and `Enter` opens the hit — a workbook straight into the Office
   preview, so finding one design document among thousands and reading it is a few keys
 - **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)

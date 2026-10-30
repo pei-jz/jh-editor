@@ -484,7 +484,11 @@ describe('text from a document or a file name is escaped before innerHTML', () =
     it('escapes file names and paths in lists', () => {
         expect(read('src/modules/ui/TabSearch.js')).toContain('${escapeHtml(name)}');
         expect(read('src/modules/ui/Modal.js')).toContain('${escapeHtml(file.name)}');
-        expect(read('src/modules/ui/FileSearchModal.js')).toContain('let nameHtml = escapeHtml(item.entry);');
+        // File search builds its highlighted name and folder from text nodes.
+        const fileSearch = read('src/modules/ui/FileSearchModal.js');
+        expect(fileSearch).toContain("appendHighlighted(li.querySelector('.file-search-name'), hit.name, nameRanges);");
+        expect(fileSearch).toContain('document.createTextNode(text.slice(at, start))');
+        expect(fileSearch).not.toMatch(/\$\{hit\.(name|rel)\}/);
         expect(read('src/modules/ui/GrepModal.js')).toContain('${escapeHtml(_fileDisplayName(currentFile))}');
         expect(read('src/modules/core/Explorer.js')).toContain('Scanning: ${escapeHtml(currentPath)}');
         const git = read('src/modules/ui/GitPanel.js');

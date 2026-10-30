@@ -676,6 +676,8 @@ async function bootstrap() {
                 v.present();
                 return;
             }
+            // ファイル検索の一覧も作り直す(新しく増えたファイルが Ctrl+P で見つかるように)
+            FileSearchModal.invalidateCache();
             return loadExplorer(...args);
         },
         'app:shortcut-guide': toggleShortcutGuide,
