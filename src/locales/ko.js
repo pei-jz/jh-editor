@@ -941,4 +941,8 @@ export default {
     'AI features work once J.H AI Agent is connected. It is not connected now.': 'AI 기능은 J.H AI Agent에 연결하면 사용할 수 있습니다. 현재 연결되어 있지 않습니다.',
     'This build does not include AI features (built without J.H AI Agent).': '이 빌드에는 AI 기능이 포함되어 있지 않습니다 (J.H AI Agent 없이 빌드).',
     'Connect…': '연결…',
+    'Search files... (glob: *.txt, src/*.js)': '파일 검색... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '파일 {n}개 색인됨 ({ms}ms)',
+    '{n} files (cached)': '파일 {n}개 (캐시)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '파일 {shown}/{total}개 (제한 적용{timing}) — 전체를 검색하려면 하위 폴더를 여세요',
 };

@@ -146,6 +146,14 @@ describe('the UI reaches the translator', () => {
         expect(read('src/modules/ui/GitPanel.js')).toContain('t(');
     });
 
+    // The empty editor said this in English under a Japanese UI: the key was
+    // translated in every dictionary, but the markup never asked for it.
+    it('translates the empty-editor message', () => {
+        const editor = read('src/modules/core/Editor.js');
+        expect(editor).toContain("t('Select a file from the explorer to start editing.')");
+        expect(editor).not.toContain('">Select a file from the explorer');
+    });
+
     it('translates data-table labels where they are drawn, not in the table', () => {
         // Keeping the tables as plain data means a language change re-renders
         // rather than needing the table rebuilt.

@@ -941,4 +941,8 @@ export default {
     'AI features work once J.H AI Agent is connected. It is not connected now.': '连接 J.H AI Agent 后即可使用 AI 功能。当前未连接。',
     'This build does not include AI features (built without J.H AI Agent).': '此版本不包含 AI 功能（构建时未包含 J.H AI Agent）。',
     'Connect…': '连接…',
+    'Search files... (glob: *.txt, src/*.js)': '搜索文件... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '已索引 {n} 个文件 ({ms}ms)',
+    '{n} files (cached)': '{n} 个文件 (已缓存)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} 个文件 (已应用上限{timing}) — 打开子文件夹以搜索全部内容',
 };

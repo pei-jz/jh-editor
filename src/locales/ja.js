@@ -941,4 +941,8 @@ export default {
     'AI features work once J.H AI Agent is connected. It is not connected now.': 'AI 機能は J.H AI Agent に接続すると使えます。現在は接続されていません。',
     'This build does not include AI features (built without J.H AI Agent).': 'このビルドには AI 機能が含まれていません（J.H AI Agent なしでビルド）。',
     'Connect…': '接続する…',
+    'Search files... (glob: *.txt, src/*.js)': 'ファイルを検索... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '{n} ファイルを索引化 ({ms}ms)',
+    '{n} files (cached)': '{n} ファイル (キャッシュ)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} ファイル (上限適用{timing}) — すべて検索するにはサブフォルダーを開いてください',
 };

@@ -15,6 +15,7 @@ vi.mock('../src/modules/core/Editor.js', () => ({ openFile: (...a) => openFile(.
 
 const { State } = await import('../src/modules/core/Store.js');
 const { FileSearchModal } = await import('../src/modules/ui/FileSearchModal.js');
+const { setLanguage } = await import('../src/modules/utils/I18n.js');
 
 const WS = 'C:/proj';
 const entry = (rel) => {
@@ -111,5 +112,42 @@ describe('file search modal', () => {
         FileSearchModal.invalidateCache();
         await search('a.');
         expect(listAllFiles).toHaveBeenCalledTimes(2);
+    });
+
+    // The folder column is rtl so a long path is cut on the left. Without an
+    // ltr isolate, rtl also reordered a leading number: "01_基本設計/受注管理"
+    // showed as "基本設計/受注管理_01".
+    it('isolates the folder text so rtl only moves the ellipsis', async () => {
+        listAllFiles.mockResolvedValue([entry('01_基本設計/受注管理/画面一覧.xlsx')]);
+        FileSearchModal.show();
+        await search('画面');
+
+        const dir = rows()[0].querySelector('.dir');
+        const bdi = dir.querySelector('bdi');
+        expect(bdi, 'the folder text should sit in an isolate').toBeTruthy();
+        expect(bdi.getAttribute('dir')).toBe('ltr');
+        expect(bdi.textContent).toBe('01_基本設計/受注管理');
+        expect(dir.textContent.trim()).toBe(bdi.textContent);
+    });
+
+    it('shows the placeholder and status line in the UI language', async () => {
+        setLanguage('ja');
+        try {
+            listAllFiles.mockResolvedValue([entry('a.txt'), entry('b.txt')]);
+            FileSearchModal.show();
+            await vi.runAllTimersAsync();
+            const status = () => document.querySelector('#file-search-overlay .tab-search-list')
+                .previousElementSibling.textContent;
+
+            expect(input().placeholder).toBe('ファイルを検索... (glob: *.txt, src/*.js)');
+            expect(status()).toMatch(/^2 ファイルを索引化 \(\d+ms\)$/);
+
+            document.getElementById('file-search-overlay').remove();
+            FileSearchModal.show();
+            await vi.runAllTimersAsync();
+            expect(status()).toBe('2 ファイル (キャッシュ)');
+        } finally {
+            setLanguage('en');
+        }
     });
 });

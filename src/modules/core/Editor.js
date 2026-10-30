@@ -696,7 +696,7 @@ export function renderEditor(targetPane = null) {
         const file = openFiles[activeIdx];
 
         if (!file) {
-            container.innerHTML = '<div class="welcome-message">Select a file from the explorer to start editing.</div>';
+            container.innerHTML = `<div class="welcome-message">${t('Select a file from the explorer to start editing.')}</div>`;
             return;
         }
 
