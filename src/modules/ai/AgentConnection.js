@@ -26,6 +26,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { isAgentReachable } from './ConnectionConfig.js';
 import { showDialog } from '../ui/Dialog.js';
 import { t } from '../utils/I18n.js';
+import JhAiClient from '@jh/ai-client';
+
+/**
+ * False in a build made without the sibling jh-ai-agent checkout, where
+ * `@jh/ai-client` is the stand-in AiClientUnavailable.js
+ * (see scripts/ai-client-alias.js). No agent can help then, so there is
+ * nothing to start or download — only an explanation.
+ */
+export const aiClientBundled = JhAiClient?.unavailable !== true;
 
 /** The canonical download page for J.H AI Agent. */
 const DOWNLOAD_URL = 'https://github.com/pei-jz/jh-ai-agent/releases/latest';
@@ -77,6 +86,16 @@ async function waitForReachable(timeoutMs = 10000) {
  * included). Returns false when the user cancelled or the agent still is not up.
  */
 export async function ensureAgentAvailable() {
+    if (!aiClientBundled) {
+        await showDialog({
+            title: t('AI is not available in this build'),
+            message: t('This build of J.H Editor was made without the J.H AI Agent client, so AI features are turned off. Build it with the jh-ai-agent repository checked out next to jh-editor to use them.'),
+            kind: 'info',
+            buttons: [{ label: t('OK'), value: true, primary: true, cancel: true }],
+        });
+        return false;
+    }
+
     // Fast path: already running. No dialog, no pairing — just "yes".
     if (await isAgentReachable(1500)) return true;
 

@@ -936,4 +936,9 @@ export default {
     'Date': '日期',
     'Parents': '父提交',
     'Show details': '显示/隐藏详细信息',
+    'AI is not available in this build': '此版本无法使用 AI',
+    'This build of J.H Editor was made without the J.H AI Agent client, so AI features are turned off. Build it with the jh-ai-agent repository checked out next to jh-editor to use them.': '此 J.H Editor 构建时未包含 J.H AI Agent 客户端，因此 AI 功能已关闭。如需使用，请将 jh-ai-agent 仓库检出到 jh-editor 旁边后再构建。',
+    'AI features work once J.H AI Agent is connected. It is not connected now.': '连接 J.H AI Agent 后即可使用 AI 功能。当前未连接。',
+    'This build does not include AI features (built without J.H AI Agent).': '此版本不包含 AI 功能（构建时未包含 J.H AI Agent）。',
+    'Connect…': '连接…',
 };

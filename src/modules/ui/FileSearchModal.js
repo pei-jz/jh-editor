@@ -4,17 +4,88 @@ import { icon as svgIcon, iconEl, iconForFile } from './Icons.js';
 import { openFile } from '../core/Editor.js';
 import * as FS from '../utils/FileSystem.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
+import { RecentFiles } from '../utils/RecentFiles.js';
+import { prepareEntries, rankFiles, splitRelRanges } from '../utils/FileSearchRank.js';
 
-// Persistent file cache (survives modal close/reopen)
-const FILE_CACHE_LIMIT = 50000; // Max files to cache (paths only; a few MB)
-let _fileCache = null;
+// Persistent file index (survives modal close/reopen).
+//
+// Past FILE_CACHE_LIMIT the list is cut, but the cut list is still kept: it
+// used to be thrown away, so on a big tree every keystroke walked the whole
+// workspace again. The status line says the index is partial; F5 (refresh
+// explorer) or switching workspace builds a fresh one.
+const FILE_CACHE_LIMIT = 50000; // Max files to index (paths only; a few MB)
+let _fileCache = null;          // prepareEntries() output
 let _fileCacheDir = null;
+let _fileCacheTotal = 0;        // files the walk found, before the cut
+let _fileCachePromise = null;   // the walk in flight, shared by preload and search
+
+const HIGHLIGHT_STYLE = 'background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;';
+
+/** Build (or reuse) the index for `dir`. Resolves to the prepared entries. */
+function loadIndex(dir) {
+    if (_fileCache && _fileCacheDir === dir) return Promise.resolve(_fileCache);
+    if (_fileCachePromise && _fileCachePromise.dir === dir) return _fileCachePromise;
+
+    const t0 = performance.now();
+    const promise = FS.listAllFiles(dir).then((files) => {
+        if (_fileCachePromise !== promise) return prepareEntries(files, dir); // superseded
+        _fileCacheTotal = files.length;
+        const kept = files.length > FILE_CACHE_LIMIT ? files.slice(0, FILE_CACHE_LIMIT) : files;
+        _fileCache = prepareEntries(kept, dir);
+        _fileCacheDir = dir;
+        _fileCachePromise = null;
+        promise.elapsed = Math.round(performance.now() - t0);
+        return _fileCache;
+    }, (err) => {
+        if (_fileCachePromise === promise) _fileCachePromise = null;
+        throw err;
+    });
+    promise.dir = dir;
+    _fileCachePromise = promise;
+    return promise;
+}
+
+/** Status line for the current index; `elapsed` only right after a walk. */
+function indexStatus(statusBar, elapsed) {
+    const timing = elapsed != null ? `, ${elapsed}ms` : '';
+    if (_fileCacheTotal > FILE_CACHE_LIMIT) {
+        statusBar.classList.add('jh-icon-row');
+        statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
+            `${FILE_CACHE_LIMIT.toLocaleString()}/${_fileCacheTotal.toLocaleString()} files (limit applied${timing}) — open a subfolder to search all of it`));
+    } else {
+        statusBar.classList.remove('jh-icon-row');
+        statusBar.textContent = elapsed != null
+            ? `${_fileCache.length.toLocaleString()} files indexed (${elapsed}ms)`
+            : `${_fileCache.length.toLocaleString()} files (cached)`;
+    }
+}
+
+/**
+ * Append `text` to `parent`, with the [start, end) `ranges` wrapped in a
+ * highlight span. Built from text nodes, so a file name is never parsed as
+ * markup.
+ */
+function appendHighlighted(parent, text, ranges) {
+    let at = 0;
+    for (const [start, end] of ranges) {
+        if (start > at) parent.appendChild(document.createTextNode(text.slice(at, start)));
+        const mark = document.createElement('span');
+        mark.className = 'file-search-hit';
+        mark.style.cssText = HIGHLIGHT_STYLE;
+        mark.textContent = text.slice(start, end);
+        parent.appendChild(mark);
+        at = end;
+    }
+    if (at < text.length) parent.appendChild(document.createTextNode(text.slice(at)));
+}
 
 export const FileSearchModal = {
     /** Invalidate cache (call when files change, e.g. after save, create, delete) */
     invalidateCache() {
         _fileCache = null;
         _fileCacheDir = null;
+        _fileCacheTotal = 0;
+        _fileCachePromise = null;
     },
 
     show() {
@@ -29,7 +100,7 @@ export const FileSearchModal = {
 
         const overlay = document.createElement('div');
         overlay.id = 'file-search-overlay';
-        overlay.className = 'tab-search-overlay'; 
+        overlay.className = 'tab-search-overlay';
 
         const container = document.createElement('div');
         container.className = 'tab-search-container file-search-container';
@@ -39,7 +110,7 @@ export const FileSearchModal = {
         inputWrapper.style.position = 'relative';
         inputWrapper.style.display = 'flex';
         inputWrapper.style.alignItems = 'center';
-        
+
         const searchIcon = document.createElement('span');
         searchIcon.appendChild(iconEl('search', { size: 14 }));
         searchIcon.style.display = 'inline-flex';
@@ -70,7 +141,6 @@ export const FileSearchModal = {
         let selectedIndex = 0;
         let searchResults = [];
         let debounceTimer = null;
-        let currentRegex = null;
 
         const updateSelection = () => {
             const items = list.querySelectorAll('.tab-search-item');
@@ -86,7 +156,7 @@ export const FileSearchModal = {
 
         const renderList = () => {
             list.innerHTML = '';
-            
+
             if (searchResults.length === 0 && input.value.trim().length > 0) {
                 const emptyMsg = document.createElement('li');
                 emptyMsg.className = 'tab-search-item';
@@ -97,7 +167,7 @@ export const FileSearchModal = {
                 return;
             }
 
-            searchResults.forEach((item, i) => {
+            searchResults.forEach((hit, i) => {
                 const li = document.createElement('li');
                 li.className = 'tab-search-item';
                 if (i === selectedIndex) li.classList.add('selected');
@@ -105,49 +175,37 @@ export const FileSearchModal = {
                 // One shared extension→icon table (Icons.iconForFile), so the
                 // explorer and this list cannot disagree about what a .rs file
                 // looks like — they used different sets before.
-                const icon = svgIcon(iconForFile(item.entry, item.type === 'DIRECTORY'), { size: 14 });
+                const icon = svgIcon(iconForFile(hit.name, hit.item.type === 'DIRECTORY'), { size: 14 });
 
-                // Highlight match
-                const rawQuery = input.value.trim();
-                const query = rawQuery.toLowerCase();
-                let nameHtml = escapeHtml(item.entry);
-                if (currentRegex && currentRegex.test(item.entry)) {
-                    nameHtml = `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${escapeHtml(item.entry)}</span>`;
-                } else if (query && !currentRegex) {
-                    const matchIndex = item.entry.toLowerCase().indexOf(query);
-                    if (matchIndex >= 0) {
-                        nameHtml = escapeHtml(item.entry.substring(0, matchIndex)) + 
-                                   `<span style="background: rgba(var(--primary-rgb, 0, 122, 204), 0.4); color: inherit; border-radius: 2px;">${escapeHtml(item.entry.substring(matchIndex, matchIndex + query.length))}</span>` + 
-                                   escapeHtml(item.entry.substring(matchIndex + query.length));
-                    }
-                }
-
-                // Show relative dir path (relative to workspace)
-                let displayDir = item.dir || '';
-                const normalizedWorkspace = State.currentDir.replace(/\\/g, '/');
-                if (displayDir.startsWith(normalizedWorkspace)) {
-                    displayDir = displayDir.substring(normalizedWorkspace.length);
-                    if (displayDir.startsWith('/')) displayDir = displayDir.substring(1);
-                }
+                // Highlight what matched — in the name, the folder, or both
+                // (a path or fuzzy-path match can span the two).
+                const split = splitRelRanges(hit.relRanges, hit.rel, hit.name);
+                const nameRanges = hit.nameRanges.length ? hit.nameRanges : split.nameRanges;
+                // Folder relative to the workspace (rel = "dir/name", or "name")
+                const displayDir = hit.rel.length > hit.name.length
+                    ? hit.rel.substring(0, hit.rel.length - hit.name.length - 1)
+                    : '';
 
                 li.innerHTML = `
                     <span class="name" style="display: flex; align-items: center; gap: 8px;">
                         <span style="opacity: 0.8; display: inline-flex;">${icon}</span>
-                        <span style="flex-shrink: 0;">${nameHtml}</span>
+                        <span class="file-search-name" style="flex-shrink: 0;"></span>
                     </span>
-                    <span class="dir" title="${escapeHtml(item.dir)}">${escapeHtml(displayDir)}</span>
+                    <span class="dir" title="${escapeHtml(hit.item.dir)}"></span>
                 `;
-                
-                li.onclick = () => selectAndClose(item);
+                appendHighlighted(li.querySelector('.file-search-name'), hit.name, nameRanges);
+                appendHighlighted(li.querySelector('.dir'), displayDir, split.dirRanges);
+                li.onclick = () => selectAndClose(hit);
                 list.appendChild(li);
             });
             updateSelection();
         };
 
-        const selectAndClose = (item) => {
+        const selectAndClose = (hit) => {
+            const item = hit.item;
             if (item.type === 'DIRECTORY') return; // Do not open directories
             overlay.remove();
-            
+
             // Construct full path
             let fullPath = item.path;
             const normalizedCurrentDir = State.currentDir.replace(/\\/g, '/');
@@ -157,95 +215,28 @@ export const FileSearchModal = {
             openFile(fullPath);
         };
 
-        // Convert glob pattern to regex
-        const globToRegex = (pattern) => {
-            // Check if pattern contains path separators -> path glob
-            const hasPath = pattern.includes('/');
-            
-            // Escape regex special chars except * and ?
-            const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-            // Convert glob wildcards
-            const converted = escaped
-                .replace(/\*\*/g, '§§')        // ** -> placeholder
-                .replace(/\*/g, '[^/]*')        // * -> match within segment
-                .replace(/§§/g, '.*')           // ** -> match across segments
-                .replace(/\?/g, '.');            // ? -> single char
-            
-            if (hasPath) {
-                // Path-based glob: match against relative path
-                return { regex: new RegExp(`${converted}$`, 'i'), matchPath: true };
-            } else {
-                // Filename-only glob: match against filename
-                return { regex: new RegExp(`^${converted}$`, 'i'), matchPath: false };
-            }
-        };
-
+        // Ranking lives in utils/FileSearchRank.js: exact name > name prefix >
+        // name substring > path substring > fuzzy, ties to recently opened,
+        // then shorter paths.
         const performSearch = async () => {
             const rawQuery = input.value.trim();
-            const query = rawQuery.toLowerCase();
-            if (!query) {
+            if (!rawQuery) {
                 searchResults = [];
-                currentRegex = null;
                 renderList();
                 return;
             }
 
             try {
-                // Load file cache if needed
-                if (!_fileCache || _fileCacheDir !== State.currentDir) {
-                    const t0 = performance.now();
-                    let allFiles = await FS.listAllFiles(State.currentDir);
-                    const elapsed = Math.round(performance.now() - t0);
-                    const totalCount = allFiles.length;
-                    
-                    if (totalCount > FILE_CACHE_LIMIT) {
-                        // Over limit: truncate and don't persist cache
-                        allFiles = allFiles.slice(0, FILE_CACHE_LIMIT);
-                        _fileCache = allFiles;
-                        _fileCacheDir = null; // Don't persist - re-fetch next time
-                        statusBar.classList.add('jh-icon-row');
-                statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
-                    `${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied, ${elapsed}ms)`));
-                    } else {
-                        _fileCache = allFiles;
-                        _fileCacheDir = State.currentDir;
-                        statusBar.textContent = `${totalCount.toLocaleString()} files indexed (${elapsed}ms)`;
-                    }
-                } else {
-                    statusBar.textContent = `${_fileCache.length.toLocaleString()} files (cached)`;
-                }
-                
-                const isGlob = rawQuery.includes('*') || rawQuery.includes('?');
-                currentRegex = null;
-                let matchPath = false;
+                const dir = State.currentDir;
+                const pending = (_fileCache && _fileCacheDir === dir) ? null : loadIndex(dir);
+                const entries = pending ? await pending : _fileCache;
+                if (!overlay.isConnected || input.value.trim() !== rawQuery) return; // typed on
+                indexStatus(statusBar, pending ? pending.elapsed : null);
 
-                if (isGlob) {
-                    try {
-                        const result = globToRegex(rawQuery);
-                        currentRegex = result.regex;
-                        matchPath = result.matchPath;
-                    } catch (e) {
-                        currentRegex = null;
-                    }
-                }
-                
-                searchResults = _fileCache.filter(item => {
-                    const entryName = item.entry || item.name || item.path.split(/[/\\]/).pop();
-                    if (currentRegex) {
-                        if (matchPath) {
-                            // Match against relative path
-                            const normalizedWorkspace = State.currentDir.replace(/\\/g, '/');
-                            let relPath = item.path;
-                            if (relPath.startsWith(normalizedWorkspace)) {
-                                relPath = relPath.substring(normalizedWorkspace.length);
-                                if (relPath.startsWith('/')) relPath = relPath.substring(1);
-                            }
-                            return currentRegex.test(relPath);
-                        }
-                        return currentRegex.test(entryName);
-                    }
-                    return entryName.toLowerCase().includes(query);
-                }).slice(0, 100);
+                searchResults = rankFiles(rawQuery, entries, {
+                    limit: 100,
+                    recent: RecentFiles.getFiles(),
+                });
 
                 selectedIndex = 0;
                 renderList();
@@ -257,14 +248,14 @@ export const FileSearchModal = {
 
         input.addEventListener('input', () => {
             clearTimeout(debounceTimer);
-            
+
             // Immediate UI feedback for empty
             if (!input.value.trim()) {
                 searchResults = [];
                 renderList();
                 return;
             }
-            
+
             // If cache is already loaded, search almost instantly
             if (_fileCache && _fileCacheDir === State.currentDir) {
                 debounceTimer = setTimeout(() => {
@@ -280,7 +271,7 @@ export const FileSearchModal = {
 
         input.addEventListener('keydown', (e) => {
             if (e.isComposing) return;
-            
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -333,28 +324,18 @@ export const FileSearchModal = {
         overlay.appendChild(container);
         document.body.appendChild(overlay);
 
-        // Pre-load cache in background
+        // Pre-load cache in background (the search shares the same walk)
         if (!_fileCache || _fileCacheDir !== State.currentDir) {
             statusBar.textContent = t('Indexing files...');
-            FS.listAllFiles(State.currentDir).then(files => {
-                const totalCount = files.length;
-                if (totalCount > FILE_CACHE_LIMIT) {
-                    _fileCache = files.slice(0, FILE_CACHE_LIMIT);
-                    _fileCacheDir = null; // Don't persist
-                    statusBar.classList.add('jh-icon-row');
-            statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
-                `${FILE_CACHE_LIMIT.toLocaleString()}/${totalCount.toLocaleString()} files (limit applied)`));
-                } else {
-                    _fileCache = files;
-                    _fileCacheDir = State.currentDir;
-                    statusBar.textContent = `${totalCount.toLocaleString()} files indexed`;
-                }
+            const pending = loadIndex(State.currentDir);
+            pending.then(() => {
+                if (overlay.isConnected) indexStatus(statusBar, pending.elapsed);
             }).catch(err => {
                 statusBar.textContent = t('Failed to index files');
                 console.error('File indexing failed:', err);
             });
         } else {
-            statusBar.textContent = `${_fileCache.length.toLocaleString()} files (cached)`;
+            indexStatus(statusBar, null);
         }
 
         // Initial empty render

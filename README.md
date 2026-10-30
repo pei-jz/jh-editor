@@ -25,6 +25,19 @@ agent over MCP, rather than embedding an LLM stack of its own.
 Double-click to editable, in well under a second. The window stays hidden until the
 editor is actually ready, so there is no white flash and no empty frame.
 
+### Where it earns its place
+
+- **Finding one design document among thousands.** `Ctrl+Shift+R` (or `Ctrl+P`) narrows
+  the whole workspace as you type — by name, by path, by glob (`*設計*.xlsx`) — and
+  `Enter` opens an Excel workbook straight into a read-only Office preview that keeps
+  its column widths, merged cells and borders. No waiting for Excel to start.
+- **Fixing a CSV without having it reformatted.** A `.csv` opens as a table you can
+  sort, resize and edit, and every cell stays the text it was — no dates turned into
+  serial numbers, no leading zeros dropped, and a Shift_JIS file is saved as Shift_JIS.
+- **Reading Markdown, and editing it a block at a time.** A `.md` file opens rendered —
+  Mermaid, tables and math included — and a double-click (or `F2`) opens just that block
+  beside a live preview.
+
 ---
 
 ## Screenshots
@@ -90,8 +103,10 @@ editor is actually ready, so there is no white flash and no empty frame.
 
 ### 📝 Editing modes
 
-Every file opens in **Text** mode by default (CSV opens as a table, a jh-presentation deck as slides). `Ctrl+Shift+E`
-switches modes; the current mode is always shown in the status bar.
+Each file opens in the view that suits it: **CSV** as a table, **Markdown** as rendered
+blocks, a **jh-presentation deck** as slides, Office files in the preview, and everything
+else — JSON, XML, HTML and TSV included — as **Text**. `Ctrl+Shift+E` switches modes for
+that tab; the current mode is always shown in the status bar.
 
 | Mode | What it is |
 |------|-----------|
@@ -132,7 +147,10 @@ switches modes; the current mode is always shown in the status bar.
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
 - **File search** (`Ctrl+P` or `Ctrl+Shift+R`) — the workspace's file list is indexed
-  once, then every keystroke narrows it in milliseconds. Globs work (`*設計*.xlsx`, or a
+  once, then every keystroke narrows it in milliseconds. The best match comes first —
+  exact name, then a name that starts with the query, then one that contains it, then
+  the folder path — and the letters in order are enough (`flsrch` finds
+  `FileSearch.js`); recently opened files win a tie. Globs work (`*設計*.xlsx`, or a
   path glob with `/`), and `Enter` opens the hit — a workbook straight into the Office
   preview, so finding one design document among thousands and reading it is a few keys
 - **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
@@ -236,19 +254,21 @@ the numbers, which is what a "let me just check something" open is after.
 ### 🤖 AI (J.H AI Agent integration)
 
 J.H Editor does **not** ship an LLM, embeddings, or a vector index. It connects to the
-sibling **[J.H AI Agent](../jh-ai-agent)** server and acts as an **MCP server toward it** —
+sibling **[J.H AI Agent](https://github.com/pei-jz/jh-ai-agent)** server and acts as an **MCP server toward it** —
 the agent's model calls back into the editor for context.
 
 - **Tools exposed to the agent** — `get_buffer`, `get_selection`, `list_open_files`,
   `read_workspace_file`, `list_workspace_files`, `get_diagnostics`
-- **Intents** — named actions (`summarize_logs`, `explain_selection`, and a free-prompt mode
-  where the model picks its own tools)
 - **Inline AI** (`Ctrl+Space`) — Explain / Refactor / Add Types / Error Handling / To Code.
   Rewrites come back as a **diff you review and apply**, never as a silent buffer edit
 - **Activity dock** — live task status with a Stop button
-- **Zero-setup connection** — reads the connection file J.H AI Agent's "Export Connection"
-  writes (`%APPDATA%/JH/ai-connection.json` and platform equivalents), with manual
-  URL/token override in Settings
+- **Pairing, not a token file** — the editor finds the agent on its own (the port it
+  publishes, `14300` by default) and asks to connect; you approve in the agent's window
+  after comparing a six-digit code. The grant lives in memory only, so closing either app
+  ends it. A different address can be set in Settings
+- **Without the agent** — nothing is probed at startup. When you open the inline AI
+  popup or the chat panel and the agent does not answer, the panel says so, with a
+  *Connect…* button that starts the agent (or opens its download page)
 
 ### 🧭 Language support
 
@@ -395,8 +415,11 @@ Two things worth knowing:
 - [Rust](https://rustup.rs/) (latest stable)
 - [Tauri CLI](https://tauri.app/start/) v2
 
-> The `@jh/ai-client` dependency is resolved from `../jh-ai-agent/packages/jh-ai-client`.
-> Check out both repositories side by side, or the install will fail.
+> AI features need `@jh/ai-client`, an optional dependency resolved from
+> `../jh-ai-agent/packages/jh-ai-client`. Check out
+> [jh-ai-agent](https://github.com/pei-jz/jh-ai-agent) next to this repository to
+> include them. Without it, `npm install`, `npm test` and the build still work — the
+> editor runs with AI turned off, and the AI commands say so.
 
 ```sh
 npm install
@@ -480,7 +503,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Alt+O` | Recent workspaces |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |
-| `Ctrl+\` | Split editor right |
+| `Ctrl+\` / `Ctrl+Alt+\` | Split editor right / down |
 | `Ctrl+Shift+\` | Focus other pane |
 | `Ctrl+Shift+W` | Close split |
 | `Ctrl+Shift+D` / `Ctrl+Alt+D` | Compare with file / Compare scratch text |

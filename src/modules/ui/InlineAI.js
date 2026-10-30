@@ -1,6 +1,7 @@
 import { t } from '../utils/I18n.js';
 import { icon as svgIcon } from './Icons.js';
 import { hasEditorSelection, runInlinePreset, runInlinePrompt, listInlinePresets } from '../ai/JhAiMcp.js';
+import { showAgentNoticeIfOffline } from './AgentNotice.js';
 
 /**
  * InlineAI — the small "ask the AI about this" popup at the cursor.
@@ -41,6 +42,7 @@ export class InlineAI {
                 <span class="model-badge jh-icon-row">${svgIcon('robot', { size: 12 })}${currentModel}</span>
                 <button class="inline-ai-close">×</button>
             </div>
+            <div class="inline-ai-agent-slot"></div>
             <div class="inline-ai-presets" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px;"></div>
             <textarea class="inline-ai-input" placeholder="Ask the AI… (explain, summarize, refactor, aggregate — anything)"></textarea>
             <div class="inline-ai-actions">
@@ -61,6 +63,10 @@ export class InlineAI {
 
         this.promptInput = modal.querySelector('.inline-ai-input');
         this.promptInput.focus();
+
+        // Without the agent, say so now rather than after the first request.
+        showAgentNoticeIfOffline(modal.querySelector('.inline-ai-agent-slot'))
+            .catch((e) => console.warn('agent notice failed:', e));
 
         // Says where the answer will turn up, because it is not here. Without
         // it, sending looks like the popup simply closed on you.
