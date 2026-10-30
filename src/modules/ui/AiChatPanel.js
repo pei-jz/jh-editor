@@ -39,6 +39,7 @@ import { icon as svgIcon } from './Icons.js';
 import { allows, isPrivatePath, scopeInfo } from '../ai/ContextScope.js';
 import { t, promptLanguageName } from '../utils/I18n.js';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
+import { showAgentNoticeIfOffline } from './AgentNotice.js';
 
 const HISTORY_KEY = 'jh_ai_chat_history_v1';
 const MAX_HISTORY = 40;
@@ -116,6 +117,7 @@ class AiChatPanel {
                 <button class="clear-btn" title="${t('Clear history')}">${t('Clear')}</button>
                 <button class="close-btn" title="${t('Close')}">×</button>
             </div>
+            <div class="ai-chat-agent-slot"></div>
             <div class="ai-chat-messages"></div>
             <div class="ai-chat-hint" id="ai-chat-scope-hint"></div>
             <div class="ai-chat-input-row">
@@ -165,6 +167,9 @@ class AiChatPanel {
         }
 
         this._render();
+        // Without the agent, say so now rather than after the first question.
+        showAgentNoticeIfOffline(root.querySelector('.ai-chat-agent-slot'), { margin: '8px 10px 0' })
+            .catch((e) => console.warn('agent notice failed:', e));
         // Reopening mid-request: pick the clock back up rather than freezing the
         // meta line at whatever it read when the panel was closed.
         if (this._pending) this._startTicker();

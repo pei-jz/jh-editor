@@ -1,10 +1,22 @@
 
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { aiClientAlias, hasAiClient } from './scripts/ai-client-alias.js';
 
 const host = process.env.TAURI_DEV_HOST;
+const root = fileURLToPath(new URL('.', import.meta.url));
+
+// @jh/ai-client comes from ../jh-ai-agent. Without that checkout the editor
+// still builds, with the AI commands reporting that they are not included.
+if (!hasAiClient(root)) {
+    console.warn('[jh-editor] @jh/ai-client not found (../jh-ai-agent is not checked out) — building without AI features.');
+}
 
 export default defineConfig({
     clearScreen: false,
+    resolve: {
+        alias: aiClientAlias(root),
+    },
     server: {
         port: 1425,
         strictPort: true,

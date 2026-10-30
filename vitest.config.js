@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import { aiClientAlias } from './scripts/ai-client-alias.js';
 
 export default defineConfig({
+  // Same as vite.config.js: without ../jh-ai-agent, @jh/ai-client is a stand-in.
+  resolve: {
+    alias: aiClientAlias(fileURLToPath(new URL('.', import.meta.url))),
+  },
   test: {
     environment: 'jsdom',
     // Playwright specs must not be picked up by vitest — they call

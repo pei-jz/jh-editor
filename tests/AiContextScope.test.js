@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -305,7 +305,11 @@ describe('the chat answer reads as Markdown', () => {
 describe('the chat sidebar is an ask run, not a single shot', () => {
     const panel = read('src/modules/ui/AiChatPanel.js');
     const agent = read('src/modules/ai/AIAgent.js');
-    const client = read('../jh-ai-agent/packages/jh-ai-client/index.js');
+    // The client is an optional dependency from the sibling jh-ai-agent
+    // checkout; read through node_modules so a worktree finds it too, and skip
+    // its half of the check in a standalone checkout.
+    const clientPath = 'node_modules/@jh/ai-client/index.js';
+    const client = existsSync(join(here, '..', clientPath)) ? read(clientPath) : null;
 
     it('sends the conversation through runAsk with its prior turns', () => {
         expect(panel).toContain('AIAgent.runAsk({');
@@ -345,7 +349,7 @@ describe('the chat sidebar is an ask run, not a single shot', () => {
        `chatContext` parameter. So it arrived as caller metadata and the run had
        no memory of its earlier turns, with no error anywhere to say so. */
     it('carries history in the field the whole chain is built around', () => {
-        expect(client).toContain('chat_context: Array.isArray(chatContext)');
+        if (client) expect(client).toContain('chat_context: Array.isArray(chatContext)');
         expect(agent).toContain('chatContext: Array.isArray(chatContext) ? chatContext : []');
         expect(agent).not.toContain('context.chatContext = chatContext');
     });

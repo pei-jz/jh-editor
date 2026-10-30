@@ -936,4 +936,9 @@ export default {
     'Date': '날짜',
     'Parents': '부모',
     'Show details': '자세히 보기/숨기기',
+    'AI is not available in this build': '이 빌드에서는 AI를 사용할 수 없습니다',
+    'This build of J.H Editor was made without the J.H AI Agent client, so AI features are turned off. Build it with the jh-ai-agent repository checked out next to jh-editor to use them.': '이 J.H Editor는 J.H AI Agent 클라이언트 없이 빌드되어 AI 기능이 꺼져 있습니다. 사용하려면 jh-ai-agent 저장소를 jh-editor 옆에 체크아웃한 뒤 빌드하세요.',
+    'AI features work once J.H AI Agent is connected. It is not connected now.': 'AI 기능은 J.H AI Agent에 연결하면 사용할 수 있습니다. 현재 연결되어 있지 않습니다.',
+    'This build does not include AI features (built without J.H AI Agent).': '이 빌드에는 AI 기능이 포함되어 있지 않습니다 (J.H AI Agent 없이 빌드).',
+    'Connect…': '연결…',
 };

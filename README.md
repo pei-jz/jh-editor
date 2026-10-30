@@ -266,6 +266,9 @@ the agent's model calls back into the editor for context.
   publishes, `14300` by default) and asks to connect; you approve in the agent's window
   after comparing a six-digit code. The grant lives in memory only, so closing either app
   ends it. A different address can be set in Settings
+- **Without the agent** — nothing is probed at startup. When you open the inline AI
+  popup or the chat panel and the agent does not answer, the panel says so, with a
+  *Connect…* button that starts the agent (or opens its download page)
 
 ### 🧭 Language support
 
@@ -412,8 +415,11 @@ Two things worth knowing:
 - [Rust](https://rustup.rs/) (latest stable)
 - [Tauri CLI](https://tauri.app/start/) v2
 
-> The `@jh/ai-client` dependency is resolved from `../jh-ai-agent/packages/jh-ai-client`.
-> Check out both repositories side by side, or the install will fail.
+> AI features need `@jh/ai-client`, an optional dependency resolved from
+> `../jh-ai-agent/packages/jh-ai-client`. Check out
+> [jh-ai-agent](https://github.com/pei-jz/jh-ai-agent) next to this repository to
+> include them. Without it, `npm install`, `npm test` and the build still work — the
+> editor runs with AI turned off, and the AI commands say so.
 
 ```sh
 npm install
