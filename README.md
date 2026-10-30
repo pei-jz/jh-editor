@@ -131,7 +131,11 @@ switches modes; the current mode is always shown in the status bar.
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
-- **File search** (`Ctrl+P`), **tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
+- **File search** (`Ctrl+P` or `Ctrl+Shift+R`) — the workspace's file list is indexed
+  once, then every keystroke narrows it in milliseconds. Globs work (`*設計*.xlsx`, or a
+  path glob with `/`), and `Enter` opens the hit — a workbook straight into the Office
+  preview, so finding one design document among thousands and reading it is a few keys
+- **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
 - **Compare** two files from the explorer, or two whole **folders** (recursive: differing files
   open as a diff, files present on only one side are marked `+` / `-`)
 - **Huge files** — beyond a threshold, files open through a Rust `mmap` backend that serves
@@ -463,7 +467,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+N` / `Ctrl+W` | New file / Close tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+P` | Command palette |
-| `Ctrl+P` | File search |
+| `Ctrl+P` / `Ctrl+Shift+R` | File search |
 | `Ctrl+T` | Tab search |
 | `Ctrl+G` | Workspace grep (supports globs) |
 | `Ctrl+F` | Search in file |
