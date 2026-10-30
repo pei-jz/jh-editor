@@ -27,7 +27,7 @@ editor is actually ready, so there is no white flash and no empty frame.
 
 ### Where it earns its place
 
-- **Finding one design document among thousands.** `Ctrl+Shift+R` (or `Ctrl+P`) narrows
+- **Finding one design document among thousands.** `Ctrl+Shift+R` narrows
   the whole workspace as you type — by name, by path, by glob (`*設計*.xlsx`) — and
   `Enter` opens an Excel workbook straight into a read-only Office preview that keeps
   its column widths, merged cells and borders. No waiting for Excel to start.
@@ -146,7 +146,7 @@ that tab; the current mode is always shown in the status bar.
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
-- **File search** (`Ctrl+P` or `Ctrl+Shift+R`) — the workspace's file list is indexed
+- **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
   exact name, then a name that starts with the query, then one that contains it, then
   the folder path — and the letters in order are enough (`flsrch` finds
@@ -156,13 +156,16 @@ that tab; the current mode is always shown in the status bar.
 - **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
 - **Compare** two files from the explorer, or two whole **folders** (recursive: differing files
   open as a diff, files present on only one side are marked `+` / `-`)
+- **Printing** (`Ctrl+P`) — a preview first, where you choose to keep the theme's
+  colours (the dark background included) or print on white; code gets syntax colours and
+  optional line numbers, Markdown prints fully rendered. "Save as PDF" is in the dialog that follows
 - **Huge files** — beyond a threshold, files open through a Rust `mmap` backend that serves
   only the visible lines; editing uses a `ropey`-backed sliding window, so a 100 MB log
   neither freezes the UI nor gets pulled into JS memory
 - **Encoding** — auto-detection (`chardetng`) plus manual override (UTF-8, Shift-JIS, EUC-JP, …),
   and explicit CRLF/LF control that never changes on its own
 - **Office files** — `.xlsx` / `.docx` / `.pptx` open in the preview below rather than
-  being hidden as binaries; they appear in the explorer and in `Ctrl+P`
+  being hidden as binaries; they appear in the explorer and in file search
 
 ### 🎞️ Slides (jh-presentation decks)
 
@@ -490,7 +493,8 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+N` / `Ctrl+W` | New file / Close tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+P` | Command palette |
-| `Ctrl+P` / `Ctrl+Shift+R` | File search |
+| `Ctrl+P` | Print (preview, keeping the theme colours or on white) |
+| `Ctrl+Shift+R` | File search |
 | `Ctrl+T` | Tab search |
 | `Ctrl+G` | Workspace grep (supports globs) |
 | `Ctrl+F` | Search in file |

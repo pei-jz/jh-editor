@@ -8,6 +8,7 @@ import * as Markdown from '../utils/Markdown.js';
 import { escapeForMermaid } from '../utils/Markdown.js';
 import { icon as svgIcon } from '../ui/Icons.js';
 import { Toast } from '../ui/Toast.js';
+import PrintPreview from '../ui/PrintPreview.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { sanitizeHtml } from '../utils/SanitizeHtml.js';
 import { TableEditor } from '../editors/TableEditor.js';
@@ -3582,73 +3583,33 @@ export class MarkdownView extends BaseView {
     }
 
     /**
-     * Export the whole document as PDF.
+     * What Ctrl+P prints for this document: the whole of it rendered, not the
+     * blocks that happen to be on screen (rendering is lazy, and book mode
+     * shows two pages at a time).
      *
-     * Renders the Markdown into an offscreen iframe and prints it: the webview's
-     * print pipeline already lays out the real fonts, images (asset:// URLs are
-     * inherited) and KaTeX output, so the PDF matches what is on screen without
-     * pulling in a PDF library. The user picks "Save as PDF" in the dialog.
+     * The webview's print pipeline lays out the real fonts, images (asset://
+     * URLs are inherited) and KaTeX output, so the paper matches the preview
+     * without a PDF library. prepare() runs against the print frame's own
+     * document, so Mermaid picks its palette from the colours being printed.
      */
-    async exportToPdf() {
-        try {
-            const source = (this.blocksData || []).join('\n\n');
-            const html = this._parseMarkdown(source);
-            const title = (this.file && (this.file.name || this.file.path))
-                ? String(this.file.name || this.file.path).split(/[\\/]/).pop().replace(/\.\w+$/, '')
-                : 'document';
+    getPrintContent() {
+        const source = (this.blocksData || []).join('\n\n');
+        return {
+            html: `<div class="md-body">${this._parseMarkdown(source)}</div>`,
+            prepare: async (doc) => {
+                if (MdAssets.hasMath(source)) await MdAssets.renderMath(doc.body);
+                try { await Markdown.renderMermaid(doc.body); } catch (_) { /* optional */ }
+            },
+        };
+    }
 
-            // Reuse the app's own stylesheets so the export matches the preview.
-            const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-                .map(el => el.outerHTML).join('\n');
-
-            const frame = document.createElement('iframe');
-            frame.setAttribute('aria-hidden', 'true');
-            frame.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; opacity:0;';
-            document.body.appendChild(frame);
-
-            const doc = frame.contentDocument;
-            doc.open();
-            doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${this._escapeAttr(title)}</title>${styles}
-                <style>
-                  @page { margin: 16mm; }
-                  body { background:#fff; color:#111; margin:0; padding:0; }
-                  .md-body { max-width:none; padding:0; }
-                  .md-body img { max-width:100%; }
-                  pre, blockquote, table, img, .katex-display { break-inside: avoid; }
-                  h1,h2,h3 { break-after: avoid; }
-                </style>
-                </head><body><div class="md-body">${html}</div></body></html>`);
-            doc.close();
-
-            // Math/diagrams need to be materialised before printing.
-            if (MdAssets.hasMath(source)) {
-                await MdAssets.renderMath(doc.body);
-            }
-            try { await Markdown.renderMermaid(doc.body); } catch (_) { /* optional */ }
-
-            // Give images a moment to decode, otherwise they print blank.
-            await new Promise((resolve) => {
-                const imgs = Array.from(doc.images || []);
-                if (imgs.length === 0) return resolve();
-                let left = imgs.length;
-                const done = () => { if (--left <= 0) resolve(); };
-                imgs.forEach(img => {
-                    if (img.complete) return done();
-                    img.addEventListener('load', done, { once: true });
-                    img.addEventListener('error', done, { once: true });
-                });
-                setTimeout(resolve, 3000); // don't hang on a broken asset
-            });
-
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-            // Leave the frame alive briefly — removing it during the modal print
-            // dialog cancels the job in some webviews.
-            setTimeout(() => { try { frame.remove(); } catch (_) {} }, 60000);
-        } catch (e) {
-            console.error('PDF export failed', e);
-            if (window.showToast) window.showToast('PDF export failed');
-        }
+    /**
+     * Export as PDF: the print preview, where "Save as PDF" is one of the
+     * printers. It used to print straight from a hidden frame — the same
+     * output, without the choice of colours.
+     */
+    exportToPdf() {
+        PrintPreview.show({ view: this, file: this.file });
     }
 
     /**

@@ -3,7 +3,7 @@ import { EL } from './Constants.js';
 import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
-import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
+import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, getActiveFile, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -43,6 +43,7 @@ import { DailyNotes } from '../utils/DailyNotes.js';
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
 import { Toast } from '../ui/Toast.js';
+import PrintPreview from '../ui/PrintPreview.js';
 import { initDroppedFiles, isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -631,6 +632,7 @@ async function bootstrap() {
         'app:save-as': saveCurrentFileAs,
         'app:search': toggleSearch,
         'app:file-search': () => FileSearchModal.show(),
+        'app:print': () => PrintPreview.show({ view: getCurrentView(), file: getActiveFile() }),
         'app:grep': () => GrepModal.show(),
         'app:format': formatCurrentFile,
         'app:outline-modal': () => OutlineModal.show(),
