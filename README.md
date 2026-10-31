@@ -35,7 +35,7 @@ editor is actually ready, so there is no white flash and no empty frame.
   sort, resize and edit, and every cell stays the text it was — no dates turned into
   serial numbers, no leading zeros dropped, and a Shift_JIS file is saved as Shift_JIS.
 - **Reading Markdown, and editing it a block at a time.** A `.md` file opens rendered —
-  Mermaid, tables and math included — and a double-click (or `F2`) opens just that block
+  Mermaid, tables and math included — and `F2` (or the pencil on the block) opens just that block
   beside a live preview.
 
 ---
@@ -111,9 +111,9 @@ that tab; the current mode is always shown in the status bar.
 | Mode | What it is |
 |------|-----------|
 | **Text** | CodeMirror 6 with per-language syntax highlighting, bracket & selected-word matching, whitespace markers, code folding, word wrap, and a scrollbar minimap of search hits |
-| **Markdown (block)** | Notion-style block editing. Double-click or `F2` opens a large split modal — source on the left, live preview on the right |
+| **Markdown (block)** | Notion-style block editing. `F2` or the block's pencil opens a large split modal — source on the left, live preview on the right |
 | **Structure** | Tree + source dual pane for JSON / XML / HTML / JSP, with drag-and-drop node manipulation |
-| **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
+| **Table (CSV/TSV)** | Spreadsheet-style grid: double-click or `F2` edits a cell; virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
 | **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
 | **3-way merge** | For a Git conflict: base, ours and theirs lined up row for row with the result. One click takes a side (or both); *Save and mark resolved* moves on to the next conflicted file |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |

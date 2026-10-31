@@ -82,3 +82,85 @@ describe('a press in the CSV grid keeps the keyboard there', () => {
         expect(cellPress(ctl, { button: 2 }).defaultPrevented).toBe(false);
     });
 });
+
+/* Double-click opens a cell as F2 does. The browser's own dblclick could not
+   do it: each press redraws the rows, so the two clicks hit two different
+   <td>s and the event never named a cell. The second press is recognised in
+   the mousedown instead. */
+describe('a double-click in the CSV grid edits the cell', () => {
+    const cellAt = (ctl, r, c) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td data-r="${r}" data-c="${c}">x</td>`;
+        ctl.view.contentTableTBody.appendChild(tr);
+        return tr.firstChild;
+    };
+    const pressAt = (ctl, r, c, init) => press(cellAt(ctl, r, c), init);
+
+    it('opens the cell on a second press of the same cell', () => {
+        const ctl = openGrid();
+        const calls = [];
+        ctl.startEditing = (r, c) => calls.push([r, c]);
+        pressAt(ctl, 1, 2);
+        expect(calls).toEqual([]);
+        pressAt(ctl, 1, 2);
+        expect(calls).toEqual([[1, 2]]);
+    });
+
+    it('does not open on presses of two different cells', () => {
+        const ctl = openGrid();
+        const calls = [];
+        ctl.startEditing = (r, c) => calls.push([r, c]);
+        pressAt(ctl, 1, 2);
+        pressAt(ctl, 1, 1);
+        expect(calls).toEqual([]);
+    });
+
+    it('a third quick press starts over rather than reopening', () => {
+        const ctl = openGrid();
+        const calls = [];
+        ctl.startEditing = (r, c) => calls.push([r, c]);
+        pressAt(ctl, 0, 0); pressAt(ctl, 0, 0); pressAt(ctl, 0, 0);
+        expect(calls).toEqual([[0, 0]]);
+    });
+
+    it('a Shift press after a press on the same cell does not open it', () => {
+        const ctl = openGrid();
+        const calls = [];
+        ctl.startEditing = (r, c) => calls.push([r, c]);
+        pressAt(ctl, 1, 1);
+        pressAt(ctl, 1, 1, { shiftKey: true });
+        expect(calls).toEqual([]);
+    });
+});
+
+/* Shift+click (and Ctrl+click) extends the selection from its anchor to the
+   clicked cell, as Shift+Arrow does: the active cell stays where it was. Every
+   press used to start a fresh one-cell selection whatever the modifiers. */
+describe('Shift / Ctrl + click in the CSV grid extends the selection', () => {
+    const pressAt = (ctl, r, c, init) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td data-r="${r}" data-c="${c}">x</td>`;
+        ctl.view.contentTableTBody.appendChild(tr);
+        return press(tr.firstChild, init);
+    };
+
+    for (const [name, mod] of [['Shift', { shiftKey: true }], ['Ctrl', { ctrlKey: true }]]) {
+        it(`${name}+click spans from the anchor to the clicked cell`, () => {
+            const ctl = openGrid();
+            pressAt(ctl, 0, 0);
+            pressAt(ctl, 2, 1, mod);
+            expect(ctl.view.selection.start).toEqual({ r: 0, c: 0 });
+            expect(ctl.view.selection.end).toEqual({ r: 2, c: 1 });
+            expect(ctl.view.cursor).toEqual({ r: 0, c: 0 });
+        });
+    }
+
+    it('a second Shift+click re-spans from the same anchor', () => {
+        const ctl = openGrid();
+        pressAt(ctl, 1, 1);
+        pressAt(ctl, 2, 2, { shiftKey: true });
+        pressAt(ctl, 0, 0, { shiftKey: true });
+        expect(ctl.view.selection.start).toEqual({ r: 1, c: 1 });
+        expect(ctl.view.selection.end).toEqual({ r: 0, c: 0 });
+    });
+});

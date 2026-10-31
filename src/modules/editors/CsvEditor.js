@@ -414,12 +414,6 @@ export class CsvView {
                 this.inputController.handleCellOver(parseInt(td.dataset.r, 10), parseInt(td.dataset.c, 10), e);
             }
         });
-        this.contentTableTBody.addEventListener('dblclick', (e) => {
-            const td = e.target.closest('td');
-            if (td && td.dataset.r !== undefined) {
-                this.inputController.handleCellDblClick(parseInt(td.dataset.r, 10), parseInt(td.dataset.c, 10), td, e);
-            }
-        });
         this.contentTableTBody.addEventListener('contextmenu', (e) => {
             const td = e.target.closest('td');
             if (td && td.dataset.r !== undefined) {
@@ -1241,11 +1235,34 @@ class CsvController {
 
         this._takeFocus(e);
 
-        this.isDragging = true;
+        // Shift (or Ctrl) extends the rectangle from its anchor to this cell,
+        // as Shift+Arrow does: the active cell and the anchor stay put. Ctrl
+        // too, because the grid holds one rectangle — it cannot keep Excel's
+        // separate Ctrl ranges — and Ctrl is what people reach for to add to
+        // a selection. Dragging on from here keeps extending it.
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            this._lastCellDown = null;
+            this.isDragging = true;
+            this.view.selection.end = { r, c };
+            this.view.refreshSelection();
+            return;
+        }
+
+        // A second press on the same cell opens it, as F2 does. Recognised
+        // here rather than with a dblclick listener: the press redraws the
+        // rows, so the two clicks land on two different <td>s and the
+        // browser's own dblclick never names a cell.
+        const now = Date.now();
+        const last = this._lastCellDown;
+        const isDouble = !!last && last.r === r && last.c === c && now - last.time < 400;
+        this._lastCellDown = isDouble ? null : { r, c, time: now };
+
+        this.isDragging = !isDouble;
         this.view.cursor = { r, c };
         this.view.selection.start = { r, c };
         this.view.selection.end = { r, c };
         this.view.refreshSelection();
+        if (isDouble) this.startEditing(r, c);
     }
 
     handleCellOver(r, c, e) {
@@ -1385,10 +1402,6 @@ class CsvController {
         this.view.selection.start = { r: 0, c: 0 };
         this.view.selection.end = { r: this.model.getRowCount() - 1, c: this.model.getColCount() - 1 };
         this.view.refreshSelection();
-    }
-
-    handleCellDblClick(r, c, td, e) {
-        this.startEditing(r, c);
     }
 
     startEditing(r, c, initialVal = null) {

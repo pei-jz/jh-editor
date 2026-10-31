@@ -727,10 +727,9 @@ export class MarkdownView extends BaseView {
                 };
                 tools.append(copyBtn, icon);
                 div.appendChild(tools);
-                div.ondblclick = (e) => {
-                    e.stopPropagation();
-                    this.enterEditMode(div, blockText, index);
-                };
+                // No double-click to edit: a double-click selects the word, as
+                // it does anywhere else you read text (picking a word to copy
+                // opened the editor instead). F2 or the pencil opens the block.
 
                 div.dataset.rendered = "true";
                 setTimeout(async () => {
@@ -1925,16 +1924,7 @@ export class MarkdownView extends BaseView {
                 div.click();
                 return;
             }
-            // Prefer the real dblclick handler (set by _renderBlockInternal), but
-            // fall back to entering edit mode directly — lazy rendering may not
-            // have attached ondblclick yet, so dispatching a dblclick event would
-            // silently do nothing (F2 appeared broken on unrendered blocks).
-            if (typeof div.ondblclick === 'function' && div.dataset.rendered) {
-                const event = new MouseEvent('dblclick', { 'view': window, 'bubbles': true, 'cancelable': true });
-                div.dispatchEvent(event);
-            } else {
-                this.enterEditMode(div, (this.blocksData && this.blocksData[index]) || '', index);
-            }
+            this.enterEditMode(div, (this.blocksData && this.blocksData[index]) || '', index);
         }
     }
 
