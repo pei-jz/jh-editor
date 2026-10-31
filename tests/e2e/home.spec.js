@@ -26,13 +26,14 @@ test.describe('JHEditor E2E', () => {
     const themeSelector = page.locator('#theme-selector');
     await expect(themeSelector).toBeVisible();
 
-    // Apply a non-default theme through the real onchange handlers: the
-    // family, then the mode.
-    const modeSelector = page.locator('#theme-mode-selector');
-    await modeSelector.selectOption('dark');
+    // Apply a non-default theme through the real handlers: the family, then
+    // the mode, which is a row of buttons.
+    const modeButton = (mode) => page.locator(`#theme-mode-switch button[data-mode="${mode}"]`);
+    await modeButton('dark').click();
+    await expect(modeButton('dark')).toHaveAttribute('aria-checked', 'true');
     await themeSelector.selectOption('nord');
     await expect(page.locator('body')).toHaveClass(/theme-nord(\s|$)/);
-    await modeSelector.selectOption('light');
+    await modeButton('light').click();
     await expect(page.locator('body')).toHaveClass(/theme-nord-light/);
 
     // Back to the standard light: applyTheme removes every theme-* class.

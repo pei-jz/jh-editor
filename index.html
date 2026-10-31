@@ -384,35 +384,45 @@
                  2x2 grid, so the two settings and their two scopes read as
                  one decision instead of four look-alike rows. -->
             <div class="theme-settings">
-              <div class="theme-grid">
-                <span></span>
-                <span class="theme-grid-head" id="theme-col-all" data-i18n="All windows">All windows</span>
-                <span class="theme-grid-head" id="theme-col-ws" data-i18n="This workspace">This workspace</span>
-
-                <label for="theme-selector" id="theme-row-theme" data-i18n="Theme">Theme</label>
+              <div class="settings-option">
+                <label for="theme-selector" data-i18n="Theme">Theme</label>
                 <!-- Options are built from utils/Themes.js at startup;
                      adding a theme there is enough. -->
                 <select id="theme-selector"></select>
-                <select id="workspace-theme-selector" aria-labelledby="theme-row-theme theme-col-ws">
-                  <option value="" data-i18n="Same as all windows">Same as all windows</option>
-                </select>
-
-                <label for="theme-mode-selector" id="theme-row-mode" data-i18n="Mode">Mode</label>
-                <select id="theme-mode-selector">
-                  <option value="light" data-i18n="Light">Light</option>
-                  <option value="dark" data-i18n="Dark">Dark</option>
-                  <option value="system" data-i18n="Match the system">Match the system</option>
-                </select>
-                <select id="workspace-mode-selector" aria-labelledby="theme-row-mode theme-col-ws">
-                  <option value="" data-i18n="Same as all windows">Same as all windows</option>
-                  <option value="light" data-i18n="Light">Light</option>
-                  <option value="dark" data-i18n="Dark">Dark</option>
-                  <option value="system" data-i18n="Match the system">Match the system</option>
-                </select>
               </div>
-              <div class="theme-now" id="theme-now"></div>
-              <div class="settings-description" data-i18n="Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.">
-                Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.
+              <div class="settings-option">
+                <label id="theme-mode-label" data-i18n="Mode">Mode</label>
+                <div class="theme-mode-switch" id="theme-mode-switch" role="radiogroup" aria-labelledby="theme-mode-label">
+                  <button type="button" role="radio" data-mode="light" data-i18n="Light">Light</button>
+                  <button type="button" role="radio" data-mode="dark" data-i18n="Dark">Dark</button>
+                  <button type="button" role="radio" data-mode="system" data-i18n="Match the system">Match the system</button>
+                </div>
+              </div>
+              <div class="settings-option">
+                <span class="theme-ws-spacer"></span>
+                <div class="theme-ws-check">
+                  <label>
+                    <input type="checkbox" id="workspace-theme-override">
+                    <span data-i18n="Change for this workspace only">Change for this workspace only</span>
+                  </label>
+                  <div class="settings-description theme-ws-hint" data-i18n="Tells this window apart from other projects at a glance.">
+                    Tells this window apart from other projects at a glance.
+                  </div>
+                </div>
+              </div>
+              <div class="theme-ws-rows" id="workspace-theme-rows" hidden>
+                <div class="settings-option">
+                  <label for="workspace-theme-selector" data-i18n="Theme">Theme</label>
+                  <select id="workspace-theme-selector"></select>
+                </div>
+                <div class="settings-option">
+                  <label id="workspace-mode-label" data-i18n="Mode">Mode</label>
+                  <div class="theme-mode-switch" id="workspace-mode-switch" role="radiogroup" aria-labelledby="workspace-mode-label">
+                  <button type="button" role="radio" data-mode="light" data-i18n="Light">Light</button>
+                  <button type="button" role="radio" data-mode="dark" data-i18n="Dark">Dark</button>
+                  <button type="button" role="radio" data-mode="system" data-i18n="Match the system">Match the system</button>
+                </div>
+                </div>
               </div>
             </div>
             <div class="settings-option">

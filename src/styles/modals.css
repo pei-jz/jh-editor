@@ -228,79 +228,81 @@
     color: var(--text-color);
 }
 
-/* ── Theme and mode: rows are the setting, columns are where it applies ──
-   Four stacked rows ("theme", "mode", "theme for this workspace", "mode for
-   this workspace") read as four unrelated settings, with labels long enough
-   to wrap. As a grid the label is said once per row and once per column. */
-.theme-settings {
-    margin: 4px 0 24px;
-    padding: 14px 16px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--surface-sunken);
-}
-
-.theme-grid {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px 12px;
-    align-items: center;
-}
-
-.theme-grid-head {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.theme-grid label {
-    font-size: 0.95em;
-    font-weight: 500;
-    padding-right: 12px;
-}
-
-.theme-grid select {
-    width: 100%;
+/* ── Theme and mode ──
+   The same label-left, control-right rows as every other setting. This
+   workspace's own pair sits behind a checkbox and only shows when ticked. */
+.theme-mode-switch {
+    display: flex;
+    width: 400px;
     box-sizing: border-box;
-    padding: 7px 8px;
-    border-radius: 4px;
     border: 1px solid var(--border-color);
-    background: var(--bg-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* The id outranks Paper's and Bamboo's `body.theme-x button`, which would
+   otherwise restyle each segment as a free-standing button. */
+#settings-general .theme-mode-switch button {
+    flex: 1;
+    margin: 0;
+    padding: 8px 4px;
+    border: 0;
+    border-left: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--bg-tertiary);
     color: var(--text-color);
+    font: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
 }
 
-/* Paper and Bamboo set every select in monospace (!important, for code and
-   numeric fields). A theme name is neither, and "OS" in that face read as
-   "os". The id is what outranks their `body.theme-x select`. */
-#settings-general .theme-grid select {
-    font-family: var(--font-main) !important;
+#settings-general .theme-mode-switch button:first-child {
+    border-left: 0;
 }
 
-/* A workspace column left on "same as all windows" is not a choice of its
-   own, so it steps back. */
-.theme-grid select.is-inherited {
-    color: var(--text-muted);
-    border-style: dashed;
+#settings-general .theme-mode-switch button:hover {
+    background: var(--hover-color, var(--bg-color-secondary));
 }
 
-.theme-grid select:disabled {
+#settings-general .theme-mode-switch button.is-on {
+    background: var(--primary-color);
+    color: var(--text-on-primary);
+}
+
+.theme-ws-spacer {
+    flex: 1;
+}
+
+.settings-option .theme-ws-check {
+    width: 400px;
+}
+
+.settings-option .theme-ws-check label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.settings-option .theme-ws-check .settings-description {
+    margin: 4px 0 0 26px;
+}
+
+/* The hint says what ticking does; once ticked, the rows it opened sit
+   straight under the checkbox instead of below a paragraph. */
+.theme-ws-check:has(input:checked) .theme-ws-hint {
+    display: none;
+}
+
+.theme-ws-check input:disabled + span {
     opacity: 0.55;
 }
 
-/* What the window actually resolves to, after the workspace column and the
-   OS have had their say. */
-.theme-now {
-    margin-top: 12px;
-    font-size: 12px;
+/* This workspace's rows, set in under the checkbox that opened them. */
+.theme-ws-rows .settings-option > label {
+    padding-left: 20px;
     color: var(--text-muted);
-}
-
-.theme-now strong {
-    color: var(--text-color);
-    font-weight: 600;
-}
-
-.theme-settings .settings-description {
-    margin: 4px 0 0;
 }
 
 /* About — the version block at the foot of the General tab. Set apart from the
