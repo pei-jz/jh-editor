@@ -315,7 +315,8 @@ OS as it switches. Every theme has both halves.
 
 Which half is showing decides the syntax, Mermaid and terminal palettes. Hanging Scroll's
 light half counts as light: its mount is indigo, but the sheet you read is pale silk. A
-workspace can pick its own theme; the mode is shared by every window. To add a theme, see
+workspace can pick its own theme and its own mode; either one left unset follows the global
+setting. To add a theme, see
 [docs/THEMING.md](docs/THEMING.md).
 
 ---

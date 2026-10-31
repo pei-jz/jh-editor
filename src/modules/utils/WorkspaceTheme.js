@@ -7,9 +7,8 @@
  * workspace can now carry its own theme; one without keeps following the
  * global setting, so nothing changes for anyone who never sets it.
  *
- * A workspace picks a FAMILY only. Light or dark is one decision for every
- * window — otherwise, with the mode following the OS, some windows would turn
- * dark at sunset and others would not.
+ * A workspace can override the family, the mode, or both; whatever it leaves
+ * alone follows the global setting.
  *
  * Stored in localStorage, which every window shares: set it in one window and
  * the next window that opens that workspace picks it up.
@@ -21,20 +20,23 @@
  *                       install from before the mode existed; see followSystem.
  *   workspaceThemes     { workspaceKey: familyId }. Older entries hold a theme
  *                       id, which is read as that theme's family.
+ *   workspaceThemeModes { workspaceKey: 'light' | 'dark' | 'system' }
  */
 import { DEFAULT_THEME, themeById, familyOf, variantOf } from './Themes.js';
 
 const MAP_KEY = 'workspaceThemes';
+const MODE_MAP_KEY = 'workspaceThemeModes';
 const FOLLOW_KEY = 'themeFollowSystem';
+const MODES = ['light', 'dark', 'system'];
 
 /** The key a workspace is stored under: separators and case do not make two workspaces. */
 export function workspaceKey(dir) {
     return String(dir || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-function readMap() {
+function readMap(key = MAP_KEY) {
     try {
-        const raw = localStorage.getItem(MAP_KEY);
+        const raw = localStorage.getItem(key);
         const map = raw ? JSON.parse(raw) : {};
         return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
     } catch (_) {
@@ -42,9 +44,9 @@ function readMap() {
     }
 }
 
-function writeMap(map) {
+function writeMap(map, key = MAP_KEY) {
     try {
-        localStorage.setItem(MAP_KEY, JSON.stringify(map));
+        localStorage.setItem(key, JSON.stringify(map));
     } catch (_) { /* private mode: the choice lasts this session only */ }
 }
 
@@ -139,10 +141,28 @@ export function setWorkspaceTheme(dir, family) {
     writeMap(map);
 }
 
+/** The mode `dir` has of its own, or null when it follows the global one. */
+export function workspaceMode(dir) {
+    if (!dir) return null;
+    const mode = readMap(MODE_MAP_KEY)[workspaceKey(dir)];
+    return MODES.includes(mode) ? mode : null;
+}
+
+/** Give `dir` its own mode; null (or '') makes it follow the global one again. */
+export function setWorkspaceMode(dir, mode) {
+    if (!dir) return;
+    const map = readMap(MODE_MAP_KEY);
+    const key = workspaceKey(dir);
+    if (MODES.includes(mode)) map[key] = mode;
+    else delete map[key];
+    writeMap(map, MODE_MAP_KEY);
+}
+
 /** The theme id a window on `dir` shows. */
 export function effectiveTheme(dir) {
     const family = workspaceTheme(dir) || globalFamily();
-    const dark = followSystem() ? systemPrefersDark() : themeById(globalTheme()).dark;
+    const mode = workspaceMode(dir) || themeMode();
+    const dark = mode === 'system' ? systemPrefersDark() : mode === 'dark';
     return variantOf(family, dark);
 }
 

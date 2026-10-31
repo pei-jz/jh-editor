@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
     globalTheme, setGlobalTheme, workspaceTheme, setWorkspaceTheme, effectiveTheme, workspaceKey,
     globalFamily, setGlobalFamily, themeMode, setThemeMode, followSystem,
+    workspaceMode, setWorkspaceMode,
 } from '../src/modules/utils/WorkspaceTheme.js';
 import { DEFAULT_THEME } from '../src/modules/utils/Themes.js';
 import {
@@ -35,14 +36,42 @@ describe('workspace themes', () => {
         expect(effectiveTheme('')).toBe('nord');
     });
 
-    // Light or dark is one decision for every window; a workspace only
-    // picks the family.
+    // A workspace that sets only its family takes the global mode.
     it('shows the workspace family in the global mode', () => {
         setWorkspaceTheme('C:/proj', 'kakejiku');
         setThemeMode('dark');
         expect(effectiveTheme('C:/proj')).toBe('kakejiku-dark');
         setThemeMode('light');
         expect(effectiveTheme('C:/proj')).toBe('kakejiku');
+    });
+
+    it('keeps a mode per workspace, apart from its family', () => {
+        setGlobalTheme('nord');                          // global: Nord, dark
+        setWorkspaceMode('C:/proj', 'light');
+        expect(effectiveTheme('C:/proj')).toBe('nord-light');
+        expect(effectiveTheme('C:/other')).toBe('nord');
+
+        setWorkspaceTheme('C:/proj', 'kakejiku');
+        expect(effectiveTheme('C:/proj')).toBe('kakejiku');
+        setWorkspaceMode('C:/proj', 'dark');
+        expect(effectiveTheme('C:/proj')).toBe('kakejiku-dark');
+    });
+
+    it('lets a workspace follow the OS while the global mode is fixed', () => {
+        setWorkspaceMode('C:/proj', 'system');
+        expect(workspaceMode('C:/proj')).toBe('system');
+        const dark = !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+        expect(effectiveTheme('C:/proj')).toBe(dark ? 'kakejiku-dark' : 'kakejiku');
+    });
+
+    it('goes back to the global mode when cleared, or when the value is unknown', () => {
+        setWorkspaceMode('C:/proj', 'dark');
+        setWorkspaceMode('C:/proj', null);
+        expect(workspaceMode('C:/proj')).toBeNull();
+
+        localStorage.setItem('workspaceThemeModes', JSON.stringify({ 'c:/proj': 'dusk' }));
+        expect(workspaceMode('C:/proj')).toBeNull();
+        expect(workspaceMode('')).toBeNull();
     });
 
     it("reads a workspace saved as a theme id as that theme's family", () => {

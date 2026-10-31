@@ -17,8 +17,9 @@ Bamboo Slip gained light halves.
   family; while the mode is fixed, which half it is *is* the mode.
 - `themeFollowSystem` is `'true'` when the mode follows the OS. A new install
   follows; one that saved a theme before the mode existed keeps its choice.
-- A workspace's own theme is a family only. Light or dark is one decision for
-  every window, so they all turn dark together when the OS does.
+- A workspace can set its own family (`workspaceThemes`) and its own mode
+  (`workspaceThemeModes`) separately; whatever it leaves unset follows the
+  global setting.
 
 `WorkspaceTheme.effectiveTheme(dir)` puts the three together. `index.html`
 repeats the pairing for the pre-stylesheet paint, and a test holds the two
