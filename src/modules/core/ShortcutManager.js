@@ -110,6 +110,10 @@ export class ShortcutManager {
      */
     resolveScope(target) {
         if (!target || typeof target.closest !== 'function') return null;
+        // A target that left the document during its own mousedown (the CSV
+        // grid redraws the clicked cell) matches no area below and would fall
+        // through to GLOBAL, undoing the scope its focus change just set.
+        if (target.isConnected === false) return null;
 
         if (target.closest('.visual-table-editor')) return 'MARKDOWN_TABLE';
         // The virtualized explorer renders rows inside #file-list (older markup

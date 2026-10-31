@@ -66,6 +66,16 @@ describe('ShortcutManager.resolveScope', () => {
             expect(sm.resolveScope(nest([{ cls: 'csv-grid-virtual-container' }, { tag: 'input' }]))).toBe('CSV_EDIT');
             expect(sm.resolveScope(nest([{ cls: 'csv-row-strip' }, { tag: 'textarea' }]))).toBe('CSV_EDIT');
         });
+
+        // The grid redraws the clicked cell inside its own mousedown, so the
+        // document-level listener sees a <td> that is no longer anywhere. It
+        // used to fall through to GLOBAL and take the CSV keys away.
+        it('leaves the scope alone for a cell already removed from the page', () => {
+            sm.setScope('CSV');
+            const td = nest([{ cls: 'csv-grid-virtual-container' }, { tag: 'tr' }, { tag: 'td' }]);
+            td.parentElement.remove();
+            expect(sm.resolveScope(td)).toBeNull();
+        });
     });
 
     describe('markdown blocks', () => {

@@ -1220,14 +1220,26 @@ class CsvController {
 
     // --- Inputs ---
 
+    /**
+     * Give the grid the keyboard on a press in a cell or header. The press
+     * redraws the rows (and so the element under the pointer) before the
+     * browser's own mousedown step runs; that step then finds the target gone
+     * and drops focus to <body>, where F2, typing and the arrows no longer
+     * reach the grid. So take the focus here and cancel the browser's step.
+     * The grid container, not the outer view: the CSV shortcut scope is read
+     * from where the focus is, and only the container resolves to it.
+     */
+    _takeFocus(e) {
+        const grid = this.view.gridContainer;
+        if (document.activeElement !== grid) grid.focus({ preventScroll: true });
+        e.preventDefault();
+    }
+
     handleCellDown(r, c, e) {
         if (e.button === 2) return; // Right click
         if (e.target.isContentEditable) return;
 
-        // Ensure container has focus so valid global key events will fire from now on
-        if (document.activeElement !== this.viewContainer) {
-            this.viewContainer.focus({ preventScroll: true });
-        }
+        this._takeFocus(e);
 
         this.isDragging = true;
         this.view.cursor = { r, c };
@@ -1255,9 +1267,7 @@ class CsvController {
 
     handleRowHeaderDown(r, e) {
         if (e.button === 2) return; // right-click → context menu
-        if (document.activeElement !== this.viewContainer) {
-            this.viewContainer.focus({ preventScroll: true });
-        }
+        this._takeFocus(e);
         if (!(e.shiftKey && this.rowAnchor != null)) this.rowAnchor = r;
         this.isRowDragging = true;
         // Active cell goes to the first column of the clicked row.
@@ -1275,9 +1285,7 @@ class CsvController {
 
     handleColHeaderDown(c, e) {
         if (e.button === 2) return; // right-click → context menu
-        if (document.activeElement !== this.viewContainer) {
-            this.viewContainer.focus({ preventScroll: true });
-        }
+        this._takeFocus(e);
         if (!(e.shiftKey && this.colAnchor != null)) this.colAnchor = c;
         this.isColDragging = true;
         // Active cell goes to the first row of the clicked column.
