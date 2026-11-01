@@ -36,6 +36,7 @@ import { OfficeView } from '../views/OfficeView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
 import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
+import { Toast } from '../ui/Toast.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
 import {
@@ -1825,18 +1826,16 @@ export function renderTabs(targetPane = null) {
                 const dirtyMark = document.createElement('span');
                 dirtyMark.className = 'tab-dirty';
                 dirtyMark.textContent = '*';
+                // The mark that says "changed" is also the way to see what
+                // changed. A separate icon cost every edited tab its width.
+                if (canCompareWithSaved(file)) {
+                    dirtyMark.classList.add('tab-dirty-link');
+                    dirtyMark.setAttribute('role', 'button');
+                    const binding = shortcuts.bindingFor('app:diff');
+                    dirtyMark.title = binding ? `${t('Compare with Saved File')} (${binding})` : t('Compare with Saved File');
+                    dirtyMark.onclick = (e) => { e.stopPropagation(); compareWithDisk(file); };
+                }
                 tab.appendChild(dirtyMark);
-            }
-            // Offered where the question comes up: the moment a tab has edits is
-            // the moment someone wonders what they changed.
-            if (canCompareWithSaved(file)) {
-                const compareBtn = document.createElement('span');
-                compareBtn.className = 'tab-compare';
-                const binding = shortcuts.bindingFor('app:diff');
-                compareBtn.title = binding ? `${t('Compare with Saved File')} (${binding})` : t('Compare with Saved File');
-                compareBtn.replaceChildren(iconEl('diff', { size: 12 }));
-                compareBtn.onclick = (e) => { e.stopPropagation(); compareWithDisk(file); };
-                tab.appendChild(compareBtn);
             }
             // The name may be cut short; the full path stays one hover away.
             tab.title = file.path && !file.path.includes('://') ? file.path : fileName;
@@ -2880,10 +2879,32 @@ export async function createNewFileOfType(ext = 'txt', initialContent = '') {
     // View will initialize and render
 }
 
+const COMPARE_HINT_KEY = 'jh_compare_hint_shown_v1';
+
+/**
+ * Says once, ever, that edits can be reviewed before saving. Saving is when the
+ * thought comes up, and a toast leaves the keyboard alone: Ctrl+S is pressed
+ * mid-typing, and a dialog here would take the next keystrokes.
+ */
+function showCompareHintOnce() {
+    try {
+        if (localStorage.getItem(COMPARE_HINT_KEY)) return;
+        localStorage.setItem(COMPARE_HINT_KEY, '1');
+    } catch (_) {
+        return; // with nowhere to remember it, it would show on every save
+    }
+    Toast.info(t('Saved. Next time, click the * on the tab or press {key} to review your changes before saving.', {
+        key: shortcuts.bindingFor('app:diff'),
+    }));
+}
+
 export async function saveCurrentFile() {
     const file = getActiveFile();
     if (!file) return false;
-    return saveFile(file, getCurrentView());
+    const hadEdits = canCompareWithSaved(file);
+    const saved = await saveFile(file, getCurrentView());
+    if (saved && hadEdits) showCompareHintOnce();
+    return saved;
 }
 
 /** The view currently showing `file`, or null when its tab is not in front. */

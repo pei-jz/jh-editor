@@ -56,6 +56,7 @@ export default {
     'Toggle Terminal (Ctrl+`)': '切换终端 (Ctrl+`)',
     'Recent Workspaces (Ctrl+Alt+O)': '最近使用的工作区 (Ctrl+Alt+O)',
     'New or Compare…': '新建或比较…',
+    'Saved. Next time, click the * on the tab or press {key} to review your changes before saving.': '已保存。下次保存前，可点击标签页上的“*”或按 {key} 查看更改。',
     'No file selected': '未选择文件',
     'Notes (Quick Notes / Daily Note)': '笔记（快速笔记 / 每日笔记）',
     'Settings': '设置',

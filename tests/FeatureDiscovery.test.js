@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,8 @@ globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {
 // EL captures the tab strip at import time, so it has to exist first.
 document.body.innerHTML = '<div id="tab-bar"><div id="tabs-container"></div><button id="new-tab-btn"></button></div>';
 
-const { renderTabs, canCompareWithSaved } = await import('../src/modules/core/Editor.js');
+const { renderTabs, canCompareWithSaved, saveCurrentFile } = await import('../src/modules/core/Editor.js');
+const { Toast } = await import('../src/modules/ui/Toast.js');
 const { State } = await import('../src/modules/core/Store.js');
 const { SHORTCUTS } = await import('../src/modules/core/ShortcutDefinitions.js');
 const { ShortcutManager, shortcuts } = await import('../src/modules/core/ShortcutManager.js');
@@ -98,21 +99,26 @@ describe('compare with the saved file, on the tab', () => {
         expect(canCompareWithSaved(file)).toBe(expected);
     });
 
-    it('shows the button only while the tab has edits, and it follows the marker', () => {
+    it('makes the * the way in, without another element on the tab', () => {
         const file = { path: 'C:/proj/a.txt', content: '', isDirty: true };
         State.openFiles = [file];
         renderTabs('left');
-        const button = tabsContainer().querySelector('.tab-compare');
-        expect(button).not.toBeNull();
-        expect(button.previousElementSibling.className).toBe('tab-dirty');
-        expect(button.title).toContain('Ctrl+Shift+D');
-
-        file.isDirty = false;
-        renderTabs('left');
-        expect(tabsContainer().querySelector('.tab-compare')).toBeNull();
+        const mark = tabsContainer().querySelector('.tab-dirty');
+        expect(mark.classList.contains('tab-dirty-link')).toBe(true);
+        expect(mark.title).toContain('Ctrl+Shift+D');
+        expect(mark.nextElementSibling.className).toBe('tab-close');
     });
 
-    it('clicking it reads the saved file without switching to that tab', async () => {
+    it('leaves the * a plain mark where there is no saved version', () => {
+        State.openFiles = [{ path: '', name: 'Untitled', content: 'x', isDirty: true }];
+        renderTabs('left');
+        const mark = tabsContainer().querySelector('.tab-dirty');
+        expect(mark.classList.contains('tab-dirty-link')).toBe(false);
+        expect(mark.onclick).toBeNull();
+        expect(mark.title).toBe('');
+    });
+
+    it('clicking the * reads the saved file without switching to that tab', async () => {
         const { invoke } = await import('@tauri-apps/api/core');
         State.openFiles = [
             { path: 'C:/proj/a.txt', content: '', isDirty: false },
@@ -120,7 +126,7 @@ describe('compare with the saved file, on the tab', () => {
         ];
         renderTabs('left');
         invoke.mockClear();
-        tabsContainer().querySelector('.tab-compare').click();
+        tabsContainer().querySelector('.tab-dirty-link').click();
         expect(State.activeTabIndex).toBe(0);
         expect(invoke).toHaveBeenCalled();
         expect(JSON.stringify(invoke.mock.calls[0])).toContain('b.txt');
@@ -138,6 +144,50 @@ describe('compare with the saved file, on the tab', () => {
             .toContain('Compare with Saved FileCtrl+Shift+D');
         expect(labels({ path: 'C:/proj/a.txt', content: '', isDirty: false }).join())
             .not.toContain('Compare with Saved File');
+    });
+});
+
+describe('the one-time hint on saving', () => {
+    const KEY = 'jh_compare_hint_shown_v1';
+    let toast;
+
+    const edited = (path = 'C:/proj/a.txt') => {
+        const file = { path, content: 'x', isDirty: true };
+        State.splitMode = false;
+        State.openFiles = [file];
+        State.activeTabIndex = 0;
+        return file;
+    };
+
+    beforeEach(() => {
+        localStorage.removeItem(KEY);
+        toast = vi.spyOn(Toast, 'info').mockImplementation(() => {});
+    });
+    afterEach(() => toast.mockRestore());
+
+    it('names the key, on the first save of edits, and only then', async () => {
+        edited();
+        expect(await saveCurrentFile()).toBe(true);
+        expect(toast).toHaveBeenCalledTimes(1);
+        expect(toast.mock.calls[0][0]).toContain('Ctrl+Shift+D');
+
+        edited();
+        await saveCurrentFile();
+        expect(toast).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for a save that had edits', async () => {
+        edited().isDirty = false;
+        await saveCurrentFile();
+        expect(toast).not.toHaveBeenCalled();
+        expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('does not spend itself on a save that was refused', async () => {
+        edited().isLarge = true;
+        expect(await saveCurrentFile()).toBe(false);
+        expect(toast).not.toHaveBeenCalled();
+        expect(localStorage.getItem(KEY)).toBeNull();
     });
 });
 

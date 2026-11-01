@@ -56,6 +56,7 @@ export default {
     'Toggle Terminal (Ctrl+`)': '터미널 전환 (Ctrl+`)',
     'Recent Workspaces (Ctrl+Alt+O)': '최근 작업 영역 (Ctrl+Alt+O)',
     'New or Compare…': '새로 만들기 또는 비교…',
+    'Saved. Next time, click the * on the tab or press {key} to review your changes before saving.': '저장했습니다. 다음부터는 저장하기 전에 탭의 "*"를 클릭하거나 {key}를 눌러 변경 내용을 확인할 수 있습니다.',
     'No file selected': '선택된 파일 없음',
     'Notes (Quick Notes / Daily Note)': '노트 (빠른 노트 / 데일리 노트)',
     'Settings': '설정',

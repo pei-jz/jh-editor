@@ -167,17 +167,19 @@
     margin-left: -6px; /* .tab's 8px gap is too wide for a suffix */
 }
 
-.tab-compare {
-    display: inline-flex;
-    padding: 2px;
+/* A wider target than the glyph, with the padding taken back from the margins so
+   the tab is no wider than it is with a plain mark. */
+.tab-dirty-link {
+    margin-left: -8px;
+    margin-right: -4px;
+    padding: 0 4px 0 2px; /* stops at the title: the hover fill must not cover its text */
     border-radius: 3px;
-    opacity: 0.6;
-    flex-shrink: 0;
+    cursor: pointer;
 }
 
-.tab-compare:hover {
+.tab-dirty-link:hover {
     background: var(--hover-color);
-    opacity: 1;
+    color: var(--primary-color);
 }
 
 .tab-close {

@@ -56,6 +56,7 @@ export default {
     'Toggle Terminal (Ctrl+`)': 'ターミナルを切り替え (Ctrl+`)',
     'Recent Workspaces (Ctrl+Alt+O)': '最近使ったワークスペース (Ctrl+Alt+O)',
     'New or Compare…': '新規作成・比較…',
+    'Saved. Next time, click the * on the tab or press {key} to review your changes before saving.': '保存しました。次回からは、保存前にタブの「*」または {key} で変更内容を確認できます。',
     'No file selected': 'ファイルが選択されていません',
     'Notes (Quick Notes / Daily Note)': 'ノート（クイックノート / デイリーノート）',
     'Settings': '設定',
