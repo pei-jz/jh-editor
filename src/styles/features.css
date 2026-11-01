@@ -784,15 +784,21 @@
     font: inherit;
     font-size: 13px;
     text-align: left;
-    color: var(--text-color);
-    background: transparent;
-    border: 1px solid transparent;
     border-radius: 4px;
     cursor: pointer;
 }
 
-.empty-guide-row:hover,
-.empty-guide-row:focus-visible {
+/* Written with two classes to outrank `body.theme-x button`, which fills every
+   button on the dark themes. The font is left to that rule: it carries the
+   theme's chrome typeface. */
+.empty-guide .empty-guide-row {
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.empty-guide .empty-guide-row:hover,
+.empty-guide .empty-guide-row:focus-visible {
     background: var(--hover-color);
     border-color: var(--border-color);
 }

@@ -241,6 +241,15 @@ describe('the empty pane guide', () => {
         expect(src).toContain('renderEmptyPaneGuide(container)');
         expect(src).not.toContain('class="welcome-message"');
     });
+
+    it('has no fill on its rows until one is pointed at, on the dark themes too', () => {
+        // `body.theme-x button` outranks a single class, and painted all eight.
+        const features = readFileSync(join(here, '..', 'src/styles/features.css'), 'utf8');
+        const at = features.indexOf('.empty-guide .empty-guide-row {');
+        expect(at).toBeGreaterThan(-1);
+        expect(features.slice(at, features.indexOf('}', at))).toContain('background: transparent');
+        expect(features).toContain('.empty-guide .empty-guide-row:hover');
+    });
 });
 
 describe('the empty pane picture', () => {
