@@ -907,7 +907,7 @@ body.theme-bamboo-ancient option {
 /* ============================================================================
    🖌 Sumi-e — 水墨・朱印 (sumi-e)
    From docs/design/editor-theme-proposal.html. Unbleached washi, sumi-black
-   text, vermillion seal as the single accent — the light-side companion to the
+   text, a grey ink as the single accent — the light-side companion to the
    Bamboo / Paper family. Chrome takes the Mincho serif; --grain is reused as a
    faint paper fibre (weaker than bamboo's, which was tuned for a dark slip).
 
@@ -926,12 +926,12 @@ body.theme-sumi-e {
     --header-bg: #e4dfd2;           /* the mount bands */
     --border-color: #cbc3b0;
     --text-color: #1c1c1c;          /* sumi ink */
-    /* 松葉 — pine needles. Was the seal's vermillion, which Paper and Hanging
-       Scroll also wore, so the three read as one theme. 朱 stays in the
-       strings and inline code. */
-    --primary-color: #4a6b35;
+    /* 淡墨の灰 — a grey with a trace of the washi in it. Ink wash has no hue to
+       spare: the seal's vermillion and then pine green both read as colour
+       added to a monochrome picture. 朱 stays in the strings. */
+    --primary-color: #5c5c58;
     --active-tab-bg: #fbfaf6;
-    --active-tab-border: #4a6b35;
+    --active-tab-border: #5c5c58;
     --hover-color: #e9e4d8;
     --bg-color-secondary: #efece3;
     --bg-active: #e9e4d8;
@@ -959,18 +959,18 @@ body.theme-sumi-e {
        over the wash and 5.2:1 even at the ink ceiling. */
     --tab-inactive-color: #4f4a3e;
     --tree-item-color: var(--text-color);
-    --tree-item-active-bg: rgba(74, 107, 53, 0.16);
+    --tree-item-active-bg: rgba(92, 92, 88, 0.16);
     --text-secondary: #4f4a3e;
 
-    --code-color: #4a6b35;          /* 松葉, with the accent */
-    --code-bg: rgba(74, 107, 53, 0.08);
-    --code-border: rgba(74, 107, 53, 0.22);
+    --code-color: #5c5c58;          /* 淡墨, with the accent */
+    --code-bg: rgba(92, 92, 88, 0.08);
+    --code-border: rgba(92, 92, 88, 0.22);
     --danger-base: #a63a34;
     --blockquote-bg: rgba(28, 28, 28, 0.04);
 
-    --selection-bg: rgba(74, 107, 53, 0.20);
+    --selection-bg: rgba(92, 92, 88, 0.20);
     --selection-color: #1c1c1c;
-    --cm-selection-bg: rgba(74, 107, 53, 0.16);
+    --cm-selection-bg: rgba(92, 92, 88, 0.16);
 
     --git-modified-color: #805c18;
     --git-staged-color: #426d42;
@@ -1039,7 +1039,7 @@ body.theme-sumi-e #status-bar {
 }
 
 /* Where you are, in the accent. The open tab joins the sheet below it and
-   takes a pine-green cap; the selected file takes a pine-green edge. The
+   takes a grey ink cap; the selected file takes a grey ink edge. The
    generic rules gave the tab only a bolder label and the tree row a blue
    edge borrowed from the default theme. */
 body.theme-sumi-e .tab.active {
@@ -1699,8 +1699,8 @@ body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
    From docs/design/editor-theme-dark-proposal.html. Night washi, moonlight
    ink. The mountains and the single stroke are inverted to light lines (the
    same SVGs with #e6e4dd instead of sumi #1c1c1c), and the moon is a bare
-   outline. The accent is 青墨 (blue-grey ink), #8ea6b8: night washi wants
-   colour kept quiet, so the green of the day version is not carried over.
+   outline. The accent is a plain mid grey, #9c9c98, as in the day version: dimmer
+   than the moonlight text, because near-white would not stand out from it.
    ========================================================================== */
 body.theme-sumi-e-dark {
     /* 墨 — close to black. The sheet was #26282d, a blue-grey that read as
@@ -1712,10 +1712,10 @@ body.theme-sumi-e-dark {
     --header-bg: #0b0b0b;
     --border-color: #2a2a2a;
     --text-color: #e6e4dd;          /* moonlight ink */
-    --primary-color: #8ea6b8;       /* 青墨 — blue-grey ink, kept low in chroma */
-    --text-on-primary: #141c22;
+    --primary-color: #9c9c98;       /* 淡墨, 2.2:1 from the text so it still reads as a different tone */
+    --text-on-primary: #141414;
     --active-tab-bg: #1c1c1c;
-    --active-tab-border: #8ea6b8;
+    --active-tab-border: #9c9c98;
     --hover-color: #1e1e1e;
     --bg-color-secondary: #1c1c1c;
     --bg-active: #242424;
@@ -1739,18 +1739,18 @@ body.theme-sumi-e-dark {
     --gutter-color: #a0a098;
     --tab-inactive-color: #a8a6a0;
     --tree-item-color: #e6e4dd;
-    --tree-item-active-bg: rgba(142, 166, 184, 0.14);
+    --tree-item-active-bg: rgba(156, 156, 152, 0.14);
     --text-secondary: #a8a6a0;
 
-    --code-color: #8ea6b8;          /* 青墨, with the accent */
-    --code-bg: rgba(142, 166, 184, 0.10);
-    --code-border: rgba(142, 166, 184, 0.25);
+    --code-color: #9c9c98;          /* 淡墨, with the accent */
+    --code-bg: rgba(156, 156, 152, 0.10);
+    --code-border: rgba(156, 156, 152, 0.25);
     --danger-base: #e0806e;
     --blockquote-bg: rgba(138, 180, 248, 0.06);
 
-    --selection-bg: rgba(142, 166, 184, 0.28);
+    --selection-bg: rgba(156, 156, 152, 0.28);
     --selection-color: #e6e4dd;
-    --cm-selection-bg: rgba(142, 166, 184, 0.24);
+    --cm-selection-bg: rgba(156, 156, 152, 0.24);
 
     --git-modified-color: #d9a44a;
     --git-staged-color: #8fc9a8;
