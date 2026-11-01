@@ -76,6 +76,7 @@ const COMMANDS = [
     { id: 'app:toggle-preview', label: 'Toggle Preview', category: 'View', icon: 'file-globe', keywords: 'html markdown render' },
     { id: 'app:toggle-book-mode', label: 'Toggle Book Mode', category: 'View', icon: 'file-text', keywords: 'page turn read' },
     { id: 'app:toggle-vim', label: 'Toggle Vim Mode', category: 'View', icon: 'terminal', keywords: 'vi modal keys' },
+    { id: 'app:toggle-terminal', label: 'Toggle Terminal', category: 'View', icon: 'terminal', keywords: 'shell console command prompt powershell' },
 
     // ── Compare ──────────────────────────────────────────────────────
     { id: 'app:diff', label: 'Compare with Saved File', category: 'Compare', icon: 'diff', keywords: 'diff disk changes' },

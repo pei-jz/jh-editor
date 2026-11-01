@@ -35,6 +35,7 @@ import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
+import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
 import {
@@ -696,7 +697,7 @@ export function renderEditor(targetPane = null) {
         const file = openFiles[activeIdx];
 
         if (!file) {
-            container.innerHTML = '<div class="welcome-message">Select a file from the explorer to start editing.</div>';
+            renderEmptyPaneGuide(container);
             return;
         }
 
@@ -1765,6 +1766,16 @@ export function tabIconFor(file) {
     return null;
 }
 
+/**
+ * Whether a tab offers "compare with the saved file": a real file on disk with
+ * edits to review. An untitled buffer has no saved version, and a virtual tab
+ * (diff, agent, search results) has no file behind it.
+ */
+export function canCompareWithSaved(file) {
+    if (!file || !file.isDirty || !file.path) return false;
+    return !String(file.path).includes('://') && !tabIconFor(file);
+}
+
 export function renderTabs(targetPane = null) {
     // Tabs changed (opened / closed / reordered / dirtied) → persist the session
     // so a crash or restart comes back to the same place. Cheap + debounced
@@ -1816,6 +1827,17 @@ export function renderTabs(targetPane = null) {
                 dirtyMark.textContent = '*';
                 tab.appendChild(dirtyMark);
             }
+            // Offered where the question comes up: the moment a tab has edits is
+            // the moment someone wonders what they changed.
+            if (canCompareWithSaved(file)) {
+                const compareBtn = document.createElement('span');
+                compareBtn.className = 'tab-compare';
+                const binding = shortcuts.bindingFor('app:diff');
+                compareBtn.title = binding ? `${t('Compare with Saved File')} (${binding})` : t('Compare with Saved File');
+                compareBtn.replaceChildren(iconEl('diff', { size: 12 }));
+                compareBtn.onclick = (e) => { e.stopPropagation(); compareWithDisk(file); };
+                tab.appendChild(compareBtn);
+            }
             // The name may be cut short; the full path stays one hover away.
             tab.title = file.path && !file.path.includes('://') ? file.path : fileName;
 
@@ -1844,6 +1866,9 @@ export function renderTabs(targetPane = null) {
                 e.stopPropagation();
                 ContextMenu.show(e, [
                     { label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
+                    ...(canCompareWithSaved(file)
+                        ? [{ label: t('Compare with Saved File'), hint: shortcuts.bindingFor('app:diff'), action: () => compareWithDisk(file) }]
+                        : []),
                     { label: t('Compare with File...'), action: () => compareWithFile(file) },
                     { label: t('Save As...'), action: () => saveCurrentFileAs() },
                     { type: 'separator' },

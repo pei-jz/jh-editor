@@ -53,6 +53,9 @@ export default {
     // Title bar
     'Toggle Explorer': '切换资源管理器',
     'Toggle Terminal': '切换终端',
+    'Toggle Terminal (Ctrl+`)': '切换终端 (Ctrl+`)',
+    'Recent Workspaces (Ctrl+Alt+O)': '最近使用的工作区 (Ctrl+Alt+O)',
+    'New or Compare…': '新建或比较…',
     'No file selected': '未选择文件',
     'Notes (Quick Notes / Daily Note)': '笔记（快速笔记 / 每日笔记）',
     'Settings': '设置',
@@ -63,7 +66,6 @@ export default {
     'Files': '文件',
     'Git': 'Git',
     'Filter files...': '筛选文件…',
-    'Open Workspace': '打开工作区',
     // Search
     'Search…': '搜索…',
     'Regular Expression': '正则表达式',

@@ -114,7 +114,7 @@
   <div id="custom-titlebar" data-tauri-drag-region>
     <div id="titlebar-left-tools">
       <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer" data-icon="menu" aria-label="Toggle Explorer"></button>
-      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal" data-icon="terminal" aria-label="Toggle Terminal"></button>
+      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal (Ctrl+`)" data-i18n-title="Toggle Terminal (Ctrl+`)" data-icon="terminal" aria-label="Toggle Terminal"></button>
     </div>
     <div class="titlebar-icon" data-tauri-drag-region data-icon="logo" data-icon-size="15"></div>
     <div class="titlebar-title" data-tauri-drag-region>
@@ -170,9 +170,10 @@
           <div id="explorer-files-panel" class="explorer-panel">
             <div id="explorer-search-container" style="display:flex; align-items:center; gap:5px; padding: 10px;">
               <input type="text" id="explorer-search" placeholder="Filter files..." data-i18n-placeholder="Filter files..." style="flex:1;" />
-              <button id="open-folder-btn" title="Open Workspace" data-i18n-title="Open Workspace"
-                style="background:none; border:none; cursor:pointer; color:var(--text-color); opacity:0.8; display:inline-flex; align-items:center; padding:2px;">
+              <button id="open-folder-btn" title="Recent Workspaces (Ctrl+Alt+O)" data-i18n-title="Recent Workspaces (Ctrl+Alt+O)" aria-label="Recent Workspaces" aria-haspopup="menu"
+                style="background:none; border:none; cursor:pointer; color:var(--text-color); opacity:0.8; display:inline-flex; align-items:center; gap:1px; padding:2px;">
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span data-icon="chevron-down" data-icon-size="11" style="display:inline-flex;"></span>
               </button>
             </div>
             <div id="file-list"></div>
@@ -191,6 +192,7 @@
             <div id="tab-bar">
               <div id="tabs-container"></div>
               <button id="new-tab-btn" title="New File" data-i18n-title="New File">+</button>
+              <button id="new-tab-menu-btn" class="new-tab-menu-btn" title="New or Compare…" data-i18n-title="New or Compare…" data-icon="chevron-down" data-icon-size="12" aria-label="New or Compare…" aria-haspopup="menu"></button>
             </div>
 
             <!-- Search Modal Overlay -->
@@ -255,9 +257,7 @@
               </div>
             </div>
 
-            <div id="editor-content" style="flex: 1; min-height: 0;">
-              <div class="welcome-message" data-i18n="Select a file from the explorer to start editing.">Select a file from the explorer to start editing.</div>
-            </div>
+            <div id="editor-content" style="flex: 1; min-height: 0;"></div>
 
             <!-- Search Status Bar (shown while search is active) -->
             <div id="search-status-bar" class="search-status-bar" style="display:none;">
@@ -286,9 +286,7 @@
               <div id="tabs-container-right" style="display: flex; flex: 1; overflow-x: auto; overflow-y: hidden;"></div>
               <button id="new-tab-btn-right" title="New File" style="background: none; border: none; color: var(--text-color); cursor: pointer; padding: 0 10px; font-size: 16px;">+</button>
             </div>
-            <div id="editor-content-right" style="flex: 1; min-height: 0;">
-              <div class="welcome-message" data-i18n="Select a file from the explorer to start editing.">Select a file from the explorer to start editing.</div>
-            </div>
+            <div id="editor-content-right" style="flex: 1; min-height: 0;"></div>
           </div>
         </div>
         </div>

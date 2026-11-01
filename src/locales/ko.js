@@ -53,6 +53,9 @@ export default {
     // Title bar
     'Toggle Explorer': '탐색기 전환',
     'Toggle Terminal': '터미널 전환',
+    'Toggle Terminal (Ctrl+`)': '터미널 전환 (Ctrl+`)',
+    'Recent Workspaces (Ctrl+Alt+O)': '최근 작업 영역 (Ctrl+Alt+O)',
+    'New or Compare…': '새로 만들기 또는 비교…',
     'No file selected': '선택된 파일 없음',
     'Notes (Quick Notes / Daily Note)': '노트 (빠른 노트 / 데일리 노트)',
     'Settings': '설정',
@@ -63,7 +66,6 @@ export default {
     'Files': '파일',
     'Git': 'Git',
     'Filter files...': '파일 필터…',
-    'Open Workspace': '작업 영역 열기',
     // Search
     'Search…': '검색…',
     'Regular Expression': '정규식',

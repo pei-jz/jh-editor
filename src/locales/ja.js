@@ -53,6 +53,9 @@ export default {
     // Title bar
     'Toggle Explorer': 'エクスプローラーを切り替え',
     'Toggle Terminal': 'ターミナルを切り替え',
+    'Toggle Terminal (Ctrl+`)': 'ターミナルを切り替え (Ctrl+`)',
+    'Recent Workspaces (Ctrl+Alt+O)': '最近使ったワークスペース (Ctrl+Alt+O)',
+    'New or Compare…': '新規作成・比較…',
     'No file selected': 'ファイルが選択されていません',
     'Notes (Quick Notes / Daily Note)': 'ノート（クイックノート / デイリーノート）',
     'Settings': '設定',
@@ -63,7 +66,6 @@ export default {
     'Files': 'ファイル',
     'Git': 'Git',
     'Filter files...': 'ファイルを絞り込み…',
-    'Open Workspace': 'ワークスペースを開く',
     // Search
     'Search…': '検索…',
     'Regular Expression': '正規表現',

@@ -288,7 +288,7 @@ the agent's model calls back into the editor for context.
 - **Fonts** — separate family/size for editor, UI, Markdown documents and terminal
 - **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`) and a command
   palette (`Ctrl+Shift+P`)
-- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar).
+- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar or `` Ctrl+` ``).
   Dropping a file anywhere on it types the full path; the scrollback length is a setting
 
 ---
@@ -505,6 +505,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Alt+B` | Book mode |
 | `F11` / `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
 | `Ctrl+Alt+O` | Recent workspaces |
+| `` Ctrl+` `` / `Ctrl+@` | Toggle terminal (`Ctrl+@` on a JIS keyboard) |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |
 | `Ctrl+\` / `Ctrl+Alt+\` | Split editor right / down |

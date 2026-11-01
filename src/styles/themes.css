@@ -1329,12 +1329,14 @@ body.theme-kakejiku #new-tab-btn:hover {
    var(--text-color) (dark ink), so pull them back to pale ink on the brocade. */
 body.theme-kakejiku .titlebar-btn,
 body.theme-kakejiku .titlebar-tool-btn,
-body.theme-kakejiku #new-tab-btn {
+body.theme-kakejiku #new-tab-btn,
+body.theme-kakejiku .new-tab-menu-btn {
     color: #eef1f6;
 }
 body.theme-kakejiku .titlebar-btn:hover,
 body.theme-kakejiku .titlebar-tool-btn:hover,
-body.theme-kakejiku #new-tab-btn:hover {
+body.theme-kakejiku #new-tab-btn:hover,
+body.theme-kakejiku .new-tab-menu-btn:hover {
     color: #ffffff;
 }
 body.theme-kakejiku .titlebar-btn.titlebar-close:hover {
@@ -1572,12 +1574,14 @@ body.theme-kakejiku-dark #new-tab-btn:hover {
 
 body.theme-kakejiku-dark .titlebar-btn,
 body.theme-kakejiku-dark .titlebar-tool-btn,
-body.theme-kakejiku-dark #new-tab-btn {
+body.theme-kakejiku-dark #new-tab-btn,
+body.theme-kakejiku-dark .new-tab-menu-btn {
     color: #eef1f6;
 }
 body.theme-kakejiku-dark .titlebar-btn:hover,
 body.theme-kakejiku-dark .titlebar-tool-btn:hover,
-body.theme-kakejiku-dark #new-tab-btn:hover {
+body.theme-kakejiku-dark #new-tab-btn:hover,
+body.theme-kakejiku-dark .new-tab-menu-btn:hover {
     color: #ffffff;
 }
 body.theme-kakejiku-dark .titlebar-btn.titlebar-close:hover {

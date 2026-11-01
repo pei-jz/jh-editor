@@ -25,7 +25,8 @@ export const ContextMenu = {
 
     /**
      * @param {MouseEvent} event 
-     * @param {Array<{label: string, action: Function}>} items 
+     * @param {Array<{label: string, hint?: string, action: Function}>} items
+     *   `hint` is the item's shortcut, drawn at the right edge.
      */
     show(event, items) {
         event.preventDefault();
@@ -64,6 +65,12 @@ export const ContextMenu = {
             const div = document.createElement('div');
             div.className = 'context-menu-item';
             div.textContent = item.label;
+            if (item.hint) {
+                const hint = document.createElement('span');
+                hint.className = 'context-menu-hint';
+                hint.textContent = item.hint;
+                div.appendChild(hint);
+            }
 
             if (item.submenu) {
                 div.classList.add('has-submenu');

@@ -77,7 +77,17 @@ export const SHORTCUTS = {
         { key: '\\', ctrl: true, cmd: 'editor:split-right', description: 'Split Editor Right' },
         { key: '\\', ctrl: true, alt: true, cmd: 'editor:split-down', description: 'Split Editor Down' },
         { key: 'w', ctrl: true, shift: true, cmd: 'editor:close-split', description: 'Close Split Pane' },
-        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' }
+        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' },
+        // Added at the END of this list on purpose: a saved rebinding is keyed by
+        // the entry's position (ShortcutManager.loadShortcuts), so inserting
+        // above would hand other commands' overrides to the wrong keys.
+        //
+        // A JIS keyboard has no unshifted backtick. '@' is the key in that spot,
+        // and Ctrl+Shift+@ is what someone gets taking the "Ctrl+`" in the tooltip
+        // literally — so both work, and only the first two are listed in the guide.
+        { key: '`', ctrl: true, cmd: 'app:toggle-terminal', description: 'Toggle Terminal' },
+        { key: '@', ctrl: true, cmd: 'app:toggle-terminal', description: 'Toggle Terminal' },
+        { key: '`', ctrl: true, shift: true, cmd: 'app:toggle-terminal' }
     ],
 
     EXPLORER: [

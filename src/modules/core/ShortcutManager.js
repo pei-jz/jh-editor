@@ -1,5 +1,6 @@
 import { State } from './Store.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
+import { formatBinding } from './CommandRegistry.js';
 
 /**
  * Physical keys that can carry a backslash, and the characters they may report.
@@ -68,6 +69,16 @@ export class ShortcutManager {
         localStorage.removeItem('user_shortcuts');
         this.loadShortcuts();
         window.dispatchEvent(new CustomEvent('shortcutsChanged'));
+    }
+
+    /**
+     * The key that runs a global command right now, as a person reads it. Reads
+     * the merged list, so a hint shown on screen follows a rebinding made in
+     * Settings. '' when nothing is bound.
+     */
+    bindingFor(cmd) {
+        const match = this.shortcuts.find(s => s.cmd === cmd && s.scope === 'GLOBAL' && s.key);
+        return match ? formatBinding(match) : '';
     }
 
     register(shortcut) {

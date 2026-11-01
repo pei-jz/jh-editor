@@ -163,6 +163,10 @@
     border: 1px solid var(--border-color);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     min-width: 150px;
+    /* Near the right edge an absolute box shrinks to the room left, and ContextMenu
+       only moves it back afterwards, leaving the labels wrapped at that width. */
+    width: max-content;
+    max-width: 90vw;
     z-index: 9999;
     border-radius: 4px;
     padding: 4px 0;
@@ -181,6 +185,13 @@
 .context-menu-item:hover {
     background-color: var(--primary-color);
     color: var(--text-on-primary, #fff);
+}
+
+.context-menu-hint {
+    float: right;
+    margin-left: 24px;
+    font-size: 11px;
+    line-height: 1.5;
 }
 
 /* --- Settings Modal --- */

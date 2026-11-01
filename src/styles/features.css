@@ -718,6 +718,71 @@
     .status-commands-label { display: none; }
 }
 
+/* ── Empty pane guide ─────────────────────────────────────────────────────── */
+.empty-guide {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    box-sizing: border-box;
+    overflow: auto;
+    user-select: none;
+}
+
+.empty-guide-hint {
+    margin: 0;
+    font-size: 13px;
+    text-align: center;
+    color: var(--text-secondary, var(--text-color));
+}
+
+.empty-guide-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: min(360px, 100%);
+}
+
+.empty-guide-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.empty-guide-row:hover,
+.empty-guide-row:focus-visible {
+    background: var(--hover-color);
+    border-color: var(--border-color);
+}
+
+.empty-guide-row:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+.empty-guide-row kbd {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11px;
+    line-height: 1.4;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+}
+
 /* ── Pairing notice ──────────────────────────────────────────────────────────
    Shown while J.H AI Agent is asking the user to approve this editor. The code
    is here so it can be COMPARED with the one in the agent's own dialog — that
