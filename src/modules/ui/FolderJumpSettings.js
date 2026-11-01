@@ -6,6 +6,7 @@
  * because the tray and the hotkey are installed before any webview exists.
  */
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { t } from '../utils/I18n.js';
 import { formatHotkey, hotkeyFromEvent } from '../utils/FolderJump.js';
 
@@ -74,6 +75,13 @@ export async function initFolderJumpSettings() {
         const hotkey = hotkeyFromEvent(e);
         if (hotkey) apply(current.enabled, hotkey);
     });
+
+    // Every window has this row; a change made in another one has to reach it.
+    listen('folder-jump:changed', ({ payload }) => {
+        current = payload;
+        if (!current.enabled) say('');
+        show();
+    }).catch(() => { /* no backend: nothing will change */ });
 
     show();
     if (current.hotkey_error) say(hotkeyBusy(), true);

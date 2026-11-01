@@ -134,10 +134,10 @@ export function hotkeyFromEvent(e) {
     if (/^(Control|Alt|Shift|Meta|OS)(Left|Right)?$/.test(e.code || '')) return null;
     if (!e.code || e.code === 'Unidentified') return null;
     const parts = [];
+    if (e.metaKey) parts.push('Super');
     if (e.ctrlKey) parts.push('Ctrl');
     if (e.altKey) parts.push('Alt');
     if (e.shiftKey) parts.push('Shift');
-    if (e.metaKey) parts.push('Super');
     if (!parts.length && !/^F\d+$/.test(e.code)) return null;
     return [...parts, e.code].join('+');
 }

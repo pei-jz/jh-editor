@@ -146,7 +146,7 @@ describe('capturing a hotkey', () => {
 
     it('writes it in the form the backend registers', () => {
         expect(hotkeyFromEvent(press('KeyE', { ctrlKey: true, shiftKey: true }))).toBe('Ctrl+Shift+KeyE');
-        expect(hotkeyFromEvent(press('KeyE', { metaKey: true, shiftKey: true }))).toBe('Shift+Super+KeyE');
+        expect(hotkeyFromEvent(press('KeyE', { metaKey: true, shiftKey: true }))).toBe('Super+Shift+KeyE');
         expect(hotkeyFromEvent(press('F9'))).toBe('F9');
     });
 

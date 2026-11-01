@@ -91,6 +91,8 @@ pub struct FolderJumpState {
     /// The tray's Quit is closing the editor windows. Each still asks about its
     /// unsaved tabs, so the process exits when the last one has really gone.
     quitting: AtomicBool,
+    /// When losing focus last hid the window (see `toggle_from_tray`).
+    left_behind_at: Mutex<Option<Instant>>,
 }
 
 fn config_path(app: &AppHandle) -> Option<PathBuf> {
@@ -164,6 +166,29 @@ fn toggle_window(app: &AppHandle) {
     let _ = window.set_focus();
 }
 
+/// A click in the tray moves focus before it arrives here, in two ways that a
+/// plain toggle gets wrong.
+///
+/// Opening: the menu or the hidden-icons flyout is still closing and giving focus
+/// back. A window shown now loses it at once and `hide_if_left_behind` puts it
+/// away again, so wait that out.
+///
+/// Closing: pressing the icon already took focus from the open window, which hid
+/// it. Showing it again on release would make the icon unable to close it.
+fn toggle_from_tray(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let just_hidden = app
+            .try_state::<FolderJumpState>()
+            .and_then(|state| *lock(&state.left_behind_at))
+            .is_some_and(|at| at.elapsed() < Duration::from_millis(600));
+        if !just_hidden {
+            toggle_window(&app);
+        }
+    });
+}
+
 #[cfg(windows)]
 fn is_foreground(window: &tauri::WebviewWindow) -> bool {
     use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
@@ -187,6 +212,9 @@ fn hide_if_left_behind(window: tauri::WebviewWindow) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(120)).await;
         if !is_foreground(&window) {
+            if let Some(state) = window.try_state::<FolderJumpState>() {
+                *lock(&state.left_behind_at) = Some(Instant::now());
+            }
             let _ = window.hide();
         }
     });
@@ -240,8 +268,8 @@ fn build_tray_menu(app: &AppHandle, labels: &TrayLabels) -> tauri::Result<Menu<t
 }
 
 fn install_tray(app: &AppHandle, labels: &TrayLabels) -> Result<(), String> {
-    if app.tray_by_id(TRAY_ID).is_some() {
-        return Ok(());
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        return tray.set_visible(true).map_err(|e| e.to_string());
     }
     let menu = build_tray_menu(app, labels).map_err(|e| e.to_string())?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
@@ -249,7 +277,7 @@ fn install_tray(app: &AppHandle, labels: &TrayLabels) -> Result<(), String> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "jump" => toggle_window(app),
+            "jump" => toggle_from_tray(app),
             "new-window" => {
                 // This is the main thread, where building a webview deadlocks.
                 let app = app.clone();
@@ -262,7 +290,7 @@ fn install_tray(app: &AppHandle, labels: &TrayLabels) -> Result<(), String> {
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                toggle_window(tray.app_handle());
+                toggle_from_tray(tray.app_handle());
             }
         });
     if let Some(icon) = app.default_window_icon() {
@@ -380,13 +408,20 @@ pub async fn folder_jump_set_config(
         install_tray(&app, &config.labels)?;
         build_window(&app)?;
     } else {
-        let _ = app.remove_tray_by_id(TRAY_ID);
+        // Hidden, not removed: Tauri keeps a tray's menu handler for the life of the
+        // app, so building another on the way back on would run every item twice.
+        if let Some(tray) = app.tray_by_id(TRAY_ID) {
+            let _ = tray.set_visible(false);
+        }
         if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
             let _ = window.destroy();
         }
     }
     save_config(&app, &config)?;
-    Ok(FolderJumpStatus { enabled, hotkey, hotkey_error: None })
+    let status = FolderJumpStatus { enabled, hotkey, hotkey_error: None };
+    // Every editor window has the settings row, and only one of them made this change.
+    let _ = app.emit("folder-jump:changed", &status);
+    Ok(status)
 }
 
 /// The tray menu's words, in the language the editor is showing.
