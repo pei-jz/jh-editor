@@ -81,23 +81,11 @@ body.theme-dark .source-container .source-layer-edit {
     color: transparent !important;
 }
 
-body.theme-midnight .source-container .source-layer-edit {
-    background: transparent !important;
-    color: transparent !important;
-}
-
 body.theme-dark .source-layer-edit,
 body.theme-dark .csv-text-editor,
 body.theme-dark textarea[style*="position: absolute"] {
     background-color: #1e1e1e !important;
     color: #d4d4d4 !important;
-}
-
-body.theme-midnight .source-layer-edit,
-body.theme-midnight .csv-text-editor,
-body.theme-midnight textarea[style*="position: absolute"] {
-    background-color: #0b0e14 !important;
-    color: #e3e6ed !important;
 }
 
 .plain-text-highlights {
@@ -118,12 +106,6 @@ body.theme-dark .search-highlights mark {
     background-color: rgba(255, 0, 255, 0.6);
     color: #ffffff !important;
     /* Ensure text is visible on top of highlight */
-    box-shadow: 0 0 2px #ff00ff;
-}
-
-body.theme-midnight .search-highlights mark {
-    background-color: rgba(255, 0, 255, 0.6);
-    color: #ffffff !important;
     box-shadow: 0 0 2px #ff00ff;
 }
 
@@ -436,14 +418,6 @@ to ensure it spans full height of children
 
 /* Green Comments */
 
-body.theme-midnight .source-container .hljs-name {
-    color: #ff79c6 !important;
-}
-
-body.theme-midnight .source-container .hljs-attr {
-    color: #8be9fd !important;
-}
-
 /* Source View Alignment Fixes */
 .source-container {
     position: relative;
@@ -586,29 +560,24 @@ body .source-layer-highlight code {
 .source-container .hljs-tag-punctuation { color: var(--hl-operator) !important; }
 
 /* Ensure Plain Text View matches */
-html body.theme-dark .editor-content .hljs-tag,
-html body.theme-midnight .editor-content .hljs-tag {
+html body.theme-dark .editor-content .hljs-tag {
     color: #569cd6 !important;
 }
 
-html body.theme-dark .editor-content .hljs-attr,
-html body.theme-midnight .editor-content .hljs-attr {
+html body.theme-dark .editor-content .hljs-attr {
     color: #9cdcfe !important;
 }
 
-html body.theme-dark .editor-content .hljs-string,
-html body.theme-midnight .editor-content .hljs-string {
+html body.theme-dark .editor-content .hljs-string {
     color: #ce9178 !important;
 }
 
-html body.theme-dark .editor-content .hljs-punctuation,
-html body.theme-midnight .editor-content .hljs-punctuation {
+html body.theme-dark .editor-content .hljs-punctuation {
     color: #ffd700 !important;
 }
 
 /* XML Specific Text Color Override (Request: restore to green) */
-html body.theme-dark .source-container .node-value,
-html body.theme-midnight .source-container .node-value {
+html body.theme-dark .source-container .node-value {
     color: #6a9955 !important;
     /* Green for Structure View values */
 }
@@ -627,8 +596,7 @@ html body.theme-midnight .source-container .node-value {
 /* Content is now Green. */
 
 
-body.theme-dark .source-container .hljs-string,
-body.theme-midnight .source-container .hljs-string {
+body.theme-dark .source-container .hljs-string {
     color: #ce9178 !important;
 }
 

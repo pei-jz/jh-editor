@@ -51,24 +51,38 @@
       // 既定は Themes.js の DEFAULT_THEME と同じでなければならない。ここは
       // スタイルシート適用前に走るためモジュールを読めず、直書きになる。
       // 食い違うと起動直後の色と設定画面の表示がずれるので、テストで縛る。
-      let theme = localStorage.getItem('theme') || 'kakejiku';
-      // Paper (Subtle) was removed: its sheet was 6 RGB units from Ink Brush's,
-      // i.e. the same paper twice. Move anyone still on it across.
+      const saved = localStorage.getItem('theme');
+      let theme = saved || 'kakejiku';
+      // Removed themes move to their replacement (Themes.js RETIRED_THEMES).
+      // Paper (Subtle) was the same sheet as Ink Brush; Midnight had no light
+      // half, and Mocha is the same night with Latte for its day.
       if (theme === 'paper-subtle') {
         theme = 'sumi-e';
         localStorage.setItem('theme', theme);
       }
-      // Mocha was removed: a violet-accented dark navy, the same night as
-      // Midnight. Move anyone still on it across.
-      if (theme === 'latte-dark') {
-        theme = 'midnight';
+      if (theme === 'midnight') {
+        theme = 'latte-dark';
         localStorage.setItem('theme', theme);
+      }
+      // The mode may follow the OS (WorkspaceTheme.followSystem): a new
+      // install does, one that already saved a theme keeps it. Then the saved
+      // id only names the family, and the OS picks its half.
+      const follow = localStorage.getItem('themeFollowSystem');
+      if (follow === 'true' || (follow === null && !saved)) {
+        // [light, dark] of each family, as in Themes.js.
+        const pairs = [['light', 'dark'], ['paper', 'paper-dark'], ['sumi-e', 'sumi-e-dark'],
+          ['kakejiku', 'kakejiku-dark'], ['bamboo-light', 'bamboo-ancient'], ['latte', 'latte-dark'],
+          ['nord-light', 'nord'], ['solarized-light', 'solarized-dark']];
+        const pair = pairs.find((p) => p.includes(theme));
+        if (pair) theme = pair[window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0];
       }
       if (theme && theme !== 'light') {
         document.documentElement.classList.add('theme-' + theme);
         // Also update critical CSS to match specific theme if needed
-        if (theme === 'midnight') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#0f0f11; }';
         if (theme === 'latte') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#f0e8d0; }';
+        if (theme === 'latte-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#1e1e2e; }';
+        if (theme === 'nord-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e5e9f0; }';
+        if (theme === 'bamboo-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e2e4cf; }';
         if (theme === 'solarized-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#002b36; }';
         if (theme === 'solarized-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#fdf6e3; }';
         if (theme === 'paper') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e7dab9; }';
@@ -100,7 +114,7 @@
   <div id="custom-titlebar" data-tauri-drag-region>
     <div id="titlebar-left-tools">
       <button id="toggle-explorer-btn" class="titlebar-tool-btn" title="Toggle Explorer" data-i18n-title="Toggle Explorer" data-icon="menu" aria-label="Toggle Explorer"></button>
-      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal" data-i18n-title="Toggle Terminal" data-icon="terminal" aria-label="Toggle Terminal"></button>
+      <button id="toggle-terminal-btn" class="titlebar-tool-btn" title="Toggle Terminal (Ctrl+`)" data-i18n-title="Toggle Terminal (Ctrl+`)" data-icon="terminal" aria-label="Toggle Terminal"></button>
     </div>
     <div class="titlebar-icon" data-tauri-drag-region data-icon="logo" data-icon-size="15"></div>
     <div class="titlebar-title" data-tauri-drag-region>
@@ -156,9 +170,10 @@
           <div id="explorer-files-panel" class="explorer-panel">
             <div id="explorer-search-container" style="display:flex; align-items:center; gap:5px; padding: 10px;">
               <input type="text" id="explorer-search" placeholder="Filter files..." data-i18n-placeholder="Filter files..." style="flex:1;" />
-              <button id="open-folder-btn" title="Open Workspace" data-i18n-title="Open Workspace"
-                style="background:none; border:none; cursor:pointer; color:var(--text-color); opacity:0.8; display:inline-flex; align-items:center; padding:2px;">
+              <button id="open-folder-btn" title="Recent Workspaces (Ctrl+Alt+O)" data-i18n-title="Recent Workspaces (Ctrl+Alt+O)" aria-label="Recent Workspaces" aria-haspopup="menu"
+                style="background:none; border:none; cursor:pointer; color:var(--text-color); opacity:0.8; display:inline-flex; align-items:center; gap:1px; padding:2px;">
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span data-icon="chevron-down" data-icon-size="11" style="display:inline-flex;"></span>
               </button>
             </div>
             <div id="file-list"></div>
@@ -177,6 +192,7 @@
             <div id="tab-bar">
               <div id="tabs-container"></div>
               <button id="new-tab-btn" title="New File" data-i18n-title="New File">+</button>
+              <button id="new-tab-menu-btn" class="new-tab-menu-btn" title="New or Compare…" data-i18n-title="New or Compare…" data-icon="chevron-down" data-icon-size="12" aria-label="New or Compare…" aria-haspopup="menu"></button>
             </div>
 
             <!-- Search Modal Overlay -->
@@ -241,9 +257,7 @@
               </div>
             </div>
 
-            <div id="editor-content" style="flex: 1; min-height: 0;">
-              <div class="welcome-message" data-i18n="Select a file from the explorer to start editing.">Select a file from the explorer to start editing.</div>
-            </div>
+            <div id="editor-content" style="flex: 1; min-height: 0;"></div>
 
             <!-- Search Status Bar (shown while search is active) -->
             <div id="search-status-bar" class="search-status-bar" style="display:none;">
@@ -272,9 +286,7 @@
               <div id="tabs-container-right" style="display: flex; flex: 1; overflow-x: auto; overflow-y: hidden;"></div>
               <button id="new-tab-btn-right" title="New File" style="background: none; border: none; color: var(--text-color); cursor: pointer; padding: 0 10px; font-size: 16px;">+</button>
             </div>
-            <div id="editor-content-right" style="flex: 1; min-height: 0;">
-              <div class="welcome-message" data-i18n="Select a file from the explorer to start editing.">Select a file from the explorer to start editing.</div>
-            </div>
+            <div id="editor-content-right" style="flex: 1; min-height: 0;"></div>
           </div>
         </div>
         </div>
@@ -366,20 +378,50 @@
         
         <div class="settings-panes">
           <div id="settings-general" class="settings-pane">
-            <div class="settings-option">
-              <label data-i18n="Theme">Theme</label>
-              <!-- Options are built from utils/Themes.js at startup;
-                   adding a theme there is enough. -->
-              <select id="theme-selector"></select>
-            </div>
-            <div class="settings-option">
-              <label for="workspace-theme-selector" data-i18n="Theme for this workspace">Theme for this workspace</label>
-              <select id="workspace-theme-selector">
-                <option value="" data-i18n="Same as the theme above">Same as the theme above</option>
-              </select>
-            </div>
-            <div class="settings-description" style="margin: -6px 0 4px;" data-i18n="Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.">
-              Give each project its own colours, so windows on different workspaces are easy to tell apart. Only the workspace open in this window is affected.
+            <!-- Theme and mode, for every window and for this workspace: a
+                 2x2 grid, so the two settings and their two scopes read as
+                 one decision instead of four look-alike rows. -->
+            <div class="theme-settings">
+              <div class="settings-option">
+                <label for="theme-selector" data-i18n="Theme">Theme</label>
+                <!-- Options are built from utils/Themes.js at startup;
+                     adding a theme there is enough. -->
+                <select id="theme-selector"></select>
+              </div>
+              <div class="settings-option">
+                <label id="theme-mode-label" data-i18n="Mode">Mode</label>
+                <div class="theme-mode-switch" id="theme-mode-switch" role="radiogroup" aria-labelledby="theme-mode-label">
+                  <button type="button" role="radio" data-mode="light" data-i18n="Light">Light</button>
+                  <button type="button" role="radio" data-mode="dark" data-i18n="Dark">Dark</button>
+                  <button type="button" role="radio" data-mode="system" data-i18n="Match the system">Match the system</button>
+                </div>
+              </div>
+              <div class="settings-option">
+                <span class="theme-ws-spacer"></span>
+                <div class="theme-ws-check">
+                  <label>
+                    <input type="checkbox" id="workspace-theme-override">
+                    <span data-i18n="Change for this workspace only">Change for this workspace only</span>
+                  </label>
+                  <div class="settings-description theme-ws-hint" data-i18n="Tells this window apart from other projects at a glance.">
+                    Tells this window apart from other projects at a glance.
+                  </div>
+                </div>
+              </div>
+              <div class="theme-ws-rows" id="workspace-theme-rows" hidden>
+                <div class="settings-option">
+                  <label for="workspace-theme-selector" data-i18n="Theme">Theme</label>
+                  <select id="workspace-theme-selector"></select>
+                </div>
+                <div class="settings-option">
+                  <label id="workspace-mode-label" data-i18n="Mode">Mode</label>
+                  <div class="theme-mode-switch" id="workspace-mode-switch" role="radiogroup" aria-labelledby="workspace-mode-label">
+                  <button type="button" role="radio" data-mode="light" data-i18n="Light">Light</button>
+                  <button type="button" role="radio" data-mode="dark" data-i18n="Dark">Dark</button>
+                  <button type="button" role="radio" data-mode="system" data-i18n="Match the system">Match the system</button>
+                </div>
+                </div>
+              </div>
             </div>
             <div class="settings-option">
               <label data-i18n="Language">Language</label>

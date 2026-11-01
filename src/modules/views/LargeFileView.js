@@ -533,7 +533,7 @@ export class LargeFileView {
             const avgLine = this.byteSize / Math.max(1, this.lineCount);
             if (avgLine > 2 * 1024 * 1024) {
                 if (window.showToast) {
-                    window.showToast('A single line is too long to edit — this file stays read-only.');
+                    window.showToast(t('A single line is too long to edit — this file stays read-only.'));
                 }
                 return;
             }
@@ -547,7 +547,7 @@ export class LargeFileView {
                 this.file.eol = meta.eol || this.file.eol;
             } catch (e) {
                 console.error('editable_open failed', e);
-                if (window.showToast) window.showToast('Could not open edit mode.');
+                if (window.showToast) window.showToast(t('Could not open edit mode.'));
                 return;
             }
         } else {

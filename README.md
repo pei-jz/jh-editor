@@ -27,7 +27,7 @@ editor is actually ready, so there is no white flash and no empty frame.
 
 ### Where it earns its place
 
-- **Finding one design document among thousands.** `Ctrl+Shift+R` (or `Ctrl+P`) narrows
+- **Finding one design document among thousands.** `Ctrl+Shift+R` narrows
   the whole workspace as you type — by name, by path, by glob (`*設計*.xlsx`) — and
   `Enter` opens an Excel workbook straight into a read-only Office preview that keeps
   its column widths, merged cells and borders. No waiting for Excel to start.
@@ -35,7 +35,7 @@ editor is actually ready, so there is no white flash and no empty frame.
   sort, resize and edit, and every cell stays the text it was — no dates turned into
   serial numbers, no leading zeros dropped, and a Shift_JIS file is saved as Shift_JIS.
 - **Reading Markdown, and editing it a block at a time.** A `.md` file opens rendered —
-  Mermaid, tables and math included — and a double-click (or `F2`) opens just that block
+  Mermaid, tables and math included — and `F2` (or the pencil on the block) opens just that block
   beside a live preview.
 
 ---
@@ -111,9 +111,9 @@ that tab; the current mode is always shown in the status bar.
 | Mode | What it is |
 |------|-----------|
 | **Text** | CodeMirror 6 with per-language syntax highlighting, bracket & selected-word matching, whitespace markers, code folding, word wrap, and a scrollbar minimap of search hits |
-| **Markdown (block)** | Notion-style block editing. Double-click or `F2` opens a large split modal — source on the left, live preview on the right |
+| **Markdown (block)** | Notion-style block editing. `F2` or the block's pencil opens a large split modal — source on the left, live preview on the right |
 | **Structure** | Tree + source dual pane for JSON / XML / HTML / JSP, with drag-and-drop node manipulation |
-| **Table (CSV/TSV)** | Spreadsheet-style grid: virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
+| **Table (CSV/TSV)** | Spreadsheet-style grid: double-click or `F2` edits a cell; virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
 | **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
 | **3-way merge** | For a Git conflict: base, ours and theirs lined up row for row with the result. One click takes a side (or both); *Save and mark resolved* moves on to the next conflicted file |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
@@ -146,7 +146,7 @@ that tab; the current mode is always shown in the status bar.
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
-- **File search** (`Ctrl+P` or `Ctrl+Shift+R`) — the workspace's file list is indexed
+- **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
   exact name, then a name that starts with the query, then one that contains it, then
   the folder path — and the letters in order are enough (`flsrch` finds
@@ -156,13 +156,16 @@ that tab; the current mode is always shown in the status bar.
 - **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
 - **Compare** two files from the explorer, or two whole **folders** (recursive: differing files
   open as a diff, files present on only one side are marked `+` / `-`)
+- **Printing** (`Ctrl+P`) — a preview first, where you choose to keep the theme's
+  colours (the dark background included) or print on white; code gets syntax colours and
+  optional line numbers, Markdown prints fully rendered. "Save as PDF" is in the dialog that follows
 - **Huge files** — beyond a threshold, files open through a Rust `mmap` backend that serves
   only the visible lines; editing uses a `ropey`-backed sliding window, so a 100 MB log
   neither freezes the UI nor gets pulled into JS memory
 - **Encoding** — auto-detection (`chardetng`) plus manual override (UTF-8, Shift-JIS, EUC-JP, …),
   and explicit CRLF/LF control that never changes on its own
 - **Office files** — `.xlsx` / `.docx` / `.pptx` open in the preview below rather than
-  being hidden as binaries; they appear in the explorer and in `Ctrl+P`
+  being hidden as binaries; they appear in the explorer and in file search
 
 ### 🎞️ Slides (jh-presentation decks)
 
@@ -279,12 +282,13 @@ the agent's model calls back into the editor for context.
 
 ### 🎨 Customization
 
-- **14 themes** (see [Themes](#-themes)), and a **theme per workspace** so windows on
+- **8 themes, each light and dark**, following the OS if you like (see [Themes](#-themes)),
+  and a **theme per workspace** so windows on
   different projects are easy to tell apart
 - **Fonts** — separate family/size for editor, UI, Markdown documents and terminal
 - **Shortcuts** — scope-aware system with a searchable in-app guide (`F1`) and a command
   palette (`Ctrl+Shift+P`)
-- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar).
+- **Integrated terminal** — xterm.js over a native PTY (toggled from the title bar or `` Ctrl+` ``).
   Dropping a file anywhere on it types the full path; the scrollback length is a setting
 
 ---
@@ -295,26 +299,25 @@ the agent's model calls back into the editor for context.
   <img src="docs/images/themes.png" alt="The same Java file in each of the 14 themes" width="820">
 </p>
 
-| Theme | Base | Character |
-|-------|------|-----------|
-| Light | light | Plain white editor and explorer |
-| Dark | dark | Neutral charcoal |
-| Midnight | dark | Near-black with a blue-purple cast |
-| Latte | light | Warm cream |
-| Solarized Light | light | Solarized, with body text darkened for contrast |
-| Solarized Dark | dark | Solarized, with contrast raised |
-| Paper | light | Aged paper on a desk, ruled lines behind Markdown |
-| Paper Dark | dark | Kraft paper at night; Book mode lays the sheet on a desk |
-| Ink Brush (墨絵) | light | Washi, with ink-wash mountains along the mount |
-| Ink Brush Dark | dark | Near-black ink |
-| **Hanging Scroll (掛軸)** — default | light | Indigo brocade mount around moon-white silk |
-| Hanging Scroll Dark | dark | Deep indigo silk, gold-damask mount, vermillion seal |
-| Nord | dark | Nord's own palette, form controls included |
-| Bamboo Slip (竹簡) | dark | Bamboo slips bound with cord, Mincho on the chrome |
+Pick a **theme** and a **mode** — Light, Dark, or *Match the system*, which follows the
+OS as it switches. Every theme has both halves.
 
-*Base* is what the editor surface is, and it decides the syntax, Mermaid and terminal
-palettes. Hanging Scroll counts as light: its mount is indigo, but the sheet you read is
-pale silk. To add a theme, see [docs/THEMING.md](docs/THEMING.md).
+| Theme | Light | Dark |
+|-------|-------|------|
+| Standard | Plain white editor and explorer | Neutral charcoal |
+| Paper | Aged paper on a desk, ruled lines behind Markdown | Kraft paper at night; Book mode lays the sheet on a desk |
+| Ink Brush (水墨) | Washi, with ink-wash mountains along the mount | Near-black ink |
+| **Hanging Scroll (掛軸)** — default | Indigo brocade mount around moon-white silk | Deep indigo silk, gold-damask mount, vermillion seal |
+| Bamboo Slip (竹簡) | Fresh green slips, brown ink | Charred slips bound with cord; Mincho on the chrome of both |
+| Coffee | Catppuccin Latte | Catppuccin Mocha |
+| Nord | Snow Storm greys, inks darkened to read | Nord's own palette, form controls included |
+| Solarized | Body text darkened for contrast | Contrast raised |
+
+Which half is showing decides the syntax, Mermaid and terminal palettes. Hanging Scroll's
+light half counts as light: its mount is indigo, but the sheet you read is pale silk. A
+workspace can pick its own theme and its own mode; either one left unset follows the global
+setting. To add a theme, see
+[docs/THEMING.md](docs/THEMING.md).
 
 ---
 
@@ -490,7 +493,8 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+N` / `Ctrl+W` | New file / Close tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+P` | Command palette |
-| `Ctrl+P` / `Ctrl+Shift+R` | File search |
+| `Ctrl+P` | Print (preview, keeping the theme colours or on white) |
+| `Ctrl+Shift+R` | File search |
 | `Ctrl+T` | Tab search |
 | `Ctrl+G` | Workspace grep (supports globs) |
 | `Ctrl+F` | Search in file |
@@ -501,6 +505,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Alt+B` | Book mode |
 | `F11` / `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
 | `Ctrl+Alt+O` | Recent workspaces |
+| `` Ctrl+` `` / `Ctrl+@` | Toggle terminal (`Ctrl+@` on a JIS keyboard) |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |
 | `Ctrl+\` / `Ctrl+Alt+\` | Split editor right / down |

@@ -1,6 +1,5 @@
 /**
- * FileSearchRank.js — matching and ordering for the file search (Ctrl+P /
- * Ctrl+Shift+R).
+ * FileSearchRank.js — matching and ordering for the file search (Ctrl+Shift+R).
  *
  * The list used to be the first hundred files whose name contained the query,
  * in whatever order the directory walk produced them. Typing `App.js` could

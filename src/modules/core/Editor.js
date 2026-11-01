@@ -35,6 +35,8 @@ import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
+import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
+import { Toast } from '../ui/Toast.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
 import {
@@ -548,7 +550,7 @@ const editorActions = {
         if (structural.some(ext => path.endsWith(ext)) || isMarkdown) {
             if (file.viewMode === 'text') {
                 if (file.content && file.content.length > 5 * 1024 * 1024) {
-                    if (window.showToast) window.showToast('This file is too large for the structure view.');
+                    if (window.showToast) window.showToast(t('This file is too large for the structure view.'));
                     return;
                 }
                 file.viewMode = 'structure';
@@ -696,7 +698,7 @@ export function renderEditor(targetPane = null) {
         const file = openFiles[activeIdx];
 
         if (!file) {
-            container.innerHTML = '<div class="welcome-message">Select a file from the explorer to start editing.</div>';
+            renderEmptyPaneGuide(container);
             return;
         }
 
@@ -1765,6 +1767,16 @@ export function tabIconFor(file) {
     return null;
 }
 
+/**
+ * Whether a tab offers "compare with the saved file": a real file on disk with
+ * edits to review. An untitled buffer has no saved version, and a virtual tab
+ * (diff, agent, search results) has no file behind it.
+ */
+export function canCompareWithSaved(file) {
+    if (!file || !file.isDirty || !file.path) return false;
+    return !String(file.path).includes('://') && !tabIconFor(file);
+}
+
 export function renderTabs(targetPane = null) {
     // Tabs changed (opened / closed / reordered / dirtied) → persist the session
     // so a crash or restart comes back to the same place. Cheap + debounced
@@ -1814,6 +1826,15 @@ export function renderTabs(targetPane = null) {
                 const dirtyMark = document.createElement('span');
                 dirtyMark.className = 'tab-dirty';
                 dirtyMark.textContent = '*';
+                // The mark that says "changed" is also the way to see what
+                // changed. A separate icon cost every edited tab its width.
+                if (canCompareWithSaved(file)) {
+                    dirtyMark.classList.add('tab-dirty-link');
+                    dirtyMark.setAttribute('role', 'button');
+                    const binding = shortcuts.bindingFor('app:diff');
+                    dirtyMark.title = binding ? `${t('Compare with Saved File')} (${binding})` : t('Compare with Saved File');
+                    dirtyMark.onclick = (e) => { e.stopPropagation(); compareWithDisk(file); };
+                }
                 tab.appendChild(dirtyMark);
             }
             // The name may be cut short; the full path stays one hover away.
@@ -1844,6 +1865,9 @@ export function renderTabs(targetPane = null) {
                 e.stopPropagation();
                 ContextMenu.show(e, [
                     { label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
+                    ...(canCompareWithSaved(file)
+                        ? [{ label: t('Compare with Saved File'), hint: shortcuts.bindingFor('app:diff'), action: () => compareWithDisk(file) }]
+                        : []),
                     { label: t('Compare with File...'), action: () => compareWithFile(file) },
                     { label: t('Save As...'), action: () => saveCurrentFileAs() },
                     { type: 'separator' },
@@ -2743,17 +2767,17 @@ export async function saveCurrentFileAs() {
 
     if (source.type === 'diff' || source.type === 'compare'
         || source.viewMode === 'diff' || source.viewMode === 'compare') {
-        if (window.showToast) window.showToast('Save As is not available for this view.');
+        if (window.showToast) window.showToast(t('Save As is not available for this view.'));
         return;
     }
 
     let contentToSave;
     if (source.isEditing && source.editId != null) {
-        if (window.showToast) window.showToast('Save As is not available for this view.');
+        if (window.showToast) window.showToast(t('Save As is not available for this view.'));
         return;
     }
     if (source.isLarge) {
-        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        if (window.showToast) window.showToast(t('Read-only (large file) — cannot save.'));
         return;
     }
     // Same as saveCurrentFile: pull in edits a view is still holding.
@@ -2792,7 +2816,7 @@ export async function saveCurrentFileAs() {
         });
     } catch (e) {
         console.error('Save As dialog failed', e);
-        if (window.showToast) window.showToast('Save As failed.');
+        if (window.showToast) window.showToast(t('Save As failed.'));
         return;
     }
     if (!selectedPath) return; // user cancelled
@@ -2855,10 +2879,32 @@ export async function createNewFileOfType(ext = 'txt', initialContent = '') {
     // View will initialize and render
 }
 
+const COMPARE_HINT_KEY = 'jh_compare_hint_shown_v1';
+
+/**
+ * Says once, ever, that edits can be reviewed before saving. Saving is when the
+ * thought comes up, and a toast leaves the keyboard alone: Ctrl+S is pressed
+ * mid-typing, and a dialog here would take the next keystrokes.
+ */
+function showCompareHintOnce() {
+    try {
+        if (localStorage.getItem(COMPARE_HINT_KEY)) return;
+        localStorage.setItem(COMPARE_HINT_KEY, '1');
+    } catch (_) {
+        return; // with nowhere to remember it, it would show on every save
+    }
+    Toast.info(t('Saved. Next time, click the * on the tab or press {key} to review your changes before saving.', {
+        key: shortcuts.bindingFor('app:diff'),
+    }));
+}
+
 export async function saveCurrentFile() {
     const file = getActiveFile();
     if (!file) return false;
-    return saveFile(file, getCurrentView());
+    const hadEdits = canCompareWithSaved(file);
+    const saved = await saveFile(file, getCurrentView());
+    if (saved && hadEdits) showCompareHintOnce();
+    return saved;
 }
 
 /** The view currently showing `file`, or null when its tab is not in front. */
@@ -2968,7 +3014,7 @@ async function saveFileNow(file, view, { refresh = true } = {}) {
     // Large files opened read-only via the mmap backend have no content in
     // JS (file.content === ''). Saving would truncate the file — block it.
     if (file.isLarge) {
-        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        if (window.showToast) window.showToast(t('Read-only (large file) — cannot save.'));
         return false;
     }
 
@@ -3797,7 +3843,7 @@ async function restoreSessionInto(loading) {
         await renderTabs();
         const recovered = State.openFiles.filter(f => f._recoveredDraft).length;
         if (recovered > 0 && window.showToast) {
-            window.showToast(`Recovered ${recovered} unsaved change(s)`);
+            window.showToast(t('Recovered {n} unsaved change(s)', { n: recovered }));
         }
     }
     return restored;
@@ -3832,7 +3878,7 @@ export async function compareTwoFiles(leftPath, rightPath) {
         });
     } catch (err) {
         console.error('Failed to compare the two selected files:', err);
-        if (window.showToast) window.showToast('Failed to compare the files');
+        if (window.showToast) window.showToast(t('Failed to compare the files'));
     }
 }
 

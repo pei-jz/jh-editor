@@ -718,6 +718,106 @@
     .status-commands-label { display: none; }
 }
 
+/* ── Empty pane guide ─────────────────────────────────────────────────────── */
+.empty-guide {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    box-sizing: border-box;
+    overflow: auto;
+    user-select: none;
+    position: relative;
+    isolation: isolate;
+    container-type: size;
+}
+
+/* Each theme hangs a picture here (--empty-pane-art in themes.css). This is the
+   one screen with no document on it, so a picture costs no legibility. It is a
+   layer of its own so that a container query can take it away: a query cannot
+   style the container's own background. */
+.empty-guide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--empty-pane-art, none);
+    background-repeat: no-repeat;
+    background-position: var(--empty-pane-art-position, center);
+    background-size: var(--empty-pane-art-size, auto);
+}
+
+/* A split pane or a small window has no margin left for it, and the picture
+   would run behind the guide's keys. */
+@container (max-width: 760px) {
+    .empty-guide::before { display: none; }
+}
+
+@container (max-height: 420px) {
+    .empty-guide::before { display: none; }
+}
+
+.empty-guide-hint {
+    margin: 0;
+    font-size: 13px;
+    text-align: center;
+    color: var(--text-secondary, var(--text-color));
+}
+
+.empty-guide-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: min(360px, 100%);
+}
+
+.empty-guide-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Written with two classes to outrank `body.theme-x button`, which fills every
+   button on the dark themes. The font is left to that rule: it carries the
+   theme's chrome typeface. */
+.empty-guide .empty-guide-row {
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.empty-guide .empty-guide-row:hover,
+.empty-guide .empty-guide-row:focus-visible {
+    background: var(--hover-color);
+    border-color: var(--border-color);
+}
+
+.empty-guide-row:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+.empty-guide-row kbd {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 11px;
+    line-height: 1.4;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+}
+
 /* ── Pairing notice ──────────────────────────────────────────────────────────
    Shown while J.H AI Agent is asking the user to approve this editor. The code
    is here so it can be COMPARED with the one in the agent's own dialog — that

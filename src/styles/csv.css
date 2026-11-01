@@ -196,8 +196,7 @@
     text-align: left;
 }
 
-body.theme-dark .csv-grid th,
-body.theme-midnight .csv-grid th {
+body.theme-dark .csv-grid th {
     background-color: var(--bg-color-secondary);
 }
 

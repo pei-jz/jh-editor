@@ -38,6 +38,7 @@ const COMMANDS = [
     { id: 'app:save', label: 'Save', category: 'File', icon: 'check', keywords: 'write disk' },
     { id: 'app:save-as', label: 'Save As…', category: 'File', icon: 'export', keywords: 'write copy rename' },
     { id: 'app:close-tab', label: 'Close Tab', category: 'File', icon: 'close' },
+    { id: 'app:print', label: 'Print…', category: 'File', icon: 'printer', keywords: 'pdf paper preview' },
     { id: 'app:workspace-menu', label: 'Recent Workspaces', category: 'File', icon: 'folder', keywords: 'switch project open folder history' },
     { id: 'app:open-notes', label: 'Open Notes', category: 'File', icon: 'note', keywords: 'quick scratch' },
     { id: 'app:new-note', label: 'New Note', category: 'File', icon: 'plus', keywords: 'quick scratch' },
@@ -75,6 +76,7 @@ const COMMANDS = [
     { id: 'app:toggle-preview', label: 'Toggle Preview', category: 'View', icon: 'file-globe', keywords: 'html markdown render' },
     { id: 'app:toggle-book-mode', label: 'Toggle Book Mode', category: 'View', icon: 'file-text', keywords: 'page turn read' },
     { id: 'app:toggle-vim', label: 'Toggle Vim Mode', category: 'View', icon: 'terminal', keywords: 'vi modal keys' },
+    { id: 'app:toggle-terminal', label: 'Toggle Terminal', category: 'View', icon: 'terminal', keywords: 'shell console command prompt powershell' },
 
     // ── Compare ──────────────────────────────────────────────────────
     { id: 'app:diff', label: 'Compare with Saved File', category: 'Compare', icon: 'diff', keywords: 'diff disk changes' },

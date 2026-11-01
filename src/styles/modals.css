@@ -163,6 +163,10 @@
     border: 1px solid var(--border-color);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     min-width: 150px;
+    /* Near the right edge an absolute box shrinks to the room left, and ContextMenu
+       only moves it back afterwards, leaving the labels wrapped at that width. */
+    width: max-content;
+    max-width: 90vw;
     z-index: 9999;
     border-radius: 4px;
     padding: 4px 0;
@@ -181,6 +185,13 @@
 .context-menu-item:hover {
     background-color: var(--primary-color);
     color: var(--text-on-primary, #fff);
+}
+
+.context-menu-hint {
+    float: right;
+    margin-left: 24px;
+    font-size: 11px;
+    line-height: 1.5;
 }
 
 /* --- Settings Modal --- */
@@ -226,6 +237,83 @@
     border: 1px solid var(--border-color);
     background: var(--bg-color-secondary);
     color: var(--text-color);
+}
+
+/* ── Theme and mode ──
+   The same label-left, control-right rows as every other setting. This
+   workspace's own pair sits behind a checkbox and only shows when ticked. */
+.theme-mode-switch {
+    display: flex;
+    width: 400px;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* The id outranks Paper's and Bamboo's `body.theme-x button`, which would
+   otherwise restyle each segment as a free-standing button. */
+#settings-general .theme-mode-switch button {
+    flex: 1;
+    margin: 0;
+    padding: 8px 4px;
+    border: 0;
+    border-left: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--bg-tertiary);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+#settings-general .theme-mode-switch button:first-child {
+    border-left: 0;
+}
+
+#settings-general .theme-mode-switch button:hover {
+    background: var(--hover-color, var(--bg-color-secondary));
+}
+
+#settings-general .theme-mode-switch button.is-on {
+    background: var(--primary-color);
+    color: var(--text-on-primary);
+}
+
+.theme-ws-spacer {
+    flex: 1;
+}
+
+.settings-option .theme-ws-check {
+    width: 400px;
+}
+
+.settings-option .theme-ws-check label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.settings-option .theme-ws-check .settings-description {
+    margin: 4px 0 0 26px;
+}
+
+/* The hint says what ticking does; once ticked, the rows it opened sit
+   straight under the checkbox instead of below a paragraph. */
+.theme-ws-check:has(input:checked) .theme-ws-hint {
+    display: none;
+}
+
+.theme-ws-check input:disabled + span {
+    opacity: 0.55;
+}
+
+/* This workspace's rows, set in under the checkbox that opened them. */
+.theme-ws-rows .settings-option > label {
+    padding-left: 20px;
+    color: var(--text-muted);
 }
 
 /* About — the version block at the foot of the General tab. Set apart from the

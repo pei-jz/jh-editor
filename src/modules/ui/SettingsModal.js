@@ -18,11 +18,12 @@ import {
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
-import { THEMES, themeClasses, isKnownTheme } from '../utils/Themes.js';
+import { FAMILIES, themeClasses, isKnownTheme } from '../utils/Themes.js';
 import { syncNativeBackground } from '../utils/NativeBackground.js';
 import { getProseFont, setProseFont, getProseSize, setProseSize } from '../utils/ProseFont.js';
 import {
-    globalTheme, setGlobalTheme, workspaceTheme, setWorkspaceTheme, effectiveTheme, noteAppliedTheme,
+    globalFamily, setGlobalFamily, themeMode, setThemeMode,
+    workspaceTheme, setWorkspaceTheme, workspaceMode, setWorkspaceMode, effectiveTheme, noteAppliedTheme,
 } from '../utils/WorkspaceTheme.js';
 import {
     terminalScrollback, setTerminalScrollback, SCROLLBACK_MIN, SCROLLBACK_MAX,
@@ -358,47 +359,82 @@ export function initSettingsModal() {
         document.head.appendChild(style);
     }
 
-    // Load saved theme
-    const savedTheme = globalTheme();
-    // Build the picker from the registry rather than from markup: a theme
+    // Build the picker from the registry rather than from markup: a family
     // added to Themes.js appears here without anyone remembering to add an
     // <option>, and the label goes through t() like every other string.
-    if (themeSelector && !themeSelector.options.length) {
-        for (const th of THEMES) {
+    const addFamilyOptions = (select) => {
+        for (const fam of FAMILIES) {
             const opt = document.createElement('option');
-            opt.value = th.id;
-            opt.textContent = t(th.label);
-            opt.setAttribute('data-i18n', th.label);
-            themeSelector.appendChild(opt);
+            opt.value = fam.id;
+            opt.textContent = t(fam.label);
+            opt.setAttribute('data-i18n', fam.label);
+            select.appendChild(opt);
         }
-    }
+    };
+    if (themeSelector && !themeSelector.options.length) addFamilyOptions(themeSelector);
+
+    // Mode is three buttons in a row rather than a select: the three choices
+    // are short and seen side by side, the way a mode is usually picked.
+    const modeSwitch = document.getElementById('theme-mode-switch');
+    const showMode = (group, mode) => {
+        if (!group) return;
+        for (const btn of group.querySelectorAll('button[data-mode]')) {
+            const on = btn.dataset.mode === mode;
+            btn.classList.toggle('is-on', on);
+            btn.setAttribute('aria-checked', String(on));
+        }
+    };
+    const syncThemeSelectors = () => {
+        if (themeSelector) themeSelector.value = globalFamily();
+        showMode(modeSwitch, themeMode());
+    };
 
     applyTheme(effectiveTheme(State.currentDir));
-    if (themeSelector) themeSelector.value = savedTheme;
+    syncThemeSelectors();
 
-    // This workspace's own theme. The first option, "same as the global
-    // theme", is what every workspace starts with.
+    // This workspace's own theme and mode, behind a checkbox. Unticked, the
+    // workspace stores nothing and simply follows the rows above; ticking it
+    // copies them in, so nothing changes on screen until one is changed.
+    const wsOverride = document.getElementById('workspace-theme-override');
+    const wsRows = document.getElementById('workspace-theme-rows');
     const wsThemeSelector = document.getElementById('workspace-theme-selector');
-    if (wsThemeSelector && wsThemeSelector.options.length <= 1) {
-        for (const th of THEMES) {
-            const opt = document.createElement('option');
-            opt.value = th.id;
-            opt.textContent = t(th.label);
-            opt.setAttribute('data-i18n', th.label);
-            wsThemeSelector.appendChild(opt);
-        }
-    }
+    if (wsThemeSelector && !wsThemeSelector.options.length) addFamilyOptions(wsThemeSelector);
+    const wsModeSwitch = document.getElementById('workspace-mode-switch');
     const syncWorkspaceThemeSelector = () => {
-        if (!wsThemeSelector) return;
         const dir = State.currentDir;
-        wsThemeSelector.disabled = !dir;
-        wsThemeSelector.value = (dir && workspaceTheme(dir)) || '';
+        const own = !!dir && !!(workspaceTheme(dir) || workspaceMode(dir));
+        if (wsOverride) {
+            wsOverride.disabled = !dir;
+            wsOverride.checked = own;
+        }
+        if (wsRows) wsRows.hidden = !own;
+        if (wsThemeSelector) wsThemeSelector.value = (dir && workspaceTheme(dir)) || globalFamily();
+        showMode(wsModeSwitch, (dir && workspaceMode(dir)) || themeMode());
     };
     syncWorkspaceThemeSelector();
+    if (wsOverride) {
+        wsOverride.onchange = (e) => {
+            const dir = State.currentDir;
+            if (!dir) return;
+            setWorkspaceTheme(dir, e.target.checked ? globalFamily() : null);
+            setWorkspaceMode(dir, e.target.checked ? themeMode() : null);
+            syncWorkspaceThemeSelector();
+            applyTheme(effectiveTheme(dir));
+        };
+    }
     if (wsThemeSelector) {
         wsThemeSelector.onchange = (e) => {
             if (!State.currentDir) return;
-            setWorkspaceTheme(State.currentDir, e.target.value || null);
+            setWorkspaceTheme(State.currentDir, e.target.value);
+            applyTheme(effectiveTheme(State.currentDir));
+        };
+    }
+    if (wsModeSwitch) {
+        wsModeSwitch.onclick = (e) => {
+            const btn = e.target.closest('button[data-mode]');
+            if (!btn || !State.currentDir) return;
+            setWorkspaceMode(State.currentDir, btn.dataset.mode);
+            showMode(wsModeSwitch, btn.dataset.mode);
             applyTheme(effectiveTheme(State.currentDir));
         };
     }
@@ -707,9 +743,7 @@ export function initSettingsModal() {
                 const isCompact = document.body.classList.contains('display-mode-compact');
                 viewModeSelector.value = isCompact ? 'compact' : 'normal';
             }
-            if (themeSelector) {
-                themeSelector.value = globalTheme();
-            }
+            syncThemeSelectors();
             syncWorkspaceThemeSelector();
             if (scrollbackInput) scrollbackInput.value = String(terminalScrollback());
             const explorerOpen = document.getElementById('explorer-open-selector');
@@ -767,12 +801,34 @@ export function initSettingsModal() {
 
     if (themeSelector) {
         themeSelector.onchange = (e) => {
-            setGlobalTheme(e.target.value);
+            setGlobalFamily(e.target.value);
             // A workspace with a theme of its own keeps it; the global one
             // shows wherever there is none.
             applyTheme(effectiveTheme(State.currentDir));
         };
     }
+
+    if (modeSwitch) {
+        modeSwitch.onclick = (e) => {
+            const btn = e.target.closest('button[data-mode]');
+            if (!btn) return;
+            setThemeMode(btn.dataset.mode);
+            showMode(modeSwitch, btn.dataset.mode);
+            applyTheme(effectiveTheme(State.currentDir));
+        };
+    }
+
+    // With the mode on "Match the system", the OS switching to dark at dusk
+    // repaints the window then and there, not at the next launch. Either the
+    // global mode or this workspace's own can be the one following it, so
+    // the check is on what this window resolves to.
+    try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if ((workspaceMode(State.currentDir) || themeMode()) === 'system') {
+                applyTheme(effectiveTheme(State.currentDir));
+            }
+        });
+    } catch (_) { /* no matchMedia: the mode is read at startup only */ }
 
     if (viewModeSelector) {
         viewModeSelector.onchange = (e) => {

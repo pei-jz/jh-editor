@@ -1,5 +1,6 @@
 import { State } from './Store.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
+import { formatBinding } from './CommandRegistry.js';
 
 /**
  * Physical keys that can carry a backslash, and the characters they may report.
@@ -70,6 +71,16 @@ export class ShortcutManager {
         window.dispatchEvent(new CustomEvent('shortcutsChanged'));
     }
 
+    /**
+     * The key that runs a global command right now, as a person reads it. Reads
+     * the merged list, so a hint shown on screen follows a rebinding made in
+     * Settings. '' when nothing is bound.
+     */
+    bindingFor(cmd) {
+        const match = this.shortcuts.find(s => s.cmd === cmd && s.scope === 'GLOBAL' && s.key);
+        return match ? formatBinding(match) : '';
+    }
+
     register(shortcut) {
         // Runtime registration (e.g. by modules/plugins)
         if (!shortcut.scope) shortcut.scope = 'GLOBAL';
@@ -110,6 +121,10 @@ export class ShortcutManager {
      */
     resolveScope(target) {
         if (!target || typeof target.closest !== 'function') return null;
+        // A target that left the document during its own mousedown (the CSV
+        // grid redraws the clicked cell) matches no area below and would fall
+        // through to GLOBAL, undoing the scope its focus change just set.
+        if (target.isConnected === false) return null;
 
         if (target.closest('.visual-table-editor')) return 'MARKDOWN_TABLE';
         // The virtualized explorer renders rows inside #file-list (older markup

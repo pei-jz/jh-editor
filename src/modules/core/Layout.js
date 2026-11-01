@@ -1,7 +1,8 @@
 import { EL } from './Constants.js';
 import { State } from './Store.js';
 import { applyTheme } from '../ui/SettingsModal.js';
-import { DEFAULT_THEME } from '../utils/Themes.js';
+import { DEFAULT_THEME, RETIRED_THEMES } from '../utils/Themes.js';
+import { effectiveTheme } from '../utils/WorkspaceTheme.js';
 import { applyProseFont, getProseFont, applyProseSize, getProseSize, stepProseSize } from '../utils/ProseFont.js';
 
 /**
@@ -98,21 +99,16 @@ function saveSettings() {
 }
 
 function loadSettings() {
-    let theme = localStorage.getItem('theme') || DEFAULT_THEME;
-    // See index.html: Paper (Subtle) folded into Ink Brush.
-    if (theme === 'paper-subtle') {
-        theme = 'sumi-e';
-        localStorage.setItem('theme', theme);
-    }
-    // See index.html: Mocha folded into Midnight.
-    if (theme === 'latte-dark') {
-        theme = 'midnight';
-        localStorage.setItem('theme', theme);
+    const theme = localStorage.getItem('theme') || DEFAULT_THEME;
+    // See index.html: a removed theme moves to its replacement.
+    if (RETIRED_THEMES[theme]) {
+        localStorage.setItem('theme', RETIRED_THEMES[theme]);
     }
     const compact = localStorage.getItem('settings_compact');
 
-    // Apply Theme (Centralized)
-    applyTheme(theme);
+    // Apply Theme (Centralized). The mode may follow the OS, so the saved id
+    // is not necessarily the one shown.
+    applyTheme(effectiveTheme(''));
 
     // Compact
     if (compact === 'true') {

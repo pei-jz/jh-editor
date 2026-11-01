@@ -134,3 +134,7 @@ class ToastManager {
 }
 
 export const Toast = new ToastManager();
+
+// Dozens of call sites report through `if (window.showToast) window.showToast(...)`
+// but nothing ever defined it, so all of them were silent, failures included.
+window.showToast = (message, type) => Toast.show(message, type);

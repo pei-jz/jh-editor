@@ -380,10 +380,10 @@ export class LargeFileEditView {
             await invoke('editable_save', { id: this.editId, path: this.file.path });
             this.file.isDirty = false;
             if (typeof this.options.renderTabs === 'function') this.options.renderTabs();
-            if (window.showToast) window.showToast('Saved.');
+            if (window.showToast) window.showToast(t('Saved'));
         } catch (e) {
             console.error('editable_save failed', e);
-            if (window.showToast) window.showToast(`Save failed: ${e}`);
+            if (window.showToast) window.showToast(t('Save failed: {error}', { error: e }));
         }
     }
 

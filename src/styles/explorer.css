@@ -211,7 +211,6 @@
 
 /* Dark Mode Folder Icons - subtle monochrome treatment */
 body.theme-dark .tree-icon,
-body.theme-midnight .tree-icon,
 body.theme-solarized-dark .tree-icon {
     filter: grayscale(0.6) brightness(1.4);
     opacity: 0.9;

@@ -929,7 +929,7 @@ class VirtualExplorer {
                           await invoke('reveal_in_file_manager', { path: item.path });
                       } catch (e) {
                           console.error('reveal_in_file_manager failed', e);
-                          if (window.showToast) window.showToast('Could not open the file manager');
+                          if (window.showToast) window.showToast(t('Could not open the file manager'));
                       }
                   } },
             ];

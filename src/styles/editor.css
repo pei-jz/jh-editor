@@ -894,7 +894,6 @@ img {
 }
 
 body.theme-dark .active-line-highlight,
-body.theme-midnight .active-line-highlight,
 body.theme-solarized-dark .active-line-highlight {
     background-color: rgba(255, 255, 255, 0.1);
     /* More visible in dark mode */
@@ -993,7 +992,6 @@ body.theme-solarized-dark .active-line-highlight {
     cursor: pointer;
 }
 
-body.theme-midnight .word-scroll-mark,
 body.theme-dark .word-scroll-mark {
     background-color: rgba(200, 200, 200, 0.8);
 }
@@ -1029,7 +1027,6 @@ body.theme-dark .word-scroll-mark {
 }
 
 body.theme-dark,
-body.theme-midnight,
 body.theme-solarized-dark {
     --ws-marker-color: rgba(120, 180, 235, 0.9);
 }
@@ -1475,27 +1472,6 @@ body.theme-dark .hljs-string {
     /* VSCode Orange */
 }
 
-/* Midnight Mode XML/HTML */
-body.theme-midnight .hljs-tag {
-    color: #808080 !important;
-}
-
-body.theme-midnight .hljs-name {
-    color: #ff79c6 !important;
-    /* Draco Pink */
-}
-
-body.theme-midnight .hljs-attr,
-body.theme-midnight .hljs-variable {
-    color: #8be9fd !important;
-    /* Draco Cyan */
-}
-
-body.theme-midnight .hljs-string {
-    color: #ce9178 !important;
-    /* VSCode Orange */
-}
-
 
 /* ==========================================================================
    Syntax Highlighting Colors for PlainTextView
@@ -1549,24 +1525,6 @@ body.theme-midnight .hljs-string {
 .plain-text-highlights .hljs-punctuation,
 .md-block .hljs-punctuation {
     color: var(--hl-operator) !important;
-}
-
-/* Specific Midnight Theme Overrides if needed, but defaults are usually fine */
-body.theme-midnight .plain-text-highlights .hljs-function {
-    color: #f1fa8c !important;
-}
-
-body.theme-midnight .plain-text-highlights .hljs-keyword,
-body.theme-midnight .plain-text-highlights .hljs-control-flow {
-    color: #ff79c6 !important;
-}
-
-body.theme-midnight .plain-text-highlights .hljs-string {
-    color: #f1fa8c !important;
-}
-
-body.theme-midnight .plain-text-highlights .hljs-comment {
-    color: #6272a4 !important;
 }
 
 /* --- Structure View: Layered Source Editor --- */

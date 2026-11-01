@@ -20,9 +20,11 @@ export const SHORTCUTS = {
         // Ctrl+O stays the outline; Alt added for the workspace history, the
         // explorer folder button's list.
         { key: 'o', ctrl: true, alt: true, cmd: 'app:workspace-menu', description: 'Recent Workspaces' },
-        { key: 'p', ctrl: true, cmd: 'app:file-search', description: 'File Search' },
+        // Ctrl+P prints, as it does in every other Windows program. File search
+        // keeps Ctrl+Shift+R, which it already had.
+        { key: 'p', ctrl: true, cmd: 'app:print', description: 'Print' },
         { key: 'r', ctrl: true, shift: true, cmd: 'app:file-search', description: 'File Search' },
-        // Ctrl+Shift+P: the verb picker, next to Ctrl+P's noun picker.
+        // Ctrl+Shift+P: the verb picker, next to Ctrl+Shift+R's noun picker.
         { key: 'p', ctrl: true, shift: true, cmd: 'app:command-palette', description: 'Command Palette' },
         { key: 'g', ctrl: true, cmd: 'app:grep', description: 'Workspace Grep' },
         { key: 'l', ctrl: true, cmd: 'app:goto-line', description: 'Go to Line' },
@@ -75,7 +77,17 @@ export const SHORTCUTS = {
         { key: '\\', ctrl: true, cmd: 'editor:split-right', description: 'Split Editor Right' },
         { key: '\\', ctrl: true, alt: true, cmd: 'editor:split-down', description: 'Split Editor Down' },
         { key: 'w', ctrl: true, shift: true, cmd: 'editor:close-split', description: 'Close Split Pane' },
-        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' }
+        { key: '\\', ctrl: true, shift: true, cmd: 'editor:focus-other-pane', description: 'Focus Other Pane' },
+        // Added at the END of this list on purpose: a saved rebinding is keyed by
+        // the entry's position (ShortcutManager.loadShortcuts), so inserting
+        // above would hand other commands' overrides to the wrong keys.
+        //
+        // A JIS keyboard has no unshifted backtick. '@' is the key in that spot,
+        // and Ctrl+Shift+@ is what someone gets taking the "Ctrl+`" in the tooltip
+        // literally — so both work, and only the first two are listed in the guide.
+        { key: '`', ctrl: true, cmd: 'app:toggle-terminal', description: 'Toggle Terminal' },
+        { key: '@', ctrl: true, cmd: 'app:toggle-terminal', description: 'Toggle Terminal' },
+        { key: '`', ctrl: true, shift: true, cmd: 'app:toggle-terminal' }
     ],
 
     EXPLORER: [

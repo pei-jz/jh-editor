@@ -3,7 +3,7 @@ import { EL } from './Constants.js';
 import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer } from './Explorer.js';
-import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
+import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, getActiveFile, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
@@ -24,6 +24,7 @@ import { initSettingsModal, applyTheme } from '../ui/SettingsModal.js';
 import { effectiveTheme } from '../utils/WorkspaceTheme.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
 import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
+import { initEmptyPaneGuide, renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { applyIcons, iconEl } from '../ui/Icons.js';
 import { OutlineModal } from '../ui/OutlineModal.js';
 import { FileSearchModal } from '../ui/FileSearchModal.js';
@@ -43,6 +44,7 @@ import { DailyNotes } from '../utils/DailyNotes.js';
 // Initialize Tauri (Auto-handled by lib, but we might want explicit setup if needed)
 import { invoke } from '@tauri-apps/api/core';
 import { Toast } from '../ui/Toast.js';
+import PrintPreview from '../ui/PrintPreview.js';
 import { initDroppedFiles, isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -535,6 +537,29 @@ async function bootstrap() {
     // 3. Global Event Listeners
     if (EL.newFileBtn) EL.newFileBtn.addEventListener('click', createNewFileAction);
     if (EL.newTabBtn) EL.newTabBtn.addEventListener('click', createNewFileAction);
+
+    // Beside the "+": the other things that start from nothing. The scratch
+    // comparison belongs here, and had no control anywhere on screen.
+    const newTabMenuBtn = document.getElementById('new-tab-menu-btn');
+    if (newTabMenuBtn) {
+        const showNewTabMenu = (e) => {
+            const r = newTabMenuBtn.getBoundingClientRect();
+            ContextMenu.show({
+                preventDefault: () => e.preventDefault(),
+                stopPropagation: () => e.stopPropagation(),
+                pageX: r.left,
+                pageY: r.bottom,
+            }, [
+                { label: t('New File'), hint: shortcuts.bindingFor('app:new-file'), action: () => createNewFileAction() },
+                { label: t('New Note'), hint: shortcuts.bindingFor('app:new-note'), action: () => NotesPanel.open({ create: true }) },
+                { type: 'separator' },
+                { label: t('Compare Scratch Text'), hint: shortcuts.bindingFor('app:open-compare'), action: () => openCompareEditor() },
+            ]);
+        };
+        newTabMenuBtn.addEventListener('click', showNewTabMenu);
+        newTabMenuBtn.addEventListener('contextmenu', showNewTabMenu);
+        EL.newTabBtn?.addEventListener('contextmenu', showNewTabMenu);
+    }
     if (EL.saveBtn) EL.saveBtn.addEventListener('click', saveCurrentFile);
 
     // Title bar: Notes button opens the quick-notes panel; Ctrl+Click opens
@@ -626,11 +651,21 @@ async function bootstrap() {
             if (file) compareWithDisk(file);
         },
         'app:open-compare': () => openCompareEditor(),
+        'app:toggle-terminal': async (e) => {
+            if (e && e.repeat) return;
+            const hadFocus = EL.terminal.panel?.contains(document.activeElement);
+            await terminalManager.toggle();
+            // Opened by key means typing next, so the focus goes in with it (after
+            // the fit show() defers); closed from inside, it has to land somewhere.
+            if (terminalManager.isOpen) setTimeout(() => terminalManager.term?.focus(), 60);
+            else if (hadFocus) focusEditor();
+        },
         'app:toggle-whitespace': () => toggleWhitespace(),
         'app:save': saveCurrentFile,
         'app:save-as': saveCurrentFileAs,
         'app:search': toggleSearch,
         'app:file-search': () => FileSearchModal.show(),
+        'app:print': () => PrintPreview.show({ view: getCurrentView(), file: getActiveFile() }),
         'app:grep': () => GrepModal.show(),
         'app:format': formatCurrentFile,
         'app:outline-modal': () => OutlineModal.show(),
@@ -821,6 +856,13 @@ async function bootstrap() {
     // active view first, global action second. Anything else would give a
     // command two behaviours depending on how it was invoked.
     initCommandPalette((cmd) => delegateToView(cmd)(null));
+    initEmptyPaneGuide((cmd) => delegateToView(cmd)(null));
+    // renderEditor draws it from here on; this covers the panes it has not been
+    // asked to draw yet. A restored session has already filled them.
+    for (const id of ['editor-content', 'editor-content-right']) {
+        const pane = document.getElementById(id);
+        if (pane && !pane.childElementCount) renderEmptyPaneGuide(pane);
+    }
     // Git's credential questions (user name, password, SSH passphrase).
     initGitAuth();
 
