@@ -40,6 +40,7 @@ const COMMANDS = [
     { id: 'app:close-tab', label: 'Close Tab', category: 'File', icon: 'close' },
     { id: 'app:print', label: 'Print…', category: 'File', icon: 'printer', keywords: 'pdf paper preview' },
     { id: 'app:workspace-menu', label: 'Recent Workspaces', category: 'File', icon: 'folder', keywords: 'switch project open folder history' },
+    { id: 'app:folder-jump', label: 'Folder Jump', category: 'File', icon: 'folder-open', keywords: 'find folder explorer open go path pin' },
     { id: 'app:open-notes', label: 'Open Notes', category: 'File', icon: 'note', keywords: 'quick scratch' },
     { id: 'app:new-note', label: 'New Note', category: 'File', icon: 'plus', keywords: 'quick scratch' },
     { id: 'app:daily-note', label: "Open Today's Daily Note", category: 'File', icon: 'clock', keywords: 'journal diary today' },

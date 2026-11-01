@@ -56,6 +56,7 @@ export default defineConfig({
             input: {
                 main: 'index.html',
                 'deck-audience': 'deck-audience.html',
+                'folder-jump': 'folder-jump.html',
             },
             output: {
                 manualChunks: (id) => {

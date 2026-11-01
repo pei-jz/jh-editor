@@ -20,6 +20,14 @@ pub fn run() {
                 .unwrap_or_default();
             commands::window::route_second_launch(app, &target);
         }))
+        // Holds no hotkey until Folder Jump is turned on (commands/folder_jump.rs).
+        .plugin(tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(|app, _shortcut, event| {
+                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    commands::folder_jump::on_hotkey(app);
+                }
+            })
+            .build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
@@ -73,6 +81,13 @@ pub fn run() {
             commands::app::reveal_in_file_manager,
             commands::window::create_app_window,
             commands::window::take_launch_path,
+            commands::folder_jump::folder_jump_get_status,
+            commands::folder_jump::folder_jump_set_config,
+            commands::folder_jump::folder_jump_set_tray_labels,
+            commands::folder_jump::open_folder_as_workspace,
+            commands::folder_jump::open_folder_in_explorer,
+            commands::folder_jump::open_terminal_at,
+            commands::folder_jump::list_subfolders,
             commands::git::git_exec,
             commands::git::git_conflict_versions,
             commands::git::git_askpass_reply,
@@ -136,6 +151,7 @@ pub fn run() {
         // Git's credential questions come to the editor's dialog (askpass.rs).
         .setup(|app| {
             askpass::start(app.handle().clone());
+            commands::folder_jump::setup(app.handle());
             Ok(())
         })
         .manage(commands::pty::PtyState::default())
@@ -148,6 +164,9 @@ pub fn run() {
         // paths of files dropped onto it. Idempotent across reloads.
         .on_page_load(|webview, _payload| commands::file_drop::install(webview))
         .on_window_event(|window, event| {
+            if commands::folder_jump::handle_window_event(window, event) {
+                return;
+            }
             // Tear down a window's terminal and workspace entry when it closes,
             // so its shell process doesn't linger for the life of the app.
             if let tauri::WindowEvent::CloseRequested { .. } = event {

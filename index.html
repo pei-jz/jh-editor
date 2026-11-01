@@ -453,6 +453,15 @@
               </div>
             </div>
             <div class="settings-option">
+              <label for="folder-jump-enabled" data-i18n="Folder Jump: open from any app with a hotkey">Folder Jump: open from any app with a hotkey</label>
+              <div style="width: 400px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <input type="checkbox" id="folder-jump-enabled">
+                <input type="text" id="folder-jump-hotkey" readonly spellcheck="false" style="flex: 1 1 160px; padding: 5px;"
+                  data-i18n-placeholder="Press a key combination" data-i18n-title="Press a key combination">
+                <div id="folder-jump-message" style="flex: 1 1 100%; font-size: 11px; opacity: .75;"></div>
+              </div>
+            </div>
+            <div class="settings-option">
               <label data-i18n="Editor Font (Monospace)">Editor Font (Monospace)</label>
               <div class="font-picker">
                 <input id="font-family-selector" type="text" role="combobox"

@@ -145,6 +145,12 @@ that tab; the current mode is always shown in the status bar.
   follow a moved or renamed file
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
+- **Folder Jump** (`Ctrl+Alt+J`) — type part of a folder's name and go: `Enter` shows it
+  in Explorer, bringing forward a window already on it instead of opening another;
+  `Ctrl+Enter` opens it as a workspace, `Alt+Enter` opens a terminal there, `Ctrl+C` copies
+  the path. Pin a folder with `Ctrl+D` and the folders below it are searched too. Turned on
+  in Settings, the app stays in the notification area and `Win+Shift+E` (or a key of your
+  choosing) brings the search up from any app
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
 - **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
@@ -505,6 +511,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Alt+B` | Book mode |
 | `F11` / `Ctrl+Alt+F` | Full screen — Markdown block editor and Mermaid helper (`Esc` steps back out) |
 | `Ctrl+Alt+O` | Recent workspaces |
+| `Ctrl+Alt+J` | Folder Jump |
 | `` Ctrl+` `` / `Ctrl+@` | Toggle terminal (`Ctrl+@` on a JIS keyboard) |
 | `Ctrl+PageUp` / `Ctrl+PageDown` | Previous / next sheet in the Office preview |
 | `Arrow keys` / `Shift`+arrow | Office preview: move the selected cell / stretch the range |

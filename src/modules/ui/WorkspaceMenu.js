@@ -80,7 +80,8 @@ export function closeWorkspaceMenu() {
  * @param {HTMLElement} anchor
  * @param {{ onSwitch: (path: string) => any,
  *           onOpenFolder: () => any,
- *           onOpenInNewWindow?: (path: string) => any }} handlers
+ *           onOpenInNewWindow?: (path: string) => any,
+ *           onFolderJump?: () => any }} handlers
  */
 export function toggleWorkspaceMenu(anchor, handlers) {
     if (openMenu && openMenu.anchor === anchor) { closeWorkspaceMenu(); return; }
@@ -215,9 +216,31 @@ export function toggleWorkspaceMenu(anchor, handlers) {
         };
         menu.appendChild(openRow);
         rows.push(openRow);
+
+        if (handlers.onFolderJump) {
+            const jumpRow = document.createElement('div');
+            jumpRow.className = 'ws-menu-item ws-menu-jump';
+            jumpRow.setAttribute('role', 'menuitem');
+            jumpRow.tabIndex = -1;
+            const jumpMark = document.createElement('span');
+            jumpMark.className = 'ws-menu-mark';
+            const jumpText = document.createElement('span');
+            jumpText.className = 'ws-menu-text';
+            jumpText.textContent = `${t('Folder Jump')}…`;
+            jumpRow.append(jumpMark, jumpText);
+            jumpRow._jump = true;
+            jumpRow.onclick = () => activate(jumpRow);
+            jumpRow.onmousemove = () => {
+                const i = rows.indexOf(jumpRow);
+                if (i !== focusIndex) setFocus(i);
+            };
+            menu.appendChild(jumpRow);
+            rows.push(jumpRow);
+        }
     };
 
     const activate = (row) => {
+        if (row._jump) { close(); handlers.onFolderJump(); return; }
         if (row._open) { close(); handlers.onOpenFolder(); return; }
         if (row._current) return;           // already here
         close();
