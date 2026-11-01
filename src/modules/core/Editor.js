@@ -550,7 +550,7 @@ const editorActions = {
         if (structural.some(ext => path.endsWith(ext)) || isMarkdown) {
             if (file.viewMode === 'text') {
                 if (file.content && file.content.length > 5 * 1024 * 1024) {
-                    if (window.showToast) window.showToast('This file is too large for the structure view.');
+                    if (window.showToast) window.showToast(t('This file is too large for the structure view.'));
                     return;
                 }
                 file.viewMode = 'structure';
@@ -2767,17 +2767,17 @@ export async function saveCurrentFileAs() {
 
     if (source.type === 'diff' || source.type === 'compare'
         || source.viewMode === 'diff' || source.viewMode === 'compare') {
-        if (window.showToast) window.showToast('Save As is not available for this view.');
+        if (window.showToast) window.showToast(t('Save As is not available for this view.'));
         return;
     }
 
     let contentToSave;
     if (source.isEditing && source.editId != null) {
-        if (window.showToast) window.showToast('Save As is not available for this view.');
+        if (window.showToast) window.showToast(t('Save As is not available for this view.'));
         return;
     }
     if (source.isLarge) {
-        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        if (window.showToast) window.showToast(t('Read-only (large file) — cannot save.'));
         return;
     }
     // Same as saveCurrentFile: pull in edits a view is still holding.
@@ -2816,7 +2816,7 @@ export async function saveCurrentFileAs() {
         });
     } catch (e) {
         console.error('Save As dialog failed', e);
-        if (window.showToast) window.showToast('Save As failed.');
+        if (window.showToast) window.showToast(t('Save As failed.'));
         return;
     }
     if (!selectedPath) return; // user cancelled
@@ -3014,7 +3014,7 @@ async function saveFileNow(file, view, { refresh = true } = {}) {
     // Large files opened read-only via the mmap backend have no content in
     // JS (file.content === ''). Saving would truncate the file — block it.
     if (file.isLarge) {
-        if (window.showToast) window.showToast('Read-only (large file) — cannot save.');
+        if (window.showToast) window.showToast(t('Read-only (large file) — cannot save.'));
         return false;
     }
 
@@ -3843,7 +3843,7 @@ async function restoreSessionInto(loading) {
         await renderTabs();
         const recovered = State.openFiles.filter(f => f._recoveredDraft).length;
         if (recovered > 0 && window.showToast) {
-            window.showToast(`Recovered ${recovered} unsaved change(s)`);
+            window.showToast(t('Recovered {n} unsaved change(s)', { n: recovered }));
         }
     }
     return restored;
@@ -3878,7 +3878,7 @@ export async function compareTwoFiles(leftPath, rightPath) {
         });
     } catch (err) {
         console.error('Failed to compare the two selected files:', err);
-        if (window.showToast) window.showToast('Failed to compare the files');
+        if (window.showToast) window.showToast(t('Failed to compare the files'));
     }
 }
 

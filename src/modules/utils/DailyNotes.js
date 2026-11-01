@@ -8,6 +8,7 @@
  */
 
 import { dayId, dailyPath, listDaily } from './Notes.js';
+import { t } from './I18n.js';
 
 export const DailyNotes = {
     /** Open (or create) today's daily note as a normal editor tab. */
@@ -19,7 +20,7 @@ export const DailyNotes = {
     async openDay(id) {
         const path = await dailyPath(id);
         if (!path) {
-            if (window.showToast) window.showToast(`Could not open the note for ${id}`);
+            if (window.showToast) window.showToast(t('Could not open the note for {id}', { id }));
             return null;
         }
         if (window.app?.openFile) await window.app.openFile(path);

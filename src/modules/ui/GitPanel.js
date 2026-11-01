@@ -645,7 +645,7 @@ class GitPanel {
                     }));
                     State.gitRoot = repos.length > 0 ? toAbs(repos[0]) : State.currentDir;
                     if (window.app?.gitPanel) window.app.gitPanel.refresh();
-                    if (window.showToast) window.showToast('Initialized a Git repository');
+                    if (window.showToast) window.showToast(t('Initialized a Git repository'));
                 } catch (e) {
                     showAlert(`Git init failed: ${e}`, { title: 'Git', kind: 'error' });
                 }

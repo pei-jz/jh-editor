@@ -3535,11 +3535,11 @@ export class MarkdownView extends BaseView {
     async showBacklinks() {
         const path = this.file && this.file.path;
         if (!path) {
-            if (window.showToast) window.showToast('Only available for saved files');
+            if (window.showToast) window.showToast(t('Only available for saved files'));
             return;
         }
         if (!State.currentDir || !/^([a-zA-Z]:[\\/]|\/)/.test(String(State.currentDir))) {
-            if (window.showToast) window.showToast('Open a workspace first');
+            if (window.showToast) window.showToast(t('Open a workspace first'));
             return;
         }
         // Wiki links AND ordinary Markdown links — see Backlinks.js.
@@ -3568,7 +3568,7 @@ export class MarkdownView extends BaseView {
             searchId,
         }).catch((e) => {
             console.error('backlink search failed', e);
-            if (window.showToast) window.showToast('Backlink search failed');
+            if (window.showToast) window.showToast(t('Backlink search failed'));
         });
     }
 
@@ -3625,7 +3625,7 @@ export class MarkdownView extends BaseView {
             })
             .catch((err) => {
                 console.error('image paste failed', err);
-                if (window.showToast) window.showToast('Failed to save the image');
+                if (window.showToast) window.showToast(t('Failed to save the image'));
             });
         return true;
     }
