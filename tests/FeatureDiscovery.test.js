@@ -29,6 +29,7 @@ const { ShortcutManager, shortcuts } = await import('../src/modules/core/Shortcu
 const { listCommands } = await import('../src/modules/core/CommandRegistry.js');
 const { initEmptyPaneGuide, renderEmptyPaneGuide } = await import('../src/modules/ui/EmptyPaneGuide.js');
 const { ContextMenu } = await import('../src/modules/ui/ContextMenu.js');
+const { THEMES } = await import('../src/modules/utils/Themes.js');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const html = readFileSync(join(here, '..', 'index.html'), 'utf8');
@@ -239,6 +240,86 @@ describe('the empty pane guide', () => {
         const src = readFileSync(join(here, '..', 'src/modules/core/Editor.js'), 'utf8');
         expect(src).toContain('renderEmptyPaneGuide(container)');
         expect(src).not.toContain('class="welcome-message"');
+    });
+
+    it('has no fill on its rows until one is pointed at, on the dark themes too', () => {
+        // `body.theme-x button` outranks a single class, and painted all eight.
+        const features = readFileSync(join(here, '..', 'src/styles/features.css'), 'utf8');
+        const at = features.indexOf('.empty-guide .empty-guide-row {');
+        expect(at).toBeGreaterThan(-1);
+        expect(features.slice(at, features.indexOf('}', at))).toContain('background: transparent');
+        expect(features).toContain('.empty-guide .empty-guide-row:hover');
+    });
+});
+
+describe('the empty pane picture', () => {
+    const css = readFileSync(join(here, '..', 'src/styles/themes.css'), 'utf8').replace(/\r\n/g, '\n');
+    const features = readFileSync(join(here, '..', 'src/styles/features.css'), 'utf8').replace(/\r\n/g, '\n');
+    const IDS = THEMES.map((t) => t.id);
+
+    /** The palette block of a theme. `light` is the bare :root palette. */
+    const block = (theme) => {
+        const start = css.indexOf(theme === 'light' ? ':root {' : `body.theme-${theme} {`);
+        return css.slice(start, css.indexOf('\n}', start));
+    };
+
+    /** Each picture in one theme's token, decoded. */
+    const pictures = (theme) => {
+        const b = block(theme);
+        const from = b.indexOf('--empty-pane-art:');
+        if (from < 0) return [];
+        const value = b.slice(from, b.indexOf(';\n', from));
+        return [...value.matchAll(/svg\+xml,([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
+    };
+
+    const rule = (selector) => {
+        const from = features.indexOf(selector);
+        return features.slice(from, features.indexOf('}', from));
+    };
+
+    it('is drawn on a layer of its own, behind the guide', () => {
+        const layer = rule('.empty-guide::before {');
+        expect(layer).toContain('var(--empty-pane-art, none)');
+        expect(layer).toContain('pointer-events: none');
+        expect(layer).toContain('z-index: -1');
+        expect(rule('.empty-guide {')).toContain('isolation: isolate');
+    });
+
+    it('goes away when the pane has no margin left for it', () => {
+        expect(rule('.empty-guide {')).toContain('container-type: size');
+        expect(features).toMatch(/@container \(max-width: 760px\) \{\s*\.empty-guide::before \{ display: none; \}/);
+        expect(features).toMatch(/@container \(max-height: 420px\) \{\s*\.empty-guide::before \{ display: none; \}/);
+    });
+
+    it.each(IDS)('%s declares its own picture', (theme) => {
+        // :root's plane would otherwise be inherited, in the wrong ink.
+        expect(pictures(theme).length).toBeGreaterThan(0);
+    });
+
+    it.each(IDS)('%s pairs every layer with a position and a size', (theme) => {
+        const b = block(theme);
+        const layers = pictures(theme).length;
+        const count = (token) => b.match(new RegExp(`${token}: ([^;]+);`))[1].split(',').length;
+        expect(count('--empty-pane-art-position')).toBe(layers);
+        expect(count('--empty-pane-art-size')).toBe(layers);
+    });
+
+    // The dark bamboo is exempt: a silhouette darker than its ground raises the
+    // contrast of any text it reaches rather than lowering it.
+    it.each(IDS.filter((id) => id !== 'bamboo-ancient'))('%s keeps its ink faint', (theme) => {
+        for (const svg of pictures(theme)) {
+            for (const m of svg.matchAll(/ opacity='([0-9.]+)'/g)) {
+                expect(parseFloat(m[1])).toBeLessThanOrEqual(0.28);
+            }
+        }
+    });
+
+    it.each(IDS)('%s is well formed once decoded', (theme) => {
+        for (const svg of pictures(theme)) {
+            const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+            expect(doc.querySelector('parsererror')).toBeNull();
+            expect(doc.documentElement.tagName).toBe('svg');
+        }
     });
 });
 

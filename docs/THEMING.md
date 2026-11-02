@@ -76,6 +76,21 @@ the boot script in `index.html`, and add `'My Family'` to
 `src/locales/{ja,zh,ko}.js`. Japanese family names are two characters
 (標準, 帳面, 水墨, 掛軸, 竹簡, 珈琲, 北欧, 日和).
 
+**3. The empty pane picture** — a simple drawing that suits the theme's name,
+shown only on the screen with no tab open:
+
+```css
+body.theme-my-theme {
+    --empty-pane-art: url("data:image/svg+xml,…"), url("data:image/svg+xml,…");
+    --empty-pane-art-position: right bottom, left top;
+    --empty-pane-art-size: auto 40%, auto 26%;
+}
+```
+
+One position and one size per layer. Keep the middle of the pane clear for the
+guide, and the ink faint (opacity 0.28 at most). The picture is removed when the
+pane is too small to leave a margin for it.
+
 **Removing a theme**: add it to `RETIRED_THEMES` with its replacement, and the
 same move to the boot script. A saved setting naming it is moved on startup.
 

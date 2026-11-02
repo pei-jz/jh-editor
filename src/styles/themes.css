@@ -1,5 +1,10 @@
 /* Simple Modern Theme & Layout Phase 7 */
 :root {
+    /* Empty pane: a paper plane and its dotted path, the plainest of the pictures. As this sits on :root, every theme must declare its own. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='700' viewBox='0 0 500 700' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.24' fill='none' stroke='%233067a6' stroke-width='3' stroke-linecap='round' stroke-dasharray='1 14' d='M40 694C180 660 440 620 436 470C432 360 262 372 286 268C298 216 336 186 372 160'/%3E%3Cg transform='translate(350 40)' fill='%233067a6'%3E%3Cpath opacity='0.14' d='M0 92L140 0L102 128L62 98Z'/%3E%3Cpath opacity='0.24' d='M62 98L140 0L72 134Z'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom;
+    --empty-pane-art-size: auto 86%;
+
     --bg-color: #ffffff;
     /* NOTE: --border-color set below; kept translucent for a softer, refined look */
     --sidebar-bg: #f7f8fa;   /* a step off the page, so the file list reads as its own pane */
@@ -165,6 +170,11 @@ body {
 }
 
 body.theme-dark {
+    /* Empty pane: the paper plane, in the lifted accent. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='700' viewBox='0 0 500 700' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.24' fill='none' stroke='%238ab8e8' stroke-width='3' stroke-linecap='round' stroke-dasharray='1 14' d='M40 694C180 660 440 620 436 470C432 360 262 372 286 268C298 216 336 186 372 160'/%3E%3Cg transform='translate(350 40)' fill='%238ab8e8'%3E%3Cpath opacity='0.14' d='M0 92L140 0L102 128L62 98Z'/%3E%3Cpath opacity='0.24' d='M62 98L140 0L72 134Z'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom;
+    --empty-pane-art-size: auto 86%;
+
     --bg-color: #1e1e1e;
     --sidebar-bg: #252526;
     --header-bg: #252526;
@@ -232,6 +242,11 @@ body.theme-dark {
 
 /* Latte Theme (Warm Light) */
 body.theme-latte {
+    /* Empty pane: a steaming cup, and the ring an earlier one left on the desk. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='380' height='380' viewBox='0 0 380 380'%3E%3Cg opacity='0.22' fill='%236f4e37'%3E%3Cellipse cx='176' cy='346' rx='150' ry='18'/%3E%3Cpath d='M66 176H286C286 258 250 326 176 326C102 326 66 258 66 176Z'/%3E%3Cpath fill='none' stroke='%236f4e37' stroke-width='14' d='M282 198C344 188 348 268 262 282'/%3E%3Cellipse cx='176' cy='176' rx='110' ry='20' fill='%23eff1f5'/%3E%3Cellipse cx='176' cy='178' rx='94' ry='13'/%3E%3C/g%3E%3Cg opacity='0.2' fill='none' stroke='%236f4e37' stroke-width='6' stroke-linecap='round'%3E%3Cpath d='M132 136C112 106 152 88 130 52'/%3E%3Cpath d='M178 128C158 94 200 72 176 28'/%3E%3Cpath d='M224 136C204 106 244 88 222 52'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='240' viewBox='0 0 300 240'%3E%3Cg opacity='0.16' fill='none' stroke='%236f4e37'%3E%3Ccircle cx='92' cy='74' r='76' stroke-width='6' stroke-dasharray='190 16 90 12 150 20'/%3E%3Ccircle cx='92' cy='74' r='68' stroke-width='1.5'/%3E%3C/g%3E%3Cg opacity='0.22'%3E%3Cg transform='translate(216 54)rotate(-30)'%3E%3Cellipse rx='17' ry='11' fill='%236f4e37'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%23eff1f5' stroke-width='2.4'/%3E%3C/g%3E%3Cg transform='translate(250 88)rotate(24)'%3E%3Cellipse rx='17' ry='11' fill='%236f4e37'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%23eff1f5' stroke-width='2.4'/%3E%3C/g%3E%3Cg transform='translate(204 112)rotate(62)'%3E%3Cellipse rx='17' ry='11' fill='%236f4e37'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%23eff1f5' stroke-width='2.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right 5% bottom 3%, left 18px top 14px;
+    --empty-pane-art-size: auto 44%, auto 26%;
+
     --bg-color: #eff1f5;
     --sidebar-bg: #e6e9ef;
     --header-bg: #e6e9ef;
@@ -275,6 +290,11 @@ body.theme-latte {
 
 /* Solarized Dark Theme (Enhanced contrast) */
 body.theme-solarized-dark {
+    /* Empty pane: the same clear day on the dark base. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Ccircle cx='120' cy='120' r='48' fill='%23b58900' opacity='0.26'/%3E%3Cpath opacity='0.26' fill='none' stroke='%23cb4b16' stroke-width='6' stroke-linecap='round' d='M186 120L216 120M177.2 153L203.1 168M153 177.2L168 203.1M120 186L120 216M87 177.2L72 203.1M62.8 153L36.9 168M54 120L24 120M62.8 87L36.9 72M87 62.8L72 36.9M120 54L120 24M153 62.8L168 36.9M177.2 87L203.1 72'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='110' viewBox='0 0 260 110'%3E%3Cpath opacity='0.2' fill='%23839496' d='M50 104A36 36 0 0 1 46 32A52 52 0 0 1 142 22A42 42 0 0 1 216 44A30 30 0 0 1 216 104Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='300' viewBox='0 0 1600 300' preserveAspectRatio='xMidYMax slice'%3E%3Cpath opacity='0.14' fill='%232aa198' d='M0 150C200 60 420 70 640 180S1000 280 1200 170S1500 70 1600 110V300H0Z'/%3E%3Cpath opacity='0.22' fill='%23859900' d='M0 230C240 150 460 190 700 262S1180 290 1600 180V300H0Z'/%3E%3C/svg%3E");
+    --empty-pane-art-position: right 7% top 6%, left 8% top 10%, center bottom;
+    --empty-pane-art-size: 170px 170px, 210px auto, 100% 30%;
+
     --bg-color: #002b36;
     --sidebar-bg: #073642;
     --header-bg: #073642;
@@ -343,6 +363,11 @@ body.theme-solarized-dark {
    never meant to sit on its own header tone. The titlebar uses base02, the
    colour the palette reserves for emphasis on a light ground. */
 body.theme-solarized-light {
+    /* Empty pane: 日和, a clear day. Sun, one cloud and low hills, all in the Solarized accents. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Ccircle cx='120' cy='120' r='48' fill='%23b58900' opacity='0.26'/%3E%3Cpath opacity='0.26' fill='none' stroke='%23cb4b16' stroke-width='6' stroke-linecap='round' d='M186 120L216 120M177.2 153L203.1 168M153 177.2L168 203.1M120 186L120 216M87 177.2L72 203.1M62.8 153L36.9 168M54 120L24 120M62.8 87L36.9 72M87 62.8L72 36.9M120 54L120 24M153 62.8L168 36.9M177.2 87L203.1 72'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='110' viewBox='0 0 260 110'%3E%3Cpath opacity='0.2' fill='%2393a1a1' d='M50 104A36 36 0 0 1 46 32A52 52 0 0 1 142 22A42 42 0 0 1 216 44A30 30 0 0 1 216 104Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='300' viewBox='0 0 1600 300' preserveAspectRatio='xMidYMax slice'%3E%3Cpath opacity='0.14' fill='%232aa198' d='M0 150C200 60 420 70 640 180S1000 280 1200 170S1500 70 1600 110V300H0Z'/%3E%3Cpath opacity='0.22' fill='%23859900' d='M0 230C240 150 460 190 700 262S1180 290 1600 180V300H0Z'/%3E%3C/svg%3E");
+    --empty-pane-art-position: right 7% top 6%, left 8% top 10%, center bottom;
+    --empty-pane-art-size: 170px 170px, 210px auto, 100% 30%;
+
     --titlebar-text: #073642;
     --bg-color: #fdf6e3;
     --sidebar-bg: #eee8d5;
@@ -511,6 +536,11 @@ body.theme-dark option {
    the surrounding UI chrome adopts the handwriting font.
    ========================================================================== */
 body.theme-paper {
+    /* Empty pane: a pencil left on the page, its red line, and a paper clip. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='340' viewBox='0 0 560 340' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.26' fill='none' stroke='%23b23a48' stroke-width='3' stroke-linecap='round' d='M14 316C60 298 84 330 124 312S190 300 226 306'/%3E%3Cg opacity='0.2' transform='translate(232 300)rotate(-30)' fill='%23243049'%3E%3Cpath d='M0 0L70 -26V26Z' fill-opacity='.55'/%3E%3Cpath d='M0 0L24 -9V9Z'/%3E%3Crect x='70' y='-26' width='290' height='52'/%3E%3Crect x='360' y='-26' width='36' height='52' fill-opacity='.55'/%3E%3Crect x='396' y='-26' width='50' height='52' rx='12' fill='%23b23a48'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='190' viewBox='0 0 110 190'%3E%3Cpath opacity='0.26' transform='rotate(10 55 95)' fill='none' stroke='%23243049' stroke-width='4' stroke-linecap='round' d='M36 18V142A24 24 0 0 0 84 142V42A16 16 0 0 0 52 42V128'/%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom, left 28px top 10px;
+    --empty-pane-art-size: auto 38%, auto 26%;
+
     /* Aged-paper palette */
     --bg-color: #f3e9d0;          /* the sheet you write on (editor) */
     --sidebar-bg: #e7dab9;        /* the desk */
@@ -716,6 +746,11 @@ body.theme-bamboo-ancient {
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     --bamboo-chrome-font: var(--font-textbook);
 
+    /* Empty pane: the grove at night. Dark stalks against the board, and a moon behind them, because pale stalks on charred slips read as scratches. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='1000' viewBox='0 0 420 1000' preserveAspectRatio='xMaxYMax meet'%3E%3Cdefs%3E%3Cpath id='l' d='M0 0Q22 -9 84 1Q24 6 0 0Z'/%3E%3C/defs%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='5'/%3E%3C/filter%3E%3Ccircle cx='170' cy='190' r='78' fill='%23e8e0cc' opacity='0.16' filter='url(%23b)'/%3E%3Cg opacity='0.168' fill='%23120c05'%3E%3Cpath d='M221.3 355Q189.4 351 163.3 335' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(168.2)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(135)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(117.3)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(91.8)scale(0.8)'/%3E%3Cpath d='M207.6 28.8Q231.8 25.2 251.6 10.8' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(30.2)scale(0.5)'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(48.1)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(74.8)scale(0.6)'/%3E%3Cpath d='M227.5 1010Q227.8 929.2 226.9 851.5L235.9 851.5Q235.6 929.2 236.5 1010Z'/%3E%3Cpath d='M227.1 848.5Q226.7 767.3 225.2 689.1L233.8 689.1Q234.2 767.3 235.7 848.5Z'/%3E%3Cpath d='M225.3 686.1Q224.2 603.1 222 523.1L230.2 523.1Q231.3 603.1 233.5 686.1Z'/%3E%3Cpath d='M222.1 520.1Q220.3 437.5 217.4 358L225.2 358Q227 437.5 229.9 520.1Z'/%3E%3Cpath d='M217.5 355Q215.1 276.3 211.7 200.6L219.1 200.6Q221.5 276.3 224.9 355Z'/%3E%3Cpath d='M211.8 197.6Q208.4 113.2 204.1 31.8L211.1 31.8Q214.5 113.2 218.8 197.6Z'/%3E%3Cpath d='M204.2 28.8Q200.2 -53.6 195.3 -133L201.9 -133Q205.9 -53.6 210.8 28.8Z'/%3E%3Crect x='225.4' y='848.5' width='12' height='3.4' rx='1.7'/%3E%3Crect x='223.7' y='686.1' width='11.6' height='3.4' rx='1.7'/%3E%3Crect x='220.5' y='520.1' width='11.2' height='3.4' rx='1.7'/%3E%3Crect x='215.9' y='355' width='10.8' height='3.4' rx='1.7'/%3E%3Crect x='210.2' y='197.6' width='10.4' height='3.4' rx='1.7'/%3E%3Crect x='202.6' y='28.8' width='10' height='3.4' rx='1.7'/%3E%3Crect x='193.8' y='-136' width='9.6' height='3.4' rx='1.7'/%3E%3C/g%3E%3Cg opacity='0.264' fill='%23120c05'%3E%3Cpath d='M309.8 536.1Q271.3 530.9 239.8 510.1' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(175)scale(1)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(155.7)scale(1)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(125.8)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(101)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(82.9)scale(1.1)'/%3E%3Cpath d='M316.3 239.8Q269 235 230.3 215.8' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(178.9)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(152.6)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(132.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(108.2)scale(1)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(78.6)scale(0.7)'/%3E%3Cpath d='M320.5 98.2Q343.6 94.2 362.5 78.2' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(32.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(52.3)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(76)scale(0.8)'/%3E%3Cpath d='M299 1010Q300.1 938.1 299.3 869.1L313.3 869.1Q312.2 938.1 313 1010Z'/%3E%3Cpath d='M299.6 866.1Q301.2 783.4 300.8 703.7L314.3 703.7Q312.7 783.4 313.1 866.1Z'/%3E%3Cpath d='M301.2 700.7Q303.2 618.4 303.4 539.1L316.2 539.1Q314.2 618.4 314 700.7Z'/%3E%3Cpath d='M303.8 536.1Q306.1 460.3 306.7 387.5L318.9 387.5Q316.6 460.3 316 536.1Z'/%3E%3Cpath d='M307 384.5Q309.6 312.1 310.5 242.8L322.1 242.8Q319.6 312.1 318.6 384.5Z'/%3E%3Cpath d='M310.9 239.8Q313.7 169 315 101.2L326.1 101.2Q323.2 169 321.9 239.8Z'/%3E%3Cpath d='M315.4 98.2Q318.6 27.2 320.3 -40.9L330.7 -40.9Q327.6 27.2 325.9 98.2Z'/%3E%3Crect x='297.8' y='866.1' width='17' height='3.4' rx='1.7'/%3E%3Crect x='299.3' y='700.7' width='16.5' height='3.4' rx='1.7'/%3E%3Crect x='301.9' y='536.1' width='15.8' height='3.4' rx='1.7'/%3E%3Crect x='305.2' y='384.5' width='15.2' height='3.4' rx='1.7'/%3E%3Crect x='309' y='239.8' width='14.6' height='3.4' rx='1.7'/%3E%3Crect x='313.5' y='98.2' width='14' height='3.4' rx='1.7'/%3E%3Crect x='318.8' y='-43.9' width='13.5' height='3.4' rx='1.7'/%3E%3C/g%3E%3Cg opacity='0.408' fill='%23120c05'%3E%3Cpath d='M376.8 702.3Q326.2 696.3 284.8 672.3' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(187.3)scale(1.1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(169.8)scale(1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(139.6)scale(1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(110.6)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(91)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(65.6)scale(1.1)'/%3E%3Cpath d='M372.5 371.5Q315.3 364.7 268.5 337.5' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(183.9)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(165.6)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(135.5)scale(1)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(114.5)scale(1.4)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(96.2)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(66.9)scale(1.4)'/%3E%3Cpath d='M365.4 48.5Q320.3 44.1 283.4 26.5' fill='none' stroke='%23120c05' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(173.7)scale(1)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(146.1)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(125.6)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(99.5)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(82.9)scale(1)'/%3E%3Cpath d='M366 1010Q367.5 926.2 365.6 845.4L389.7 845.4Q388.2 926.2 390 1010Z'/%3E%3Cpath d='M366.2 842.4Q367.3 772.3 365.3 705.3L388.3 705.3Q387.1 772.3 389.1 842.4Z'/%3E%3Cpath d='M365.8 702.3Q366.5 625.3 364.2 551.3L386.2 551.3Q385.4 625.3 387.8 702.3Z'/%3E%3Cpath d='M364.6 548.3Q364.8 459.9 362 374.5L383 374.5Q382.9 459.9 385.6 548.3Z'/%3E%3Cpath d='M362.6 371.5Q362.3 289 359.3 209.5L379.2 209.5Q379.4 289 382.4 371.5Z'/%3E%3Cpath d='M359.8 206.5Q359.3 127.5 356.1 51.5L374.8 51.5Q375.3 127.5 378.5 206.5Z'/%3E%3Cpath d='M356.5 48.5Q355.4 -32.3 351.9 -110.1L369.6 -110.1Q370.6 -32.3 374.2 48.5Z'/%3E%3Crect x='364.1' y='842.4' width='27.1' height='3.4' rx='1.7'/%3E%3Crect x='363.8' y='702.3' width='25.9' height='3.4' rx='1.7'/%3E%3Crect x='362.7' y='548.3' width='25' height='3.4' rx='1.7'/%3E%3Crect x='360.5' y='371.5' width='24' height='3.4' rx='1.7'/%3E%3Crect x='357.8' y='206.5' width='22.8' height='3.4' rx='1.7'/%3E%3Crect x='354.6' y='48.5' width='21.7' height='3.4' rx='1.7'/%3E%3Crect x='350.4' y='-113.1' width='20.7' height='3.4' rx='1.7'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='260' viewBox='0 0 420 260' preserveAspectRatio='xMinYMin meet'%3E%3Cdefs%3E%3Cpath id='l' d='M0 0Q22 -9 84 1Q24 6 0 0Z'/%3E%3C/defs%3E%3Cg opacity='0.288' fill='%23120c05'%3E%3Cpath d='M-4 22Q120 34 262 92' fill='none' stroke='%23120c05' stroke-width='2'/%3E%3Cpath d='M104 40Q130 58 142 92' fill='none' stroke='%23120c05' stroke-width='1.4'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(-11.5)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(13.8)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(38.6)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(62.3)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(85)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(113.8)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(5.3)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(33.6)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(54.4)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(81.1)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(103.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(28.9)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(49.4)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(70.9)scale(0.8)'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom, left top;
+    --empty-pane-art-size: auto 100%, auto 30%;
+
     /* 牘 — the planed board you read on. The old grain stretched noise along
        the slat ('0.4 0.06', alpha 0.09) and read as jagged stripes running
        through the text. This is long, fine fibre at a third of the strength:
@@ -907,7 +942,7 @@ body.theme-bamboo-ancient option {
 /* ============================================================================
    🖌 Sumi-e — 水墨・朱印 (sumi-e)
    From docs/design/editor-theme-proposal.html. Unbleached washi, sumi-black
-   text, vermillion seal as the single accent — the light-side companion to the
+   text, a grey ink as the single accent — the light-side companion to the
    Bamboo / Paper family. Chrome takes the Mincho serif; --grain is reused as a
    faint paper fibre (weaker than bamboo's, which was tuned for a dark slip).
 
@@ -926,12 +961,12 @@ body.theme-sumi-e {
     --header-bg: #e4dfd2;           /* the mount bands */
     --border-color: #cbc3b0;
     --text-color: #1c1c1c;          /* sumi ink */
-    /* 松葉 — pine needles. Was the seal's vermillion, which Paper and Hanging
-       Scroll also wore, so the three read as one theme. 朱 stays in the
-       strings and inline code. */
-    --primary-color: #4a6b35;
+    /* 淡墨の灰 — a grey with a trace of the washi in it. Ink wash has no hue to
+       spare: the seal's vermillion and then pine green both read as colour
+       added to a monochrome picture. 朱 stays in the strings. */
+    --primary-color: #5c5c58;
     --active-tab-bg: #fbfaf6;
-    --active-tab-border: #4a6b35;
+    --active-tab-border: #5c5c58;
     --hover-color: #e9e4d8;
     --bg-color-secondary: #efece3;
     --bg-active: #e9e4d8;
@@ -959,18 +994,18 @@ body.theme-sumi-e {
        over the wash and 5.2:1 even at the ink ceiling. */
     --tab-inactive-color: #4f4a3e;
     --tree-item-color: var(--text-color);
-    --tree-item-active-bg: rgba(74, 107, 53, 0.16);
+    --tree-item-active-bg: rgba(92, 92, 88, 0.16);
     --text-secondary: #4f4a3e;
 
-    --code-color: #4a6b35;          /* 松葉, with the accent */
-    --code-bg: rgba(74, 107, 53, 0.08);
-    --code-border: rgba(74, 107, 53, 0.22);
+    --code-color: #5c5c58;          /* 淡墨, with the accent */
+    --code-bg: rgba(92, 92, 88, 0.08);
+    --code-border: rgba(92, 92, 88, 0.22);
     --danger-base: #a63a34;
     --blockquote-bg: rgba(28, 28, 28, 0.04);
 
-    --selection-bg: rgba(74, 107, 53, 0.20);
+    --selection-bg: rgba(92, 92, 88, 0.20);
     --selection-color: #1c1c1c;
-    --cm-selection-bg: rgba(74, 107, 53, 0.16);
+    --cm-selection-bg: rgba(92, 92, 88, 0.16);
 
     --git-modified-color: #805c18;
     --git-staged-color: #426d42;
@@ -1003,6 +1038,11 @@ body.theme-sumi-e {
        second pass. No subject, so nothing to render badly — and it survives
        any window width, which a landscape does not. */
     --sumi-mount-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='22' viewBox='0 0 900 22' preserveAspectRatio='none'%3E%3Cfilter id='d' x='-6%25' y='-70%25' width='112%25' height='240%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015 0.9' numOctaves='3' seed='23' result='t'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='t' scale='6' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3Cg fill='none' stroke='%231c1c1c' stroke-linecap='round' filter='url(%23d)'%3E%3Cpath opacity='0.10' stroke-width='6' d='M60,13 Q280,8 500,12 T840,9'/%3E%3Cpath opacity='0.05' stroke-width='2.5' d='M132,18 Q330,15 540,18 T812,16'/%3E%3C/g%3E%3C/svg%3E");
+    /* Empty pane: 遠山 across the foot of the sheet, peaks inked and feet lost in mist. Massed at both sides, low in the middle, so the guide above stays on empty paper. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='420' viewBox='0 0 1600 420' preserveAspectRatio='xMidYMax slice'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%231c1c1c'/%3E%3Cstop offset='.55' stop-color='%231c1c1c' stop-opacity='.5'/%3E%3Cstop offset='1' stop-color='%231c1c1c' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cfilter id='f' x='-5%25' y='-20%25' width='110%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='3'/%3E%3C/filter%3E%3Cfilter id='m'%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3C/defs%3E%3Cpath opacity='0.10' fill='url(%23w)' filter='url(%23f)' d='M0 420L0 374.5L20 368.8L40 354.1L60 346.3L80 334.8L100 319.9L120 300.8L140 281.9L160 257.7L180 235.2L200 220L220 205.8L240 191.2L260 189.8L280 195.6L300 203.6L320 218.7L340 234.6L360 255.4L380 267.7L400 288L420 292.3L440 301L460 298.2L480 289.9L500 277.9L520 265.1L540 256L560 259.9L580 258.6L600 273.3L620 289.3L640 307.5L660 323.6L680 342.4L700 352.8L720 362.9L740 375.3L760 378L780 378.4L800 378.5L820 381.4L840 379.4L860 371.2L880 369.9L900 362.8L920 353L940 336.5L960 322.6L980 304.2L1000 286.8L1020 266.1L1040 248.9L1060 233.5L1080 216.5L1100 215.7L1120 216.2L1140 215.5L1160 222.2L1180 228.1L1200 223.7L1220 218.4L1240 213.1L1260 198.4L1280 184.2L1300 165.3L1320 155.8L1340 139.5L1360 130.2L1380 125.8L1400 129.2L1420 140.5L1440 158.4L1460 175.9L1480 199.4L1500 227.7L1520 250.6L1540 280.9L1560 298.4L1580 318.7L1600 331.4L1600 420Z'/%3E%3Cpath opacity='0.15' fill='url(%23w)' filter='url(%23m)' d='M0 420L0 318.3L20 287.6L40 254.4L60 229.9L80 201.7L100 189.7L120 181.3L140 186L160 205L180 232.8L200 263.2L220 296.1L240 323.6L260 335L280 352.1L300 362.6L320 370.3L340 356L360 343.8L380 327.3L400 310.6L420 311.4L440 303.1L460 315.6L480 328.2L500 347.3L520 360.9L540 382.1L560 380.9L580 392.3L600 394.7L620 401L640 398.9L660 401.3L680 394.2L700 393.7L720 395.2L740 396.1L760 392.1L780 396.7L800 395.2L820 392.5L840 398.1L860 401.2L880 397L900 394.4L920 393.7L940 401.7L960 397.2L980 398L1000 396.9L1020 400.2L1040 397.6L1060 392.2L1080 386.3L1100 381.7L1120 371.8L1140 354.1L1160 337.1L1180 315.8L1200 287.3L1220 270.5L1240 272.4L1260 269.2L1280 271.7L1300 280.6L1320 289.3L1340 302.9L1360 306.8L1380 298.1L1400 287.8L1420 269L1440 250.7L1460 225.4L1480 210.9L1500 196.3L1520 195.2L1540 197.3L1560 208.2L1580 237.4L1600 260.6L1600 420Z'/%3E%3Cpath opacity='0.22' fill='url(%23w)' d='M0 420L0 241.1L20 247.9L40 259.5L60 278.8L80 295.9L100 303.5L120 330.6L140 343.5L160 353.4L180 355.6L200 365.6L220 355.1L240 357L260 352.9L280 350L300 346.5L320 355.2L340 355L360 371.9L380 377.4L400 390.1L420 403.4L440 409.4L460 408.1L480 405.9L500 412.7L520 411.3L540 419.3L560 410.9L580 415.7L600 412.2L620 408.3L640 415.9L660 417.3L680 420.6L700 411.1L720 410.3L740 406.6L760 416.9L780 417.8L800 420.9L820 410.5L840 407.2L860 409.5L880 408.7L900 406.6L920 418.4L940 406.3L960 417.5L980 413.4L1000 415.7L1020 410.6L1040 409.8L1060 412L1080 410.4L1100 412L1120 412.4L1140 417.5L1160 408.4L1180 413.6L1200 418.4L1220 407.6L1240 409.3L1260 403.8L1280 398L1300 384.2L1320 372.5L1340 372.7L1360 359.9L1380 343.6L1400 328.1L1420 321.1L1440 306.3L1460 302.9L1480 304.9L1500 295.3L1520 300.6L1540 290.7L1560 276.1L1580 272.2L1600 263.4L1600 420Z'/%3E%3C/svg%3E");
+    --empty-pane-art-position: center bottom;
+    --empty-pane-art-size: 100% 46%;
+
     /* Washi fibre: tighter and far fainter than the bamboo grain. */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
 }
@@ -1039,7 +1079,7 @@ body.theme-sumi-e #status-bar {
 }
 
 /* Where you are, in the accent. The open tab joins the sheet below it and
-   takes a pine-green cap; the selected file takes a pine-green edge. The
+   takes a grey ink cap; the selected file takes a grey ink edge. The
    generic rules gave the tab only a bolder label and the tree row a blue
    edge borrowed from the default theme. */
 body.theme-sumi-e .tab.active {
@@ -1092,6 +1132,11 @@ body.theme-sumi-e option { background-color: #fbfaf6; color: #1c1c1c; }
    Nord as specified.
    ========================================================================== */
 body.theme-nord {
+    /* Empty pane: snow peaks and pines under an aurora, in the Aurora and Frost inks. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='420' viewBox='0 0 1600 420' preserveAspectRatio='xMidYMax slice'%3E%3Cpath opacity='0.14' fill='%23d8dee9' d='M-20 420L190 130L300 250L430 70L720 420ZM920 420L1130 170L1240 280L1400 60L1660 420Z'/%3E%3Cpath fill='%23eceff4' opacity='0.26' d='M190 130L236 194L212 186L190 208L168 184L146 192ZM430 70L492 154L460 142L430 172L402 146L366 158ZM1130 170L1174 224L1148 216L1128 236L1108 216L1090 226ZM1400 60L1462 146L1428 134L1398 164L1372 138L1336 152Z'/%3E%3Cpath opacity='0.26' fill='%238fbcbb' d='M40 270L71.6 337.5H8.4ZM40 312L81.8 378H-1.8ZM40 351L91 412H-11ZM37 410h6v10h-6ZM96 224L137.3 312.2H54.7ZM96 278.9L150.6 365.1H41.4ZM96 329.8L162.6 412H29.4ZM93 410h6v10h-6ZM150 292L177 349.6H123ZM150 327.8L185.7 384.2H114.3ZM150 361.1L193.5 412H106.5ZM147 410h6v10h-6ZM214 250L249.8 326.5H178.2ZM214 297.6L261.4 372.4H166.6ZM214 341.8L271.8 412H156.2ZM211 410h6v10h-6ZM280 308L303.6 358.4H256.4ZM280 339.4L311.2 388.6H248.8ZM280 368.5L318.1 412H241.9ZM277 410h6v10h-6ZM1330 302L1354.9 355.1H1305.1ZM1330 335L1362.9 387H1297.1ZM1330 365.7L1370.1 412H1289.9ZM1327 410h6v10h-6ZM1392 244L1429.1 323.2H1354.9ZM1392 293.3L1441.1 370.7H1342.9ZM1392 339L1451.8 412H1332.2ZM1389 410h6v10h-6ZM1450 280L1479.5 343H1420.5ZM1450 319.2L1489 380.8H1411ZM1450 355.6L1497.6 412H1402.4ZM1447 410h6v10h-6ZM1508 220L1550.2 310H1465.8ZM1508 276L1563.8 364H1452.2ZM1508 328L1576 412H1440ZM1505 410h6v10h-6ZM1570 270L1601.6 337.5H1538.4ZM1570 312L1611.8 378H1528.2ZM1570 351L1621 412H1519ZM1567 410h6v10h-6Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='360' viewBox='0 0 1600 360' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='a' x='-5%25' y='-40%25' width='110%25' height='180%25'%3E%3CfeGaussianBlur stdDeviation='18'/%3E%3C/filter%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='0'%3E%3Cstop offset='0' stop-color='%23a3be8c'/%3E%3Cstop offset='.5' stop-color='%2388c0d0'/%3E%3Cstop offset='1' stop-color='%23b48ead'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='none' stroke='url(%23g)' filter='url(%23a)' stroke-linecap='round'%3E%3Cpath opacity='0.24' stroke-width='46' d='M-40 200C240 90 420 280 720 170S1240 40 1640 170'/%3E%3Cpath opacity='0.14' stroke-width='30' d='M-40 110C300 30 500 170 820 90S1320 30 1640 70'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: center bottom, center top;
+    --empty-pane-art-size: 100% 46%, 100% 38%;
+
     --bg-color: #2e3440;            /* nord0 */
     --sidebar-bg: #3b4252;          /* nord1 */
     --header-bg: #343b49;
@@ -1192,6 +1237,11 @@ body.theme-nord option { background-color: #3b4252; color: #eceff4; }
    own text colours explicitly below rather than inheriting --text-color.
    ========================================================================== */
 body.theme-kakejiku {
+    /* Empty pane: the scroll itself, hung to the side with a moon and a plum branch on its sheet. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='860' viewBox='0 0 260 860'%3E%3Cg opacity='0.28'%3E%3Cpath fill='none' stroke='%232c3a5c' stroke-width='2' d='M130 8L58 58M130 8L202 58'/%3E%3Ccircle cx='130' cy='8' r='6' fill='%23735410'/%3E%3Crect x='44' y='56' width='172' height='10' rx='5' fill='%23735410'/%3E%3Crect x='52' y='66' width='156' height='736' fill='%232c3a5c'/%3E%3Crect x='52' y='128' width='156' height='7' fill='%23735410'/%3E%3Crect x='52' y='706' width='156' height='7' fill='%23735410'/%3E%3Crect x='72' y='150' width='116' height='540' fill='%23e8edf1'/%3E%3Ccircle cx='150' cy='232' r='34' fill='none' stroke='%23735410' stroke-width='2.5'/%3E%3Cpath fill='none' stroke='%232b2f36' stroke-width='5' stroke-linecap='round' d='M84 620C100 540 104 500 146 476C170 462 178 436 176 410M112 520C104 490 106 456 112 432M146 476C152 430 142 396 150 366C154 350 162 342 168 330'/%3E%3Ccircle cx='150' cy='366' r='7' fill='%23a63a34'/%3E%3Ccircle cx='176' cy='410' r='7' fill='%23a63a34'/%3E%3Ccircle cx='112' cy='432' r='7' fill='%23a63a34'/%3E%3Ccircle cx='146' cy='476' r='7' fill='%23a63a34'/%3E%3Ccircle cx='96' cy='500' r='7' fill='%23a63a34'/%3E%3Ccircle cx='168' cy='330' r='7' fill='%23a63a34'/%3E%3Crect x='94' y='648' width='20' height='20' fill='%23a63a34'/%3E%3Crect x='36' y='802' width='188' height='16' rx='8' fill='%23735410'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right 6% top 0;
+    --empty-pane-art-size: auto 94%;
+
     /* Honji — moon-white silk (the editor surface) */
     --bg-color: #e8edf1;
     /* Hyousou — indigo brocade. Held in its OWN tokens: the faces that are
@@ -1460,6 +1510,11 @@ body.theme-kakejiku option {
    dark, so this time the split is "dark sheet / darker mount", not light/dark.
    ========================================================================== */
 body.theme-kakejiku-dark {
+    /* Empty pane: the scroll at night, gold on indigo. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='860' viewBox='0 0 260 860'%3E%3Cg opacity='0.28'%3E%3Cpath fill='none' stroke='%238f9dbd' stroke-width='2' d='M130 8L58 58M130 8L202 58'/%3E%3Ccircle cx='130' cy='8' r='6' fill='%23d6b25e'/%3E%3Crect x='44' y='56' width='172' height='10' rx='5' fill='%23d6b25e'/%3E%3Crect x='52' y='66' width='156' height='736' fill='%238f9dbd'/%3E%3Crect x='52' y='128' width='156' height='7' fill='%23d6b25e'/%3E%3Crect x='52' y='706' width='156' height='7' fill='%23d6b25e'/%3E%3Crect x='72' y='150' width='116' height='540' fill='%23232c3f'/%3E%3Ccircle cx='150' cy='232' r='34' fill='none' stroke='%23d6b25e' stroke-width='2.5'/%3E%3Cpath fill='none' stroke='%23e3e8f3' stroke-width='5' stroke-linecap='round' d='M84 620C100 540 104 500 146 476C170 462 178 436 176 410M112 520C104 490 106 456 112 432M146 476C152 430 142 396 150 366C154 350 162 342 168 330'/%3E%3Ccircle cx='150' cy='366' r='7' fill='%23e08a72'/%3E%3Ccircle cx='176' cy='410' r='7' fill='%23e08a72'/%3E%3Ccircle cx='112' cy='432' r='7' fill='%23e08a72'/%3E%3Ccircle cx='146' cy='476' r='7' fill='%23e08a72'/%3E%3Ccircle cx='96' cy='500' r='7' fill='%23e08a72'/%3E%3Ccircle cx='168' cy='330' r='7' fill='%23e08a72'/%3E%3Crect x='94' y='648' width='20' height='20' fill='%23e08a72'/%3E%3Crect x='36' y='802' width='188' height='16' rx='8' fill='%23d6b25e'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right 6% top 0;
+    --empty-pane-art-size: auto 94%;
+
     --bg-color: #232c3f;            /* honji — deep indigo silk at night */
     --mount-bg: #0f1420;
     --mount-bg-2: #161c2b;          /* hyousou — black-indigo kinran */
@@ -1699,8 +1754,8 @@ body.theme-kakejiku-dark .modal-content select { color: #e3e8f3 !important; }
    From docs/design/editor-theme-dark-proposal.html. Night washi, moonlight
    ink. The mountains and the single stroke are inverted to light lines (the
    same SVGs with #e6e4dd instead of sumi #1c1c1c), and the moon is a bare
-   outline. The accent is 青墨 (blue-grey ink), #8ea6b8: night washi wants
-   colour kept quiet, so the green of the day version is not carried over.
+   outline. The accent is a plain mid grey, #9c9c98, as in the day version: dimmer
+   than the moonlight text, because near-white would not stand out from it.
    ========================================================================== */
 body.theme-sumi-e-dark {
     /* 墨 — close to black. The sheet was #26282d, a blue-grey that read as
@@ -1712,10 +1767,10 @@ body.theme-sumi-e-dark {
     --header-bg: #0b0b0b;
     --border-color: #2a2a2a;
     --text-color: #e6e4dd;          /* moonlight ink */
-    --primary-color: #8ea6b8;       /* 青墨 — blue-grey ink, kept low in chroma */
-    --text-on-primary: #141c22;
+    --primary-color: #9c9c98;       /* 淡墨, 2.2:1 from the text so it still reads as a different tone */
+    --text-on-primary: #141414;
     --active-tab-bg: #1c1c1c;
-    --active-tab-border: #8ea6b8;
+    --active-tab-border: #9c9c98;
     --hover-color: #1e1e1e;
     --bg-color-secondary: #1c1c1c;
     --bg-active: #242424;
@@ -1739,18 +1794,18 @@ body.theme-sumi-e-dark {
     --gutter-color: #a0a098;
     --tab-inactive-color: #a8a6a0;
     --tree-item-color: #e6e4dd;
-    --tree-item-active-bg: rgba(142, 166, 184, 0.14);
+    --tree-item-active-bg: rgba(156, 156, 152, 0.14);
     --text-secondary: #a8a6a0;
 
-    --code-color: #8ea6b8;          /* 青墨, with the accent */
-    --code-bg: rgba(142, 166, 184, 0.10);
-    --code-border: rgba(142, 166, 184, 0.25);
+    --code-color: #9c9c98;          /* 淡墨, with the accent */
+    --code-bg: rgba(156, 156, 152, 0.10);
+    --code-border: rgba(156, 156, 152, 0.25);
     --danger-base: #e0806e;
     --blockquote-bg: rgba(138, 180, 248, 0.06);
 
-    --selection-bg: rgba(142, 166, 184, 0.28);
+    --selection-bg: rgba(156, 156, 152, 0.28);
     --selection-color: #e6e4dd;
-    --cm-selection-bg: rgba(142, 166, 184, 0.24);
+    --cm-selection-bg: rgba(156, 156, 152, 0.24);
 
     --git-modified-color: #d9a44a;
     --git-staged-color: #8fc9a8;
@@ -1759,6 +1814,11 @@ body.theme-sumi-e-dark {
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     /* UI sans on the chrome, as in the day version. */
     --sumi-chrome-font: var(--font-main);
+
+    /* Empty pane: the same mountains in moonlight, with the outline moon of the title bar. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='44' fill='%23e6e4dd' opacity='0.05'/%3E%3Ccircle cx='60' cy='60' r='44' fill='none' stroke='%23e6e4dd' stroke-width='1.1' opacity='0.28'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='420' viewBox='0 0 1600 420' preserveAspectRatio='xMidYMax slice'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23e6e4dd'/%3E%3Cstop offset='.55' stop-color='%23e6e4dd' stop-opacity='.5'/%3E%3Cstop offset='1' stop-color='%23e6e4dd' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cfilter id='f' x='-5%25' y='-20%25' width='110%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='3'/%3E%3C/filter%3E%3Cfilter id='m'%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3C/defs%3E%3Cpath opacity='0.10' fill='url(%23w)' filter='url(%23f)' d='M0 420L0 374.5L20 368.8L40 354.1L60 346.3L80 334.8L100 319.9L120 300.8L140 281.9L160 257.7L180 235.2L200 220L220 205.8L240 191.2L260 189.8L280 195.6L300 203.6L320 218.7L340 234.6L360 255.4L380 267.7L400 288L420 292.3L440 301L460 298.2L480 289.9L500 277.9L520 265.1L540 256L560 259.9L580 258.6L600 273.3L620 289.3L640 307.5L660 323.6L680 342.4L700 352.8L720 362.9L740 375.3L760 378L780 378.4L800 378.5L820 381.4L840 379.4L860 371.2L880 369.9L900 362.8L920 353L940 336.5L960 322.6L980 304.2L1000 286.8L1020 266.1L1040 248.9L1060 233.5L1080 216.5L1100 215.7L1120 216.2L1140 215.5L1160 222.2L1180 228.1L1200 223.7L1220 218.4L1240 213.1L1260 198.4L1280 184.2L1300 165.3L1320 155.8L1340 139.5L1360 130.2L1380 125.8L1400 129.2L1420 140.5L1440 158.4L1460 175.9L1480 199.4L1500 227.7L1520 250.6L1540 280.9L1560 298.4L1580 318.7L1600 331.4L1600 420Z'/%3E%3Cpath opacity='0.15' fill='url(%23w)' filter='url(%23m)' d='M0 420L0 318.3L20 287.6L40 254.4L60 229.9L80 201.7L100 189.7L120 181.3L140 186L160 205L180 232.8L200 263.2L220 296.1L240 323.6L260 335L280 352.1L300 362.6L320 370.3L340 356L360 343.8L380 327.3L400 310.6L420 311.4L440 303.1L460 315.6L480 328.2L500 347.3L520 360.9L540 382.1L560 380.9L580 392.3L600 394.7L620 401L640 398.9L660 401.3L680 394.2L700 393.7L720 395.2L740 396.1L760 392.1L780 396.7L800 395.2L820 392.5L840 398.1L860 401.2L880 397L900 394.4L920 393.7L940 401.7L960 397.2L980 398L1000 396.9L1020 400.2L1040 397.6L1060 392.2L1080 386.3L1100 381.7L1120 371.8L1140 354.1L1160 337.1L1180 315.8L1200 287.3L1220 270.5L1240 272.4L1260 269.2L1280 271.7L1300 280.6L1320 289.3L1340 302.9L1360 306.8L1380 298.1L1400 287.8L1420 269L1440 250.7L1460 225.4L1480 210.9L1500 196.3L1520 195.2L1540 197.3L1560 208.2L1580 237.4L1600 260.6L1600 420Z'/%3E%3Cpath opacity='0.22' fill='url(%23w)' d='M0 420L0 241.1L20 247.9L40 259.5L60 278.8L80 295.9L100 303.5L120 330.6L140 343.5L160 353.4L180 355.6L200 365.6L220 355.1L240 357L260 352.9L280 350L300 346.5L320 355.2L340 355L360 371.9L380 377.4L400 390.1L420 403.4L440 409.4L460 408.1L480 405.9L500 412.7L520 411.3L540 419.3L560 410.9L580 415.7L600 412.2L620 408.3L640 415.9L660 417.3L680 420.6L700 411.1L720 410.3L740 406.6L760 416.9L780 417.8L800 420.9L820 410.5L840 407.2L860 409.5L880 408.7L900 406.6L920 418.4L940 406.3L960 417.5L980 413.4L1000 415.7L1020 410.6L1040 409.8L1060 412L1080 410.4L1100 412L1120 412.4L1140 417.5L1160 408.4L1180 413.6L1200 418.4L1220 407.6L1240 409.3L1260 403.8L1280 398L1300 384.2L1320 372.5L1340 372.7L1360 359.9L1380 343.6L1400 328.1L1420 321.1L1440 306.3L1460 302.9L1480 304.9L1500 295.3L1520 300.6L1540 290.7L1560 276.1L1580 272.2L1600 263.4L1600 420Z'/%3E%3C/svg%3E");
+    --empty-pane-art-position: right 12% top 9%, center bottom;
+    --empty-pane-art-size: 110px 110px, 100% 46%;
 
     /* Washi fibre, reused from the light Sumi-e. */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8 0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)'/%3E%3C/svg%3E");
@@ -1860,6 +1920,11 @@ body.theme-sumi-e-dark .modal-content select { color: #e6e4dd !important; }
    #d4705e. The handwritten chrome and ruled lines are kept, re-lit for dark.
    ========================================================================== */
 body.theme-paper-dark {
+    /* Empty pane: the same pencil and clip, in chalk on kraft. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='340' viewBox='0 0 560 340' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.26' fill='none' stroke='%23e08a72' stroke-width='3' stroke-linecap='round' d='M14 316C60 298 84 330 124 312S190 300 226 306'/%3E%3Cg opacity='0.2' transform='translate(232 300)rotate(-30)' fill='%23efe5d2'%3E%3Cpath d='M0 0L70 -26V26Z' fill-opacity='.55'/%3E%3Cpath d='M0 0L24 -9V9Z'/%3E%3Crect x='70' y='-26' width='290' height='52'/%3E%3Crect x='360' y='-26' width='36' height='52' fill-opacity='.55'/%3E%3Crect x='396' y='-26' width='50' height='52' rx='12' fill='%23e08a72'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='190' viewBox='0 0 110 190'%3E%3Cpath opacity='0.26' transform='rotate(10 55 95)' fill='none' stroke='%23efe5d2' stroke-width='4' stroke-linecap='round' d='M36 18V142A24 24 0 0 0 84 142V42A16 16 0 0 0 52 42V128'/%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom, left 28px top 10px;
+    --empty-pane-art-size: auto 38%, auto 26%;
+
     /* Kraft, not grey. The sheet was #2a2621 on a #242019 desk: a warm
        charcoal one step off the desk, with nothing about it that said paper.
        Paper reads as paper by three things — a fibre you can just see, a
@@ -2024,6 +2089,11 @@ body.theme-paper-dark .modal-content select { color: #efe5d2 !important; }
    Midnight had no day.
    ========================================================================== */
 body.theme-latte-dark {
+    /* Empty pane: the same cup, in cream on the dark ground. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='380' height='380' viewBox='0 0 380 380'%3E%3Cg opacity='0.22' fill='%23e0c7a8'%3E%3Cellipse cx='176' cy='346' rx='150' ry='18'/%3E%3Cpath d='M66 176H286C286 258 250 326 176 326C102 326 66 258 66 176Z'/%3E%3Cpath fill='none' stroke='%23e0c7a8' stroke-width='14' d='M282 198C344 188 348 268 262 282'/%3E%3Cellipse cx='176' cy='176' rx='110' ry='20' fill='%231e1e2e'/%3E%3Cellipse cx='176' cy='178' rx='94' ry='13'/%3E%3C/g%3E%3Cg opacity='0.2' fill='none' stroke='%23e0c7a8' stroke-width='6' stroke-linecap='round'%3E%3Cpath d='M132 136C112 106 152 88 130 52'/%3E%3Cpath d='M178 128C158 94 200 72 176 28'/%3E%3Cpath d='M224 136C204 106 244 88 222 52'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='240' viewBox='0 0 300 240'%3E%3Cg opacity='0.16' fill='none' stroke='%23e0c7a8'%3E%3Ccircle cx='92' cy='74' r='76' stroke-width='6' stroke-dasharray='190 16 90 12 150 20'/%3E%3Ccircle cx='92' cy='74' r='68' stroke-width='1.5'/%3E%3C/g%3E%3Cg opacity='0.22'%3E%3Cg transform='translate(216 54)rotate(-30)'%3E%3Cellipse rx='17' ry='11' fill='%23e0c7a8'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%231e1e2e' stroke-width='2.4'/%3E%3C/g%3E%3Cg transform='translate(250 88)rotate(24)'%3E%3Cellipse rx='17' ry='11' fill='%23e0c7a8'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%231e1e2e' stroke-width='2.4'/%3E%3C/g%3E%3Cg transform='translate(204 112)rotate(62)'%3E%3Cellipse rx='17' ry='11' fill='%23e0c7a8'/%3E%3Cpath d='M-14 0C-6 -6 6 6 14 0' fill='none' stroke='%231e1e2e' stroke-width='2.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right 5% bottom 3%, left 18px top 14px;
+    --empty-pane-art-size: auto 44%, auto 26%;
+
     --bg-color: #1e1e2e;            /* Catppuccin Mocha base */
     --sidebar-bg: #181825;
     --header-bg: #181825;
@@ -2106,6 +2176,11 @@ body.theme-latte-dark option { background-color: #1e1e2e; color: #cdd6f4; }
    every foreground here is 4.7:1 or better on the sheet.
    ========================================================================== */
 body.theme-nord-light {
+    /* Empty pane: the same peaks by day, with snow falling. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='420' viewBox='0 0 1600 420' preserveAspectRatio='xMidYMax slice'%3E%3Cpath opacity='0.14' fill='%234c566a' d='M-20 420L190 130L300 250L430 70L720 420ZM920 420L1130 170L1240 280L1400 60L1660 420Z'/%3E%3Cpath fill='%23ffffff' d='M190 130L236 194L212 186L190 208L168 184L146 192ZM430 70L492 154L460 142L430 172L402 146L366 158ZM1130 170L1174 224L1148 216L1128 236L1108 216L1090 226ZM1400 60L1462 146L1428 134L1398 164L1372 138L1336 152Z'/%3E%3Cpath opacity='0.26' fill='%233b6b78' d='M40 270L71.6 337.5H8.4ZM40 312L81.8 378H-1.8ZM40 351L91 412H-11ZM37 410h6v10h-6ZM96 224L137.3 312.2H54.7ZM96 278.9L150.6 365.1H41.4ZM96 329.8L162.6 412H29.4ZM93 410h6v10h-6ZM150 292L177 349.6H123ZM150 327.8L185.7 384.2H114.3ZM150 361.1L193.5 412H106.5ZM147 410h6v10h-6ZM214 250L249.8 326.5H178.2ZM214 297.6L261.4 372.4H166.6ZM214 341.8L271.8 412H156.2ZM211 410h6v10h-6ZM280 308L303.6 358.4H256.4ZM280 339.4L311.2 388.6H248.8ZM280 368.5L318.1 412H241.9ZM277 410h6v10h-6ZM1330 302L1354.9 355.1H1305.1ZM1330 335L1362.9 387H1297.1ZM1330 365.7L1370.1 412H1289.9ZM1327 410h6v10h-6ZM1392 244L1429.1 323.2H1354.9ZM1392 293.3L1441.1 370.7H1342.9ZM1392 339L1451.8 412H1332.2ZM1389 410h6v10h-6ZM1450 280L1479.5 343H1420.5ZM1450 319.2L1489 380.8H1411ZM1450 355.6L1497.6 412H1402.4ZM1447 410h6v10h-6ZM1508 220L1550.2 310H1465.8ZM1508 276L1563.8 364H1452.2ZM1508 328L1576 412H1440ZM1505 410h6v10h-6ZM1570 270L1601.6 337.5H1538.4ZM1570 312L1611.8 378H1528.2ZM1570 351L1621 412H1519ZM1567 410h6v10h-6Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200' viewBox='0 0 320 200'%3E%3Cpath opacity='0.24' fill='none' stroke='%234c6f99' stroke-width='1.8' stroke-linecap='round' d='M238 50L282 50M249 30.9L271 69.1M271 30.9L249 69.1M156 110L184 110M163 97.9L177 122.1M177 97.9L163 122.1M281 150L303 150M286.5 140.5L297.5 159.5M297.5 140.5L286.5 159.5M70 40L90 40M75 31.3L85 48.7M85 31.3L75 48.7'/%3E%3C/svg%3E");
+    --empty-pane-art-position: center bottom, right 7% top 7%;
+    --empty-pane-art-size: 100% 46%, auto 22%;
+
     --bg-color: #f2f4f8;            /* a step above nord6, for the sheet */
     --sidebar-bg: #e5e9f0;          /* nord5 */
     --header-bg: #d8dee9;           /* nord4 */
@@ -2216,6 +2291,11 @@ body.theme-bamboo-light {
 
     --font-textbook: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif", Georgia, "Times New Roman", serif;
     --bamboo-chrome-font: var(--font-textbook);
+
+    /* Empty pane: a grove down the right edge and a spray from the far corner. Only this screen, which has no text to read: on a document the stalks would run through the lines. */
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='1000' viewBox='0 0 420 1000' preserveAspectRatio='xMaxYMax meet'%3E%3Cdefs%3E%3Cpath id='l' d='M0 0Q22 -9 84 1Q24 6 0 0Z'/%3E%3C/defs%3E%3Cg opacity='0.07' fill='%2347603a'%3E%3Cpath d='M221.3 355Q189.4 351 163.3 335' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(168.2)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(135)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(117.3)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(163.3 335)rotate(91.8)scale(0.8)'/%3E%3Cpath d='M207.6 28.8Q231.8 25.2 251.6 10.8' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(30.2)scale(0.5)'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(48.1)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(251.6 10.8)rotate(74.8)scale(0.6)'/%3E%3Cpath d='M227.5 1010Q227.8 929.2 226.9 851.5L235.9 851.5Q235.6 929.2 236.5 1010Z'/%3E%3Cpath d='M227.1 848.5Q226.7 767.3 225.2 689.1L233.8 689.1Q234.2 767.3 235.7 848.5Z'/%3E%3Cpath d='M225.3 686.1Q224.2 603.1 222 523.1L230.2 523.1Q231.3 603.1 233.5 686.1Z'/%3E%3Cpath d='M222.1 520.1Q220.3 437.5 217.4 358L225.2 358Q227 437.5 229.9 520.1Z'/%3E%3Cpath d='M217.5 355Q215.1 276.3 211.7 200.6L219.1 200.6Q221.5 276.3 224.9 355Z'/%3E%3Cpath d='M211.8 197.6Q208.4 113.2 204.1 31.8L211.1 31.8Q214.5 113.2 218.8 197.6Z'/%3E%3Cpath d='M204.2 28.8Q200.2 -53.6 195.3 -133L201.9 -133Q205.9 -53.6 210.8 28.8Z'/%3E%3Crect x='225.4' y='848.5' width='12' height='3.4' rx='1.7'/%3E%3Crect x='223.7' y='686.1' width='11.6' height='3.4' rx='1.7'/%3E%3Crect x='220.5' y='520.1' width='11.2' height='3.4' rx='1.7'/%3E%3Crect x='215.9' y='355' width='10.8' height='3.4' rx='1.7'/%3E%3Crect x='210.2' y='197.6' width='10.4' height='3.4' rx='1.7'/%3E%3Crect x='202.6' y='28.8' width='10' height='3.4' rx='1.7'/%3E%3Crect x='193.8' y='-136' width='9.6' height='3.4' rx='1.7'/%3E%3C/g%3E%3Cg opacity='0.11' fill='%2347603a'%3E%3Cpath d='M309.8 536.1Q271.3 530.9 239.8 510.1' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(175)scale(1)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(155.7)scale(1)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(125.8)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(101)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(239.8 510.1)rotate(82.9)scale(1.1)'/%3E%3Cpath d='M316.3 239.8Q269 235 230.3 215.8' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(178.9)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(152.6)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(132.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(108.2)scale(1)'/%3E%3Cuse href='%23l' transform='translate(230.3 215.8)rotate(78.6)scale(0.7)'/%3E%3Cpath d='M320.5 98.2Q343.6 94.2 362.5 78.2' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(32.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(52.3)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(362.5 78.2)rotate(76)scale(0.8)'/%3E%3Cpath d='M299 1010Q300.1 938.1 299.3 869.1L313.3 869.1Q312.2 938.1 313 1010Z'/%3E%3Cpath d='M299.6 866.1Q301.2 783.4 300.8 703.7L314.3 703.7Q312.7 783.4 313.1 866.1Z'/%3E%3Cpath d='M301.2 700.7Q303.2 618.4 303.4 539.1L316.2 539.1Q314.2 618.4 314 700.7Z'/%3E%3Cpath d='M303.8 536.1Q306.1 460.3 306.7 387.5L318.9 387.5Q316.6 460.3 316 536.1Z'/%3E%3Cpath d='M307 384.5Q309.6 312.1 310.5 242.8L322.1 242.8Q319.6 312.1 318.6 384.5Z'/%3E%3Cpath d='M310.9 239.8Q313.7 169 315 101.2L326.1 101.2Q323.2 169 321.9 239.8Z'/%3E%3Cpath d='M315.4 98.2Q318.6 27.2 320.3 -40.9L330.7 -40.9Q327.6 27.2 325.9 98.2Z'/%3E%3Crect x='297.8' y='866.1' width='17' height='3.4' rx='1.7'/%3E%3Crect x='299.3' y='700.7' width='16.5' height='3.4' rx='1.7'/%3E%3Crect x='301.9' y='536.1' width='15.8' height='3.4' rx='1.7'/%3E%3Crect x='305.2' y='384.5' width='15.2' height='3.4' rx='1.7'/%3E%3Crect x='309' y='239.8' width='14.6' height='3.4' rx='1.7'/%3E%3Crect x='313.5' y='98.2' width='14' height='3.4' rx='1.7'/%3E%3Crect x='318.8' y='-43.9' width='13.5' height='3.4' rx='1.7'/%3E%3C/g%3E%3Cg opacity='0.17' fill='%2347603a'%3E%3Cpath d='M376.8 702.3Q326.2 696.3 284.8 672.3' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(187.3)scale(1.1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(169.8)scale(1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(139.6)scale(1)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(110.6)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(91)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(284.8 672.3)rotate(65.6)scale(1.1)'/%3E%3Cpath d='M372.5 371.5Q315.3 364.7 268.5 337.5' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(183.9)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(165.6)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(135.5)scale(1)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(114.5)scale(1.4)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(96.2)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(268.5 337.5)rotate(66.9)scale(1.4)'/%3E%3Cpath d='M365.4 48.5Q320.3 44.1 283.4 26.5' fill='none' stroke='%2347603a' stroke-width='1.6'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(173.7)scale(1)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(146.1)scale(1.2)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(125.6)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(99.5)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(283.4 26.5)rotate(82.9)scale(1)'/%3E%3Cpath d='M366 1010Q367.5 926.2 365.6 845.4L389.7 845.4Q388.2 926.2 390 1010Z'/%3E%3Cpath d='M366.2 842.4Q367.3 772.3 365.3 705.3L388.3 705.3Q387.1 772.3 389.1 842.4Z'/%3E%3Cpath d='M365.8 702.3Q366.5 625.3 364.2 551.3L386.2 551.3Q385.4 625.3 387.8 702.3Z'/%3E%3Cpath d='M364.6 548.3Q364.8 459.9 362 374.5L383 374.5Q382.9 459.9 385.6 548.3Z'/%3E%3Cpath d='M362.6 371.5Q362.3 289 359.3 209.5L379.2 209.5Q379.4 289 382.4 371.5Z'/%3E%3Cpath d='M359.8 206.5Q359.3 127.5 356.1 51.5L374.8 51.5Q375.3 127.5 378.5 206.5Z'/%3E%3Cpath d='M356.5 48.5Q355.4 -32.3 351.9 -110.1L369.6 -110.1Q370.6 -32.3 374.2 48.5Z'/%3E%3Crect x='364.1' y='842.4' width='27.1' height='3.4' rx='1.7'/%3E%3Crect x='363.8' y='702.3' width='25.9' height='3.4' rx='1.7'/%3E%3Crect x='362.7' y='548.3' width='25' height='3.4' rx='1.7'/%3E%3Crect x='360.5' y='371.5' width='24' height='3.4' rx='1.7'/%3E%3Crect x='357.8' y='206.5' width='22.8' height='3.4' rx='1.7'/%3E%3Crect x='354.6' y='48.5' width='21.7' height='3.4' rx='1.7'/%3E%3Crect x='350.4' y='-113.1' width='20.7' height='3.4' rx='1.7'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='260' viewBox='0 0 420 260' preserveAspectRatio='xMinYMin meet'%3E%3Cdefs%3E%3Cpath id='l' d='M0 0Q22 -9 84 1Q24 6 0 0Z'/%3E%3C/defs%3E%3Cg opacity='0.12' fill='%2347603a'%3E%3Cpath d='M-4 22Q120 34 262 92' fill='none' stroke='%2347603a' stroke-width='2'/%3E%3Cpath d='M104 40Q130 58 142 92' fill='none' stroke='%2347603a' stroke-width='1.4'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(-11.5)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(13.8)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(38.6)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(62.3)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(85)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(262 92)rotate(113.8)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(5.3)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(33.6)scale(0.8)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(54.4)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(81.1)scale(0.9)'/%3E%3Cuse href='%23l' transform='translate(142 92)rotate(103.1)scale(0.7)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(28.9)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(49.4)scale(0.6)'/%3E%3Cuse href='%23l' transform='translate(196 66)rotate(70.9)scale(0.8)'/%3E%3C/g%3E%3C/svg%3E");
+    --empty-pane-art-position: right bottom, left top;
+    --empty-pane-art-size: auto 100%, auto 30%;
 
     /* The same fibre as the dark slips; grey noise reads on either ground. */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 0.008' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.03'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23a)'/%3E%3C/svg%3E");
