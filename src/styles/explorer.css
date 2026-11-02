@@ -74,6 +74,32 @@
     transition: border-color 0.2s;
 }
 
+/* The button beside the filter box: is the tree listing everything? Lit while
+   it is, because that is the state someone would otherwise forget they left on. */
+.explorer-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.explorer-search-toggle:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+.explorer-search-toggle.active {
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
 #explorer-search:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 1px rgba(55, 148, 255, 0.2);
@@ -148,6 +174,22 @@
    grayscale antialiasing there: on a 100%-scaled Windows screen the strokes
    came out thinner and lighter than the colour alone would make them
    (measured colour fringe 0% against 58-75% for the same text). */
+
+/* A file that goes to another application rather than into a tab. Before the
+   git colours on purpose: a modified image should still say it is modified, and
+   the mark at the end of the row keeps saying the other thing. */
+.tree-item.tree-external .tree-label {
+    color: var(--text-secondary);
+}
+.tree-external-mark {
+    display: inline-flex;
+    flex-shrink: 0;
+    margin-left: 6px;
+    color: var(--text-secondary);
+}
+#file-list .tree-item.selected .tree-external-mark {
+    color: var(--selection-color, var(--text-color));
+}
 
 /* Cut, waiting for Paste: dimmed like Explorer does. */
 .tree-item.cut .tree-icon,

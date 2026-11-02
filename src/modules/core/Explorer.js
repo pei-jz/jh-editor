@@ -1,17 +1,18 @@
 import { EL } from './Constants.js';
 import { t } from '../utils/I18n.js';
 import { State } from './Store.js';
-import { iconEl, iconForFile } from '../ui/Icons.js';
+import { iconEl, iconForFile, setIcon } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
-import { explorerOpensOn } from '../utils/ExplorerPrefs.js';
+import { explorerOpensOn, explorerShowsExternal, setExplorerShowsExternal, SHOW_EXTERNAL_KEY } from '../utils/ExplorerPrefs.js';
+import { externalKind } from '../utils/ExternalFiles.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
 import { GrepModal } from '../ui/GrepModal.js';
 import { showCustomInput, showCustomConfirm, showNewFileModal } from '../ui/Modal.js';
 import { shortcuts } from './ShortcutManager.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
 import { save } from '@tauri-apps/plugin-dialog';
-import { showAlert } from '../ui/Dialog.js';
+import { showAlert, showDialog } from '../ui/Dialog.js';
 import { invoke } from '@tauri-apps/api/core';
 import { isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
@@ -286,10 +287,11 @@ class VirtualExplorer {
                             }
                         }
                     }
-                } else if (openFileCallback) {
+                } else if (openFileCallback && !item.external) {
                     // → on a file opens it, like Enter: with a single click
                     // only selecting, the keyboard needs a way in that does
-                    // not leave the arrow keys.
+                    // not leave the arrow keys. Not one that starts another
+                    // application, though: → is for walking the tree.
                     openFileCallback(item.path);
                 }
             }
@@ -311,6 +313,8 @@ class VirtualExplorer {
             const item = this.flatItems[this.focusedIndex];
             if (item) {
                 if (item.type === 'DIRECTORY') this.toggle(item);
+                // Holding Enter must not start a viewer per key repeat.
+                else if (item.external) { if (!e.repeat) openExternalItem(item); }
                 else if (openFileCallback) openFileCallback(item.path);
             }
         } else if (e.key === 'Delete') {
@@ -494,6 +498,7 @@ class VirtualExplorer {
             }
         }
 
+        const showExternal = explorerShowsExternal();
         for (const entry of entries) {
             if (entry.entry === '.' || entry.entry === '..') continue;
 
@@ -503,6 +508,8 @@ class VirtualExplorer {
             const fullPath = FS.joinPath(dirPath, entry.entry);
             const isDir = entry.type === 'DIRECTORY';
             const isExpanded = State.expandedFolders.has(fullPath);
+            const external = isDir ? null : externalKind(entry.entry);
+            if (external && !showExternal) continue;
 
             this.flatItems.push({
                 path: fullPath,
@@ -510,7 +517,8 @@ class VirtualExplorer {
                 type: entry.type,
                 level: level,
                 expanded: isExpanded,
-                parent: dirPath
+                parent: dirPath,
+                external
             });
 
             if (isDir && isExpanded) {
@@ -674,6 +682,13 @@ class VirtualExplorer {
         label.textContent = item.name;
         label.className = 'tree-label';
 
+        if (item.external) {
+            div.classList.add('tree-external');
+            div.title = item.external === 'program'
+                ? t('Programs are not started from the editor')
+                : t('Opens in the default app');
+        }
+
         // Git Status Styling
         if (this.gitStatus.staged.has(item.path) || this.gitStatus.folderStaged?.has(item.path)) div.classList.add('git-staged');
         else if (this.gitStatus.modified.has(item.path) || this.gitStatus.folderModified?.has(item.path)) div.classList.add('git-modified');
@@ -707,6 +722,14 @@ class VirtualExplorer {
         div.appendChild(icon);
         div.appendChild(label);
 
+        // Colour alone would not do: a git status recolours the same label.
+        if (item.external) {
+            const mark = document.createElement('span');
+            mark.className = 'tree-external-mark';
+            mark.replaceChildren(iconEl(item.external === 'program' ? 'lock' : 'external-link', { size: 11 }));
+            div.appendChild(mark);
+        }
+
         div.onclick = (e) => {
             e.stopPropagation();
             const ctrl = e.ctrlKey || e.metaKey;
@@ -724,22 +747,31 @@ class VirtualExplorer {
                 this.setFocus(index);
             } else {
                 this.selectOnly(index);
-                // A file opens on a single click. A folder, by default, only
-                // gets selected — opening and closing it is a double-click,
-                // Enter, ← / → or its chevron (settings: ExplorerPrefs).
+                // A file opens on a single click. A folder, or a file that goes
+                // to another application, by default only gets selected —
+                // opening it is a double-click, Enter or, for a folder, ← / →
+                // or its chevron (settings: ExplorerPrefs).
                 //
                 // The second click of a double-click is recognised here rather
                 // than with a dblclick listener: refresh() rebuilds every row,
                 // so the two clicks land on two different elements and the
                 // browser's own dblclick cannot be relied on.
-                if (!isDir) {
+                if (!isDir && !item.external) {
                     if (openFileCallback) openFileCallback(item.path);
                 } else {
                     const now = Date.now();
                     const last = this._lastRowClick;
                     const isDouble = !!last && last.path === item.path && now - last.time < 400;
                     this._lastRowClick = isDouble ? null : { path: item.path, time: now };
-                    if (explorerOpensOn() === 'single' || isDouble) this.toggle(item);
+                    const onSingle = explorerOpensOn() === 'single';
+                    if (isDir) {
+                        if (onSingle || isDouble) this.toggle(item);
+                    } else if (onSingle ? !isDouble : isDouble) {
+                        // Single-click mode still swallows the second click of
+                        // a double-click: people double-click files out of
+                        // habit, and that would start the viewer twice.
+                        openExternalItem(item);
+                    }
                 }
                 // Re-focus explorer so keyboard shortcuts (Delete, etc.) still work
                 this.setFocus(index);
@@ -944,8 +976,10 @@ class VirtualExplorer {
                 .map(it => it.path);
             const selectedFiles = picked('FILE');
             const selectedDirs = picked('DIRECTORY');
+            // Comparing reads both sides as text, which these would refuse.
+            const anyExternal = this.flatItems.some(it => it.external && this.selectedPaths.has(it.path));
 
-            if (selectedFiles.length === 2 && selectedDirs.length === 0) {
+            if (selectedFiles.length === 2 && selectedDirs.length === 0 && !anyExternal) {
                 const [leftPath, rightPath] = selectedFiles;
                 menuItems.splice(1, 0,
                     { label: `Compare: ${FS.getBasename(leftPath)} / ${FS.getBasename(rightPath)}`,
@@ -957,6 +991,13 @@ class VirtualExplorer {
                 menuItems.splice(1, 0,
                     { label: `Compare Folders: ${FS.getBasename(leftDir)} / ${FS.getBasename(rightDir)}`,
                       action: () => window.app.compareTwoFolders(leftDir, rightDir) },
+                    { type: 'separator' },
+                );
+            }
+            // One row only: this starts an application per file.
+            if (item.external === 'open' && paths.length === 1) {
+                menuItems.unshift(
+                    { label: t('Open with Default App'), action: () => openExternalItem(item) },
                     { type: 'separator' },
                 );
             }
@@ -1015,6 +1056,51 @@ class VirtualExplorer {
         });
     }
 }
+
+/** Hand a row to the OS, or, for a program, explain why not (utils/ExternalFiles.js). */
+async function openExternalItem(item) {
+    if (item.external === 'program') {
+        // After the click handler's own focus timers: they would otherwise pull
+        // the keyboard out of the dialog and back to the tree.
+        await new Promise(resolve => setTimeout(resolve, 60));
+        const reveal = await showDialog({
+            title: t('Not opened'),
+            kind: 'warning',
+            message: t('Opening {name} would run it, so the editor does not start it. To run it, use the file manager.', { name: item.name }),
+            buttons: [
+                { label: t('Cancel'), value: false, cancel: true },
+                { label: t('Reveal in File Manager'), value: true, primary: true },
+            ],
+        });
+        if (!reveal) return;
+        try {
+            await invoke('reveal_in_file_manager', { path: item.path });
+        } catch (e) {
+            console.error('reveal_in_file_manager failed', e);
+            if (window.showToast) window.showToast(t('Could not open the file manager'));
+        }
+        return;
+    }
+    try {
+        await invoke('open_with_default_app', { path: item.path });
+    } catch (e) {
+        console.error('open_with_default_app failed', e);
+        if (window.showToast) window.showToast(t('Could not open the file'));
+    }
+}
+
+/** Draw the button beside the filter box in the state the setting is in. */
+function syncExternalToggle(btn) {
+    const on = explorerShowsExternal();
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.classList.toggle('active', on);
+    const label = on ? t('Hide files the editor cannot open') : t('Show files the editor cannot open');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    setIcon(btn, on ? 'eye' : 'eye-off', { size: 16 });
+}
+
+let externalSyncBound = false;
 
 /** Normalised for comparison: forward slashes, no trailing slash, case-folded (Windows). */
 function normPath(p) {
@@ -1142,6 +1228,27 @@ export function initExplorer(openCallback, cbObj) {
             vExplorer.container.focus();
         }
     });
+
+    const externalToggle = EL.explorer.querySelector('#explorer-show-external');
+    if (externalToggle) {
+        syncExternalToggle(externalToggle);
+        externalToggle.onclick = () => {
+            setExplorerShowsExternal(!explorerShowsExternal());
+            syncExternalToggle(externalToggle);
+            loadExplorer();
+        };
+    }
+    // The setting is shared between windows, and each draws its tree from it on
+    // every refresh: without this another window's button would go stale.
+    if (!externalSyncBound) {
+        externalSyncBound = true;
+        window.addEventListener('storage', (e) => {
+            if (e.key !== SHOW_EXTERNAL_KEY) return;
+            const btn = EL.explorer.querySelector('#explorer-show-external');
+            if (btn) syncExternalToggle(btn);
+            loadExplorer();
+        });
+    }
 
     // (Content search is handled by the workspace Grep — Ctrl+G / "Find in
     // Folder" — so the old "Txt" filter-content checkbox was removed.)
@@ -1327,6 +1434,12 @@ async function renderFilteredTree(rootDir, term, searchContent = false) {
         }
     }
 
+    // The backend's name search looks at every file, so the switch is applied
+    // here, on the cached matches too: flipping it needs no new search.
+    if (!explorerShowsExternal()) {
+        matches = matches.filter(m => m.type === 'DIRECTORY' || !externalKind(m.entry));
+    }
+
     if (matches.length === 0) {
         vExplorer.setData([]); // <--- Clear the old list!
         vExplorer.focusedIndex = -1; // Reset focus
@@ -1409,7 +1522,8 @@ async function renderFilteredTree(rootDir, term, searchContent = false) {
                 type: child.type,
                 level: level,
                 expanded: isExpanded,
-                parent: node.path
+                parent: node.path,
+                external: child.type === 'DIRECTORY' ? null : externalKind(child.name)
             });
 
             if (child.type === 'DIRECTORY' && isExpanded) {

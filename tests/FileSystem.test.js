@@ -103,19 +103,20 @@ describe('FileSystem Utilities', () => {
     });
 
     describe('readDirectory', () => {
-        it('should invoke read_dir and return filtered and transformed directory entries', async () => {
+        it('should invoke read_dir and return every entry transformed', async () => {
             const mockRustEntries = [
                 { name: 'dir1', is_directory: true, path: '/root/dir1' },
                 { name: 'file1.txt', is_directory: false, path: '/root/file1.txt' },
-                { name: 'binary.exe', is_directory: false, path: '/root/binary.exe' }, // should be filtered out
+                { name: 'binary.exe', is_directory: false, path: '/root/binary.exe' }, // the explorer decides whether to list it
             ];
             vi.mocked(invoke).mockResolvedValue(mockRustEntries);
 
             const result = await FS.readDirectory('/root');
             expect(invoke).toHaveBeenCalledWith('read_dir', { path: '/root' });
-            expect(result.length).toBe(2);
+            expect(result.length).toBe(3);
             expect(result[0]).toEqual({ entry: 'dir1', type: 'DIRECTORY', path: '/root/dir1' });
             expect(result[1]).toEqual({ entry: 'file1.txt', type: 'FILE', path: '/root/file1.txt' });
+            expect(result[2]).toEqual({ entry: 'binary.exe', type: 'FILE', path: '/root/binary.exe' });
         });
 
         it('should throw error if read_dir throws', async () => {

@@ -46,24 +46,10 @@ export async function readDirectory(path) {
         // Transform Rust entries to match application expectation
         // Rust returns: { name, is_directory, path }
         // App expects match: { entry: name, type: 'DIRECTORY'|'FILE' }
-        const BINARY_EXTENSIONS = new Set([
-            'exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o',
-            'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp',
-            'zip', 'tar', 'gz', '7z', 'rar',
-            // .xlsx/.xls/.ods/.docx/.pptx are absent on purpose: they open in
-            // the read-only Office preview (views/OfficeView.js) rather than
-            // as text, so hiding them from the tree would hide the feature.
-            // The formats with no reader — .doc, .ppt, .pdf — stay hidden.
-            'pdf', 'doc', 'ppt',
-            'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv',
-            'db', 'sqlite', 'class', 'jar', 'pyc'
-        ]);
-
-        return entries.filter(entry => {
-            if (entry.is_directory) return true;
-            const ext = entry.name.split('.').pop().toLowerCase();
-            return !BINARY_EXTENSIONS.has(ext);
-        }).map(entry => ({
+        // Every file comes back, including ones the editor cannot open: the
+        // explorer decides what to list (utils/ExternalFiles.js), so that
+        // switching them on and off needs no second read of the directory.
+        return entries.map(entry => ({
             entry: entry.name,
             type: entry.is_directory ? 'DIRECTORY' : 'FILE',
             path: entry.path

@@ -79,6 +79,7 @@ pub fn run() {
             commands::app::get_launch_args,
             commands::app::path_is_dir,
             commands::app::reveal_in_file_manager,
+            commands::app::open_with_default_app,
             commands::window::create_app_window,
             commands::window::take_launch_path,
             commands::folder_jump::folder_jump_get_status,

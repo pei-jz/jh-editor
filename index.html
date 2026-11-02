@@ -170,6 +170,7 @@
           <div id="explorer-files-panel" class="explorer-panel">
             <div id="explorer-search-container" style="display:flex; align-items:center; gap:5px; padding: 10px;">
               <input type="text" id="explorer-search" placeholder="Filter files..." data-i18n-placeholder="Filter files..." style="flex:1;" />
+              <button id="explorer-show-external" class="explorer-search-toggle" aria-pressed="false" title="Show files the editor cannot open" data-i18n-title="Show files the editor cannot open" aria-label="Show files the editor cannot open"></button>
               <button id="open-folder-btn" title="Recent Workspaces (Ctrl+Alt+O)" data-i18n-title="Recent Workspaces (Ctrl+Alt+O)" aria-label="Recent Workspaces" aria-haspopup="menu"
                 style="background:none; border:none; cursor:pointer; color:var(--text-color); opacity:0.8; display:inline-flex; align-items:center; gap:1px; padding:2px;">
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -440,7 +441,7 @@
               </select>
             </div>
             <div class="settings-option">
-              <label for="explorer-open-selector" data-i18n="Explorer: open folders with">Explorer: open folders with</label>
+              <label for="explorer-open-selector" data-i18n="Explorer: open folders and files for other apps with">Explorer: open folders and files for other apps with</label>
               <select id="explorer-open-selector">
                 <option value="double" data-i18n="Double-click (a single click selects)">Double-click (a single click selects)</option>
                 <option value="single" data-i18n="Single click">Single click</option>

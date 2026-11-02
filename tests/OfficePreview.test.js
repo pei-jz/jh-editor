@@ -52,15 +52,14 @@ describe('which files get the Office preview', () => {
     // The explorer hid every Office extension as "binary". With the preview in
     // place that hides the feature: the file cannot be clicked because it is
     // not drawn.
-    it('is no longer filtered out of the explorer listing', () => {
-        const src = read('src/modules/utils/FileSystem.js');
-        const list = src.slice(src.indexOf('BINARY_EXTENSIONS'), src.indexOf('return entries.filter'));
+    it('is no longer filtered out of the explorer listing', async () => {
+        const { externalKind } = await import('../src/modules/utils/ExternalFiles.js');
         for (const ext of ['xlsx', 'xls', 'ods', 'docx', 'pptx']) {
-            expect(list, `${ext} should not be hidden`).not.toContain(`'${ext}'`);
+            expect(externalKind(`a.${ext}`), `${ext} should not be hidden`).toBe(null);
         }
         // …and the ones with no reader still are.
         for (const ext of ['doc', 'ppt', 'pdf']) {
-            expect(list, `${ext} should stay hidden`).toContain(`'${ext}'`);
+            expect(externalKind(`a.${ext}`), `${ext} should stay hidden`).toBe('open');
         }
     });
 
