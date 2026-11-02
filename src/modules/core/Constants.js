@@ -84,7 +84,6 @@ export const EL = {
 
     settingsModal: {
         overlay: document.getElementById('settings-modal'),
-        closeBtn: document.getElementById('close-settings-btn'),
         themeSelector: document.getElementById('theme-selector'),
         tabs: document.querySelectorAll('.settings-tab'),
         panes: {

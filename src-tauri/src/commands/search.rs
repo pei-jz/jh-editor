@@ -306,11 +306,14 @@ fn do_search(
 // ─── Workspace grep: streaming, line-level content search ────────────────────
 
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 // Bumped on every start_grep. A running search checks that its generation is
 // still current; a newer search supersedes (cancels) it.
 static GREP_GEN: AtomicU64 = AtomicU64::new(0);
+// The search that generation belongs to, as the bits of its id. A tab closing
+// must not cancel a newer search than its own.
+static GREP_RUNNING: AtomicU64 = AtomicU64::new(0);
 
 const GREP_MAX_MATCHES: usize = 5000;
 
@@ -329,6 +332,17 @@ struct GrepBatch {
 }
 
 #[derive(serde::Serialize, Clone)]
+struct GrepProgress {
+    search_id: f64,
+    files: usize,
+    bytes: u64,
+    /// The large file being read, if any: "" when there is none.
+    current: String,
+    current_done: u64,
+    current_size: u64,
+}
+
+#[derive(serde::Serialize, Clone)]
 struct GrepDone {
     search_id: f64,
     total: usize,
@@ -336,10 +350,28 @@ struct GrepDone {
     canceled: bool,
 }
 
+/// What a search says as it goes.
+enum GrepEvent {
+    Match(GrepBatch),
+    Progress(GrepProgress),
+    Done(GrepDone),
+}
+
+struct GrepRequest {
+    dir: String,
+    patterns: GrepPatterns,
+    include_subdirs: bool,
+    overrides: Override,
+    max_matches: usize,
+    search_id: f64,
+    my_gen: u64,
+}
+
 /// Start an asynchronous workspace grep. Returns immediately; matches stream to
 /// the frontend as `grep-match` events (batched) and completion is signalled by
 /// `grep-done`. `search_id` correlates events; starting a new search cancels any
-/// in-flight one. Respects .gitignore, skips binary/oversized files, caps total.
+/// in-flight one. Respects .gitignore, skips binary files, caps total. `grep-progress`
+/// says how far it has got. `max_matches` is the limit on the whole search.
 #[command]
 pub fn start_grep(
     app: AppHandle,
@@ -350,9 +382,10 @@ pub fn start_grep(
     whole_word: bool,
     include_subdirs: bool,
     globs: Option<String>,
+    max_matches: Option<usize>,
     search_id: f64,
 ) -> Result<(), String> {
-    let my_gen = GREP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let my_gen = begin_search(search_id);
 
     if term.is_empty() {
         let _ = app.emit("grep-done", GrepDone { search_id, total: 0, truncated: false, canceled: false });
@@ -366,19 +399,45 @@ pub fn start_grep(
 
     // Build/validate the pattern up front so an invalid regex returns an error
     // to the caller (before a results tab is opened).
-    let mut pattern = if regex { term.clone() } else { regex::escape(&term) };
-    if whole_word {
-        pattern = format!(r"\b(?:{})\b", pattern);
-    }
-    let re = regex::RegexBuilder::new(&pattern)
-        .case_insensitive(!case_sensitive)
-        .build()
+    let patterns = compile_patterns(&term, regex, case_sensitive, whole_word)
         .map_err(|e| format!("Invalid search pattern: {}", e))?;
 
+    let request = GrepRequest {
+        dir,
+        patterns,
+        include_subdirs,
+        overrides,
+        max_matches: max_matches.unwrap_or(GREP_MAX_MATCHES).max(1),
+        search_id,
+        my_gen,
+    };
     std::thread::spawn(move || {
-        grep_worker(app, dir, re, include_subdirs, overrides, search_id, my_gen);
+        let emit = move |event: GrepEvent| {
+            let _ = match event {
+                GrepEvent::Match(batch) => app.emit("grep-match", batch),
+                GrepEvent::Progress(progress) => app.emit("grep-progress", progress),
+                GrepEvent::Done(done) => app.emit("grep-done", done),
+            };
+        };
+        grep_worker(emit, request);
     });
     Ok(())
+}
+
+/// A new search takes the generation over from whatever was running.
+fn begin_search(search_id: f64) -> u64 {
+    let my_gen = GREP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    GREP_RUNNING.store(search_id.to_bits(), Ordering::SeqCst);
+    my_gen
+}
+
+/// Stop a search, if it is still the one running. The worker says so itself, as
+/// `grep-done` with `canceled`.
+#[command]
+pub fn cancel_grep(search_id: f64) {
+    if GREP_RUNNING.load(Ordering::SeqCst) == search_id.to_bits() {
+        GREP_GEN.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 /// Build an `Override` matcher from a comma/whitespace separated glob list.
@@ -431,109 +490,294 @@ fn grep_walk(dir: &str, include_subdirs: bool, overrides: Override) -> WalkBuild
     builder
 }
 
-/// A file's text, or None if it cannot be read or looks binary.
+/// What one search looks for: the pattern, applied line by line, and a version
+/// that can rule out a whole chunk of a file at once.
 ///
-/// The check needs only the start of the file, so only that is read first: a
-/// binary is usually the largest thing in a folder, and reading it whole to look
-/// at its first 8000 bytes was most of what a search spent its time on.
-fn read_text_file(path: &std::path::Path) -> Option<String> {
-    use std::io::Read;
-    const BINARY_CHECK_LEN: u64 = 8000;
-
-    let mut file = fs::File::open(path).ok()?;
-    let mut bytes = Vec::new();
-    file.by_ref().take(BINARY_CHECK_LEN).read_to_end(&mut bytes).ok()?;
-    if bytes.contains(&0) {
-        return None; // likely binary
-    }
-    file.read_to_end(&mut bytes).ok()?;
-    Some(decode_text(bytes))
+/// The second is what makes a large file affordable, since most of one holds no
+/// match. It has to find everything the line-by-line one would, so `^` and `$`
+/// mean the ends of a line and \r\n counts as one; a stray hit on a span crossing
+/// lines costs nothing, as the lines are then asked one at a time. A pattern
+/// that opts out of those meanings has no such version, and is asked line by line.
+struct GrepPatterns {
+    line: regex::Regex,
+    chunk: Option<regex::Regex>,
 }
 
-/// Decode with the file's own encoding (Shift_JIS / EUC-JP / UTF-8 / …), so grep
-/// matches text in non-UTF-8 files too.
-fn decode_text(bytes: Vec<u8>) -> String {
+fn compile_patterns(
+    term: &str,
+    regex: bool,
+    case_sensitive: bool,
+    whole_word: bool,
+) -> Result<GrepPatterns, regex::Error> {
+    let mut pattern = if regex { term.to_string() } else { regex::escape(term) };
+    if whole_word {
+        pattern = format!(r"\b(?:{})\b", pattern);
+    }
+    let line = regex::RegexBuilder::new(&pattern)
+        .case_insensitive(!case_sensitive)
+        .build()?;
+    let line_anchored = regex
+        && (pattern.contains(r"\A") || pattern.contains(r"\z") || pattern.contains("-m"));
+    let chunk = if line_anchored {
+        None
+    } else {
+        regex::RegexBuilder::new(&pattern)
+            .case_insensitive(!case_sensitive)
+            .multi_line(true)
+            .crlf(true)
+            .build()
+            .ok()
+    };
+    Ok(GrepPatterns { line, chunk })
+}
+
+/// How much of a file is held at a time.
+const GREP_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+/// How far a chunk grows looking for the end of its last line. Past this it is
+/// cut where it stands: a match straddling that cut is lost, in a file with a
+/// single line this long, which beats holding all of it in memory.
+const GREP_MAX_LINE_BYTES: usize = 32 * 1024 * 1024;
+/// Files at least this big are named in the progress line: anything smaller is
+/// over before the name could be read.
+const GREP_NAMED_FILE_BYTES: u64 = 1024 * 1024;
+
+/// The file's encoding (Shift_JIS / EUC-JP / UTF-8 / …), so grep matches text in
+/// non-UTF-8 files too.
+fn pick_encoding(bytes: &[u8]) -> &'static encoding_rs::Encoding {
+    use encoding_rs::{ISO_2022_JP, UTF_8};
+    if let Some((encoding, _)) = encoding_rs::Encoding::for_bom(bytes) {
+        return encoding;
+    }
     // Most files are UTF-8, and checking that is far cheaper than a detector run
     // that would only say the same. Not with an ESC in it: ISO-2022-JP is valid
     // ASCII byte for byte, and only the detector can tell it is Japanese.
-    if !bytes.contains(&0x1B) {
-        match String::from_utf8(bytes) {
-            Ok(mut text) => {
-                if text.starts_with('\u{FEFF}') {
-                    text.drain(..3); // decode() below drops a BOM too
-                }
-                return text;
-            }
-            Err(e) => return detect_and_decode(e.as_bytes()),
-        }
+    let valid = std::str::from_utf8(bytes).is_ok();
+    if valid && !bytes.contains(&0x1B) {
+        return UTF_8;
     }
-    detect_and_decode(&bytes)
-}
-
-fn detect_and_decode(bytes: &[u8]) -> String {
     let mut detector = EncodingDetector::new();
     detector.feed(bytes, true);
     let encoding = detector.guess(None, true);
-    encoding.decode(bytes).0.into_owned()
+    // ANSI colours in a log are ESC too, and are not a reason to leave UTF-8.
+    if valid && encoding != ISO_2022_JP { UTF_8 } else { encoding }
 }
 
-fn grep_worker(
-    app: AppHandle,
-    dir: String,
-    re: regex::Regex,
-    include_subdirs: bool,
-    overrides: Override,
-    search_id: f64,
-    my_gen: u64,
+/// Search one file a chunk at a time, however large it is.
+///
+/// `on_read` is told how many bytes each chunk took; `on_match` gets the line
+/// number, the line and where in it the match starts. Either returning false
+/// stops the file. A file that looks binary is skipped from its start, without
+/// reading the rest: a binary is usually the largest thing in a folder.
+fn grep_file(
+    path: &std::path::Path,
+    patterns: &GrepPatterns,
+    on_read: &mut dyn FnMut(u64) -> bool,
+    on_match: &mut dyn FnMut(usize, &str, usize) -> bool,
 ) {
-    const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024;
+    use std::io::Read;
+    const BINARY_CHECK_LEN: u64 = 8000;
+
+    let Ok(mut file) = fs::File::open(path) else { return };
+    let mut buf = Vec::new();
+    if file.by_ref().take(BINARY_CHECK_LEN).read_to_end(&mut buf).is_err() || buf.contains(&0) {
+        return;
+    }
+
+    let mut encoding: Option<&'static encoding_rs::Encoding> = None;
+    let mut next_line = 1usize;
+    let mut target = GREP_CHUNK_BYTES;
+    loop {
+        let want = target.saturating_sub(buf.len());
+        let held = buf.len();
+        if file.by_ref().take(want as u64).read_to_end(&mut buf).is_err() {
+            return;
+        }
+        let eof = buf.len() - held < want;
+
+        // Up to the end of the last whole line. A line has no business being cut
+        // by where a read happened to stop, and no encoding here uses \n inside
+        // a multi-byte character.
+        let cut = if eof {
+            buf.len()
+        } else {
+            match memchr::memrchr(b'\n', &buf) {
+                Some(at) => at + 1,
+                None if target < GREP_MAX_LINE_BYTES => {
+                    target *= 2;
+                    continue;
+                }
+                None => buf.len(),
+            }
+        };
+        target = GREP_CHUNK_BYTES;
+
+        let chunk = &buf[..cut];
+        let text = match encoding {
+            None => {
+                let picked = pick_encoding(chunk);
+                encoding = Some(picked);
+                picked.decode(chunk).0 // drops a BOM: `^` has to match after it
+            }
+            // A log can run in ASCII for gigabytes before its first Japanese line.
+            Some(known) => {
+                let known = if known == encoding_rs::UTF_8 && std::str::from_utf8(chunk).is_err() {
+                    let again = pick_encoding(chunk);
+                    encoding = Some(again);
+                    again
+                } else {
+                    known
+                };
+                known.decode_without_bom_handling(chunk).0
+            }
+        };
+
+        let may_match = patterns.chunk.as_ref().map_or(true, |re| re.is_match(&text));
+        if may_match {
+            for (i, line) in text.lines().enumerate() {
+                if let Some(m) = patterns.line.find(line) {
+                    if !on_match(next_line + i, line, m.start()) {
+                        return;
+                    }
+                }
+            }
+        }
+        next_line += memchr::memchr_iter(b'\n', text.as_bytes()).count();
+
+        let read = cut as u64;
+        drop(text);
+        buf.drain(..cut);
+        if !on_read(read) || (eof && buf.is_empty()) {
+            return;
+        }
+    }
+}
+
+/// A line as a results row shows it: from the start, or, when the hit is further
+/// along than a row has room for, from just before the hit. The row is one line
+/// cut at the window's edge, so a hit past that was found and could not be seen.
+fn shown_line(line: &str, start: usize, max_chars: usize) -> String {
+    const VISIBLE_CHARS: usize = 100;
+    const LEAD_CHARS: usize = 40;
+    let before = &line[..start];
+    if before.chars().count() < VISIBLE_CHARS {
+        return line.chars().take(max_chars).collect();
+    }
+    let lead = before.char_indices().rev().nth(LEAD_CHARS - 1).map_or(0, |(at, _)| at);
+    format!("…{}", line[lead..].chars().take(max_chars).collect::<String>())
+}
+
+/// How far a search has got, shared between the threads doing it.
+#[derive(Default)]
+struct GrepScan {
+    files: AtomicUsize,
+    bytes: AtomicU64,
+    /// The large file being read: path, bytes so far, size.
+    current: Mutex<Option<(String, u64, u64)>>,
+}
+
+impl GrepScan {
+    fn progress(&self, search_id: f64) -> GrepProgress {
+        let current = self.current.lock().ok().and_then(|c| c.clone());
+        let (current, current_done, current_size) = current.unwrap_or_default();
+        GrepProgress {
+            search_id,
+            files: self.files.load(Ordering::Relaxed),
+            bytes: self.bytes.load(Ordering::Relaxed),
+            current,
+            current_done,
+            current_size,
+        }
+    }
+
+    fn set_current(&self, value: Option<(String, u64, u64)>) {
+        if let Ok(mut current) = self.current.lock() {
+            *current = value;
+        }
+    }
+}
+
+fn grep_worker(emit: impl Fn(GrepEvent) + Send + 'static, request: GrepRequest) {
+    let GrepRequest {
+        dir,
+        patterns,
+        include_subdirs,
+        overrides,
+        max_matches,
+        search_id,
+        my_gen,
+    } = request;
     const MAX_LINE_LEN: usize = 500;
 
     let (tx, rx) = unbounded::<GrepMatch>();
     let count = Arc::new(AtomicUsize::new(0));
+    let scan = Arc::new(GrepScan::default());
 
-    // Collector: batch incoming matches and emit them to the frontend live.
-    let collector_app = app.clone();
+    // Collector: batch incoming matches and emit them to the frontend live. On a
+    // timer as well as on arrival: reading a large file can go a long time
+    // between matches, and a search that says nothing looks like a hung one.
+    let collector_scan = scan.clone();
     let collector = std::thread::spawn(move || {
-        use std::time::Instant;
+        use crossbeam_channel::RecvTimeoutError;
+        use std::time::{Duration, Instant};
         let mut batch: Vec<GrepMatch> = Vec::new();
         let mut last = Instant::now();
+        let mut last_progress = Instant::now();
         let mut total = 0usize;
-        while let Ok(m) = rx.recv() {
+        loop {
+            let ended = match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(m) => {
+                    total += 1;
+                    batch.push(m);
+                    false
+                }
+                Err(RecvTimeoutError::Timeout) => false,
+                Err(RecvTimeoutError::Disconnected) => true,
+            };
             if GREP_GEN.load(Ordering::SeqCst) != my_gen {
-                return; // superseded — stop emitting
+                // Canceled or superseded. Said out loud, or its tab would show
+                // "Searching…" for good.
+                if !batch.is_empty() {
+                    emit(GrepEvent::Match(GrepBatch { search_id, matches: batch }));
+                }
+                emit(GrepEvent::Done(GrepDone { search_id, total, truncated: false, canceled: true }));
+                return;
             }
-            total += 1;
-            batch.push(m);
-            if batch.len() >= 50 || last.elapsed().as_millis() > 80 {
-                let _ = collector_app.emit("grep-match", GrepBatch { search_id, matches: std::mem::take(&mut batch) });
+            if !batch.is_empty() && (batch.len() >= 50 || last.elapsed().as_millis() > 80) {
+                emit(GrepEvent::Match(GrepBatch { search_id, matches: std::mem::take(&mut batch) }));
                 last = Instant::now();
             }
-        }
-        if GREP_GEN.load(Ordering::SeqCst) != my_gen {
-            return;
+            if last_progress.elapsed().as_millis() >= 150 {
+                emit(GrepEvent::Progress(collector_scan.progress(search_id)));
+                last_progress = Instant::now();
+            }
+            if ended {
+                break;
+            }
         }
         if !batch.is_empty() {
-            let _ = collector_app.emit("grep-match", GrepBatch { search_id, matches: batch });
+            emit(GrepEvent::Match(GrepBatch { search_id, matches: batch }));
         }
-        let _ = collector_app.emit("grep-done", GrepDone {
+        emit(GrepEvent::Done(GrepDone {
             search_id,
             total,
-            truncated: total >= GREP_MAX_MATCHES,
+            truncated: total >= max_matches,
             canceled: false,
-        });
+        }));
     });
 
     let walker = grep_walk(&dir, include_subdirs, overrides).build_parallel();
 
     walker.run(|| {
         let tx = tx.clone();
-        let re = re.clone();
+        let patterns = &patterns;
         let count = count.clone();
+        let scan = scan.clone();
         Box::new(move |entry| {
-            if GREP_GEN.load(Ordering::SeqCst) != my_gen
-                || count.load(Ordering::Relaxed) >= GREP_MAX_MATCHES
-            {
+            let still_wanted = || {
+                GREP_GEN.load(Ordering::SeqCst) == my_gen
+                    && count.load(Ordering::Relaxed) < max_matches
+            };
+            if !still_wanted() {
                 return ignore::WalkState::Quit;
             }
             let entry = match entry {
@@ -544,27 +788,42 @@ fn grep_worker(
             if path.is_dir() {
                 return ignore::WalkState::Continue;
             }
-            if let Ok(meta) = entry.metadata() {
-                if meta.len() > MAX_FILE_SIZE {
-                    return ignore::WalkState::Continue;
-                }
-            }
-            let Some(text) = read_text_file(path) else {
-                return ignore::WalkState::Continue;
-            };
             let path_str = path.to_string_lossy().to_string();
-            for (i, line) in text.lines().enumerate() {
-                if let Some(m) = re.find(line) {
-                    if count.fetch_add(1, Ordering::Relaxed) >= GREP_MAX_MATCHES {
-                        return ignore::WalkState::Quit;
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let named = size >= GREP_NAMED_FILE_BYTES;
+            if named {
+                scan.set_current(Some((path_str.clone(), 0, size)));
+            }
+
+            let mut done = 0u64;
+            grep_file(
+                path,
+                patterns,
+                &mut |read| {
+                    done += read;
+                    scan.bytes.fetch_add(read, Ordering::Relaxed);
+                    if named {
+                        scan.set_current(Some((path_str.clone(), done, size)));
                     }
-                    let mut t = line.to_string();
-                    if t.chars().count() > MAX_LINE_LEN {
-                        t = t.chars().take(MAX_LINE_LEN).collect();
+                    still_wanted()
+                },
+                &mut |line_no, line, start| {
+                    if count.fetch_add(1, Ordering::Relaxed) >= max_matches {
+                        return false;
                     }
-                    let col = line[..m.start()].chars().count() + 1;
-                    let _ = tx.send(GrepMatch { path: path_str.clone(), line: i + 1, col, text: t });
-                }
+                    let _ = tx.send(GrepMatch {
+                        path: path_str.clone(),
+                        line: line_no,
+                        col: line[..start].chars().count() + 1,
+                        text: shown_line(line, start, MAX_LINE_LEN),
+                    });
+                    true
+                },
+            );
+
+            scan.files.fetch_add(1, Ordering::Relaxed);
+            if named {
+                scan.set_current(None);
             }
             ignore::WalkState::Continue
         })
@@ -608,31 +867,259 @@ mod grep_glob_tests {
         assert!(names > 1);
     }
 
-    #[test]
-    fn a_binary_is_recognised_from_its_start_and_text_past_it_is_read_whole() {
-        let base = std::env::temp_dir().join(format!("jh_grep_read_{}", std::process::id()));
-        fs::create_dir_all(&base).unwrap();
-        fs::write(base.join("bin"), b"abc\0def").unwrap();
-        let long = "x".repeat(20_000) + "\nneedle";
-        fs::write(base.join("long.txt"), &long).unwrap();
-
-        assert_eq!(read_text_file(&base.join("bin")), None);
-        assert_eq!(read_text_file(&base.join("long.txt")).as_deref(), Some(long.as_str()));
-        assert_eq!(read_text_file(&base.join("missing")), None);
-        let _ = fs::remove_dir_all(&base);
+    /// Everything a real search says, from the start to its grep-done. The
+    /// generation is global, so these take turns. `on_event` may act along the way.
+    fn run_search(
+        dir: &std::path::Path,
+        term: &str,
+        max_matches: usize,
+        mut on_event: impl FnMut(&GrepEvent, f64),
+    ) -> (Vec<GrepMatch>, GrepDone) {
+        static TURN: Mutex<()> = Mutex::new(());
+        let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        let search_id = 1234.5;
+        let my_gen = begin_search(search_id);
+        let request = GrepRequest {
+            dir: dir.to_string_lossy().to_string(),
+            patterns: compile_patterns(term, false, false, false).unwrap(),
+            include_subdirs: true,
+            overrides: Override::empty(),
+            max_matches,
+            search_id,
+            my_gen,
+        };
+        let (tx, rx) = unbounded::<GrepEvent>();
+        let worker = std::thread::spawn(move || {
+            grep_worker(move |event| { let _ = tx.send(event); }, request);
+        });
+        let mut matches = Vec::new();
+        let mut done = None;
+        for event in rx {
+            on_event(&event, search_id);
+            match event {
+                GrepEvent::Match(batch) => matches.extend(batch.matches),
+                GrepEvent::Done(d) => done = Some(d),
+                GrepEvent::Progress(_) => {}
+            }
+        }
+        worker.join().unwrap();
+        (matches, done.expect("every search ends by saying so"))
     }
 
     #[test]
-    fn text_decodes_the_same_with_or_without_the_shortcut() {
-        assert_eq!(decode_text("日本語 plain".as_bytes().to_vec()), "日本語 plain");
-        // A BOM is not part of the first line: `^` has to match after it.
-        assert_eq!(decode_text(b"\xEF\xBB\xBFabc".to_vec()), "abc");
-        // Shift_JIS for 日本語のテキストです, which is not valid UTF-8.
-        let sjis = encoding_rs::SHIFT_JIS.encode("日本語のテキストです").0.into_owned();
-        assert_eq!(decode_text(sjis), "日本語のテキストです");
-        // ISO-2022-JP is 7-bit, so it passes for UTF-8 unless it is asked about.
-        let jis = b"\x1B$BF|K\\8l$N%F%-%9%H$G$9\x1B(B".to_vec();
-        assert_eq!(decode_text(jis), "日本語のテキストです");
+    fn the_limit_is_on_the_whole_search_and_says_when_it_was_reached() {
+        let base = std::env::temp_dir().join(format!("jh_grep_limit_{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            fs::write(base.join(name), "needle\n".repeat(40)).unwrap();
+        }
+        let capped = run_search(&base, "needle", 50, |_, _| {});
+        let room = run_search(&base, "needle", 1000, |_, _| {});
+        let _ = fs::remove_dir_all(&base);
+        assert_eq!(capped.0.len(), 50, "across the files, not per file");
+        assert!(capped.1.truncated);
+        assert_eq!(room.0.len(), 120);
+        assert!(!room.1.truncated);
+    }
+
+    #[test]
+    fn a_search_stops_and_says_so_when_canceled_in_a_file_it_is_part_way_through() {
+        let base = std::env::temp_dir().join(format!("jh_grep_cancel_{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        // Larger than a chunk many times over, with a hit on every line.
+        let lines = 3 * GREP_CHUNK_BYTES;
+        fs::write(base.join("big.txt"), "needle\n".repeat(lines)).unwrap();
+
+        let mut sent = false;
+        let (matches, done) = run_search(&base, "needle", usize::MAX, |event, id| {
+            if !sent && matches!(event, GrepEvent::Match(_)) {
+                sent = true;
+                cancel_grep(id);
+            }
+        });
+        let _ = fs::remove_dir_all(&base);
+        assert!(done.canceled);
+        assert!(!done.truncated);
+        assert!(matches.len() < lines, "got {} of {}", matches.len(), lines);
+    }
+
+    #[test]
+    fn a_hit_past_the_end_of_a_row_is_shown_with_what_is_around_it() {
+        assert_eq!(shown_line("short needle", 6, 500), "short needle");
+        // On screen as it is: keep the start of the line.
+        let near = format!("{}needle{}", "a".repeat(50), "b".repeat(1000));
+        assert!(shown_line(&near, 50, 500).starts_with("aaa"));
+
+        let far = format!("{}needle{}", "あ".repeat(1000), "い".repeat(1000));
+        let shown = shown_line(&far, "あ".len() * 1000, 500);
+        assert!(shown.starts_with('…'));
+        assert_eq!(shown.chars().position(|c| c == 'n'), Some(41));
+        assert_eq!(shown.chars().count(), 501);
+        assert_eq!(shown_line(&"x".repeat(600), 0, 500).chars().count(), 500);
+    }
+
+    /// (line number, column, line) of every hit.
+    fn grep_all(path: &std::path::Path, term: &str, regex: bool) -> Vec<(usize, usize, String)> {
+        let patterns = compile_patterns(term, regex, false, false).unwrap();
+        let mut hits = Vec::new();
+        grep_file(path, &patterns, &mut |_| true, &mut |n, line, start| {
+            hits.push((n, line[..start].chars().count() + 1, line.to_string()));
+            true
+        });
+        hits
+    }
+
+    fn temp_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("jh_grep_{}_{}", name, std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    fn remove(path: &std::path::Path) {
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn a_file_past_any_one_chunk_is_searched_with_the_right_line_numbers() {
+        // Three chunks' worth, with hits on either side of each boundary.
+        let mut text = String::new();
+        let total = 3 * GREP_CHUNK_BYTES / 20;
+        for i in 1..=total {
+            if i == 1 || i == total / 3 || i == total / 3 + 1 || i == total {
+                text.push_str("....needle.........\n");
+            } else {
+                text.push_str("just some line.....\n");
+            }
+        }
+        assert!(text.len() > 2 * GREP_CHUNK_BYTES);
+        let path = temp_file("big.log", text.as_bytes());
+
+        let hits = grep_all(&path, "NEEDLE", false);
+        remove(&path);
+        let lines: Vec<usize> = hits.iter().map(|h| h.0).collect();
+        assert_eq!(lines, vec![1, total / 3, total / 3 + 1, total]);
+        assert_eq!(hits[0].1, 5, "column");
+    }
+
+    #[test]
+    fn a_chunk_ruled_out_at_once_finds_what_the_lines_would() {
+        let path = temp_file("anchors.txt", b"first\r\nneedle\r\n  needle  \r\nlast\n");
+        let lines = |term: &str| -> Vec<usize> {
+            grep_all(&path, term, true).iter().map(|h| h.0).collect()
+        };
+        assert_eq!(lines("^needle$"), vec![2]);
+        assert_eq!(lines(r"\s+needle\s+$"), vec![3]);
+        // Means the start of the line when lines are asked one at a time.
+        assert_eq!(lines(r"\Aneedle"), vec![2]);
+        assert!(compile_patterns(r"\Aneedle", true, false, false).unwrap().chunk.is_none());
+        assert!(compile_patterns("needle", false, false, false).unwrap().chunk.is_some());
+        // Only ever a stand-in for the line pattern: a hit across lines is no hit.
+        assert!(lines(r"first\s+needle").is_empty());
+        remove(&path);
+    }
+
+    #[test]
+    fn one_enormous_line_is_read_whole_up_to_the_limit() {
+        let mut text = "x".repeat(GREP_CHUNK_BYTES + 1000);
+        text.push_str("needle");
+        let path = temp_file("oneline.txt", text.as_bytes());
+        let hits = grep_all(&path, "needle", false);
+        remove(&path);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, 1);
+    }
+
+    #[test]
+    fn a_binary_is_left_after_its_start_and_a_stop_is_obeyed() {
+        let mut bytes = b"needle\0".to_vec();
+        bytes.resize(3 * GREP_CHUNK_BYTES, b'x');
+        let binary = temp_file("bin.dat", &bytes);
+        let mut reads = 0;
+        let patterns = compile_patterns("needle", false, false, false).unwrap();
+        grep_file(&binary, &patterns, &mut |_| { reads += 1; true }, &mut |_, _, _| panic!("binary"));
+        assert_eq!(reads, 0, "nothing past the first look");
+        remove(&binary);
+
+        let text = "needle\n".repeat(GREP_CHUNK_BYTES / 2);
+        let path = temp_file("stop.txt", text.as_bytes());
+        let mut reads = 0;
+        grep_file(&path, &patterns, &mut |_| { reads += 1; false }, &mut |_, _, _| true);
+        assert_eq!(reads, 1, "canceled after the chunk it was on");
+
+        let mut hits = 0;
+        grep_file(&path, &patterns, &mut |_| true, &mut |_, _, _| { hits += 1; hits < 3 });
+        assert_eq!(hits, 3, "the match cap stops mid-chunk");
+        remove(&path);
+        assert!(grep_all(std::path::Path::new("no/such/file"), "x", false).is_empty());
+    }
+
+    #[test]
+    fn encodings_are_found_from_the_text() {
+        let needle = "テキスト";
+        let cases: Vec<(&str, Vec<u8>)> = vec![
+            ("utf8", format!("日本語の{}です\n", needle).into_bytes()),
+            ("sjis", encoding_rs::SHIFT_JIS.encode("日本語のテキストです\n").0.into_owned()),
+            // 7-bit, so it passes for UTF-8 unless it is asked about.
+            ("jis", b"\x1B$BF|K\\8l$N%F%-%9%H$G$9\x1B(B\n".to_vec()),
+        ];
+        for (name, bytes) in cases {
+            let path = temp_file(name, &bytes);
+            let hits = grep_all(&path, needle, false);
+            remove(&path);
+            assert_eq!(hits.len(), 1, "{}", name);
+            assert_eq!(hits[0].1, 5, "{}: column counts characters", name);
+        }
+
+        // A BOM is not part of the first line.
+        let path = temp_file("bom.txt", b"\xEF\xBB\xBFabc\n");
+        assert_eq!(grep_all(&path, "^abc$", true).len(), 1);
+        remove(&path);
+
+        // ANSI colours are not ISO-2022-JP.
+        assert_eq!(pick_encoding("\x1B[31m日本語のログ\x1B[0m\n".as_bytes()), encoding_rs::UTF_8);
+    }
+
+    #[test]
+    fn a_log_that_turns_japanese_past_its_first_chunk_is_still_read() {
+        let lines = GREP_CHUNK_BYTES / 15;
+        let mut bytes = "ascii only line.....\n".repeat(lines).into_bytes();
+        bytes.extend(encoding_rs::SHIFT_JIS.encode("障害が発生しました。処理を中断します。\n").0.iter());
+        let path = temp_file("late.log", &bytes);
+        let hits = grep_all(&path, "障害", false);
+        remove(&path);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, lines + 1);
+    }
+
+    #[test]
+    fn a_file_asked_for_by_name_is_searched_even_when_git_ignores_it() {
+        let base = std::env::temp_dir().join(format!("jh_grep_named_{}", std::process::id()));
+        fs::create_dir_all(base.join(".git")).unwrap();
+        fs::write(base.join(".gitignore"), "*.log\n").unwrap();
+        fs::write(base.join("big.log"), "x").unwrap();
+        fs::write(base.join("a.txt"), "x").unwrap();
+        let files = |dir: &std::path::Path, globs: Option<&str>| -> Vec<String> {
+            let d = dir.to_string_lossy().to_string();
+            let root = base.to_string_lossy().to_string();
+            let mut found: Vec<String> = grep_walk(&d, true, build_overrides(&root, globs).unwrap())
+                .build()
+                .flatten()
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            found.sort();
+            found
+        };
+        // What the dialog's three ways of asking come to.
+        let everything = files(&base, None);
+        let by_glob = files(&base, Some("*.log"));
+        let by_name = files(&base.join("big.log"), None);
+        let _ = fs::remove_dir_all(&base);
+        assert!(!everything.contains(&"big.log".to_string()), "{:?}", everything);
+        assert_eq!(by_glob, vec!["big.log"]);
+        assert_eq!(by_name, vec!["big.log"]);
     }
 
     #[test]

@@ -33,6 +33,7 @@ import { SearchResultsView } from '../views/SearchResultsView.js';
 import { DirDiffView } from '../views/DirDiffView.js';
 import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
+import { SettingsView } from '../views/SettingsView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
 import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
@@ -91,9 +92,18 @@ export function isMarkdownFile(file) {
 let leftView = null;
 let rightView = null;
 
+/** A results tab closing takes its search with it: nobody is left to read it. */
+function cancelRunningSearch(file) {
+    if (file.type === 'search-results' && file.streaming && !file._done) {
+        invoke('cancel_grep', { searchId: file.searchId }).catch(() => {});
+    }
+}
+
 /** Release the Rust-side handles owned by a tab, unless a sibling shares them. */
 function releaseFileHandles(file) {
     if (!file) return;
+    cancelRunningSearch(file);
+    if (file.type === 'settings') window.dispatchEvent(new Event('settings-tab-closed'));
     // Call this AFTER the tab has been removed from its pane: the lists are
     // what decides whether anyone still holds the handle.
     if (file.largeId != null && !handleStillInUse('largeId', file.largeId)) {
@@ -643,6 +653,7 @@ export async function closeAllTabs(action = 'prompt') {
     // Free any Rust-side handles tied to the tabs being closed. Everything is
     // going away, so the shared-handle guard is not needed here.
     for (const file of [...State.openFiles, ...State.rightOpenFiles]) {
+        cancelRunningSearch(file);
         if (file.largeId != null) invoke('large_file_close', { id: file.largeId }).catch(() => {});
         if (file.editId != null) invoke('editable_close', { id: file.editId }).catch(() => {});
     }
@@ -766,6 +777,14 @@ export function renderEditor(targetPane = null) {
                 updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
             });
             view.render(file.content, file);
+            if (isLeft) leftView = view;
+            else rightView = view;
+            return;
+        }
+
+        // Special Case: the settings screen
+        if (file.type === 'settings') {
+            const view = new SettingsView(container);
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -1504,6 +1523,35 @@ window.app.compareTwoFolders = function (leftRoot, rightRoot) {
     });
     setActiveTab(State.openFiles.length - 1);
 };
+
+const SETTINGS_PATH = 'settings://main';
+
+/**
+ * Bring the settings tab forward, opening it if need be. There is one screen, so
+ * there is one tab, whichever pane it is in. Returns whether it was already open.
+ */
+window.app.openSettings = function () {
+    for (const pane of ['left', 'right']) {
+        const index = paneFiles(pane).findIndex((f) => f.path === SETTINGS_PATH);
+        if (index >= 0) {
+            setActiveTab(index, pane);
+            return true;
+        }
+    }
+    State.openFiles.push({
+        name: 'Settings',
+        path: SETTINGS_PATH,
+        type: 'settings',
+        content: '',
+        encoding: 'UTF-8',
+        eol: getOsLineEnding(),
+        isDirty: false,
+        stats: { size: 0, mtime: 0 },
+    });
+    setActiveTab(State.openFiles.length - 1, 'left');
+    return false;
+};
+window.app.renderTabs = () => renderTabs();
 window.app.openCompareEditor = openCompareEditor;
 window.app.openAgentTasksTab = openAgentTasksTab;
 
@@ -1579,17 +1627,25 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
                 if (v) v.appendMatches(p.matches);
             }
         }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
+        const onProgress = listen('grep-progress', (event) => {
+            const p = event.payload;
+            if (!p || p.search_id !== searchId) return;
+            file._progress = p;
+            const v = liveView();
+            if (v) v.setProgress(p);
+        }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
         const onDone = listen('grep-done', (event) => {
             const p = event.payload;
             if (!p || p.search_id !== searchId) return;
             file._done = true;
             file._truncated = !!p.truncated;
+            file._canceled = !!p.canceled;
             const v = liveView();
-            if (v) v.setDone(!!p.truncated);
+            if (v) v.setDone(!!p.truncated, !!p.canceled);
             for (const un of file._grepUnlisteners) { try { un(); } catch (_) {} }
             file._grepUnlisteners = [];
         }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
-        ready = Promise.all([onMatch, onDone]).then(() => {});
+        ready = Promise.all([onMatch, onProgress, onDone]).then(() => {});
     }
 
     State.openFiles.push(file);
@@ -1764,6 +1820,7 @@ export function tabIconFor(file) {
     if (file.type === 'compare' || file.viewMode === 'compare') return 'compare';
     if (path.startsWith('agent://')) return 'robot';
     if (path.startsWith('search://')) return 'search';
+    if (path.startsWith('settings://')) return 'settings';
     if (path.startsWith('ai://')) return 'sparkles';
     return null;
 }
@@ -1802,7 +1859,9 @@ export function renderTabs(targetPane = null) {
             tab.dataset.tabIndex = String(index);
             tab.dataset.tabPane = pane;
             let fileName = file.name || 'Untitled';
-            if (file.path && !/^(agent|diff|search):\/\//.test(file.path)) {
+            if (file.type === 'settings') {
+                fileName = t('Settings');
+            } else if (file.path && !/^(agent|diff|search):\/\//.test(file.path)) {
                 fileName = file.path.replace(/\\/g, '/').split('/').pop();
             }
             
@@ -2764,7 +2823,7 @@ export async function createNewFileAction() {
  */
 export async function saveCurrentFileAs() {
     const source = getActiveFile();
-    if (!source) return;
+    if (!source || source.type === 'settings') return;
 
     if (source.type === 'diff' || source.type === 'compare'
         || source.viewMode === 'diff' || source.viewMode === 'compare') {
@@ -2901,7 +2960,8 @@ function showCompareHintOnce() {
 
 export async function saveCurrentFile() {
     const file = getActiveFile();
-    if (!file) return false;
+    // Settings save themselves, and there is no file behind the tab to write.
+    if (!file || file.type === 'settings') return false;
     const hadEdits = canCompareWithSaved(file);
     const saved = await saveFile(file, getCurrentView());
     if (saved && hadEdits) showCompareHintOnce();

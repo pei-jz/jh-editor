@@ -18,7 +18,12 @@ import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
 } from '../utils/LargeFileSetting.js';
+import {
+    getGrepMaxMatches, setGrepMaxMatches, MIN_GREP_MAX_MATCHES, MAX_GREP_MAX_MATCHES,
+} from '../utils/GrepSetting.js';
 import { getLanguage, setLanguage, t } from '../utils/I18n.js';
+import { initSettingsSections } from '../views/SettingsView.js';
+import { showWelcomeScreen, hideWelcomeScreen } from './WelcomeScreen.js';
 import { FAMILIES, themeClasses, isKnownTheme } from '../utils/Themes.js';
 import { syncNativeBackground } from '../utils/NativeBackground.js';
 import { getProseFont, setProseFont, getProseSize, setProseSize } from '../utils/ProseFont.js';
@@ -214,7 +219,6 @@ async function initUpdateCheck() {
 export function initSettingsModal() {
     const modal = EL.settingsModal.overlay;
     const openBtn = EL.settingsBtn;
-    const closeBtn = EL.settingsModal.closeBtn;
     const themeSelector = EL.settingsModal.themeSelector;
     const { tabs, panes, agent } = EL.settingsModal;
 
@@ -229,15 +233,15 @@ export function initSettingsModal() {
         style.innerHTML = `
             .settings-content.sidebar-layout {
                 display: flex;
-                width: 850px !important;
-                height: 600px !important;
-                max-width: 95vw !important;
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
                 padding: 0 !important; /* Sidebar handles padding */
                 overflow: hidden;
                 background: var(--bg-color);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                box-shadow: var(--shadow-lg);
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
             }
 
             /* Sidebar */
@@ -318,16 +322,42 @@ export function initSettingsModal() {
             .settings-panes {
                 flex: 1;
                 overflow-y: auto;
-                padding: 20px;
+                padding: 16px 24px;
             }
-            
-            .settings-main-footer {
-                padding: 15px 20px;
-                border-top: 1px solid var(--border-color);
-                background: var(--bg-color-secondary);
+            /* The tab can be very wide, and a label and its control drifting
+               apart across the whole of it stop reading as one row. */
+            .settings-pane { max-width: 1000px; }
+
+            /* A folding group of settings. */
+            .settings-section { border-bottom: 1px solid var(--border-color); }
+            .settings-section > summary {
                 display: flex;
-                justify-content: flex-end;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 4px;
+                cursor: pointer;
+                list-style: none;
+                user-select: none;
+                color: var(--primary-color);
+                font-size: 0.9em;
+                font-weight: 600;
             }
+            .settings-section > summary::-webkit-details-marker { display: none; }
+            .settings-section > summary::after {
+                content: '';
+                margin-left: auto;
+                width: 6px;
+                height: 6px;
+                border-right: 1.5px solid currentColor;
+                border-bottom: 1.5px solid currentColor;
+                transform: rotate(-45deg);
+                transition: transform .12s;
+                opacity: .7;
+            }
+            .settings-section[open] > summary::after { transform: rotate(45deg); }
+            .settings-section > summary:hover { background: var(--hover-color); }
+            .settings-section-body { padding: 10px 4px 14px; }
+            
 
             .settings-option {
                 display: flex;
@@ -475,6 +505,8 @@ export function initSettingsModal() {
         languageSelector.value = getLanguage();
         languageSelector.onchange = (e) => {
             setLanguage(e.target.value);
+            // This tab's own name is in the language just left.
+            if (window.app && window.app.renderTabs) window.app.renderTabs();
         };
     }
 
@@ -525,6 +557,17 @@ export function initSettingsModal() {
         });
     }
 
+    // Search result limit
+    const grepLimitInput = document.getElementById('grep-max-matches');
+    if (grepLimitInput) {
+        grepLimitInput.min = String(MIN_GREP_MAX_MATCHES);
+        grepLimitInput.max = String(MAX_GREP_MAX_MATCHES);
+        grepLimitInput.value = String(getGrepMaxMatches());
+        grepLimitInput.addEventListener('change', () => {
+            grepLimitInput.value = String(setGrepMaxMatches(grepLimitInput.value));
+        });
+    }
+
     // Tab Switching
     if (tabs) {
         tabs.forEach(tab => {
@@ -536,7 +579,7 @@ export function initSettingsModal() {
                 if (titleEl) titleEl.textContent = tab.textContent;
 
                 // Update UI state
-                tabs.forEach(t => t.classList.remove('active'));
+                tabs.forEach(other => other.classList.remove('active'));
                 tab.classList.add('active');
 
                 // Hide all panes
@@ -624,6 +667,11 @@ export function initSettingsModal() {
                 text, select it and use <strong>Inline AI</strong>, where you ask and it is worth the wait.
             </div>
         `;
+
+        // Every other setting takes effect as it is changed, and this one now does
+        // too. It was what the dialog's whole "Save & Apply" button came down to.
+        const agentUrlInput = container.querySelector('#ai-agent-url');
+        if (agentUrlInput) agentUrlInput.onchange = saveAgentSettings;
 
         const localToggle = container.querySelector('#local-inline-suggest');
         if (localToggle) {
@@ -740,6 +788,7 @@ export function initSettingsModal() {
     };
 
     // Modal Actions
+    let openedOverWelcomeIn = null;
     if (openBtn) {
         openBtn.onclick = () => {
             if (viewModeSelector) {
@@ -752,6 +801,18 @@ export function initSettingsModal() {
             const explorerOpen = document.getElementById('explorer-open-selector');
             if (explorerOpen) explorerOpen.value = explorerOpensOn();
 
+            // From the welcome screen there is no editor on screen to hold a tab.
+            const welcome = document.getElementById('welcome-screen');
+            if (welcome && getComputedStyle(welcome).display !== 'none') {
+                openedOverWelcomeIn = State.currentDir;
+                hideWelcomeScreen();
+                const mainLayout = document.getElementById('main-layout');
+                if (mainLayout) mainLayout.style.display = 'flex';
+            }
+
+            // Already open: just bring it forward, as it was left.
+            if (window.app.openSettings()) return;
+
             // Reset to General Tab
             if (tabs && tabs[0]) tabs[0].click();
 
@@ -760,47 +821,23 @@ export function initSettingsModal() {
             if (agent && agent.container) agent.container.innerHTML = '';
             const shortcutList = document.getElementById('shortcut-list-container');
             if (shortcutList) shortcutList.innerHTML = '';
-
-            modal.style.display = 'flex';
         };
     }
 
-    if (closeBtn) {
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-        };
-    }
+    initSettingsSections();
 
-    const globalSaveBtn = document.getElementById('save-all-settings-btn');
-    if (globalSaveBtn) {
-        globalSaveBtn.onclick = () => {
-            const activeTab = document.querySelector('.settings-tab.active')?.dataset.tab;
-            if (activeTab === 'agent') saveAgentSettings();
-            else if (activeTab === 'keybindings') {
-                Toast.info(t('Keybindings are saved automatically as you record them.'));
-            } else {
-                Toast.success(t('Settings Applied'));
-            }
-        };
-    }
-
-    // Explicit Closure: Prevent clicking outside from closing
-    if (modal) {
-        modal.onclick = (e) => {
-            if (e.target === modal) {
-                // Do nothing
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        };
-
-        // Esc key listener
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modal.style.display === 'flex') {
-                modal.style.display = 'none';
-            }
-        });
-    }
+    // Opened over the welcome screen and closed with nothing having happened since,
+    // there is nothing to go back to but that. Opening a folder or a file in the
+    // meantime means the editor is what there is now.
+    window.addEventListener('settings-tab-closed', () => {
+        const back = openedOverWelcomeIn !== null && openedOverWelcomeIn === State.currentDir
+            && !State.openFiles.length && !State.rightOpenFiles.length;
+        openedOverWelcomeIn = null;
+        if (!back) return;
+        const mainLayout = document.getElementById('main-layout');
+        if (mainLayout) mainLayout.style.display = 'none';
+        showWelcomeScreen();
+    });
 
     if (themeSelector) {
         themeSelector.onchange = (e) => {
@@ -1012,23 +1049,23 @@ export function initSettingsModal() {
         const renderList = () => {
             const all = MarkdownTemplates.getAll();
             listEl.innerHTML = '';
-            all.forEach(t => {
+            all.forEach(tpl => {
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-color-secondary, var(--bg-color));';
-                const firstLine = (t.content.split('\n').find(l => l.trim()) || '(blank)').slice(0, 60);
+                const firstLine = (tpl.content.split('\n').find(l => l.trim()) || '(blank)').slice(0, 60);
                 row.innerHTML = `
-                    <span style="font-weight:600; font-size:12px;">${t.name}</span>
-                    <span style="font-size:10px; opacity:0.6; border:1px solid currentColor; border-radius:3px; padding:0 5px;">${t.builtin ? 'built-in' : 'user'}</span>
+                    <span style="font-weight:600; font-size:12px;">${tpl.name}</span>
+                    <span style="font-size:10px; opacity:0.6; border:1px solid currentColor; border-radius:3px; padding:0 5px;">${tpl.builtin ? 'built-in' : 'user'}</span>
                     <span style="flex:1; font-size:11px; opacity:0.6; font-family:var(--font-mono, monospace); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${firstLine.replace(/</g, '&lt;')}</span>
                 `;
-                if (MarkdownTemplates.isDeletable(t.id)) {
+                if (MarkdownTemplates.isDeletable(tpl.id)) {
                     const del = document.createElement('button');
                     del.textContent = t('Delete');
                     del.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:#d9534f; border:1px solid #d9534f; border-radius:4px;';
                     del.onclick = () => {
-                        MarkdownTemplates.remove(t.id);
+                        MarkdownTemplates.remove(tpl.id);
                         renderList();
-                        Toast.info(`Template "${t.name}" deleted.`);
+                        Toast.info(`Template "${tpl.name}" deleted.`);
                     };
                     row.appendChild(del);
                 }
@@ -1044,11 +1081,11 @@ export function initSettingsModal() {
             const hidden = MarkdownTemplates.getHiddenBuiltinTemplates();
             hiddenWrap.style.display = hidden.length ? '' : 'none';
             hiddenListEl.innerHTML = '';
-            hidden.forEach(t => {
+            hidden.forEach(tpl => {
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:6px 10px; border:1px dashed var(--border-color); border-radius:6px; opacity:0.8;';
                 row.innerHTML = `
-                    <span style="font-weight:600; font-size:12px;">${t.name}</span>
+                    <span style="font-weight:600; font-size:12px;">${tpl.name}</span>
                     <span style="font-size:10px; opacity:0.6; border:1px solid currentColor; border-radius:3px; padding:0 5px;">built-in</span>
                     <span style="flex:1;"></span>
                 `;
@@ -1056,7 +1093,7 @@ export function initSettingsModal() {
                 restore.textContent = t('Restore');
                 restore.style.cssText = 'padding:3px 10px; font-size:11px; cursor:pointer; background:none; color:var(--primary-color); border:1px solid var(--primary-color); border-radius:4px;';
                 restore.onclick = () => {
-                    MarkdownTemplates.restoreBuiltin(t.id);
+                    MarkdownTemplates.restoreBuiltin(tpl.id);
                     renderList();
                     Toast.success(`Template "${t.name}" restored.`);
                 };
@@ -1575,12 +1612,6 @@ export function initSettingsModal() {
             }
         };
     };
-
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
 
 }
 
