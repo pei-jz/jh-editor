@@ -18,6 +18,8 @@ import { initSearch, toggleSearch, findNext, findPrev, replaceNext } from '../ui
 import { initVimMode } from '../editors/Vim.js';
 import { initWelcomeScreen, showWelcomeScreen, hideWelcomeScreen } from '../ui/WelcomeScreen.js';
 import { toggleWorkspaceMenu } from '../ui/WorkspaceMenu.js';
+import { toggleFolderJumpOverlay } from '../ui/FolderJumpPanel.js';
+import { syncFolderJumpTray } from '../ui/FolderJumpSettings.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
 import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal, applyTheme } from '../ui/SettingsModal.js';
@@ -578,6 +580,14 @@ async function bootstrap() {
 
     // Set below once the folder button is wired; app:workspace-menu calls it.
     let openWorkspaceMenu = () => {};
+    const openFolderJump = () => toggleFolderJumpOverlay({
+        openWorkspace: async (path) => {
+            await switchProject(path);
+            showMainLayout();
+        },
+        openInNewWindow: (path) => invoke('create_app_window', { path }),
+        pickFolder: () => open({ directory: true, multiple: false, title: t('Add Folder') }),
+    });
     if (EL.openFolderBtn) {
         const pickFolder = async () => {
             try {
@@ -601,6 +611,7 @@ async function bootstrap() {
             onSwitch: (path) => switchProject(path),
             onOpenFolder: pickFolder,
             onOpenInNewWindow: (path) => window.app.openWorkspaceInNewWindow(path),
+            onFolderJump: openFolderJump,
         });
         EL.openFolderBtn.onclick = () => openWorkspaceMenu();
     }
@@ -670,6 +681,7 @@ async function bootstrap() {
         'app:format': formatCurrentFile,
         'app:outline-modal': () => OutlineModal.show(),
         'app:workspace-menu': () => openWorkspaceMenu(),
+        'app:folder-jump': () => openFolderJump(),
         'app:new-file': createNewFileAction,
         // Ctrl+W closes the tab in the FOCUSED pane (split-aware). In an unsplit
         // editor activePane() is always 'left', so this is a plain close-tab.
@@ -960,6 +972,8 @@ async function bootstrap() {
     // in the backend single-instance callback: it focuses the window that owns
     // the file's workspace (emitting `open-external-file` to it) or opens a new
     // window. Nothing to listen for here.
+
+    syncFolderJumpTray();
 
     // 5. Initial Load Logic
     // Open the launch arg (workspace folder or file) if any; otherwise show the

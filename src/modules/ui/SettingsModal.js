@@ -5,6 +5,7 @@ import * as Layout from '../core/Layout.js';
 import { EL } from '../core/Constants.js';
 import { State } from '../core/Store.js';
 import { Toast } from './Toast.js';
+import { initFolderJumpSettings } from './FolderJumpSettings.js';
 import { terminalManager } from './TerminalManager.js';
 import { MarkdownTemplates } from '../utils/MarkdownTemplates.js';
 import { Snippets, DEFAULT_CATEGORY } from './Snippets.js';
@@ -450,6 +451,8 @@ export function initSettingsModal() {
             terminalManager.applyScrollback(lines);
         });
     }
+
+    initFolderJumpSettings();
 
     // View Mode Selector
     const viewModeSelector = document.getElementById('view-mode-selector');

@@ -71,8 +71,11 @@ pub fn expand_env_path(path: String) -> String {
                 continue;
             }
         }
-        out.push(c as char);
-        i += 1;
+        // A whole character, not a byte: paths are often not ASCII. `i` is on a
+        // boundary here because everything skipped above ends on an ASCII byte.
+        let Some(ch) = path[i..].chars().next() else { break };
+        out.push(ch);
+        i += ch.len_utf8();
     }
     out
 }
@@ -418,5 +421,22 @@ pub fn open_url(url: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| e.to_string())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_env_path;
+
+    #[test]
+    fn keeps_non_ascii_paths_intact() {
+        let path = r"C:\案件\A社\設計書";
+        assert_eq!(expand_env_path(path.to_string()), path);
+    }
+
+    #[test]
+    fn expands_a_variable_next_to_non_ascii_text() {
+        std::env::set_var("JH_EXPAND_TEST", r"D:\データ");
+        assert_eq!(expand_env_path(r"%JH_EXPAND_TEST%\案件".to_string()), r"D:\データ\案件");
     }
 }

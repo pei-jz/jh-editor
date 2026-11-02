@@ -123,7 +123,8 @@ fn find_workspaceless_window(app: &AppHandle) -> Option<WebviewWindow> {
     let mut candidates: Vec<WebviewWindow> = app
         .webview_windows()
         .into_iter()
-        .filter(|(label, _)| !with_ws.contains(label))
+        // The jump window has no workspace either, and no editor to open a file in.
+        .filter(|(label, _)| !with_ws.contains(label) && label != crate::commands::folder_jump::WINDOW_LABEL)
         .map(|(_, w)| w)
         .collect();
     // Focused window first (stable, deterministic pick otherwise).
@@ -209,6 +210,29 @@ fn route_open_in_process(app: &AppHandle, target: &str) {
         return;
     }
     let _ = create_window(app, target);
+}
+
+/// Focus the window whose workspace is exactly `path`, else open one on it.
+///
+/// Stricter than the folder branch of `route_open_in_process`, which treats a
+/// subfolder as already open. Someone who picked a subfolder in the jump window
+/// asked for that folder as a workspace, not for the project above it.
+pub fn focus_or_open_workspace(app: &AppHandle, path: &str) -> Result<(), String> {
+    if !std::path::Path::new(path).is_dir() {
+        return Err(format!("Folder not found: {path}"));
+    }
+    let label = app.try_state::<crate::commands::fs::WorkspaceState>().and_then(|state| {
+        lock(&state.roots)
+            .iter()
+            .find(|(_, root)| is_under(root, path) && is_under(path, root))
+            .map(|(label, _)| label.clone())
+    });
+    if let Some(window) = label.and_then(|label| app.get_webview_window(&label)) {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    create_window(app, path).map(|_| ())
 }
 
 /// Tell a specific window to open a file. The target label is carried IN the

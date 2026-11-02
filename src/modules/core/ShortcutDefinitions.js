@@ -20,6 +20,7 @@ export const SHORTCUTS = {
         // Ctrl+O stays the outline; Alt added for the workspace history, the
         // explorer folder button's list.
         { key: 'o', ctrl: true, alt: true, cmd: 'app:workspace-menu', description: 'Recent Workspaces' },
+        { key: 'j', ctrl: true, alt: true, cmd: 'app:folder-jump', description: 'Folder Jump' },
         // Ctrl+P prints, as it does in every other Windows program. File search
         // keeps Ctrl+Shift+R, which it already had.
         { key: 'p', ctrl: true, cmd: 'app:print', description: 'Print' },

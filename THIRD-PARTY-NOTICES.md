@@ -8,12 +8,12 @@ J.H Editor 自体のライセンスは同梱の `LICENSE`（MIT）を参照し�
 このファイルは `scripts/make-third-party-notices.mjs` で生成しています。
 依存を追加・更新したら再生成してください。手で編集しないこと。
 
-生成日時: 2026-10-06T15:53:39.936Z
+生成日時: 2026-11-01T15:36:26.348Z
 
 
 ## npm パッケージ
 
-100 件（本文 43 種）。
+99 件（本文 42 種）。
 
 ### 1. @codemirror/autocomplete ほか 20 件
 
@@ -119,13 +119,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 4. @jh/ai-client 0.1.0
-
-- `@jh/ai-client 0.1.0` （MIT OR Apache-2.0）
-
-> 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
-
-### 5. @lezer/common ほか 7 件
+### 4. @lezer/common ほか 7 件
 
 - `@lezer/common 1.5.2` （MIT） — https://github.com/lezer-parser/common
 - `@lezer/css 1.3.4` （MIT） — https://code.haverbeke.berlin/lezer/css
@@ -160,7 +154,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 6. @lezer/cpp ほか 3 件
+### 5. @lezer/cpp ほか 3 件
 
 - `@lezer/cpp 1.1.6` （MIT） — https://code.haverbeke.berlin/lezer/cpp
 - `@lezer/java 1.1.3` （MIT） — https://github.com/lezer-parser/java
@@ -191,7 +185,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 7. @lezer/json 1.0.3
+### 6. @lezer/json 1.0.3
 
 - `@lezer/json 1.0.3` （MIT） — https://github.com/lezer-parser/json
 
@@ -219,7 +213,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 8. @lezer/yaml 1.0.4
+### 7. @lezer/yaml 1.0.4
 
 - `@lezer/yaml 1.0.4` （MIT） — https://github.com/lezer-parser/yaml
 
@@ -247,7 +241,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 9. @marijn/find-cluster-break 1.0.3
+### 8. @marijn/find-cluster-break 1.0.3
 
 - `@marijn/find-cluster-break 1.0.3` （MIT） — https://code.haverbeke.berlin/marijn/find-cluster-break
 
@@ -275,7 +269,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 10. @mermaid-js/layout-elk 0.2.2
+### 9. @mermaid-js/layout-elk 0.2.2
 
 - `@mermaid-js/layout-elk 0.2.2` （MIT） — https://github.com/mermaid-js/mermaid
 
@@ -303,7 +297,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 11. @replit/codemirror-lang-svelte 6.0.0
+### 10. @replit/codemirror-lang-svelte 6.0.0
 
 - `@replit/codemirror-lang-svelte 6.0.0` （MIT） — https://github.com/replit/codemirror-lang-svelte
 
@@ -331,7 +325,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 12. @replit/codemirror-vim 6.3.0
+### 11. @replit/codemirror-vim 6.3.0
 
 - `@replit/codemirror-vim 6.3.0` （MIT） — https://github.com/replit/codemirror-vim
 
@@ -359,13 +353,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 13. @tauri-apps/api 2.10.1
+### 12. @tauri-apps/api 2.10.1
 
 - `@tauri-apps/api 2.10.1` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/tauri#readme
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 14. @tauri-apps/plugin-clipboard-manager ほか 7 件
+### 13. @tauri-apps/plugin-clipboard-manager ほか 7 件
 
 - `@tauri-apps/plugin-clipboard-manager 2.3.2` （MIT OR Apache-2.0） — https://github.com/tauri-apps/plugins-workspace
 - `@tauri-apps/plugin-dialog 2.6.0` （MIT OR Apache-2.0） — https://github.com/tauri-apps/plugins-workspace
@@ -399,7 +393,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 15. @xterm/addon-fit 0.11.0
+### 14. @xterm/addon-fit 0.11.0
 
 - `@xterm/addon-fit 0.11.0` （MIT） — https://github.com/xtermjs/xterm.js/tree/master/addons/addon-fit
 
@@ -425,7 +419,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 16. @xterm/xterm 6.0.0
+### 15. @xterm/xterm 6.0.0
 
 - `@xterm/xterm 6.0.0` （MIT） — https://github.com/xtermjs/xterm.js
 
@@ -453,7 +447,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 17. commander ほか 1 件
+### 16. commander ほか 1 件
 
 - `commander 7.2.0` （MIT） — https://github.com/tj/commander.js
 - `commander 8.3.0` （MIT） — https://github.com/tj/commander.js
@@ -483,7 +477,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 18. crelt 1.0.7
+### 17. crelt 1.0.7
 
 - `crelt 1.0.7` （MIT） — https://code.haverbeke.berlin/marijn/crelt
 
@@ -509,7 +503,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 19. d3 ほか 1 件
+### 18. d3 ほか 1 件
 
 - `d3 7.9.0` （ISC） — https://d3js.org
 - `d3-array 3.2.4` （ISC） — https://d3js.org/d3-array/
@@ -530,7 +524,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 20. d3-axis ほか 16 件
+### 19. d3-axis ほか 16 件
 
 - `d3-axis 3.0.0` （ISC） — https://d3js.org/d3-axis/
 - `d3-brush 3.0.0` （ISC） — https://d3js.org/d3-brush/
@@ -566,7 +560,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 21. d3-color ほか 2 件
+### 20. d3-color ほか 2 件
 
 - `d3-color 3.1.0` （ISC） — https://d3js.org/d3-color/
 - `d3-shape 3.2.0` （ISC） — https://d3js.org/d3-shape/
@@ -588,7 +582,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 22. d3-contour 4.0.2
+### 21. d3-contour 4.0.2
 
 - `d3-contour 4.0.2` （ISC） — https://d3js.org/d3-contour/
 
@@ -608,7 +602,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 23. d3-delaunay 6.0.4
+### 22. d3-delaunay 6.0.4
 
 - `d3-delaunay 6.0.4` （ISC） — https://github.com/d3/d3-delaunay
 
@@ -629,7 +623,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 24. d3-dsv 3.0.1
+### 23. d3-dsv 3.0.1
 
 - `d3-dsv 3.0.1` （ISC） — https://d3js.org/d3-dsv/
 
@@ -649,7 +643,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 25. d3-ease 3.0.1
+### 24. d3-ease 3.0.1
 
 - `d3-ease 3.0.1` （BSD-3-Clause） — https://d3js.org/d3-ease/
 
@@ -684,7 +678,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 26. d3-fetch 3.0.1
+### 25. d3-fetch 3.0.1
 
 - `d3-fetch 3.0.1` （ISC） — https://d3js.org/d3-fetch/
 
@@ -704,7 +698,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 27. d3-format 3.1.2
+### 26. d3-format 3.1.2
 
 - `d3-format 3.1.2` （ISC） — https://d3js.org/d3-format/
 
@@ -724,7 +718,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 28. d3-geo 3.1.1
+### 27. d3-geo 3.1.1
 
 - `d3-geo 3.1.1` （ISC） — https://d3js.org/d3-geo/
 
@@ -765,7 +759,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 29. d3-path 3.1.0
+### 28. d3-path 3.1.0
 
 - `d3-path 3.1.0` （ISC） — https://d3js.org/d3-path/
 
@@ -785,7 +779,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 30. d3-scale-chromatic 3.1.0
+### 29. d3-scale-chromatic 3.1.0
 
 - `d3-scale-chromatic 3.1.0` （ISC） — https://d3js.org/d3-scale-chromatic/
 
@@ -820,7 +814,7 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 ```
 
-### 31. delaunator 5.1.0
+### 30. delaunator 5.1.0
 
 - `delaunator 5.1.0` （ISC） — https://github.com/mapbox/delaunator
 
@@ -842,7 +836,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 32. diff 9.0.0
+### 31. diff 9.0.0
 
 - `diff 9.0.0` （BSD-3-Clause） — https://github.com/kpdecker/jsdiff
 
@@ -878,7 +872,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 33. dompurify 3.4.14
+### 32. dompurify 3.4.14
 
 - `dompurify 3.4.14` （(MPL-2.0 OR Apache-2.0)） — https://github.com/cure53/DOMPurify
 
@@ -1462,7 +1456,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-### 34. elkjs 0.9.3
+### 33. elkjs 0.9.3
 
 - `elkjs 0.9.3` （EPL-2.0） — https://github.com/kieler/elkjs
 
@@ -1733,7 +1727,7 @@ version(s), and exceptions or additional permissions here}.”
 > You may add additional accurate notices of copyright ownership.
 ```
 
-### 35. iconv-lite 0.6.3
+### 34. iconv-lite 0.6.3
 
 - `iconv-lite 0.6.3` （MIT） — https://github.com/ashtuchkin/iconv-lite
 
@@ -1760,7 +1754,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 36. internmap 2.0.3
+### 35. internmap 2.0.3
 
 - `internmap 2.0.3` （ISC） — https://github.com/mbostock/internmap/
 
@@ -1780,7 +1774,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### 37. katex 0.18.1
+### 36. katex 0.18.1
 
 - `katex 0.18.1` （MIT） — https://katex.org
 
@@ -1808,7 +1802,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 38. page-flip 2.0.7
+### 37. page-flip 2.0.7
 
 - `page-flip 2.0.7` （MIT） — https://nodlik.github.io/StPageFlip/
 
@@ -1836,7 +1830,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 39. robust-predicates 3.0.3
+### 38. robust-predicates 3.0.3
 
 - `robust-predicates 3.0.3` （Unlicense） — https://github.com/mourner/robust-predicates
 
@@ -1867,7 +1861,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org>
 ```
 
-### 40. rw 1.3.3
+### 39. rw 1.3.3
 
 - `rw 1.3.3` （BSD-3-Clause） — https://github.com/mbostock/rw
 
@@ -1900,7 +1894,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 41. safer-buffer 2.1.2
+### 40. safer-buffer 2.1.2
 
 - `safer-buffer 2.1.2` （MIT） — https://github.com/ChALkeR/safer-buffer
 
@@ -1928,7 +1922,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 42. style-mod 4.1.3
+### 41. style-mod 4.1.3
 
 - `style-mod 4.1.3` （MIT） — https://github.com/marijnh/style-mod
 
@@ -1954,7 +1948,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 43. w3c-keyname 2.2.8
+### 42. w3c-keyname 2.2.8
 
 - `w3c-keyname 2.2.8` （MIT） — https://github.com/marijnh/w3c-keyname#readme
 
@@ -1993,7 +1987,7 @@ THE SOFTWARE.
 
 ## Rust クレート (x86_64-pc-windows-msvc)
 
-425 件（本文 222 種）。
+427 件（本文 223 種）。
 
 ### 1. adler2 2.0.1
 
@@ -14865,7 +14859,260 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 75. h2 0.4.13
+### 75. global-hotkey 0.8.0
+
+- `global-hotkey 0.8.0` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/global-hotkey
+
+```text
+--- LICENSE-APACHE ---
+Apache License
+                        Version 2.0, January 2004
+                     http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   not limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object
+   form, that is based on (or derived from) the Work and for which the
+   editorial revisions, annotations, elaborations, or other modifications
+   represent, as a whole, an original work of authorship. For the purposes
+   of this License, Derivative Works shall not include works that remain
+   separable from, or merely link (or bind by name) to the interfaces of,
+   the Work and Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is conspicuously marked or otherwise
+   designated in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+--- LICENSE-MIT ---
+MIT License
+
+Copyright (c) 2022-2022 Tauri Programme within The Commons Conservancy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--- LICENSE.spdx ---
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+PackageName: global-hotkey
+DataFormat: SPDXRef-1
+PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
+PackageHomePage: https://tauri.app
+PackageLicenseDeclared: Apache-2.0
+PackageLicenseDeclared: MIT
+PackageCopyrightText: 2020-2022, The Tauri Programme in the Commons Conservancy
+PackageSummary: <text>Menu Utilities for Desktop Applications.
+                </text>
+PackageComment: <text>The package includes the following libraries; see
+Relationship information.
+                </text>
+Created: 2022-12-05T09:00:00Z
+PackageDownloadLocation: git://github.com/tauri-apps/global-hotkey
+PackageDownloadLocation: git+https://github.com/tauri-apps/global-hotkey.git
+PackageDownloadLocation: git+ssh://github.com/tauri-apps/global-hotkey.git
+Creator: Person: Daniel Thompson-Yvetot
+```
+
+### 76. h2 0.4.13
 
 - `h2 0.4.13` （MIT） — https://github.com/hyperium/h2
 
@@ -14897,7 +15144,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 76. half 2.4.1
+### 77. half 2.4.1
 
 - `half 2.4.1` （MIT OR Apache-2.0） — https://github.com/starkat99/half-rs
 
@@ -14905,7 +15152,7 @@ DEALINGS IN THE SOFTWARE.
 MIT OR Apache-2.0
 ```
 
-### 77. heck ほか 1 件
+### 78. heck ほか 1 件
 
 - `heck 0.5.0` （MIT OR Apache-2.0） — https://github.com/withoutboats/heck
 - `unicode-segmentation 1.12.0` （MIT OR Apache-2.0） — https://github.com/unicode-rs/unicode-segmentation
@@ -15142,7 +15389,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 78. hex 0.4.3
+### 79. hex 0.4.3
 
 - `hex 0.4.3` （MIT OR Apache-2.0） — https://github.com/KokaKiwi/rust-hex
 
@@ -15373,7 +15620,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 79. html5ever ほか 1 件
+### 80. html5ever ほか 1 件
 
 - `html5ever 0.29.1` （MIT OR Apache-2.0） — https://github.com/servo/html5ever
 - `markup5ever 0.14.1` （MIT OR Apache-2.0） — https://github.com/servo/html5ever
@@ -15610,7 +15857,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 80. http 1.4.0
+### 81. http 1.4.0
 
 - `http 1.4.0` （MIT OR Apache-2.0） — https://github.com/hyperium/http
 
@@ -15846,7 +16093,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 81. http-body 1.0.1
+### 82. http-body 1.0.1
 
 - `http-body 1.0.1` （MIT） — https://github.com/hyperium/http-body
 
@@ -15878,7 +16125,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 82. http-body-util 0.1.3
+### 83. http-body-util 0.1.3
 
 - `http-body-util 0.1.3` （MIT） — https://github.com/hyperium/http-body
 
@@ -15910,7 +16157,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 83. http-range 0.1.5
+### 84. http-range 0.1.5
 
 - `http-range 0.1.5` （MIT） — https://github.com/bancek/rust-http-range
 
@@ -15938,7 +16185,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 84. httparse 1.10.1
+### 85. httparse 1.10.1
 
 - `httparse 1.10.1` （MIT OR Apache-2.0） — https://github.com/seanmonstar/httparse
 
@@ -16168,7 +16415,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 85. hyper 1.8.1
+### 86. hyper 1.8.1
 
 - `hyper 1.8.1` （MIT） — https://github.com/hyperium/hyper
 
@@ -16194,7 +16441,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 86. hyper-rustls 0.27.7
+### 87. hyper-rustls 0.27.7
 
 - `hyper-rustls 0.27.7` （Apache-2.0 OR ISC OR MIT） — https://github.com/rustls/hyper-rustls
 
@@ -16458,7 +16705,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 87. hyper-util 0.1.20
+### 88. hyper-util 0.1.20
 
 - `hyper-util 0.1.20` （MIT） — https://github.com/hyperium/hyper-util
 
@@ -16484,7 +16731,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 88. ico 0.5.0
+### 89. ico 0.5.0
 
 - `ico 0.5.0` （MIT） — https://github.com/mdsteele/rust-ico
 
@@ -16512,7 +16759,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 89. icu_collections ほか 17 件
+### 90. icu_collections ほか 17 件
 
 - `icu_collections 2.1.1` （Unicode-3.0） — https://github.com/unicode-org/icu4x
 - `icu_locale_core 2.1.1` （Unicode-3.0） — https://github.com/unicode-org/icu4x
@@ -16582,7 +16829,7 @@ Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
 ```
 
-### 90. ident_case 1.0.1
+### 91. ident_case 1.0.1
 
 - `ident_case 1.0.1` （MIT/Apache-2.0） — https://github.com/TedDriggs/ident_case
 
@@ -16608,7 +16855,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 91. idna_adapter 1.2.1
+### 92. idna_adapter 1.2.1
 
 - `idna_adapter 1.2.1` （Apache-2.0 OR MIT） — https://github.com/hsivonen/idna_adapter
 
@@ -16844,7 +17091,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 92. indexmap ほか 1 件
+### 93. indexmap ほか 1 件
 
 - `indexmap 1.9.3` （Apache-2.0 OR MIT） — https://github.com/bluss/indexmap
 - `indexmap 2.13.0` （Apache-2.0 OR MIT） — https://github.com/indexmap-rs/indexmap
@@ -17081,7 +17328,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 93. infer 0.19.0
+### 94. infer 0.19.0
 
 - `infer 0.19.0` （MIT） — https://github.com/bojand/infer
 
@@ -17109,7 +17356,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 94. ipnet 2.11.0
+### 95. ipnet 2.11.0
 
 - `ipnet 2.11.0` （MIT OR Apache-2.0） — https://github.com/krisprice/ipnet
 
@@ -17327,7 +17574,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 95. iri-string 0.7.10
+### 96. iri-string 0.7.10
 
 - `iri-string 0.7.10` （MIT OR Apache-2.0） — https://github.com/lo48576/iri-string
 
@@ -17563,7 +17810,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 96. json-patch 3.0.1
+### 97. json-patch 3.0.1
 
 - `json-patch 3.0.1` （MIT/Apache-2.0） — https://github.com/idubrov/json-patch
 
@@ -17795,7 +18042,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 97. jsonptr 0.6.3
+### 98. jsonptr 0.6.3
 
 - `jsonptr 0.6.3` （MIT OR Apache-2.0） — https://github.com/chanced/jsonptr
 
@@ -18027,7 +18274,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 98. keyboard-types 0.7.0
+### 99. keyboard-types 0.7.0
 
 - `keyboard-types 0.7.0` （MIT OR Apache-2.0） — https://github.com/pyfisch/keyboard-types
 
@@ -18257,7 +18504,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 99. lazy_static 1.5.0
+### 100. lazy_static 1.5.0
 
 - `lazy_static 1.5.0` （MIT OR Apache-2.0） — https://github.com/rust-lang-nursery/lazy-static.rs
 
@@ -18493,7 +18740,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 100. libc 0.2.181
+### 101. libc 0.2.181
 
 - `libc 0.2.181` （MIT OR Apache-2.0） — https://github.com/rust-lang/libc
 
@@ -18704,7 +18951,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 101. litrs 1.0.0
+### 102. litrs 1.0.0
 
 - `litrs 1.0.0` （MIT OR Apache-2.0） — https://github.com/LukasKalbertodt/litrs
 
@@ -18915,7 +19162,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 102. lock_api ほか 3 件
+### 103. lock_api ほか 3 件
 
 - `lock_api 0.4.14` （MIT OR Apache-2.0） — https://github.com/Amanieu/parking_lot
 - `parking_lot 0.12.5` （MIT OR Apache-2.0） — https://github.com/Amanieu/parking_lot
@@ -19154,7 +19401,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 103. lru-slab 0.1.2
+### 104. lru-slab 0.1.2
 
 - `lru-slab 0.1.2` （MIT OR Apache-2.0 OR Zlib） — https://github.com/Ralith/lru-slab
 
@@ -19393,7 +19640,7 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### 104. mac ほか 5 件
+### 105. mac ほか 5 件
 
 - `mac 0.1.1` （MIT/Apache-2.0） — https://github.com/reem/rust-mac
 - `unic-char-property 0.9.0` （MIT/Apache-2.0） — https://github.com/open-i18n/rust-unic/
@@ -19404,13 +19651,13 @@ the following restrictions:
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 105. match_token 0.1.0
+### 106. match_token 0.1.0
 
 - `match_token 0.1.0` （MIT OR Apache-2.0） — https://github.com/servo/html5ever
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 106. matches 0.1.10
+### 107. matches 0.1.10
 
 - `matches 0.1.10` （MIT） — https://github.com/SimonSapin/rust-std-candidates
 
@@ -19442,7 +19689,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 107. memmap2 0.9.10
+### 108. memmap2 0.9.10
 
 - `memmap2 0.9.10` （MIT OR Apache-2.0） — https://github.com/RazrFalcon/memmap2-rs
 
@@ -19679,7 +19926,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 108. mime 0.3.17
+### 109. mime 0.3.17
 
 - `mime 0.3.17` （MIT OR Apache-2.0） — https://github.com/hyperium/mime
 
@@ -19909,7 +20156,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 109. minisign-verify 0.2.5
+### 110. minisign-verify 0.2.5
 
 - `minisign-verify 0.2.5` （MIT） — https://github.com/jedisct1/rust-minisign-verify
 
@@ -19975,7 +20222,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 110. miniz_oxide 0.8.9
+### 111. miniz_oxide 0.8.9
 
 - `miniz_oxide 0.8.9` （MIT OR Zlib OR Apache-2.0） — https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
 
@@ -20228,7 +20475,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### 111. mio 1.1.1
+### 112. mio 1.1.1
 
 - `mio 1.1.1` （MIT） — https://github.com/tokio-rs/mio
 
@@ -20254,7 +20501,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 112. moxcms ほか 1 件
+### 113. moxcms ほか 1 件
 
 - `moxcms 0.7.11` （BSD-3-Clause OR Apache-2.0） — https://github.com/awxkee/moxcms
 - `pxfm 0.1.27` （BSD-3-Clause OR Apache-2.0） — https://github.com/awxkee/pxfm
@@ -20492,7 +20739,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 113. muda 0.17.1
+### 114. muda 0.17.1
 
 - `muda 0.17.1` （Apache-2.0 OR MIT） — https://github.com/amrbashir/muda
 
@@ -20745,7 +20992,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/muda.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 114. new_debug_unreachable 1.0.6
+### 115. new_debug_unreachable 1.0.6
 
 - `new_debug_unreachable 1.0.6` （MIT） — https://github.com/mbrubeck/rust-debug-unreachable
 
@@ -20777,7 +21024,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 115. nix 0.28.0
+### 116. nix 0.28.0
 
 - `nix 0.28.0` （MIT） — https://github.com/nix-rust/nix
 
@@ -20805,7 +21052,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 116. nodrop 0.1.14
+### 117. nodrop 0.1.14
 
 - `nodrop 0.1.14` （MIT/Apache-2.0） — https://github.com/bluss/arrayvec
 
@@ -21041,7 +21288,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 117. notify 8.2.0
+### 118. notify 8.2.0
 
 - `notify 8.2.0` （CC0-1.0） — https://github.com/notify-rs/notify
 
@@ -21089,7 +21336,7 @@ For these and/or other purposes and motivations, and without any expectation of 
      d. Affirmer understands and acknowledges that Creative Commons is not a party to this document and has no duty or obligation with respect to this CC0 or use of the Work.
 ```
 
-### 118. num_enum ほか 1 件
+### 119. num_enum ほか 1 件
 
 - `num_enum 0.7.5` （BSD-3-Clause OR MIT OR Apache-2.0） — https://github.com/illicitonion/num_enum
 - `num_enum_derive 0.7.5` （BSD-3-Clause OR MIT OR Apache-2.0） — https://github.com/illicitonion/num_enum
@@ -21328,7 +21575,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 119. num-conv 0.2.0
+### 120. num-conv 0.2.0
 
 - `num-conv 0.2.0` （MIT OR Apache-2.0） — https://github.com/jhpratt/num-conv
 
@@ -21558,7 +21805,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 120. open 5.3.3
+### 121. open 5.3.3
 
 - `open 5.3.3` （MIT） — https://github.com/Byron/open-rs
 
@@ -21590,7 +21837,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 121. option-ext 0.2.0
+### 122. option-ext 0.2.0
 
 - `option-ext 0.2.0` （MPL-2.0） — https://github.com/soc/option-ext
 
@@ -21970,7 +22217,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-### 122. os_info 3.14.0
+### 123. os_info 3.14.0
 
 - `os_info 3.14.0` （MIT） — https://github.com/stanislav-tkach/os_info
 
@@ -21998,7 +22245,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 123. os_pipe ほか 1 件
+### 124. os_pipe ほか 1 件
 
 - `os_pipe 1.2.3` （MIT） — https://github.com/oconnor663/os_pipe.rs
 - `shared_child 1.1.1` （MIT） — https://github.com/oconnor663/shared_child.rs
@@ -22025,7 +22272,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 124. phf ほか 4 件
+### 125. phf ほか 4 件
 
 - `phf 0.11.3` （MIT） — https://github.com/rust-phf/rust-phf
 - `phf_codegen 0.11.3` （MIT） — https://github.com/rust-phf/rust-phf
@@ -22056,7 +22303,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 125. pin-project-lite 0.2.16
+### 126. pin-project-lite 0.2.16
 
 - `pin-project-lite 0.2.16` （Apache-2.0 OR MIT） — https://github.com/taiki-e/pin-project-lite
 
@@ -22265,7 +22512,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 126. pin-utils 0.1.0
+### 127. pin-utils 0.1.0
 
 - `pin-utils 0.1.0` （MIT OR Apache-2.0） — https://github.com/rust-lang-nursery/pin-utils
 
@@ -22501,7 +22748,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 127. png ほか 1 件
+### 128. png ほか 1 件
 
 - `png 0.17.16` （MIT OR Apache-2.0） — https://github.com/image-rs/image-png
 - `png 0.18.0` （MIT OR Apache-2.0） — https://github.com/image-rs/image-png
@@ -22738,7 +22985,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 128. powerfmt 0.2.0
+### 129. powerfmt 0.2.0
 
 - `powerfmt 0.2.0` （MIT OR Apache-2.0） — https://github.com/jhpratt/powerfmt
 
@@ -22968,7 +23215,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 129. ppv-lite86 0.2.21
+### 130. ppv-lite86 0.2.21
 
 - `ppv-lite86 0.2.21` （MIT OR Apache-2.0） — https://github.com/cryptocorrosion/cryptocorrosion
 
@@ -23204,7 +23451,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 130. precomputed-hash 0.1.1
+### 131. precomputed-hash 0.1.1
 
 - `precomputed-hash 0.1.1` （MIT） — https://github.com/emilio/precomputed-hash
 
@@ -23232,7 +23479,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 131. proc-macro-hack 0.5.20+deprecated
+### 132. proc-macro-hack 0.5.20+deprecated
 
 - `proc-macro-hack 0.5.20+deprecated` （MIT OR Apache-2.0） — https://github.com/dtolnay/proc-macro-hack
 
@@ -23468,7 +23715,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 132. psl-types 2.0.11
+### 133. psl-types 2.0.11
 
 - `psl-types 2.0.11` （MIT/Apache-2.0） — https://github.com/addr-rs/psl-types
 
@@ -23700,7 +23947,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### 133. ptr_meta ほか 4 件
+### 134. ptr_meta ほか 4 件
 
 - `ptr_meta 0.1.4` （MIT） — https://github.com/djkoloski/ptr_meta
 - `ptr_meta_derive 0.1.4` （MIT） — https://github.com/djkoloski/ptr_meta
@@ -23718,7 +23965,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 134. publicsuffix 2.3.0
+### 135. publicsuffix 2.3.0
 
 - `publicsuffix 2.3.0` （MIT/Apache-2.0） — https://github.com/rushmorem/publicsuffix
 
@@ -23950,7 +24197,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### 135. quick-error 2.0.1
+### 136. quick-error 2.0.1
 
 - `quick-error 2.0.1` （MIT/Apache-2.0） — http://github.com/tailhook/quick-error
 
@@ -24180,7 +24427,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 136. quick-xml 0.31.0
+### 137. quick-xml 0.31.0
 
 - `quick-xml 0.31.0` （MIT） — https://github.com/tafia/quick-xml
 
@@ -24210,7 +24457,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 137. quinn ほか 2 件
+### 138. quinn ほか 2 件
 
 - `quinn 0.11.9` （MIT OR Apache-2.0） — https://github.com/quinn-rs/quinn
 - `quinn-proto 0.11.13` （MIT OR Apache-2.0） — https://github.com/quinn-rs/quinn
@@ -24430,7 +24677,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 138. radium 0.7.0
+### 139. radium 0.7.0
 
 - `radium 0.7.0` （MIT） — https://github.com/bitvecto-rs/radium
 
@@ -24458,7 +24705,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 139. rand ほか 2 件
+### 140. rand ほか 2 件
 
 - `rand 0.8.5` （MIT OR Apache-2.0） — https://github.com/rust-random/rand
 - `rand 0.9.2` （MIT OR Apache-2.0） — https://github.com/rust-random/rand
@@ -24672,7 +24919,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 140. rand_core ほか 1 件
+### 141. rand_core ほか 1 件
 
 - `rand_core 0.6.4` （MIT OR Apache-2.0） — https://github.com/rust-random/rand
 - `rand_core 0.9.5` （MIT OR Apache-2.0） — https://github.com/rust-random/rand
@@ -24896,7 +25143,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 141. rand_pcg 0.2.1
+### 142. rand_pcg 0.2.1
 
 - `rand_pcg 0.2.1` （MIT OR Apache-2.0） — https://github.com/rust-random/rand
 
@@ -25133,7 +25380,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 142. raw-window-handle 0.6.2
+### 143. raw-window-handle 0.6.2
 
 - `raw-window-handle 0.6.2` （MIT OR Apache-2.0 OR Zlib） — https://github.com/rust-windowing/raw-window-handle
 
@@ -25353,7 +25600,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### 143. reqwest 0.12.28
+### 144. reqwest 0.12.28
 
 - `reqwest 0.12.28` （MIT OR Apache-2.0） — https://github.com/seanmonstar/reqwest
 
@@ -25583,7 +25830,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 144. reqwest 0.13.2
+### 145. reqwest 0.13.2
 
 - `reqwest 0.13.2` （MIT OR Apache-2.0） — https://github.com/seanmonstar/reqwest
 
@@ -25813,7 +26060,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 145. rfd 0.16.0
+### 146. rfd 0.16.0
 
 - `rfd 0.16.0` （MIT） — https://github.com/PolyMeilex/rfd
 
@@ -25841,7 +26088,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 146. ring 0.17.14
+### 147. ring 0.17.14
 
 - `ring 0.17.14` （Apache-2.0 AND ISC） — https://github.com/briansmith/ring
 
@@ -26146,7 +26393,7 @@ OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### 147. ropey 1.6.1
+### 148. ropey 1.6.1
 
 - `ropey 1.6.1` （MIT） — https://github.com/cessen/ropey
 
@@ -26172,7 +26419,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 148. rust_decimal 1.40.0
+### 149. rust_decimal 1.40.0
 
 - `rust_decimal 1.40.0` （MIT） — https://github.com/paupino/rust-decimal
 
@@ -26200,7 +26447,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 149. rustls 0.23.36
+### 150. rustls 0.23.36
 
 - `rustls 0.23.36` （Apache-2.0 OR ISC OR MIT） — https://github.com/rustls/rustls
 
@@ -26453,7 +26700,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 150. rustls-pki-types 1.14.0
+### 151. rustls-pki-types 1.14.0
 
 - `rustls-pki-types 1.14.0` （MIT OR Apache-2.0） — https://github.com/rustls/pki-types
 
@@ -26689,7 +26936,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 151. rustls-platform-verifier 0.6.2
+### 152. rustls-platform-verifier 0.6.2
 
 - `rustls-platform-verifier 0.6.2` （MIT OR Apache-2.0） — https://github.com/rustls/rustls-platform-verifier
 
@@ -26921,7 +27168,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 152. rustls-webpki 0.103.9
+### 153. rustls-webpki 0.103.9
 
 - `rustls-webpki 0.103.9` （ISC） — https://github.com/rustls/webpki
 
@@ -26947,7 +27194,7 @@ The files under third-party/chromium are licensed as described in
 third-party/chromium/LICENSE.
 ```
 
-### 153. ryu 1.0.23
+### 154. ryu 1.0.23
 
 - `ryu 1.0.23` （Apache-2.0 OR BSL-1.0） — https://github.com/dtolnay/ryu
 
@@ -27156,7 +27403,7 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 154. same-file ほか 1 件
+### 155. same-file ほか 1 件
 
 - `same-file 1.0.6` （Unlicense/MIT） — https://github.com/BurntSushi/same-file
 - `winapi-util 0.1.11` （Unlicense OR MIT） — https://github.com/BurntSushi/winapi-util
@@ -27191,7 +27438,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 155. schemars ほか 3 件
+### 156. schemars ほか 3 件
 
 - `schemars 0.8.22` （MIT） — https://github.com/GREsau/schemars
 - `schemars 0.9.0` （MIT） — https://github.com/GREsau/schemars
@@ -27222,7 +27469,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 156. scopeguard 1.2.0
+### 157. scopeguard 1.2.0
 
 - `scopeguard 1.2.0` （MIT OR Apache-2.0） — https://github.com/bluss/scopeguard
 
@@ -27458,13 +27705,13 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 157. selectors 0.24.0
+### 158. selectors 0.24.0
 
 - `selectors 0.24.0` （MPL-2.0） — https://github.com/servo/servo
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 158. serde_spanned ほか 5 件
+### 159. serde_spanned ほか 5 件
 
 - `serde_spanned 1.0.4` （MIT OR Apache-2.0） — https://github.com/toml-rs/toml
 - `toml 0.9.12+spec-1.1.0` （MIT OR Apache-2.0） — https://github.com/toml-rs/toml
@@ -27699,7 +27946,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 159. serde_urlencoded 0.7.1
+### 160. serde_urlencoded 0.7.1
 
 - `serde_urlencoded 0.7.1` （MIT/Apache-2.0） — https://github.com/nox/serde_urlencoded
 
@@ -27910,7 +28157,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 160. serde_with ほか 1 件
+### 161. serde_with ほか 1 件
 
 - `serde_with 3.16.1` （MIT OR Apache-2.0） — https://github.com/jonasbb/serde_with/
 - `serde_with_macros 3.16.1` （MIT OR Apache-2.0） — https://github.com/jonasbb/serde_with/
@@ -28147,7 +28394,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 161. serial2 0.2.34
+### 162. serial2 0.2.34
 
 - `serial2 0.2.34` （BSD-2-Clause OR Apache-2.0） — https://github.com/de-vri-es/serial2-rs
 
@@ -28194,7 +28441,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 162. serialize-to-javascript ほか 1 件
+### 163. serialize-to-javascript ほか 1 件
 
 - `serialize-to-javascript 0.1.2` （MIT OR Apache-2.0） — https://github.com/chippers/serialize-to-javascript
 - `serialize-to-javascript-impl 0.1.2` （MIT OR Apache-2.0） — https://github.com/chippers/serialize-to-javascript
@@ -28427,7 +28674,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 163. sha2 0.10.9
+### 164. sha2 0.10.9
 
 - `sha2 0.10.9` （MIT OR Apache-2.0） — https://github.com/RustCrypto/hashes
 
@@ -28665,7 +28912,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 164. shared_library 0.1.9
+### 165. shared_library 0.1.9
 
 - `shared_library 0.1.9` （Apache-2.0/MIT） — https://github.com/tomaka/shared_library/
 
@@ -28901,7 +29148,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 165. shell-words 1.1.1
+### 166. shell-words 1.1.1
 
 - `shell-words 1.1.1` （MIT/Apache-2.0） — https://github.com/tmiasko/shell-words
 
@@ -29137,7 +29384,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 166. shlex 1.3.0
+### 167. shlex 1.3.0
 
 - `shlex 1.3.0` （MIT OR Apache-2.0） — https://github.com/comex/rust-shlex
 
@@ -29181,7 +29428,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 167. simd-adler32 0.3.8
+### 168. simd-adler32 0.3.8
 
 - `simd-adler32 0.3.8` （MIT） — https://github.com/mcountryman/simd-adler32
 
@@ -29209,7 +29456,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 168. simdutf8 0.1.5
+### 169. simdutf8 0.1.5
 
 - `simdutf8 0.1.5` （MIT OR Apache-2.0） — https://github.com/rusticstuff/simdutf8
 
@@ -29414,7 +29661,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 169. siphasher 0.3.11
+### 170. siphasher 0.3.11
 
 - `siphasher 0.3.11` （MIT/Apache-2.0） — https://github.com/jedisct1/rust-siphash
 
@@ -29428,7 +29675,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ```
 
-### 170. siphasher 1.0.2
+### 171. siphasher 1.0.2
 
 - `siphasher 1.0.2` （MIT/Apache-2.0） — https://github.com/jedisct1/rust-siphash
 
@@ -29442,7 +29689,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ```
 
-### 171. slab 0.4.12
+### 172. slab 0.4.12
 
 - `slab 0.4.12` （MIT） — https://github.com/tokio-rs/slab
 
@@ -29474,7 +29721,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 172. smallvec 1.15.1
+### 173. smallvec 1.15.1
 
 - `smallvec 1.15.1` （MIT OR Apache-2.0） — https://github.com/servo/rust-smallvec
 
@@ -29710,7 +29957,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 173. softbuffer 0.4.8
+### 174. softbuffer 0.4.8
 
 - `softbuffer 0.4.8` （MIT OR Apache-2.0） — https://github.com/rust-windowing/softbuffer
 
@@ -29940,7 +30187,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 174. stable_deref_trait 1.2.1
+### 175. stable_deref_trait 1.2.1
 
 - `stable_deref_trait 1.2.1` （MIT OR Apache-2.0） — https://github.com/storyyeller/stable_deref_trait
 
@@ -30176,7 +30423,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 175. str_indices 0.4.4
+### 176. str_indices 0.4.4
 
 - `str_indices 0.4.4` （MIT OR Apache-2.0） — https://github.com/cessen/str_indices
 
@@ -30406,7 +30653,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 176. string_cache ほか 1 件
+### 177. string_cache ほか 1 件
 
 - `string_cache 0.8.9` （MIT OR Apache-2.0） — https://github.com/servo/string-cache
 - `string_cache_codegen 0.5.4` （MIT OR Apache-2.0） — https://github.com/servo/string-cache
@@ -30643,7 +30890,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 177. strsim 0.11.1
+### 178. strsim 0.11.1
 
 - `strsim 0.11.1` （MIT） — https://github.com/rapidfuzz/strsim-rs
 
@@ -30673,7 +30920,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 178. subtle 2.6.1
+### 179. subtle 2.6.1
 
 - `subtle 2.6.1` （BSD-3-Clause） — https://github.com/dalek-cryptography/subtle
 
@@ -30709,7 +30956,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### 179. sync_wrapper 1.0.2
+### 180. sync_wrapper 1.0.2
 
 - `sync_wrapper 1.0.2` （Apache-2.0） — https://github.com/Actyx/sync_wrapper
 
@@ -30892,7 +31139,7 @@ Apache License
    END OF TERMS AND CONDITIONS
 ```
 
-### 180. synstructure 0.13.2
+### 181. synstructure 0.13.2
 
 - `synstructure 0.13.2` （MIT） — https://github.com/mystor/synstructure
 
@@ -30906,7 +31153,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 181. sys-locale 0.3.2
+### 182. sys-locale 0.3.2
 
 - `sys-locale 0.3.2` （MIT OR Apache-2.0） — https://github.com/1Password/sys-locale
 
@@ -31138,7 +31385,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 182. tao 0.34.5
+### 183. tao 0.34.5
 
 - `tao 0.34.5` （Apache-2.0） — https://github.com/tauri-apps/tao
 
@@ -31367,7 +31614,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tao.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 183. tap 1.0.1
+### 184. tap 1.0.1
 
 - `tap 1.0.1` （MIT） — https://github.com/myrrlyn/tap
 
@@ -31395,7 +31642,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 184. tauri ほか 7 件
+### 185. tauri ほか 7 件
 
 - `tauri 2.10.2` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/tauri
 - `tauri-build 2.5.5` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/tauri
@@ -31408,11 +31655,12 @@ SOFTWARE.
 
 > 配布物にライセンス本文が同梱されていなかった。上記の URL を参照のこと。
 
-### 185. tauri-plugin-clipboard-manager ほか 9 件
+### 186. tauri-plugin-clipboard-manager ほか 10 件
 
 - `tauri-plugin-clipboard-manager 2.3.2` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-dialog 2.6.0` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-fs 2.4.5` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-global-shortcut 2.3.2` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-http 2.5.7` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-log 2.8.0` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-os 2.3.2` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/plugins-workspace
@@ -31444,7 +31692,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 186. tauri-winres 0.3.5
+### 187. tauri-winres 0.3.5
 
 - `tauri-winres 0.3.5` （MIT） — https://github.com/tauri-apps/winres
 
@@ -31479,7 +31727,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 187. tempfile 3.25.0
+### 188. tempfile 3.25.0
 
 - `tempfile 3.25.0` （MIT OR Apache-2.0） — https://github.com/Stebalien/tempfile
 
@@ -31715,7 +31963,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 188. tiff 0.10.3
+### 189. tiff 0.10.3
 
 - `tiff 0.10.3` （MIT） — https://github.com/image-rs/image-tiff
 
@@ -31743,7 +31991,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 189. time ほか 2 件
+### 190. time ほか 2 件
 
 - `time 0.3.47` （MIT OR Apache-2.0） — https://github.com/time-rs/time
 - `time-core 0.1.8` （MIT OR Apache-2.0） — https://github.com/time-rs/time
@@ -31950,7 +32198,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 190. tinyvec 1.10.0
+### 191. tinyvec 1.10.0
 
 - `tinyvec 1.10.0` （Zlib OR Apache-2.0 OR MIT） — https://github.com/Lokathor/tinyvec
 
@@ -32179,7 +32427,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### 191. tinyvec_macros 0.1.1
+### 192. tinyvec_macros 0.1.1
 
 - `tinyvec_macros 0.1.1` （MIT OR Apache-2.0 OR Zlib） — https://github.com/Soveu/tinyvec_macros
 
@@ -32432,7 +32680,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### 192. tokio ほか 1 件
+### 193. tokio ほか 1 件
 
 - `tokio 1.49.0` （MIT） — https://github.com/tokio-rs/tokio
 - `tokio-util 0.7.18` （MIT） — https://github.com/tokio-rs/tokio
@@ -32461,7 +32709,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 193. tokio-macros 2.6.0
+### 194. tokio-macros 2.6.0
 
 - `tokio-macros 2.6.0` （MIT） — https://github.com/tokio-rs/tokio
 
@@ -32490,7 +32738,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 194. tokio-rustls 0.26.4
+### 195. tokio-rustls 0.26.4
 
 - `tokio-rustls 0.26.4` （MIT OR Apache-2.0） — https://github.com/rustls/tokio-rustls
 
@@ -32726,7 +32974,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 195. tower ほか 2 件
+### 196. tower ほか 2 件
 
 - `tower 0.5.3` （MIT） — https://github.com/tower-rs/tower
 - `tower-layer 0.3.3` （MIT） — https://github.com/tower-rs/tower
@@ -32760,7 +33008,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 196. tower-http 0.6.8
+### 197. tower-http 0.6.8
 
 - `tower-http 0.6.8` （MIT） — https://github.com/tower-rs/tower-http
 
@@ -32792,7 +33040,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 197. tracing ほか 2 件
+### 198. tracing ほか 2 件
 
 - `tracing 0.1.44` （MIT） — https://github.com/tokio-rs/tracing
 - `tracing-attributes 0.1.31` （MIT） — https://github.com/tokio-rs/tracing
@@ -32826,7 +33074,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 198. tray-icon 0.21.3
+### 199. tray-icon 0.21.3
 
 - `tray-icon 0.21.3` （MIT OR Apache-2.0） — https://github.com/tauri-apps/tray-icon
 
@@ -33079,7 +33327,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tray-icon.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 199. try-lock 0.2.5
+### 200. try-lock 0.2.5
 
 - `try-lock 0.2.5` （MIT） — https://github.com/seanmonstar/try-lock
 
@@ -33106,7 +33354,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 200. typenum 1.19.0
+### 201. typenum 1.19.0
 
 - `typenum 1.19.0` （MIT OR Apache-2.0） — https://github.com/paholg/typenum
 
@@ -33341,7 +33589,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 201. unicode-ident 1.0.23
+### 202. unicode-ident 1.0.23
 
 - `unicode-ident 1.0.23` （(MIT OR Apache-2.0) AND Unicode-3.0） — https://github.com/dtolnay/unicode-ident
 
@@ -33591,7 +33839,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ```
 
-### 202. untrusted 0.9.0
+### 203. untrusted 0.9.0
 
 - `untrusted 0.9.0` （ISC） — https://github.com/briansmith/untrusted
 
@@ -33611,7 +33859,7 @@ authorization of the copyright holder.
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### 203. urlpattern 0.3.0
+### 204. urlpattern 0.3.0
 
 - `urlpattern 0.3.0` （MIT） — https://github.com/denoland/rust-urlpattern
 
@@ -33639,7 +33887,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 204. utf8-width 0.1.8
+### 205. utf8-width 0.1.8
 
 - `utf8-width 0.1.8` （MIT） — https://github.com/magiclen/utf8-width
 
@@ -33667,7 +33915,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 205. uuid 1.20.0
+### 206. uuid 1.20.0
 
 - `uuid 1.20.0` （Apache-2.0 OR MIT） — https://github.com/uuid-rs/uuid
 
@@ -33904,7 +34152,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 206. value-bag 1.12.0
+### 207. value-bag 1.12.0
 
 - `value-bag 1.12.0` （Apache-2.0 OR MIT） — https://github.com/sval-rs/value-bag
 
@@ -34136,7 +34384,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 207. version_check 0.9.5
+### 208. version_check 0.9.5
 
 - `version_check 0.9.5` （MIT/Apache-2.0） — https://github.com/SergioBenitez/version_check
 
@@ -34366,7 +34614,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 208. vswhom ほか 1 件
+### 209. vswhom ほか 1 件
 
 - `vswhom 0.1.0` （MIT） — https://github.com/nabijaczleweli/vswhom.rs
 - `vswhom-sys 0.1.3` （MIT） — https://github.com/nabijaczleweli/vswhom-sys.rs
@@ -34395,7 +34643,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 209. want 0.3.1
+### 210. want 0.3.1
 
 - `want 0.3.1` （MIT） — https://github.com/seanmonstar/want
 
@@ -34421,7 +34669,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 210. webpki-roots 1.0.6
+### 211. webpki-roots 1.0.6
 
 - `webpki-roots 1.0.6` （CDLA-Permissive-2.0） — https://github.com/rustls/webpki-roots
 
@@ -34489,7 +34737,7 @@ of Data, including for example machine learning models and models'
 insights.
 ```
 
-### 211. weezl 0.1.12
+### 212. weezl 0.1.12
 
 - `weezl 0.1.12` （MIT OR Apache-2.0） — https://github.com/image-rs/weezl
 
@@ -34721,7 +34969,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 212. winapi 0.3.9
+### 213. winapi 0.3.9
 
 - `winapi 0.3.9` （MIT/Apache-2.0） — https://github.com/retep998/winapi-rs
 
@@ -34951,7 +35199,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 213. window-vibrancy 0.6.0
+### 214. window-vibrancy 0.6.0
 
 - `window-vibrancy 0.6.0` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/tauri-plugin-vibrancy
 
@@ -35204,7 +35452,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/window-vibrancy.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 214. windows ほか 22 件
+### 215. windows ほか 22 件
 
 - `windows 0.61.3` （MIT OR Apache-2.0） — https://github.com/microsoft/windows-rs
 - `windows_x86_64_msvc 0.52.6` （MIT OR Apache-2.0） — https://github.com/microsoft/windows-rs
@@ -35458,7 +35706,7 @@ MIT License
     SOFTWARE
 ```
 
-### 215. winnow 0.7.14
+### 216. winnow 0.7.14
 
 - `winnow 0.7.14` （MIT） — https://github.com/winnow-rs/winnow
 
@@ -35483,7 +35731,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### 216. winreg ほか 1 件
+### 217. winreg ほか 1 件
 
 - `winreg 0.10.1` （MIT） — https://github.com/gentoo90/winreg-rs
 - `winreg 0.55.0` （MIT） — https://github.com/gentoo90/winreg-rs
@@ -35510,7 +35758,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### 217. wry 0.54.1
+### 218. wry 0.54.1
 
 - `wry 0.54.1` （Apache-2.0 OR MIT） — https://github.com/tauri-apps/wry
 
@@ -35764,7 +36012,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/wry.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
-### 218. zerocopy 0.8.39
+### 219. zerocopy 0.8.39
 
 - `zerocopy 0.8.39` （BSD-2-Clause OR Apache-2.0 OR MIT） — https://github.com/google/zerocopy
 
@@ -36026,7 +36274,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### 219. zeroize 1.8.2
+### 220. zeroize 1.8.2
 
 - `zeroize 1.8.2` （Apache-2.0 OR MIT） — https://github.com/RustCrypto/utils
 
@@ -36258,7 +36506,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 220. zip 1.1.4
+### 221. zip 1.1.4
 
 - `zip 1.1.4` （MIT） — https://github.com/zip-rs/zip2
 
@@ -36286,7 +36534,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 221. zip 4.6.1
+### 222. zip 4.6.1
 
 - `zip 4.6.1` （MIT） — https://github.com/zip-rs/zip2
 
@@ -36317,7 +36565,7 @@ Some files in the "tests/data" subdirectory of this repository are under other
 licences; see files named LICENSE.*.txt for details.
 ```
 
-### 222. zune-core ほか 1 件
+### 223. zune-core ほか 1 件
 
 - `zune-core 0.4.12` （MIT OR Apache-2.0 OR Zlib） — https://github.com/etemesi254/zune-image/tree/dev/zune-core
 - `zune-jpeg 0.4.21` （MIT OR Apache-2.0 OR Zlib） — https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg
