@@ -142,7 +142,9 @@ that tab; the current mode is always shown in the status bar.
   multi-select with the usual keys, drag to move or copy, `Delete` to the Recycle Bin,
   copy and paste to and from Windows Explorer (never overwriting a same-named file),
   *Copy path* / *Copy relative path*, "Reveal in File Explorer", and open tabs that
-  follow a moved or renamed file
+  follow a moved or renamed file. The eye button beside the filter box also lists the
+  files the editor cannot open: images, PDFs and archives go to their default app on
+  double-click, while programs (`.exe`, `.jar` …) are never started from the editor
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
 - **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab

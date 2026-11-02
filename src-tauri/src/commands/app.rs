@@ -286,6 +286,129 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
     }
 }
 
+/// What the explorer may hand to the OS. The same list as `OPENABLE` in
+/// src/modules/utils/ExternalFiles.js.
+const OPENABLE_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp",
+    "zip", "tar", "gz", "7z", "rar",
+    "pdf", "doc", "ppt",
+    "mp3", "mp4", "wav", "avi", "mov", "mkv",
+    "db", "sqlite",
+];
+
+/// An allowlist, not a list of what is dangerous: such a list is never complete
+/// (.scr, .hta, .cpl, .lnk …), and an unlisted name must fail closed. A trailing
+/// dot or space, which Windows strips when it opens the file, leaves an extension
+/// that matches nothing. A colon past the drive names an alternate data stream.
+fn is_openable_path(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    let Some(name) = p.file_name().and_then(|n| n.to_str()) else { return false };
+    if name.contains(':') {
+        return false;
+    }
+    p.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| OPENABLE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+/// Open a file from the explorer with the application the OS has for it.
+///
+/// Opening with the default handler is a shell execute, which for an `.exe` means
+/// running it, so this refuses anything off the list above whatever the caller
+/// asks for.
+#[command(async)]
+pub fn open_with_default_app(path: String) -> Result<(), String> {
+    if !is_openable_path(&path) {
+        return Err(format!("Not a file this opens: {}", path));
+    }
+    if !std::path::Path::new(&path).is_file() {
+        return Err(format!("File not found: {}", path));
+    }
+
+    // Not `open::that_detached` on Windows: that goes through `cmd /c start`,
+    // which expands %NAME% inside the file name, so a file called `%USERNAME%.png`
+    // would be looked for under another name. explorer.exe takes the path as it
+    // is. Quoted by hand
+    // because it reads a bare comma as a switch separator; a Windows file name
+    // cannot contain the quote itself.
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let native = path.replace('/', "\\");
+        let mut cmd = std::process::Command::new("explorer");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        cmd.raw_arg(format!("\"{}\"", native));
+        // As in reveal_in_file_manager: its exit code means nothing.
+        cmd.spawn().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        open::that_detached(&path).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod open_with_default_app_tests {
+    use super::*;
+
+    #[test]
+    fn takes_viewer_formats_in_any_case() {
+        assert!(is_openable_path("C:/work/photo.png"));
+        assert!(is_openable_path(r"C:\work\Report.PDF"));
+        assert!(is_openable_path("C:/work/a,b & %PATH%.mp4"));
+    }
+
+    #[test]
+    fn refuses_what_would_run() {
+        for p in [
+            "C:/work/setup.exe",
+            "C:/work/report.pdf.exe",
+            "C:/work/tool.jar",
+            "C:/work/run.bat",
+            "C:/work/run.cmd",
+            "C:/work/run.ps1",
+            "C:/work/saver.scr",
+            "C:/work/link.lnk",
+            "C:/work/page.hta",
+            "C:/work/mod.pyc",
+        ] {
+            assert!(!is_openable_path(p), "{p}");
+        }
+    }
+
+    #[test]
+    fn refuses_names_windows_would_rewrite() {
+        assert!(!is_openable_path("C:/work/setup.exe."));
+        assert!(!is_openable_path("C:/work/setup.exe "));
+        assert!(!is_openable_path("C:/work/setup.exe:hidden.png"));
+    }
+
+    #[test]
+    fn refuses_names_without_an_extension() {
+        assert!(!is_openable_path("C:/work/png"));
+        assert!(!is_openable_path("C:/work/.png"));
+        assert!(!is_openable_path(""));
+    }
+
+    #[test]
+    fn refuses_a_missing_file() {
+        let err = open_with_default_app("C:/definitely/not/here.png".into()).unwrap_err();
+        assert!(err.contains("not found"), "{err}");
+    }
+
+    #[test]
+    fn refuses_a_folder_named_like_a_file() {
+        let dir = std::env::temp_dir().join("jh_open_default_dir.png");
+        std::fs::create_dir_all(&dir).unwrap();
+        let err = open_with_default_app(dir.to_string_lossy().into_owned()).unwrap_err();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(err.contains("not found"), "{err}");
+    }
+}
+
 // ── J.H AI Agent — launch / install detection / download page ───────────────
 //
 // The editor talks to a SEPARATE desktop app (J.H AI Agent). The frontend used
