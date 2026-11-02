@@ -153,7 +153,7 @@ that tab; the current mode is always shown in the status bar.
   the path. Pin a folder with `Ctrl+D` and the folders below it are searched too. Turned on
   in Settings, the app stays in the notification area and `Win+Shift+E` (or a key of your
   choosing) brings the search up from any app
-- **Workspace grep** (`Ctrl+G`) with **glob filters** (`*.java`), opening into its own results tab
+- **Grep** (`Ctrl+G`) from the open file's folder or the workspace root, or in the open file alone, with **glob filters** (`*.java`), opening into its own results tab
 - **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
   exact name, then a name that starts with the query, then one that contains it, then
@@ -504,7 +504,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+P` | Print (preview, keeping the theme colours or on white) |
 | `Ctrl+Shift+R` | File search |
 | `Ctrl+T` | Tab search |
-| `Ctrl+G` | Workspace grep (supports globs) |
+| `Ctrl+G` | Grep in a folder or the open file (supports globs) |
 | `Ctrl+F` | Search in file |
 | `F3` / `Shift+F3` | Find next / previous |
 | `Ctrl+L` / `Ctrl+O` | Go to line / Outline |

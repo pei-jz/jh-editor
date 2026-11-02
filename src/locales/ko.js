@@ -995,6 +995,8 @@ export default {
     'Could not open this folder: {path}': '이 폴더를 열 수 없습니다: {path}',
     'Copied: {path}': '복사했습니다: {path}',
     'Could not copy the path.': '경로를 복사할 수 없습니다.',
+    'Current file only': '현재 파일만',
+    'Search only the file being edited, including unsaved changes': '편집 중인 파일만 검색합니다(저장하지 않은 변경 포함)',
     'This key combination could not be registered. Another app may be using it.': '이 키 조합을 등록할 수 없습니다. 다른 앱에서 사용 중일 수 있습니다.',
     'Press {key} in any app to open it. The app stays in the notification area after its windows close.': '어느 앱에서든 {key}를 누르면 열립니다. 창을 닫아도 앱은 알림 영역에 남습니다.',
     'Folder Jump: open from any app with a hotkey': '폴더 이동: 어느 앱에서든 단축키로 열기',

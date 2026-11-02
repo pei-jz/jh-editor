@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { icon as svgIcon } from './Icons.js';
 import { t } from '../utils/I18n.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
+import { getParentDir } from '../utils/FileSystem.js';
 
 // Ctrl+G: workspace grep. Pick a folder + subfolder toggle + options, run the
 // search, and show the results in a tab (see window.app.openSearchResults).
@@ -45,6 +46,30 @@ function _fileDisplayName(file) {
     return (file && (file.name || file.path)) || '(untitled)';
 }
 
+/** "Current file only" stays as it was left for the rest of the session. */
+let currentFileOnly = false;
+
+/** A tab that is a file on disk, not a results list or a diff (search://…). */
+function _isOnDisk(file) {
+    return !!(file && file.path && !/^[a-z][a-z0-9+.-]+:\/\//i.test(file.path));
+}
+
+/**
+ * Can this tab's text be searched in memory? A preview holds no text, and a
+ * large file only ever has a window of itself loaded: searching what happens
+ * to be there would report "no results" for text the file does contain.
+ */
+export function canSearchInMemory(file) {
+    return !!file && typeof file.content === 'string'
+        && !file.isLarge && file.editId == null
+        && !['office', 'search-results', 'dir-diff'].includes(file.type);
+}
+
+/** Where a search starts by default: beside the open file, else the workspace. */
+export function defaultSearchFolder(file) {
+    return _isOnDisk(file) ? getParentDir(file.path) : (State.currentDir || null);
+}
+
 /** Grep a file's in-memory content in JS; returns grep-match-shaped rows. */
 function _searchInMemory(file, query, opts) {
     const content = (file && typeof file.content === 'string') ? file.content : '';
@@ -75,17 +100,17 @@ export const GrepModal = {
         const existing = document.getElementById('grep-overlay');
         if (existing) existing.remove();
 
-        // No workspace (and no preset folder) → fall back to searching the file
-        // currently being edited, using its in-memory content (so unsaved edits
-        // are included).
-        const hasWorkspace = !!(presetFolder || State.currentDir);
-        const currentFile = hasWorkspace ? null : _getActiveFile();
-        if (!hasWorkspace && !currentFile) {
-            console.warn('GrepModal: no workspace and no active file');
+        // The file being edited can be searched on its own, from its in-memory
+        // content (so unsaved edits are included). With no folder to search at
+        // all — an untitled tab and no workspace — that is the only choice.
+        const activeFile = _getActiveFile();
+        const currentFile = canSearchInMemory(activeFile) ? activeFile : null;
+        let folder = presetFolder || defaultSearchFolder(activeFile);
+        if (!folder && !currentFile) {
+            console.warn('GrepModal: no folder and no searchable file');
             return;
         }
-
-        let folder = presetFolder || State.currentDir || null;
+        const fileOnlyForced = !folder;
         let running = false;
 
         const overlay = document.createElement('div');
@@ -99,7 +124,6 @@ export const GrepModal = {
         // Search term
         const term = document.createElement('input');
         term.type = 'text';
-        term.placeholder = hasWorkspace ? 'Search the workspace… (Enter)' : 'Search the current file… (Enter)';
         term.style.cssText = 'width:100%; padding:8px 10px; font-size:14px; background:var(--bg-color-secondary,var(--bg-color)); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;';
 
         // Folder row
@@ -126,6 +150,8 @@ export const GrepModal = {
         resetBtn.title = t('Back to the workspace root');
         resetBtn.className = 'grep-btn';
         resetBtn.onclick = () => { folder = State.currentDir; folderPath.textContent = folder; folderPath.title = folder; };
+        // No workspace is open, so there is no root to go back to.
+        if (!State.currentDir) resetBtn.style.display = 'none';
         folderRow.append(folderLabel, folderPath, folderBtn, resetBtn);
 
         // File filter (glob) row
@@ -155,11 +181,12 @@ export const GrepModal = {
             wrap._cb = cb;
             return wrap;
         };
+        const cFile = mkCheck(t('Current file only'), false, t('Search only the file being edited, including unsaved changes'));
         const cSub = mkCheck('Include subfolders', true, 'Search the folder recursively');
         const cCase = mkCheck('Match case', false);
         const cRegex = mkCheck('Regular expression', false);
         const cWord = mkCheck('Whole word', false, 'Match on word boundaries');
-        opts.append(cSub, cCase, cRegex, cWord);
+        opts.append(cFile, cSub, cCase, cRegex, cWord);
 
         // Footer
         const footer = document.createElement('div');
@@ -175,18 +202,32 @@ export const GrepModal = {
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
-        // Current-file mode: hide the workspace-only controls (folder / glob /
-        // subdirs) and show which file is being searched.
+        // Current-file mode: swap the folder-only controls (folder / glob /
+        // subdirs) for which file is being searched.
+        let info = null;
         if (currentFile) {
-            folderRow.style.display = 'none';
-            globRow.style.display = 'none';
-            cSub.style.display = 'none';
-            const info = document.createElement('div');
-            info.style.cssText = 'font-size:12px; opacity:0.75; display:flex; gap:6px; align-items:center;';
+            info = document.createElement('div');
+            info.style.cssText = 'font-size:12px; opacity:0.75; gap:6px; align-items:center;';
             info.innerHTML = `<span style="opacity:0.7;">Target file:</span><span style="color:var(--primary-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_fileDisplayName(currentFile))}</span>`;
             info.title = currentFile.path || currentFile.name || '';
             box.insertBefore(info, opts);
         }
+        const syncScope = () => {
+            const fileOnly = cFile._cb.checked;
+            folderRow.style.display = fileOnly ? 'none' : 'flex';
+            globRow.style.display = fileOnly ? 'none' : 'flex';
+            cSub.style.display = fileOnly ? 'none' : 'inline-flex';
+            if (info) info.style.display = fileOnly ? 'flex' : 'none';
+            term.placeholder = fileOnly ? 'Search the current file… (Enter)' : 'Search the folder… (Enter)';
+        };
+        // A folder picked from the tree ("Find in Folder") means that folder.
+        cFile._cb.checked = fileOnlyForced || (!!currentFile && !presetFolder && currentFileOnly);
+        if (!currentFile || fileOnlyForced) cFile.style.display = 'none';
+        cFile._cb.onchange = () => {
+            currentFileOnly = cFile._cb.checked;
+            syncScope();
+        };
+        syncScope();
 
         setTimeout(() => term.focus(), 0);
 
@@ -202,8 +243,8 @@ export const GrepModal = {
             }
             const searchId = Date.now() + Math.random();
 
-            // No workspace → search the current file's in-memory content in JS.
-            if (currentFile) {
+            // Search the current file's in-memory content in JS.
+            if (cFile._cb.checked) {
                 const matches = _searchInMemory(currentFile, q, opts);
                 window.app.openSearchResults({
                     query: q, matches, options: opts, searchId,

@@ -404,6 +404,79 @@ fn build_overrides(dir: &str, globs: Option<&str>) -> Result<Override, String> {
     builder.build().map_err(|e| format!("Invalid file glob: {}", e))
 }
 
+/// What a grep walks: everything but what git ignores, hidden files included
+/// (.github and .vscode are worth searching), and never a VCS's own store.
+///
+/// That store used to be walked too, because `hidden(false)` is what lets it in
+/// and no .gitignore lists it. In a repository it can be a third of the files:
+/// slow to read, and the hits in it (logs, COMMIT_EDITMSG) are noise.
+fn grep_walk(dir: &str, include_subdirs: bool, overrides: Override) -> WalkBuilder {
+    let mut builder = WalkBuilder::new(dir);
+    builder
+        .threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
+        .hidden(false)
+        .git_ignore(true)
+        .ignore(true)
+        .overrides(overrides)
+        // Depth 0 is the folder asked for. Someone who points the search at
+        // .git itself means it.
+        .filter_entry(|e| {
+            e.depth() == 0
+                || !(e.file_type().is_some_and(|t| t.is_dir())
+                    && matches!(e.file_name().to_str(), Some(".git" | ".hg" | ".svn")))
+        });
+    if !include_subdirs {
+        builder.max_depth(Some(1));
+    }
+    builder
+}
+
+/// A file's text, or None if it cannot be read or looks binary.
+///
+/// The check needs only the start of the file, so only that is read first: a
+/// binary is usually the largest thing in a folder, and reading it whole to look
+/// at its first 8000 bytes was most of what a search spent its time on.
+fn read_text_file(path: &std::path::Path) -> Option<String> {
+    use std::io::Read;
+    const BINARY_CHECK_LEN: u64 = 8000;
+
+    let mut file = fs::File::open(path).ok()?;
+    let mut bytes = Vec::new();
+    file.by_ref().take(BINARY_CHECK_LEN).read_to_end(&mut bytes).ok()?;
+    if bytes.contains(&0) {
+        return None; // likely binary
+    }
+    file.read_to_end(&mut bytes).ok()?;
+    Some(decode_text(bytes))
+}
+
+/// Decode with the file's own encoding (Shift_JIS / EUC-JP / UTF-8 / …), so grep
+/// matches text in non-UTF-8 files too.
+fn decode_text(bytes: Vec<u8>) -> String {
+    // Most files are UTF-8, and checking that is far cheaper than a detector run
+    // that would only say the same. Not with an ESC in it: ISO-2022-JP is valid
+    // ASCII byte for byte, and only the detector can tell it is Japanese.
+    if !bytes.contains(&0x1B) {
+        match String::from_utf8(bytes) {
+            Ok(mut text) => {
+                if text.starts_with('\u{FEFF}') {
+                    text.drain(..3); // decode() below drops a BOM too
+                }
+                return text;
+            }
+            Err(e) => return detect_and_decode(e.as_bytes()),
+        }
+    }
+    detect_and_decode(&bytes)
+}
+
+fn detect_and_decode(bytes: &[u8]) -> String {
+    let mut detector = EncodingDetector::new();
+    detector.feed(bytes, true);
+    let encoding = detector.guess(None, true);
+    encoding.decode(bytes).0.into_owned()
+}
+
 fn grep_worker(
     app: AppHandle,
     dir: String,
@@ -451,17 +524,7 @@ fn grep_worker(
         });
     });
 
-    let mut builder = WalkBuilder::new(&dir);
-    builder
-        .threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
-        .hidden(false)
-        .git_ignore(true)
-        .ignore(true)
-        .overrides(overrides);
-    if !include_subdirs {
-        builder.max_depth(Some(1));
-    }
-    let walker = builder.build_parallel();
+    let walker = grep_walk(&dir, include_subdirs, overrides).build_parallel();
 
     walker.run(|| {
         let tx = tx.clone();
@@ -486,19 +549,9 @@ fn grep_worker(
                     return ignore::WalkState::Continue;
                 }
             }
-            let bytes = match fs::read(path) {
-                Ok(b) => b,
-                Err(_) => return ignore::WalkState::Continue,
+            let Some(text) = read_text_file(path) else {
+                return ignore::WalkState::Continue;
             };
-            if bytes.iter().take(8000).any(|&b| b == 0) {
-                return ignore::WalkState::Continue; // likely binary
-            }
-            // Detect the file's encoding (Shift_JIS / EUC-JP / UTF-8 / …) and
-            // decode with it, so grep matches text in non-UTF-8 files too.
-            let mut detector = EncodingDetector::new();
-            detector.feed(&bytes, true);
-            let encoding = detector.guess(None, true);
-            let (text, _, _) = encoding.decode(&bytes);
             let path_str = path.to_string_lossy().to_string();
             for (i, line) in text.lines().enumerate() {
                 if let Some(m) = re.find(line) {
@@ -524,6 +577,63 @@ fn grep_worker(
 mod grep_glob_tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn a_vcs_store_is_not_walked_but_other_hidden_folders_are() {
+        let base = std::env::temp_dir().join(format!("jh_grep_walk_{}", std::process::id()));
+        for d in [".git/objects", ".github", "src"] {
+            fs::create_dir_all(base.join(d)).unwrap();
+        }
+        fs::write(base.join(".git/objects/x"), "x").unwrap();
+        fs::write(base.join(".git/HEAD"), "x").unwrap();
+        fs::write(base.join(".github/ci.yml"), "x").unwrap();
+        fs::write(base.join("src/a.txt"), "x").unwrap();
+        // A file may be called .git: a worktree's is. Only the folder is the store.
+        fs::write(base.join("src/.git"), "x").unwrap();
+
+        let dir = base.to_string_lossy().to_string();
+        let mut found: Vec<String> = grep_walk(&dir, true, Override::empty())
+            .build()
+            .flatten()
+            .filter(|e| e.path().is_file())
+            .map(|e| e.path().strip_prefix(&base).unwrap().to_string_lossy().replace('\\', "/"))
+            .collect();
+        found.sort();
+        assert_eq!(found, vec![".github/ci.yml", "src/.git", "src/a.txt"]);
+
+        // Pointed at the store on purpose, it is searched.
+        let inside = base.join(".git").to_string_lossy().to_string();
+        let names = grep_walk(&inside, true, Override::empty()).build().flatten().count();
+        let _ = fs::remove_dir_all(&base);
+        assert!(names > 1);
+    }
+
+    #[test]
+    fn a_binary_is_recognised_from_its_start_and_text_past_it_is_read_whole() {
+        let base = std::env::temp_dir().join(format!("jh_grep_read_{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        fs::write(base.join("bin"), b"abc\0def").unwrap();
+        let long = "x".repeat(20_000) + "\nneedle";
+        fs::write(base.join("long.txt"), &long).unwrap();
+
+        assert_eq!(read_text_file(&base.join("bin")), None);
+        assert_eq!(read_text_file(&base.join("long.txt")).as_deref(), Some(long.as_str()));
+        assert_eq!(read_text_file(&base.join("missing")), None);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn text_decodes_the_same_with_or_without_the_shortcut() {
+        assert_eq!(decode_text("日本語 plain".as_bytes().to_vec()), "日本語 plain");
+        // A BOM is not part of the first line: `^` has to match after it.
+        assert_eq!(decode_text(b"\xEF\xBB\xBFabc".to_vec()), "abc");
+        // Shift_JIS for 日本語のテキストです, which is not valid UTF-8.
+        let sjis = encoding_rs::SHIFT_JIS.encode("日本語のテキストです").0.into_owned();
+        assert_eq!(decode_text(sjis), "日本語のテキストです");
+        // ISO-2022-JP is 7-bit, so it passes for UTF-8 unless it is asked about.
+        let jis = b"\x1B$BF|K\\8l$N%F%-%9%H$G$9\x1B(B".to_vec();
+        assert_eq!(decode_text(jis), "日本語のテキストです");
+    }
 
     #[test]
     fn glob_filters_files_but_still_recurses() {

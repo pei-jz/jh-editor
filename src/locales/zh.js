@@ -995,6 +995,8 @@ export default {
     'Could not open this folder: {path}': '无法打开此文件夹：{path}',
     'Copied: {path}': '已复制：{path}',
     'Could not copy the path.': '无法复制路径。',
+    'Current file only': '仅当前文件',
+    'Search only the file being edited, including unsaved changes': '仅搜索正在编辑的文件（包括未保存的更改）',
     'This key combination could not be registered. Another app may be using it.': '无法注册此组合键，可能已被其他应用占用。',
     'Press {key} in any app to open it. The app stays in the notification area after its windows close.': '在任何应用中按 {key} 即可打开。关闭窗口后，应用仍保留在通知区域。',
     'Folder Jump: open from any app with a hotkey': '文件夹跳转：在任何应用中用快捷键打开',

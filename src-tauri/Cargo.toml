@@ -56,6 +56,10 @@ calamine = { version = "0.25.0", features = ["dates"] }
 # NaiveDateTime, and formatting one needs chrono's `alloc`, which calamine
 # does not ask for itself. Same 0.4 the tree already builds.
 chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+# The container a .xls is stored in: calamine reads the values out of it but
+# keeps its own reader private, and the formats have to be read separately.
+# Same version the tree already builds.
+cfb = "0.7"
 # Hands a previewed file to whatever the OS opens it with. tauri-plugin-shell
 # has an `open` of its own, but the JS side of it is scoped to http/tel/mailto
 # and its Rust side is deprecated; this is the crate underneath it, already

@@ -77,6 +77,10 @@ pub fn create_window(app: &AppHandle, path: &str) -> Result<String, String> {
         .inner_size(1000.0, 700.0)
         .decorations(false)
         .visible(false) // the frontend shows it after boot (matches window[0])
+        // window[0] sets dragDropEnabled: false in tauri.conf.json, and this has
+        // to match: Tauri's handler replaces WebView2's drop target, so without
+        // this no drag-and-drop works here (explorer moves, tabs, files dropped in).
+        .disable_drag_drop_handler()
         .additional_browser_args(WEBVIEW2_BROWSER_ARGS)
         .build()
         .map_err(|e| e.to_string())?;

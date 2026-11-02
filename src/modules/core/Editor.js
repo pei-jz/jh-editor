@@ -1528,7 +1528,7 @@ window.app.openMarkdownResult = function (title, md) {
 
 // Open (or reuse) a tab showing workspace grep results (streaming when a
 // searchId is given — matches arrive live via grep-match/grep-done events).
-window.app.openSearchResults = function ({ query, matches, options, searchId, streaming, highlight }) {
+window.app.openSearchResults = function ({ query, matches, options, searchId, streaming, highlight, singleFile }) {
     const title = String(query || '').slice(0, 30);
     // Every search opens its own tab so earlier results stay available for
     // comparison. Each needs a unique path (tabs are matched by path).
@@ -1544,6 +1544,7 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
         options: options || {},
         searchId: searchId,
         streaming: !!streaming,
+        singleFile: !!singleFile,
         _done: false,
         _truncated: false,
         _grepUnlisteners: [],
@@ -1801,7 +1802,7 @@ export function renderTabs(targetPane = null) {
             tab.dataset.tabIndex = String(index);
             tab.dataset.tabPane = pane;
             let fileName = file.name || 'Untitled';
-            if (file.path && !file.path.startsWith('agent://') && !file.path.startsWith('diff://')) {
+            if (file.path && !/^(agent|diff|search):\/\//.test(file.path)) {
                 fileName = file.path.replace(/\\/g, '/').split('/').pop();
             }
             

@@ -995,6 +995,8 @@ export default {
     'Could not open this folder: {path}': 'このフォルダを開けませんでした: {path}',
     'Copied: {path}': 'コピーしました: {path}',
     'Could not copy the path.': 'パスをコピーできませんでした。',
+    'Current file only': '現在のファイルのみ',
+    'Search only the file being edited, including unsaved changes': '編集中のファイルだけを検索します（未保存の変更も含む）',
     'This key combination could not be registered. Another app may be using it.': 'このキーの組み合わせは登録できませんでした。別のアプリが使っている可能性があります。',
     'Press {key} in any app to open it. The app stays in the notification area after its windows close.': 'どのアプリからでも {key} で開けます。ウィンドウを閉じても、アプリは通知領域に残ります。',
     'Folder Jump: open from any app with a hotkey': 'フォルダジャンプ: どのアプリからでもホットキーで開く',

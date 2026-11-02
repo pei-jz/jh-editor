@@ -85,6 +85,58 @@ describe('explorer selection', () => {
     const selected = () => [...document.querySelectorAll('#file-list .tree-item.selected .tree-label')].map((l) => l.textContent);
     const settle = () => new Promise((r) => setTimeout(r, 20));
 
+    it('puts F2 on the row just clicked when the tree is still being read', async () => {
+        // Directory reads take real time after a forced reload. A click landing
+        // in that window used to find flatItems half built: the cursor refused
+        // to move, and F2 opened the rename on the row clicked before.
+        const docs = () => row('docs');
+        click('b.md');
+        await settle();
+
+        let release;
+        const FS = await import('../src/modules/utils/FileSystem.js');
+        FS.readDirectory.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+        const reload = Explorer.loadExplorer(true);
+
+        docs().dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+        expect(document.querySelector('#file-list .tree-item.focused .tree-label').textContent).toBe('docs');
+
+        release([{ entry: 'docs', type: 'DIRECTORY' }, { entry: 'a.md', type: 'FILE' },
+            { entry: 'b.md', type: 'FILE' }, { entry: 'c.md', type: 'FILE' }]);
+        await reload;
+        await settle();
+
+        // The reload that was already running must not take the cursor back.
+        expect(document.querySelector('#file-list .tree-item.focused .tree-label').textContent).toBe('docs');
+    });
+
+    it('marks the drop target without rebuilding the row being dragged', () => {
+        const source = row('b.md');
+        const target = row('docs');
+        const dataTransfer = {
+            types: ['text/plain', 'application/x-editor-item'],
+            setData: () => {},
+        };
+        const fire = (el, type) => {
+            const e = new Event(type, { bubbles: true, cancelable: true });
+            e.dataTransfer = dataTransfer;
+            el.dispatchEvent(e);
+            return e;
+        };
+        fire(source, 'dragstart');
+        const over = fire(target, 'dragover');
+
+        expect(over.defaultPrevented).toBe(true);
+        expect(target.classList.contains('drop-target')).toBe(true);
+        // Replaced rows lose the drag: the next event on a new element is a
+        // dragenter nothing accepts, and a drop landing there is refused.
+        expect(source.isConnected).toBe(true);
+        expect(target.isConnected).toBe(true);
+
+        fire(source, 'dragend');
+        expect(row('docs').classList.contains('drop-target')).toBe(false);
+    });
+
     it('marks every Ctrl+clicked row as selected, not only the last', () => {
         click('c.md', { ctrlKey: true });
         expect(selected()).toEqual(['a.md', 'c.md']);
