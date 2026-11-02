@@ -1432,9 +1432,62 @@ describe('the preview view', () => {
         view.destroy();
     });
 
+    it('keeps hidden rows and columns out of sight, padding and spilled text included', () => {
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Hidden', rows: [['a', 'x'], ['hidden', 'x'], ['c', 'x']],
+                total_rows: 3, total_cols: 2, truncated: false, error: null,
+                layout: { col_widths: [50, 0], row_heights: [20, 0, 20], merges: [] },
+            }],
+        }));
+        expect(view.rowHeights).toEqual([20, 0, 20]);
+
+        const rows = [...container.querySelectorAll('.of-row')];
+        const shown = rows.filter((row) => row.style.display !== 'none');
+        expect(shown.map((row) => row.querySelector('.of-cell').textContent)).toEqual(['a', 'c']);
+        // The second column is drawn in every row, and shown in none.
+        const cells = [...shown[0].querySelectorAll('.of-cell')];
+        expect(cells[1].textContent).toBe('x');
+        expect(cells[1].style.display).toBe('none');
+        view.destroy();
+    });
+
+    it('takes the keyboard from the explorer when a cell is clicked', () => {
+        // The file was opened from the tree, so the tree has the focus. A cell's
+        // cancelled pointerdown does not move it, and Ctrl+C then copied the
+        // file selected in the tree instead of the cell.
+        const tree = document.createElement('div');
+        tree.tabIndex = 0;
+        document.body.appendChild(tree);
+        tree.focus();
+
+        const { view } = show(sheetsPreview());
+        expect(view._keysAreOurs()).toBe(false);
+        view._beginSelection(0, 0, new MouseEvent('pointerdown', { button: 0 }));
+        expect(document.activeElement).toBe(view.gridEl);
+        expect(view._keysAreOurs()).toBe(true);
+
+        view.destroy();
+        tree.remove();
+    });
+
+    it('copies the selected text of a document, which has no cell selection', async () => {
+        const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
+        const { view } = show({
+            kind: 'document', sheets: [], slides: [],
+            blocks: [{ kind: 'paragraph', level: 0, text: 'a paragraph to copy', rows: [] }],
+        });
+        const selection = vi.spyOn(window, 'getSelection')
+            .mockReturnValue({ toString: () => 'to copy' });
+        await view.copy();
+        expect(writeText).toHaveBeenLastCalledWith('to copy');
+        selection.mockRestore();
+        view.destroy();
+    });
+
     it('measures from the content when the file says nothing about its shape', () => {
-        // .xls and .ods keep their widths somewhere this cannot read, and a
-        // sheet can simply not declare any. Both keep the old behaviour.
+        // An .ods keeps its widths somewhere this cannot read, and a sheet can
+        // simply not declare any. Both keep the old behaviour.
         show(sheetsPreview());
         const head = [...container.querySelectorAll('.of-grid-head .of-col')];
         expect(head.every(e => parseInt(e.style.width, 10) >= 64)).toBe(true);

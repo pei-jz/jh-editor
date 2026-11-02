@@ -17,11 +17,11 @@ test.describe('JHEditor E2E', () => {
     await expect(page.locator('#welcome-open-folder-btn')).toBeVisible();
   });
 
-  test('settings modal opens and switching theme applies it to the document', async ({ page }) => {
+  test('settings tab opens and switching theme applies it to the document', async ({ page }) => {
     await page.goto('/');
 
     await page.locator('#settings-btn').click();
-    await expect(page.locator('#settings-modal')).toBeVisible();
+    await expect(page.locator('.settings-content')).toBeVisible();
 
     const themeSelector = page.locator('#theme-selector');
     await expect(themeSelector).toBeVisible();
@@ -45,7 +45,7 @@ test.describe('JHEditor E2E', () => {
     await page.goto('/');
 
     await page.locator('#settings-btn').click();
-    await expect(page.locator('#settings-modal')).toBeVisible();
+    await expect(page.locator('.settings-content')).toBeVisible();
 
     const langSelector = page.locator('#language-selector');
     await expect(langSelector).toBeVisible();

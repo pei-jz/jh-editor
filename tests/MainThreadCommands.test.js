@@ -24,6 +24,7 @@ const MAY_STAY_SYNC = new Set([
     // Hands the walk to its own thread and returns at once. It must stay in
     // call order: the generation it takes is what cancels the older search.
     'start_grep',
+    'cancel_grep',          // bumps a counter
     'large_file_close',     // drops a handle; returns () so cannot be async
     'editable_close',       // same
 ]);

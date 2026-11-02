@@ -4,8 +4,10 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { icon as svgIcon } from './Icons.js';
 import { t } from '../utils/I18n.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
+import { getParentDir } from '../utils/FileSystem.js';
+import { getGrepMaxMatches } from '../utils/GrepSetting.js';
 
-// Ctrl+G: workspace grep. Pick a folder + subfolder toggle + options, run the
+// Ctrl+G: grep. Pick a scope (a folder or the open file) + options, run the
 // search, and show the results in a tab (see window.app.openSearchResults).
 function _injectStyles() {
     if (document.getElementById('grep-modal-styles')) return;
@@ -26,6 +28,30 @@ function _injectStyles() {
     }
     #grep-overlay .grep-btn-primary:hover { filter: brightness(1.08); background: var(--primary-color); }
     #grep-overlay .grep-btn:disabled { opacity: .55; cursor: default; transform: none; }
+    #grep-overlay .grep-row { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+    #grep-overlay .grep-row-label { flex: 0 0 56px; opacity: .7; white-space: nowrap; }
+    #grep-overlay .grep-path {
+        flex: 1; min-width: 0; color: var(--primary-color);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #grep-overlay .grep-seg {
+        display: inline-flex; flex-shrink: 0; overflow: hidden;
+        border: 1px solid var(--border-color); border-radius: 6px;
+    }
+    #grep-overlay .grep-seg-btn {
+        padding: 5px 10px; font-size: 12px; line-height: 1; white-space: nowrap; cursor: pointer;
+        background: var(--bg-color); color: var(--text-color);
+        border: 0; border-right: 1px solid var(--border-color);
+    }
+    #grep-overlay .grep-seg-btn:last-child { border-right: 0; }
+    #grep-overlay .grep-seg-btn:hover:not(:disabled) { background: var(--hover-color); }
+    #grep-overlay .grep-seg-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+    #grep-overlay .grep-seg-btn[aria-pressed="true"],
+    #grep-overlay .grep-seg-btn[aria-pressed="true"]:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--primary-color) 18%, var(--bg-color));
+        color: var(--primary-color); font-weight: 600;
+    }
+    #grep-overlay .grep-seg-btn:disabled { opacity: .5; cursor: default; }
     `;
     document.head.appendChild(style);
 }
@@ -41,8 +67,64 @@ function _getActiveFile() {
     } catch (_) { return null; }
 }
 
+function _segButton(label, title) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'grep-seg-btn';
+    button.textContent = label;
+    button.title = title;
+    return button;
+}
+
+function _setPressed(button, pressed) {
+    button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+}
+
+/** Forward or back slashes, and either case on the drive letter, are one folder. */
+function _samePath(a, b) {
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return !!a && !!b && norm(a) === norm(b);
+}
+
 function _fileDisplayName(file) {
     return (file && (file.name || file.path)) || '(untitled)';
+}
+
+/** The current-file scope stays as it was left for the rest of the session. */
+let currentFileOnly = false;
+
+/** A tab that is a file on disk, not a results list or a diff (search://…). */
+function _isOnDisk(file) {
+    return !!(file && file.path && !/^[a-z][a-z0-9+.-]+:\/\//i.test(file.path));
+}
+
+/**
+ * Can this tab's text be searched in memory? A preview holds no text, and a
+ * large file only ever has a window of itself loaded: searching what happens
+ * to be there would report "no results" for text the file does contain.
+ */
+export function canSearchInMemory(file) {
+    return !!file && typeof file.content === 'string'
+        && !file.isLarge && file.editId == null
+        && !['office', 'search-results', 'dir-diff'].includes(file.type);
+}
+
+/** Where a search starts by default: beside the open file, else the workspace. */
+export function defaultSearchFolder(file) {
+    return _isOnDisk(file) ? getParentDir(file.path) : (State.currentDir || null);
+}
+
+/**
+ * A line as a results row shows it: from the start, or, when the hit is further
+ * along than a row has room for, from just before the hit (shown_line in
+ * commands/search.rs does the same for the backend's results).
+ */
+export function clipAroundHit(line, index) {
+    const VISIBLE_CHARS = 100;
+    const LEAD_CHARS = 40;
+    const MAX_CHARS = 1000;
+    if (index < VISIBLE_CHARS) return line.slice(0, MAX_CHARS);
+    return `…${line.slice(index - LEAD_CHARS, index - LEAD_CHARS + MAX_CHARS)}`;
 }
 
 /** Grep a file's in-memory content in JS; returns grep-match-shaped rows. */
@@ -59,12 +141,10 @@ function _searchInMemory(file, query, opts) {
     const path = file.path || file.name || '(untitled)';
     const out = [];
     const lines = content.split(/\r?\n/);
-    const MAX = 5000; // safety cap
+    const MAX = getGrepMaxMatches();
     for (let i = 0; i < lines.length && out.length < MAX; i++) {
-        if (re.test(lines[i])) {
-            const text = lines[i].length > 1000 ? lines[i].slice(0, 1000) : lines[i];
-            out.push({ path, line: i + 1, text });
-        }
+        const hit = re.exec(lines[i]);
+        if (hit) out.push({ path, line: i + 1, text: clipAroundHit(lines[i], hit.index) });
     }
     return out;
 }
@@ -75,17 +155,20 @@ export const GrepModal = {
         const existing = document.getElementById('grep-overlay');
         if (existing) existing.remove();
 
-        // No workspace (and no preset folder) → fall back to searching the file
-        // currently being edited, using its in-memory content (so unsaved edits
-        // are included).
-        const hasWorkspace = !!(presetFolder || State.currentDir);
-        const currentFile = hasWorkspace ? null : _getActiveFile();
-        if (!hasWorkspace && !currentFile) {
-            console.warn('GrepModal: no workspace and no active file');
+        // The file being edited can be searched on its own, from its in-memory
+        // content (so unsaved edits are included). With no folder to search at
+        // all — an untitled tab and no workspace — that is the only choice.
+        const activeFile = _getActiveFile();
+        // A large file is never in memory, but is read-only here, so what is on
+        // disk is what is on screen: the backend can search that one file.
+        const onDiskOnly = activeFile && activeFile.isLarge && _isOnDisk(activeFile) ? activeFile : null;
+        const currentFile = canSearchInMemory(activeFile) ? activeFile : onDiskOnly;
+        let folder = presetFolder || defaultSearchFolder(activeFile);
+        if (!folder && !currentFile) {
+            console.warn('GrepModal: no folder and no searchable file');
             return;
         }
-
-        let folder = presetFolder || State.currentDir || null;
+        const fileOnlyForced = !folder;
         let running = false;
 
         const overlay = document.createElement('div');
@@ -99,54 +182,72 @@ export const GrepModal = {
         // Search term
         const term = document.createElement('input');
         term.type = 'text';
-        term.placeholder = hasWorkspace ? 'Search the workspace… (Enter)' : 'Search the current file… (Enter)';
         term.style.cssText = 'width:100%; padding:8px 10px; font-size:14px; background:var(--bg-color-secondary,var(--bg-color)); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;';
 
-        // Folder row
-        const folderRow = document.createElement('div');
-        folderRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
-        const folderLabel = document.createElement('span');
-        folderLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        folderLabel.textContent = t('In:');
-        const folderPath = document.createElement('span');
-        folderPath.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--primary-color);';
-        folderPath.textContent = folder || '';
-        folderPath.title = folder || '';
-        const folderBtn = document.createElement('button');
-        folderBtn.innerHTML = svgIcon('folder', { size: 13 }) + `<span>${t('Choose Folder')}</span>`;
-        folderBtn.className = 'grep-btn';
-        folderBtn.onclick = async () => {
-            try {
-                const picked = await open({ directory: true, multiple: false, defaultPath: folder, title: 'Folder to search' });
-                if (picked) { folder = picked; folderPath.textContent = folder; folderPath.title = folder; }
-            } catch (_) {}
+        const mkRow = (label) => {
+            const row = document.createElement('div');
+            row.className = 'grep-row';
+            const name = document.createElement('span');
+            name.className = 'grep-row-label';
+            name.textContent = label;
+            row.appendChild(name);
+            return row;
         };
-        const resetBtn = document.createElement('button');
-        resetBtn.textContent = t('WS Root');
-        resetBtn.title = t('Back to the workspace root');
-        resetBtn.className = 'grep-btn';
-        resetBtn.onclick = () => { folder = State.currentDir; folderPath.textContent = folder; folderPath.title = folder; };
-        folderRow.append(folderLabel, folderPath, folderBtn, resetBtn);
 
-        // File filter (glob) row
-        const globRow = document.createElement('div');
-        globRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:12px;';
-        const globLabel = document.createElement('span');
-        globLabel.style.cssText = 'opacity:0.7; white-space:nowrap;';
-        globLabel.textContent = t('Files:');
-        const glob = document.createElement('input');
-        glob.type = 'text';
-        glob.placeholder = '*.java, *.xml   (empty = all / prefix ! to exclude)';
-        glob.title = 'Filter by filename glob. Separate several with commas or spaces.\ne.g. *.java   |   *.java, *.xml   |   !*test*   |   src/**/*.ts';
-        glob.style.cssText = 'flex:1; padding:6px 10px; font-size:12px; background:var(--bg-color-secondary,var(--bg-color)); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;';
-        globRow.append(globLabel, glob);
+        // What to search. A choice of where, not a condition on what: the rows
+        // under it change with it, and the conditions further down do not.
+        let fileOnly = fileOnlyForced || (!!currentFile && !presetFolder && currentFileOnly);
+        const scopeRow = mkRow(t('Scope'));
+        const scopeSeg = document.createElement('div');
+        scopeSeg.className = 'grep-seg';
+        const scopeFolder = _segButton(t('Folder'), t('Search the folder recursively'));
+        const scopeFile = _segButton(t('Current file'), t('Search only the file being edited, including unsaved changes'));
+        scopeFolder.disabled = fileOnlyForced;
+        // Kept in view when it cannot be used, so that it is not a feature that
+        // comes and goes with the tab; the tooltip says why.
+        scopeFile.disabled = !currentFile;
+        if (!currentFile) scopeFile.title = t('This tab cannot be searched on its own');
+        scopeSeg.append(scopeFolder, scopeFile);
+        scopeRow.appendChild(scopeSeg);
 
-        // Options row
-        const opts = document.createElement('div');
-        opts.style.cssText = 'display:flex; flex-wrap:wrap; gap:14px; font-size:12px; user-select:none;';
+        // Which folder. The segment lit up says where the path came from.
+        const openFileFolder = _isOnDisk(activeFile) ? getParentDir(activeFile.path) : null;
+        const folderRow = mkRow(t('Location'));
+        const folderPath = document.createElement('span');
+        folderPath.className = 'grep-path';
+        const locSeg = document.createElement('div');
+        locSeg.className = 'grep-seg';
+        const locCurrent = _segButton(t('Current'), t('The folder of the open file'));
+        const locRoot = _segButton(t('WS Root'), t('Back to the workspace root'));
+        const locPick = _segButton(t('Choose…'), t('Choose Folder'));
+        const syncFolder = () => {
+            folderPath.textContent = folder || '';
+            folderPath.title = folder || '';
+            const fromFile = _samePath(folder, openFileFolder);
+            const fromRoot = !fromFile && _samePath(folder, State.currentDir);
+            _setPressed(locCurrent, fromFile);
+            _setPressed(locRoot, fromRoot);
+            _setPressed(locPick, !fromFile && !fromRoot);
+        };
+        locCurrent.onclick = () => { folder = openFileFolder; syncFolder(); term.focus(); };
+        locRoot.onclick = () => { folder = State.currentDir; syncFolder(); term.focus(); };
+        locPick.onclick = async () => {
+            try {
+                const picked = await open({ directory: true, multiple: false, defaultPath: folder, title: t('Choose Folder') });
+                if (picked) { folder = picked; syncFolder(); }
+            } catch (_) {}
+            term.focus();
+        };
+        // Nothing to go to: the tab is not a file, or no workspace is open.
+        if (!openFileFolder) locCurrent.style.display = 'none';
+        if (!State.currentDir) locRoot.style.display = 'none';
+        locSeg.append(locCurrent, locRoot, locPick);
+        folderRow.append(folderPath, locSeg);
+        syncFolder();
+
         const mkCheck = (label, checked, title) => {
             const wrap = document.createElement('label');
-            wrap.style.cssText = 'display:inline-flex; align-items:center; gap:5px; cursor:pointer;';
+            wrap.style.cssText = 'display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap; user-select:none;';
             if (title) wrap.title = title;
             const cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -155,11 +256,38 @@ export const GrepModal = {
             wrap._cb = cb;
             return wrap;
         };
-        const cSub = mkCheck('Include subfolders', true, 'Search the folder recursively');
-        const cCase = mkCheck('Match case', false);
-        const cRegex = mkCheck('Regular expression', false);
-        const cWord = mkCheck('Whole word', false, 'Match on word boundaries');
-        opts.append(cSub, cCase, cRegex, cWord);
+
+        // File filter (glob) row. Subfolders belong here: like the filter, they
+        // only mean something when searching a folder.
+        const globRow = mkRow(t('Files'));
+        const glob = document.createElement('input');
+        glob.type = 'text';
+        glob.placeholder = t('*.java, *.xml  (empty = all, ! to exclude)');
+        glob.title = 'Filter by filename glob. Separate several with commas or spaces.\ne.g. *.java   |   *.java, *.xml   |   !*test*   |   src/**/*.ts';
+        glob.style.cssText = 'flex:1; min-width:0; padding:6px 10px; font-size:12px; background:var(--bg-color-secondary,var(--bg-color)); color:var(--text-color); border:1px solid var(--border-color); border-radius:4px;';
+        const cSub = mkCheck(t('Include subfolders'), true);
+        globRow.append(glob, cSub);
+
+        // Which file, in current-file mode.
+        const infoRow = mkRow(t('Target'));
+        if (currentFile) {
+            const info = document.createElement('span');
+            info.className = 'grep-path';
+            info.innerHTML = `${escapeHtml(_fileDisplayName(currentFile))}`;
+            info.title = currentFile.path || currentFile.name || '';
+            infoRow.appendChild(info);
+        }
+
+        // Conditions: how the text has to match, wherever it is being searched.
+        const rule = document.createElement('div');
+        rule.style.cssText = 'border-top:1px solid var(--border-color);';
+        const condRow = mkRow(t('Conditions'));
+        condRow.style.flexWrap = 'wrap';
+        condRow.style.columnGap = '14px';
+        const cCase = mkCheck(t('Match case'), false);
+        const cRegex = mkCheck(t('Regular expression'), false);
+        const cWord = mkCheck(t('Whole word'), false, t('Match on word boundaries'));
+        condRow.append(cCase, cRegex, cWord);
 
         // Footer
         const footer = document.createElement('div');
@@ -171,22 +299,27 @@ export const GrepModal = {
         searchBtn.className = 'grep-btn grep-btn-primary';
         footer.append(status, searchBtn);
 
-        box.append(term, folderRow, globRow, opts, footer);
+        box.append(term, scopeRow, folderRow, globRow, infoRow, rule, condRow, footer);
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
-        // Current-file mode: hide the workspace-only controls (folder / glob /
-        // subdirs) and show which file is being searched.
-        if (currentFile) {
-            folderRow.style.display = 'none';
-            globRow.style.display = 'none';
-            cSub.style.display = 'none';
-            const info = document.createElement('div');
-            info.style.cssText = 'font-size:12px; opacity:0.75; display:flex; gap:6px; align-items:center;';
-            info.innerHTML = `<span style="opacity:0.7;">Target file:</span><span style="color:var(--primary-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(_fileDisplayName(currentFile))}</span>`;
-            info.title = currentFile.path || currentFile.name || '';
-            box.insertBefore(info, opts);
-        }
+        const syncScope = () => {
+            _setPressed(scopeFolder, !fileOnly);
+            _setPressed(scopeFile, fileOnly);
+            folderRow.style.display = fileOnly ? 'none' : 'flex';
+            globRow.style.display = fileOnly ? 'none' : 'flex';
+            infoRow.style.display = fileOnly ? 'flex' : 'none';
+            term.placeholder = fileOnly ? t('Search the current file… (Enter)') : t('Search the folder… (Enter)');
+        };
+        const setScope = (only) => {
+            fileOnly = only;
+            currentFileOnly = only;
+            syncScope();
+            term.focus();
+        };
+        scopeFolder.onclick = () => setScope(false);
+        scopeFile.onclick = () => setScope(true);
+        syncScope();
 
         setTimeout(() => term.focus(), 0);
 
@@ -202,8 +335,8 @@ export const GrepModal = {
             }
             const searchId = Date.now() + Math.random();
 
-            // No workspace → search the current file's in-memory content in JS.
-            if (currentFile) {
+            // Search the current file's in-memory content in JS.
+            if (fileOnly && !onDiskOnly) {
                 const matches = _searchInMemory(currentFile, q, opts);
                 window.app.openSearchResults({
                     query: q, matches, options: opts, searchId,
@@ -219,13 +352,14 @@ export const GrepModal = {
             // off the async search. Results stream in live; the editor stays usable.
             // ...and wait for them to be registered: a search that finishes
             // first has nobody to tell, and the tab never leaves "Searching…".
-            await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true });
+            await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly });
             try {
                 await invoke('start_grep', {
-                    dir: folder, term: q,
+                    dir: fileOnly ? onDiskOnly.path : folder, term: q,
                     regex: opts.regex, caseSensitive: opts.caseSensitive,
                     wholeWord: opts.wholeWord, includeSubdirs: cSub._cb.checked,
-                    globs: glob.value.trim() || null,
+                    globs: fileOnly ? null : (glob.value.trim() || null),
+                    maxMatches: getGrepMaxMatches(),
                     searchId,
                 });
                 close();

@@ -507,6 +507,8 @@ export class OfficeView {
         totalWidth = this.colOffsets[this.colOffsets.length - 1] + GUTTER_WIDTH;
 
         const grid = document.createElement('div');
+        // Focusable from a click only (_beginSelection), to take the keyboard.
+        grid.tabIndex = -1;
         grid.className = 'of-grid' + (this.showGrid ? '' : ' no-grid');
 
         const head = document.createElement('div');
@@ -671,6 +673,9 @@ export class OfficeView {
     }
 
     _contentRowHeight(rowIndex) {
+        // A hidden row is declared as 0, and stays out of sight however much
+        // it holds. Only a row with no height at all takes the default.
+        if (this.baseRowHeights[rowIndex] === 0) return 0;
         const base = this.baseRowHeights[rowIndex] || ROW_HEIGHT;
         const row = this.sheetRows[rowIndex] || [];
         const ids = this.styleIds[rowIndex] || [];
@@ -893,6 +898,9 @@ export class OfficeView {
         for (let c = cols.start; c <= cols.end; c++) {
             const h = cell('of-col', columnName(c));
             h.style.width = `${this.colWidths[c]}px`;
+            // A hidden column has no width to put its padding in: left in the
+            // row, the padding alone pushes everything after it out of line.
+            if (this.colWidths[c] === 0) h.style.display = 'none';
             // Only the sheet's own columns can be resized. The padding on the
             // right is scenery — there is no column there to make wider.
             if (c < this.dataCols) h.appendChild(this._columnGrip(c));
@@ -911,6 +919,8 @@ export class OfficeView {
             // line of text a cell shows, whatever height the row turned out.
             el.style.height = `${h}px`;
             el.style.lineHeight = `${h}px`;
+            // A hidden row: a cell's text spills out of a row of no height.
+            if (h === 0) el.style.display = 'none';
             const gutter = cell('of-gutter of-row-gutter', String(r + 1));
             gutter.appendChild(this._rowGrip(r));
             el.appendChild(gutter);
@@ -949,6 +959,7 @@ export class OfficeView {
 
                 const td = cell(cls, text);
                 td.style.width = `${this.colWidths[c]}px`;
+                if (this.colWidths[c] === 0) td.style.display = 'none';
                 if (style) applyBorders(td, style, this._styleAt(r, c - 1), this._styleAt(r - 1, c));
                 if (style && style.fill) applyFill(td, style.fill, dark);
                 // Not wrapping is not the same as being cut off. Excel lets a
@@ -1549,6 +1560,11 @@ export class OfficeView {
     _beginSelection(r, c, e) {
         if (e.button !== 0 || !this.gridEl) return;
         e.preventDefault();
+        // Cancelling pointerdown also cancels the mousedown behind it, and with
+        // it the browser's focus change. The keyboard stayed with whatever had
+        // it — after opening the file, the explorer — so Ctrl+C copied the
+        // file selected there and the arrows walked the tree.
+        this.gridEl.focus({ preventScroll: true });
         const point = { r, c };
         if (e.shiftKey && this.selection) this.selection.focus = point;
         else this.selection = { anchor: point, focus: point };
@@ -1794,7 +1810,12 @@ export class OfficeView {
 
     /** Copy the selected rectangle as TSV, so it pastes directly into Excel. */
     async copy() {
-        if (this.preview.kind !== 'sheets') return;
+        // A slide or a document is ordinary page text, selected the ordinary way.
+        if (this.preview.kind !== 'sheets') {
+            const text = window.getSelection().toString();
+            if (text) await writeText(text);
+            return;
+        }
         const bounds = this._selectionBounds();
         if (!bounds) return;
         const lines = [];
@@ -2501,7 +2522,7 @@ function injectStyles() {
     .of-empty { margin: auto; padding: 24px; opacity: .7; }
 
     /* --- workbook grid --- */
-    .of-grid { flex: 1 1 auto; overflow: auto; position: relative;
+    .of-grid { flex: 1 1 auto; overflow: auto; position: relative; outline: none;
         font-family: var(--editor-font-family, monospace); font-size: 12px; }
     .of-grid-head { display: flex; position: sticky; top: 0; z-index: 3;
         background: var(--bg-color); border-bottom: 1px solid var(--border-color); }
@@ -2562,6 +2583,11 @@ function injectStyles() {
         display: flex; flex-direction: column; justify-content: center; }
     .of-cell.wrap.v-top { justify-content: flex-start; }
     .of-cell.wrap.v-bottom { justify-content: flex-end; }
+    /* One line riding on a tall row's line-height sits in the middle of it, so
+       the other two positions take a line-height of their own. */
+    .of-cell.v-top:not(.wrap), .of-cell.v-bottom:not(.wrap) {
+        line-height: ${ROW_HEIGHT}px; display: flex; flex-direction: column; }
+    .of-cell.v-bottom:not(.wrap) { justify-content: flex-end; }
     .of-pad { flex: 0 0 auto; height: 100%; }
     /* Narrow padding and no ellipsis: a grid-paper sheet's columns are 23px
        wide, and "A…" in the header of every one of them is noise where the

@@ -66,7 +66,7 @@ function _isRestorable(f) {
     // on open rather than read as text, so reopening it does the right thing.
     if (f.type && f.type !== 'file' && f.type !== 'office') return false;
     if (f.viewMode === 'diff' || f.viewMode === 'compare') return false;
-    return !/^(search|ai):\/\//.test(f.path);
+    return !/^(search|ai|settings):\/\//.test(f.path);
 }
 
 function _describe(f) {

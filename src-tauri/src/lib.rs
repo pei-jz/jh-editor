@@ -62,6 +62,7 @@ pub fn run() {
             commands::search::search_files,
             commands::search::list_all_files,
             commands::search::start_grep,
+            commands::search::cancel_grep,
             commands::fs::create_dir,
             commands::fs::remove_file,
             commands::fs::rename_file,

@@ -352,7 +352,8 @@
 
   <!-- Dialogs / Modals -->
 
-  <!-- Settings Modal (New) -->
+  <!-- The settings screen. Shown in an editor tab (views/SettingsView.js); this
+       is where its elements live while that tab is not on screen. -->
   <div id="settings-modal" style="display: none;">
     <div class="settings-content sidebar-layout">
       <!-- Sidebar Navigation -->
@@ -374,11 +375,13 @@
       <main class="settings-main">
         <header class="settings-main-header">
           <h4 id="settings-pane-title" data-i18n="General">General</h4>
-          <button id="close-settings-btn" class="close-btn" title="Close (Esc)" data-i18n-title="Close (Esc)">×</button>
         </header>
         
         <div class="settings-panes">
           <div id="settings-general" class="settings-pane">
+            <details class="settings-section" data-section="appearance">
+              <summary><span data-icon="eye" data-icon-size="14"></span><span data-i18n="Appearance">Appearance</span></summary>
+              <div class="settings-section-body">
             <!-- Theme and mode, for every window and for this workspace: a
                  2x2 grid, so the two settings and their two scopes read as
                  one decision instead of four look-alike rows. -->
@@ -440,28 +443,11 @@
                 <option value="compact" data-i18n="Compact (Full Width)">Compact (Full Width)</option>
               </select>
             </div>
-            <div class="settings-option">
-              <label for="explorer-open-selector" data-i18n="Explorer: open folders and files for other apps with">Explorer: open folders and files for other apps with</label>
-              <select id="explorer-open-selector">
-                <option value="double" data-i18n="Double-click (a single click selects)">Double-click (a single click selects)</option>
-                <option value="single" data-i18n="Single click">Single click</option>
-              </select>
-            </div>
-            <div class="settings-option">
-              <label for="terminal-scrollback-input" data-i18n="Terminal: lines kept for scrolling back">Terminal: lines kept for scrolling back</label>
-              <div style="width: 400px;">
-                <input type="number" id="terminal-scrollback-input" min="1000" max="200000" step="1000" style="width: 100%; padding: 5px;">
               </div>
-            </div>
-            <div class="settings-option">
-              <label for="folder-jump-enabled" data-i18n="Folder Jump: open from any app with a hotkey">Folder Jump: open from any app with a hotkey</label>
-              <div style="width: 400px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <input type="checkbox" id="folder-jump-enabled">
-                <input type="text" id="folder-jump-hotkey" readonly spellcheck="false" style="flex: 1 1 160px; padding: 5px;"
-                  data-i18n-placeholder="Press a key combination" data-i18n-title="Press a key combination">
-                <div id="folder-jump-message" style="flex: 1 1 100%; font-size: 11px; opacity: .75;"></div>
-              </div>
-            </div>
+            </details>
+            <details class="settings-section" data-section="editor">
+              <summary><span data-icon="pencil" data-icon-size="14"></span><span data-i18n="Editor">Editor</span></summary>
+              <div class="settings-section-body">
             <div class="settings-option">
               <label data-i18n="Editor Font (Monospace)">Editor Font (Monospace)</label>
               <div class="font-picker">
@@ -497,6 +483,18 @@
                        placeholder="Automatic (editor size + 1.5, at least 15px)" data-i18n-placeholder="Automatic (editor size + 1.5, at least 15px)">
               </div>
             </div>
+              </div>
+            </details>
+            <details class="settings-section" data-section="files">
+              <summary><span data-icon="search" data-icon-size="14"></span><span data-i18n="Files and search">Files and search</span></summary>
+              <div class="settings-section-body">
+            <div class="settings-option">
+              <label for="explorer-open-selector" data-i18n="Explorer: open folders and files for other apps with">Explorer: open folders and files for other apps with</label>
+              <select id="explorer-open-selector">
+                <option value="double" data-i18n="Double-click (a single click selects)">Double-click (a single click selects)</option>
+                <option value="single" data-i18n="Single click">Single click</option>
+              </select>
+            </div>
             <div class="settings-option">
               <label for="large-file-threshold" data-i18n="Open read-only above (MB)">Open read-only above (MB)</label>
               <div style="width: 400px;">
@@ -508,7 +506,40 @@
               disk instead of loading the whole thing into memory. Lower it if big files feel
               sluggish; raise it if you need to edit them. Applies to files opened from now on.
             </div>
-
+            <div class="settings-option">
+              <label for="grep-max-matches" data-i18n="Search: most results to show">Search: most results to show</label>
+              <div style="width: 400px;">
+                <input type="number" id="grep-max-matches" step="1000" style="width: 100%; padding: 5px;">
+              </div>
+            </div>
+            <div class="settings-description" style="margin: -6px 0 4px;" data-i18n="A limit on one whole search, across all its files. More results take longer to draw.">
+              A limit on one whole search, across all its files. More results take longer to draw.
+            </div>
+              </div>
+            </details>
+            <details class="settings-section" data-section="tools">
+              <summary><span data-icon="tool" data-icon-size="14"></span><span data-i18n="Tools">Tools</span></summary>
+              <div class="settings-section-body">
+            <div class="settings-option">
+              <label for="terminal-scrollback-input" data-i18n="Terminal: lines kept for scrolling back">Terminal: lines kept for scrolling back</label>
+              <div style="width: 400px;">
+                <input type="number" id="terminal-scrollback-input" min="1000" max="200000" step="1000" style="width: 100%; padding: 5px;">
+              </div>
+            </div>
+            <div class="settings-option">
+              <label for="folder-jump-enabled" data-i18n="Folder Jump: open from any app with a hotkey">Folder Jump: open from any app with a hotkey</label>
+              <div style="width: 400px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <input type="checkbox" id="folder-jump-enabled">
+                <input type="text" id="folder-jump-hotkey" readonly spellcheck="false" style="flex: 1 1 160px; padding: 5px;"
+                  data-i18n-placeholder="Press a key combination" data-i18n-title="Press a key combination">
+                <div id="folder-jump-message" style="flex: 1 1 100%; font-size: 11px; opacity: .75;"></div>
+              </div>
+            </div>
+              </div>
+            </details>
+            <details class="settings-section" data-section="about">
+              <summary><span data-icon="info" data-icon-size="14"></span><span data-i18n="About">About</span></summary>
+              <div class="settings-section-body">
             <!-- About: a bug report is unactionable without a version number,
                  and until now there was nowhere in the app to find one. -->
             <div class="settings-about">
@@ -533,6 +564,8 @@
                 Include this information when reporting a problem.
               </div>
             </div>
+              </div>
+            </details>
           </div>
 
           <div id="settings-agent" class="settings-pane" style="display:none;">
@@ -565,7 +598,7 @@
             <div class="settings-option">
               <input type="text" id="shortcut-search" placeholder="Search shortcuts..." data-i18n-placeholder="Search shortcuts..." style="width:100%; padding:8px;">
             </div>
-            <div id="shortcut-list-container" style="height: 350px; overflow-y:auto; border:1px solid var(--border-color); border-radius:4px; background:rgba(0,0,0,0.1);">
+            <div id="shortcut-list-container" style="height: calc(100vh - 290px); overflow-y:auto; border:1px solid var(--border-color); border-radius:4px; background:rgba(0,0,0,0.1);">
               <!-- Populated by JS -->
             </div>
             <div style="margin-top:10px; font-size: 0.8em; opacity: 0.6;">
@@ -576,9 +609,6 @@
 
         </div>
 
-        <footer class="settings-main-footer">
-            <button id="save-all-settings-btn" class="primary-btn" style="width: 200px;" data-i18n="Save & Apply">Save & Apply</button>
-        </footer>
       </main>
     </div>
   </div>

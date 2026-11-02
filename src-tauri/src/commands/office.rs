@@ -20,6 +20,8 @@ use tauri::command;
 
 use super::office_shapes::{read_drawing, ShapeSpec};
 
+mod xls;
+
 /// Rows kept per sheet. A preview that has to page through 200k rows is no
 /// longer a preview, and the whole payload crosses IPC as one message.
 const MAX_ROWS: usize = 5_000;
@@ -396,7 +398,7 @@ pub fn open_office_file(path: String) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 fn read_workbook(bytes: Vec<u8>, ext: &str) -> Result<OfficePreview, String> {
-    use calamine::{open_workbook_from_rs, Ods, Xls, Xlsx};
+    use calamine::{open_workbook_from_rs, Ods, Reader as _, Xls, Xlsx};
 
     // calamine reads values and nothing else — its Range::width() is a count of
     // columns, not a size, and the crate never looks at <cols> at all. So the
@@ -415,8 +417,16 @@ fn read_workbook(bytes: Vec<u8>, ext: &str) -> Result<OfficePreview, String> {
             collect_sheets(&mut wb, &layouts)
         }
         "xls" => {
+            let per_sheet = xls::read_layouts(cursor.get_ref()).unwrap_or_default();
             let mut wb = open_workbook_from_rs::<Xls<_>, _>(cursor)
                 .map_err(|e| format!("Could not open the workbook: {}", e))?;
+            // By position: both lists are in the file's BOUNDSHEET order.
+            let layouts = wb
+                .sheet_names()
+                .into_iter()
+                .zip(per_sheet)
+                .filter_map(|(name, layout)| Some((name, layout?)))
+                .collect();
             collect_sheets(&mut wb, &layouts)
         }
         _ => {
@@ -429,10 +439,9 @@ fn read_workbook(bytes: Vec<u8>, ext: &str) -> Result<OfficePreview, String> {
 
 /// The sheet geometry in an .xlsx, keyed by sheet name.
 ///
-/// Only the OOXML spreadsheet formats. A .xls keeps its widths in BIFF records
-/// and an .ods keeps them in a stylesheet; both need a reader of their own, and
-/// neither has one here, so those workbooks keep the measured-from-content
-/// columns they had before.
+/// Only the OOXML spreadsheet formats. A .xls keeps its widths in BIFF records,
+/// which have a reader of their own (office/xls.rs). An .ods keeps them in a
+/// stylesheet and has none, so it keeps the measured-from-content columns.
 fn read_sheet_layouts(bytes: &[u8]) -> Option<HashMap<String, RawLayout>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).ok()?;
     // Fills name their colours by theme slot as often as by value, so the
@@ -999,6 +1008,15 @@ fn date_format_code(fmt_id: usize, custom: &HashMap<usize, String>) -> Option<St
         20 => "h:mm",
         21 => "h:mm:ss",
         22 => "yyyy/m/d h:mm",
+        // The ones a Japanese Excel adds, which name no code of their own in the
+        // file. The Japanese-era forms are written in the Western calendar here:
+        // the date is right, and the era is the one thing this cannot draw.
+        27..=29 | 31 | 36 | 50 | 51 | 54 | 57 | 58 => "yyyy\"年\"m\"月\"d\"日\"",
+        30 => "m/d/yy",
+        32 => "h\"時\"mm\"分\"",
+        33 => "h\"時\"mm\"分\"ss\"秒\"",
+        34 | 52 | 55 => "yyyy\"年\"m\"月\"",
+        35 | 53 | 56 => "m\"月\"d\"日\"",
         45 => "mm:ss",
         46 => "[h]:mm:ss",
         47 => "mm:ss.0",
@@ -1079,6 +1097,9 @@ struct StyleBook {
     /// Kept out of CellStyle because the view never sees it: the dates are
     /// already rendered by the time they leave here.
     date_formats: HashMap<usize, String>,
+    /// Serial numbers count from 1904. Only read from a .xls, the one place a
+    /// date can still arrive here as a bare number.
+    date_1904: bool,
 }
 
 fn read_sheet_geometry(xml: &str) -> Option<RawLayout> {
@@ -1390,6 +1411,17 @@ where
                 });
                 out.push(match (cell, format) {
                     (Some(calamine::Data::DateTime(d)), Some(code)) => format_excel_date(d, code),
+                    // calamine dates a .xls's plain numbers by their format but
+                    // not a formula's result: =DATE(2026,2,3) came out as 46056.
+                    (Some(calamine::Data::Float(v)), Some(code)) => {
+                        let is_1904 = raw.is_some_and(|raw| raw.styles.date_1904);
+                        let date = calamine::ExcelDateTime::new(
+                            *v,
+                            calamine::ExcelDateTimeType::DateTime,
+                            is_1904,
+                        );
+                        format_excel_date(&date, code)
+                    }
                     (Some(value), _) => cell_text(value),
                     (None, _) => String::new(),
                 });

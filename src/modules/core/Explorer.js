@@ -213,7 +213,13 @@ class VirtualExplorer {
         if (this.dropTargetDir === dir) return;
         this.dropTargetDir = dir;
         this.container.classList.toggle('drop-target-root', !!dir && dir === this.rootPath);
-        this.redraw();
+        // On the rows in place, not through redraw(): rebuilding them mid-drag
+        // detaches the row being dragged and the row under the pointer, and the
+        // next event on the new row is a dragenter nobody accepts — a drop
+        // landing on it is refused.
+        this.contentHost.querySelectorAll('.tree-item').forEach((row) => {
+            row.classList.toggle('drop-target', !!dir && row.dataset.path === dir);
+        });
     }
 
     /** Scroll when a drag hovers near the top or bottom edge. */
@@ -444,20 +450,26 @@ class VirtualExplorer {
         const gen = (this._refreshGen || 0) + 1;
         this._refreshGen = gen;
 
-        // Capture Focus
-        let focusedPath = null;
-        if (this.focusedIndex >= 0 && this.flatItems[this.focusedIndex]) {
-            focusedPath = this.flatItems[this.focusedIndex].path;
-        }
-
-        // Rebuild flat items based on Root + Expanded State
-        this.flatItems = [];
+        // Rebuild flat items based on Root + Expanded State. Into a list of its
+        // own, swapped in only when complete: a row clicked while directories
+        // were still being read used to index a half-built flatItems, so
+        // setFocus() refused it and the cursor stayed on the row before —
+        // which is where F2 then opened the rename.
+        const built = [];
         if (this.rootPath) {
-            await this.buildFlatList(this.rootPath, 0, gen);
+            await this.buildFlatList(this.rootPath, 0, gen, built);
         }
 
         // A newer refresh superseded us — leave the UI to it.
         if (gen !== this._refreshGen) return;
+
+        // Capture Focus. Now rather than before the reads: a click during them
+        // has moved the cursor since, and restoring the older row would undo it.
+        let focusedPath = null;
+        if (this.focusedIndex >= 0 && this.flatItems[this.focusedIndex]) {
+            focusedPath = this.flatItems[this.focusedIndex].path;
+        }
+        this.flatItems = built;
 
         // Rows deleted, moved or hidden by a collapse are no longer selectable.
         if (this.selectedPaths.size) {
@@ -483,7 +495,7 @@ class VirtualExplorer {
         }
     }
 
-    async buildFlatList(dirPath, level, gen) {
+    async buildFlatList(dirPath, level, gen, out) {
         // Abort as soon as a newer refresh superseded this build.
         if (gen !== this._refreshGen) return false;
         let entries = this.dirCache.get(dirPath);
@@ -511,7 +523,7 @@ class VirtualExplorer {
             const external = isDir ? null : externalKind(entry.entry);
             if (external && !showExternal) continue;
 
-            this.flatItems.push({
+            out.push({
                 path: fullPath,
                 name: entry.entry,
                 type: entry.type,
@@ -522,7 +534,7 @@ class VirtualExplorer {
             });
 
             if (isDir && isExpanded) {
-                const ok = await this.buildFlatList(fullPath, level + 1, gen);
+                const ok = await this.buildFlatList(fullPath, level + 1, gen, out);
                 if (!ok) return false;
             }
         }

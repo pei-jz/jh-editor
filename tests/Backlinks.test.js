@@ -67,17 +67,17 @@ describe('backlink pattern', () => {
    started straight away. A search that finished first — a Markdown-only one
    with no hits takes milliseconds — sent grep-done to nobody. */
 describe('the results tab is listening before the search starts', () => {
-    it('resolves once both listeners are registered', () => {
+    it('resolves once all the listeners are registered', () => {
         const editor = read('src/modules/core/Editor.js');
         const i = editor.indexOf('window.app.openSearchResults = function');
         const fn = editor.slice(i, editor.indexOf('\n};', i));
-        expect(fn).toContain('ready = Promise.all([onMatch, onDone])');
+        expect(fn).toContain('ready = Promise.all([onMatch, onProgress, onDone])');
         expect(fn).toContain('return ready;');
     });
 
     it.each([
         ['src/modules/views/MarkdownView.js', 'await window.app.openSearchResults({'],
-        ['src/modules/ui/GrepModal.js', 'await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true });'],
+        ['src/modules/ui/GrepModal.js', 'await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly });'],
     ])('%s awaits it before start_grep', (file, awaited) => {
         const src = read(file);
         const at = src.indexOf(awaited);

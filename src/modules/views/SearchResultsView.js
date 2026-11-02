@@ -1,5 +1,7 @@
+import { invoke } from '@tauri-apps/api/core';
 import { State } from '../core/Store.js';
 import { iconEl } from '../ui/Icons.js';
+import { t } from '../utils/I18n.js';
 
 // Renders workspace grep results as an interactive tab, grouped by file, each
 // match line clickable to open the file at that line. Supports STREAMING: the
@@ -19,6 +21,27 @@ import { iconEl } from '../ui/Icons.js';
 function openHitInOtherPane() {
     if (!State.splitMode) return;
     State.activePane = State.activePane === 'right' ? 'left' : 'right';
+}
+
+const MB = 1024 * 1024;
+const MAX_MARKS_PER_LINE = 8;
+
+/**
+ * How far a running search has got, in words. There is no total to count down
+ * to, since finding out would take a walk of its own, so the count of files
+ * grows; a large file has a size, so it gets a percentage. A file read for a long
+ * while then visibly moves, which is what tells working from hung.
+ */
+export function describeProgress(p) {
+    if (!p) return '';
+    const parts = [t('{n} files searched', { n: p.files })];
+    if (p.current) {
+        const name = String(p.current).replace(/\\/g, '/').split('/').pop();
+        const percent = p.current_size > 0 ? Math.floor((p.current_done / p.current_size) * 100) : 0;
+        const size = Math.round(p.current_size / MB);
+        parts.push(`${name} ${percent}% (${size} MB)`);
+    }
+    return parts.join('  ·  ');
 }
 
 export class SearchResultsView {
@@ -42,16 +65,29 @@ export class SearchResultsView {
         this._total = 0;
         this._done = !!file._done;
         this._truncated = !!file._truncated;
+        this._canceled = !!file._canceled;
+        this._progress = file._progress || null;
         this._injectStyles();
         this._re = this._highlighter();
         this.render();
         if (Array.isArray(file.matches) && file.matches.length) this.appendMatches(file.matches);
     }
 
-    setDone(truncated) {
+    setDone(truncated, canceled = false) {
         this._done = true;
         this._truncated = !!truncated;
+        this._canceled = !!canceled;
         this._updateHeader();
+    }
+
+    /** Only the line that changed: this arrives several times a second. */
+    setProgress(progress) {
+        this._progress = progress;
+        if (this._progressEl) this._progressEl.textContent = describeProgress(progress);
+    }
+
+    _cancelSearch() {
+        invoke('cancel_grep', { searchId: this.searchId }).catch(() => {});
     }
 
     _injectStyles() {
@@ -61,6 +97,10 @@ export class SearchResultsView {
         style.textContent = `
         .search-results-view { height: 100%; overflow: auto; font-size: 13px; color: var(--text-color); padding: 8px 4px; }
         .sr-header { padding: 6px 12px; opacity: 0.85; position: sticky; top: 0; background: var(--bg-color); z-index: 1; display: flex; align-items: center; gap: 8px; }
+        .sr-summary { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sr-progress { flex: 0 0 auto; opacity: 0.7; font-size: 12px; white-space: nowrap; }
+        .sr-cancel { margin-left: auto; flex-shrink: 0; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--text-color); background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px; }
+        .sr-cancel:hover { background: var(--hover-color); border-color: var(--primary-color); }
         .sr-spinner { width: 12px; height: 12px; border: 2px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: sr-spin 0.7s linear infinite; }
         @keyframes sr-spin { to { transform: rotate(360deg); } }
         /* Directory tree: each nesting level indents via padding on its children
@@ -80,7 +120,7 @@ export class SearchResultsView {
         .sr-file-path { color: var(--primary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sr-file-count { opacity: 0.6; font-weight: 400; }
         .sr-lines { display: block; }
-        .sr-line { display: flex; gap: 10px; padding: 2px 12px 2px 22px; cursor: pointer; white-space: pre; font-family: monospace; }
+        .sr-line { display: flex; gap: 10px; padding: 2px 12px 2px 22px; cursor: pointer; white-space: pre; font-family: monospace; content-visibility: auto; contain-intrinsic-size: auto 21px; }
         .sr-line:hover { background: var(--hover-color); }
         .sr-line-no { color: var(--text-color); opacity: 0.5; min-width: 4ch; text-align: right; user-select: none; -webkit-user-select: none; }
         .sr-line-text { overflow: hidden; text-overflow: ellipsis; }
@@ -114,9 +154,13 @@ export class SearchResultsView {
         const re = this._re;
         if (!re) { span.textContent = text; return span; }
         re.lastIndex = 0;
-        let last = 0, m, any = false;
-        while ((m = re.exec(text)) !== null) {
+        let last = 0, m, any = false, marks = 0;
+        // A line of a log can hit dozens of times, and each mark is two nodes:
+        // 5000 such lines came to 125,000 of them. A row shows about a hundred
+        // characters before it is cut, so the marks past the first few are never seen.
+        while (marks < MAX_MARKS_PER_LINE && (m = re.exec(text)) !== null) {
             any = true;
+            marks += 1;
             if (m.index > last) span.appendChild(document.createTextNode(text.slice(last, m.index)));
             const mark = document.createElement('mark');
             mark.textContent = m[0];
@@ -142,23 +186,55 @@ export class SearchResultsView {
         root.appendChild(this._bodyEl);
 
         this.container.appendChild(root);
+        this._buildHeader();
         this._updateHeader();
     }
 
-    _updateHeader() {
-        if (!this._headerEl) return;
-        this._headerEl.innerHTML = '';
+    /**
+     * The parts of the header are made once and only their text changes. Matches
+     * arrive many times a second, and rebuilding the header each time took the
+     * Cancel button out of the page under the pointer: between press and release
+     * it had been removed, so the browser never called it a click.
+     */
+    _buildHeader() {
+        const parts = [];
         if (this.streaming && !this._done) {
-            const sp = document.createElement('span');
-            sp.className = 'sr-spinner';
-            this._headerEl.appendChild(sp);
+            this._spinnerEl = document.createElement('span');
+            this._spinnerEl.className = 'sr-spinner';
+            parts.push(this._spinnerEl);
         }
-        const txt = document.createElement('span');
+        this._summaryEl = document.createElement('span');
+        this._summaryEl.className = 'sr-summary';
+        parts.push(this._summaryEl);
+        if (this.streaming && !this._done) {
+            this._progressEl = document.createElement('span');
+            this._progressEl.className = 'sr-progress';
+            this._progressEl.textContent = describeProgress(this._progress);
+            this._cancelBtn = document.createElement('button');
+            this._cancelBtn.className = 'sr-cancel';
+            this._cancelBtn.textContent = t('Cancel');
+            this._cancelBtn.onclick = () => this._cancelSearch();
+            parts.push(this._progressEl, this._cancelBtn);
+        }
+        this._headerEl.append(...parts);
+    }
+
+    _updateHeader() {
+        if (!this._summaryEl) return;
+        const running = this.streaming && !this._done;
         const base = `${this._total} matches in ${this._groups.size} files  —  "${this.query}"`;
-        txt.textContent = (this.streaming && !this._done) ? `Searching…  ${base}`
-            : (this._total === 0 ? `No results for "${this.query}"` : base)
-              + (this._truncated ? ' (truncated — result limit reached)' : '');
-        this._headerEl.appendChild(txt);
+        const text = running ? `Searching…  ${base}`
+            : (this._total === 0 && !this._canceled ? `No results for "${this.query}"` : base)
+              + (this._truncated ? ` (${t('Stopped at the result limit. Settings can raise it.')})` : '')
+              + (this._canceled ? ` (${t('canceled')})` : '');
+        this._summaryEl.textContent = text;
+        this._summaryEl.title = text;
+        if (!running) {
+            for (const el of [this._spinnerEl, this._progressEl, this._cancelBtn]) {
+                if (el) el.remove();
+            }
+            this._spinnerEl = this._progressEl = this._cancelBtn = null;
+        }
     }
 
     /** Cumulative ancestor dir paths of a dirRel, e.g. "a/b/c" → ["a","a/b","a/b/c"]. */
