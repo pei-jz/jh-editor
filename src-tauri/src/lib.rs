@@ -84,6 +84,7 @@ pub fn run() {
             commands::folder_jump::folder_jump_get_status,
             commands::folder_jump::folder_jump_set_config,
             commands::folder_jump::folder_jump_set_tray_labels,
+            commands::folder_jump::folder_jump_hold_open,
             commands::folder_jump::open_folder_as_workspace,
             commands::folder_jump::open_folder_in_explorer,
             commands::folder_jump::open_terminal_at,

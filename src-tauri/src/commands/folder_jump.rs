@@ -93,6 +93,8 @@ pub struct FolderJumpState {
     quitting: AtomicBool,
     /// When losing focus last hid the window (see `toggle_from_tray`).
     left_behind_at: Mutex<Option<Instant>>,
+    /// The window's own folder dialog is up, and losing focus to it is not leaving.
+    held_open: AtomicBool,
 }
 
 fn config_path(app: &AppHandle) -> Option<PathBuf> {
@@ -211,10 +213,9 @@ fn is_foreground(window: &tauri::WebviewWindow) -> bool {
 fn hide_if_left_behind(window: tauri::WebviewWindow) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(120)).await;
-        if !is_foreground(&window) {
-            if let Some(state) = window.try_state::<FolderJumpState>() {
-                *lock(&state.left_behind_at) = Some(Instant::now());
-            }
+        let Some(state) = window.try_state::<FolderJumpState>() else { return };
+        if !state.held_open.load(Ordering::Relaxed) && !is_foreground(&window) {
+            *lock(&state.left_behind_at) = Some(Instant::now());
             let _ = window.hide();
         }
     });
@@ -422,6 +423,12 @@ pub async fn folder_jump_set_config(
     // Every editor window has the settings row, and only one of them made this change.
     let _ = app.emit("folder-jump:changed", &status);
     Ok(status)
+}
+
+/// Keep the window up while it shows a dialog of its own.
+#[tauri::command]
+pub async fn folder_jump_hold_open(app: AppHandle, hold: bool) {
+    app.state::<FolderJumpState>().held_open.store(hold, Ordering::Relaxed);
 }
 
 /// The tray menu's words, in the language the editor is showing.

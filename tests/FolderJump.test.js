@@ -329,12 +329,30 @@ describe('the overlay', () => {
 
     it('offers a new window and a folder picker only when the host has them', () => {
         toggleFolderJumpOverlay({ openWorkspace: vi.fn(), openInNewWindow: vi.fn(), pickFolder: vi.fn() });
-        expect(document.querySelector('.fj-add')).not.toBeNull();
+        expect(document.querySelector('.fj-browse')).not.toBeNull();
         expect(document.querySelector('.fj-foot').textContent).toContain('Shift+Enter');
         closeFolderJumpOverlay();
         toggleFolderJumpOverlay({ openWorkspace: vi.fn() });
-        expect(document.querySelector('.fj-add')).toBeNull();
+        expect(document.querySelector('.fj-browse')).toBeNull();
         expect(document.querySelector('.fj-foot').textContent).not.toContain('Shift+Enter');
+    });
+
+    it('pins the folder the "…" button picked and selects it for Enter', async () => {
+        localStorage.setItem('jheditor_folder_jump_pinned', JSON.stringify(['C:\\first']));
+        const pickFolder = vi.fn().mockResolvedValue('C:\\picked');
+        toggleFolderJumpOverlay({ openWorkspace: vi.fn(), pickFolder });
+        document.querySelector('.fj-browse').click();
+        await vi.waitFor(() => expect(getPinned()).toEqual(['C:\\first', 'C:\\picked']));
+        expect(document.querySelector('.fj-row.selected').title).toBe('C:\\picked');
+    });
+
+    it('changes nothing when the picker is cancelled', async () => {
+        const pickFolder = vi.fn().mockResolvedValue(null);
+        toggleFolderJumpOverlay({ openWorkspace: vi.fn(), pickFolder });
+        document.querySelector('.fj-browse').click();
+        await vi.waitFor(() => expect(pickFolder).toHaveBeenCalled());
+        await Promise.resolve();
+        expect(getPinned()).toEqual([]);
     });
 });
 
@@ -351,6 +369,12 @@ describe('structure', () => {
 
     it('keeps the jump window out of the windows a double-clicked file can land in', () => {
         expect(read('src-tauri/src/commands/window.rs')).toContain('folder_jump::WINDOW_LABEL');
+    });
+
+    it('holds the jump window open around its folder dialog', () => {
+        const page = read('src/folder-jump.js');
+        expect(page.indexOf("hold: true")).toBeLessThan(page.indexOf('await open('));
+        expect(page.indexOf('await open(')).toBeLessThan(page.indexOf("hold: false"));
     });
 
     it('stays off until it is turned on', () => {

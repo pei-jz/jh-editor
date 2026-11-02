@@ -10,7 +10,8 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { applyI18n, getLanguage } from './modules/utils/I18n.js';
+import { open } from '@tauri-apps/plugin-dialog';
+import { applyI18n, getLanguage, t } from './modules/utils/I18n.js';
 import { themeClasses, isKnownTheme } from './modules/utils/Themes.js';
 import { effectiveTheme } from './modules/utils/WorkspaceTheme.js';
 import { createFolderJumpPanel } from './modules/ui/FolderJumpPanel.js';
@@ -26,6 +27,16 @@ function applyCurrentTheme() {
 
 const panel = createFolderJumpPanel({
     openWorkspace: (path) => invoke('open_folder_as_workspace', { path }),
+    pickFolder: async () => {
+        // The dialog takes focus, which would otherwise hide this window under it.
+        await invoke('folder_jump_hold_open', { hold: true });
+        try {
+            return await open({ directory: true, multiple: false, title: t('Add Folder') });
+        } finally {
+            await invoke('folder_jump_hold_open', { hold: false });
+            await win.setFocus();
+        }
+    },
     close: () => win.hide(),
 });
 

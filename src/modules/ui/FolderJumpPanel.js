@@ -69,10 +69,16 @@ function injectStyles() {
     .fj-search { position: relative; display: flex; align-items: center; flex: 0 0 auto; }
     .fj-search-icon { position: absolute; left: 12px; display: inline-flex; opacity: .5; }
     .fj-input {
-        width: 100%; height: 44px; padding: 0 12px 0 35px; box-sizing: border-box;
+        width: 100%; height: 44px; padding: 0 44px 0 35px; box-sizing: border-box;
         border: none; border-bottom: 1px solid var(--border-color); outline: none;
         background: transparent; color: inherit; font-size: 15px; font-family: inherit;
     }
+    .fj-browse {
+        position: absolute; right: 8px; width: 30px; height: 28px; padding: 0;
+        border: 1px solid var(--border-color); border-radius: 4px;
+        background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 15px;
+    }
+    .fj-browse:hover { background: var(--hover-color); }
     .fj-status {
         flex: 0 0 auto; display: flex; align-items: center; gap: 6px; min-height: 20px;
         padding: 2px 12px; font-size: 11px; opacity: .65;
@@ -103,10 +109,6 @@ function injectStyles() {
     }
     .fj-hint { opacity: .7; white-space: nowrap; }
     .fj-hint kbd { font: inherit; font-weight: 600; }
-    .fj-add {
-        margin-left: auto; padding: 2px 8px; border: 1px solid var(--border-color); border-radius: 4px;
-        background: transparent; color: inherit; cursor: pointer; font: inherit;
-    }
     .fj-overlay {
         position: fixed; inset: 0; z-index: 3000; display: flex; justify-content: center;
         align-items: flex-start; padding-top: 12vh; background: rgba(0, 0, 0, .25);
@@ -139,8 +141,8 @@ function appendHighlighted(parent, text, ranges) {
  *           openInNewWindow?: (path: string) => any,
  *           pickFolder?: () => Promise<string|null>,
  *           close: () => any }} host
- *        `pickFolder`: only where a system dialog can open without the panel
- *        losing focus and closing, which rules out the jump window.
+ *        `pickFolder`: the "…" button. The chosen folder is pinned, so it and the
+ *        folders below it can be found from then on.
  * @returns {{ element: HTMLElement, reset: () => void }}
  */
 export function createFolderJumpPanel(host) {
@@ -161,6 +163,37 @@ export function createFolderJumpPanel(host) {
     input.placeholder = t('Folder name or path…');
     input.spellcheck = false;
     search.append(searchIcon, input);
+    if (host.pickFolder) {
+        const browse = document.createElement('button');
+        browse.type = 'button';
+        browse.className = 'fj-browse';
+        browse.textContent = '…';
+        browse.title = t('Add Folder');
+        browse.setAttribute('aria-label', t('Add Folder'));
+        browse.tabIndex = -1;
+        let picking = false;
+        browse.onclick = async () => {
+            if (picking) return;
+            picking = true;
+            let folder = null;
+            try {
+                folder = await host.pickFolder();
+            } catch (err) {
+                console.error('Folder Jump:', err);
+            }
+            picking = false;
+            input.focus();
+            if (!folder) return;
+            pin(folder);
+            input.value = '';
+            directHit = null;
+            refreshAndRender();
+            // What was just chosen is what Enter should act on.
+            const at = results.findIndex((hit) => hit.item.path === folder);
+            if (at >= 0) select(at);
+        };
+        search.appendChild(browse);
+    }
 
     const status = document.createElement('div');
     status.className = 'fj-status';
@@ -184,19 +217,6 @@ export function createFolderJumpPanel(host) {
         kbd.textContent = key;
         hint.append(kbd, ` ${label}`);
         foot.appendChild(hint);
-    }
-    if (host.pickFolder) {
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'fj-add';
-        add.textContent = `${t('Add Folder')}…`;
-        add.onclick = async () => {
-            const folder = await host.pickFolder();
-            if (folder) pin(folder);
-            input.focus();
-            refreshAndRender();
-        };
-        foot.appendChild(add);
     }
     panel.append(search, status, list, foot);
 
