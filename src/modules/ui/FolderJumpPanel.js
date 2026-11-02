@@ -3,8 +3,8 @@
  * overlay inside the editor (Ctrl+Alt+J) and filling the window the global
  * hotkey brings up (src/folder-jump.js).
  *
- * Enter shows the folder in Explorer, Ctrl+Enter opens it as a workspace,
- * Alt+Enter opens a terminal there. What opening a workspace means differs
+ * Enter opens the folder as a workspace, Ctrl+Enter shows it in Explorer,
+ * Alt+Enter opens a terminal there. A click follows the same modifiers. What opening a workspace means differs
  * between the two hosts, so the host passes that in; the rest is the same.
  *
  * Marks itself `data-shortcut-keys="own"` so ShortcutManager leaves its keys alone.
@@ -203,8 +203,8 @@ export function createFolderJumpPanel(host) {
     const foot = document.createElement('div');
     foot.className = 'fj-foot';
     const hints = [
-        ['Enter', t('Explorer')],
-        ['Ctrl+Enter', t('Workspace')],
+        ['Enter', t('Workspace')],
+        ['Ctrl+Enter', t('Explorer')],
         ...(host.openInNewWindow ? [['Shift+Enter', t('New Window')]] : []),
         ['Alt+Enter', t('Terminal')],
         ['Ctrl+C', t('Copy path')],
@@ -383,10 +383,10 @@ export function createFolderJumpPanel(host) {
     };
 
     const run = (path, e) => {
-        if (e.ctrlKey || e.metaKey) return attempt(path, () => host.openWorkspace(path));
+        if (e.ctrlKey || e.metaKey) return attempt(path, () => invoke('open_folder_in_explorer', { path }));
         if (e.shiftKey && host.openInNewWindow) return attempt(path, () => host.openInNewWindow(path));
         if (e.altKey) return attempt(path, () => invoke('open_terminal_at', { path }));
-        return attempt(path, () => invoke('open_folder_in_explorer', { path }));
+        return attempt(path, () => host.openWorkspace(path));
     };
 
     input.addEventListener('input', () => {

@@ -145,9 +145,9 @@ that tab; the current mode is always shown in the status bar.
   follow a moved or renamed file
 - **Workspaces** — several at once, and a recent-workspaces menu (`Ctrl+Alt+O`) to
   switch in one click
-- **Folder Jump** (`Ctrl+Alt+J`) — type part of a folder's name and go: `Enter` shows it
-  in Explorer, bringing forward a window already on it instead of opening another;
-  `Ctrl+Enter` opens it as a workspace, `Alt+Enter` opens a terminal there, `Ctrl+C` copies
+- **Folder Jump** (`Ctrl+Alt+J`) — type part of a folder's name and go: `Enter` or a click
+  opens it as a workspace; `Ctrl+Enter` shows it in Explorer, bringing forward a window
+  already on it instead of opening another; `Alt+Enter` opens a terminal there, `Ctrl+C` copies
   the path. Pin a folder with `Ctrl+D` and the folders below it are searched too. Turned on
   in Settings, the app stays in the notification area and `Win+Shift+E` (or a key of your
   choosing) brings the search up from any app

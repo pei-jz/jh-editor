@@ -205,30 +205,39 @@ describe('the panel', () => {
         expect(document.activeElement).toBe(input());
     });
 
-    it('Enter shows the selected folder in Explorer, records it and closes', async () => {
+    it('Enter opens the selected folder as a workspace, records it and closes', async () => {
         key('ArrowDown');
         key('Enter');
         await flush();
-        expect(invoke).toHaveBeenCalledWith('open_folder_in_explorer', { path: 'C:/two' });
+        expect(host.openWorkspace).toHaveBeenCalledWith('C:/two');
+        expect(invoke).not.toHaveBeenCalledWith('open_folder_in_explorer', expect.anything());
         expect(getRecentJumps()[0]).toBe('C:/two');
         expect(host.close).toHaveBeenCalledTimes(1);
     });
 
-    it('Ctrl+Enter is the host\'s workspace action, Alt+Enter the terminal', async () => {
+    it('a click does what Enter does, and Ctrl+click what Ctrl+Enter does', async () => {
+        rows()[1].click();
+        await flush();
+        expect(host.openWorkspace).toHaveBeenCalledWith('C:/two');
+        host.openWorkspace.mockClear();
+        rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+        await flush();
+        expect(invoke).toHaveBeenCalledWith('open_folder_in_explorer', { path: 'C:/one' });
+        expect(host.openWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('Ctrl+Enter shows it in Explorer, Alt+Enter opens the terminal', async () => {
         key('Enter', { ctrlKey: true });
         await flush();
-        expect(host.openWorkspace).toHaveBeenCalledWith('C:/one');
+        expect(invoke).toHaveBeenCalledWith('open_folder_in_explorer', { path: 'C:/one' });
         key('Enter', { altKey: true });
         await flush();
         expect(invoke).toHaveBeenCalledWith('open_terminal_at', { path: 'C:/one' });
-        expect(invoke).not.toHaveBeenCalledWith('open_folder_in_explorer', expect.anything());
+        expect(host.openWorkspace).not.toHaveBeenCalled();
     });
 
     it('stays open and says so when the folder cannot be opened', async () => {
-        invoke.mockImplementation(async (cmd) => {
-            if (cmd === 'open_folder_in_explorer') throw new Error('Folder not found');
-            return { folders: [], partial: false };
-        });
+        host.openWorkspace.mockRejectedValueOnce(new Error('Folder not found'));
         key('Enter');
         await flush();
         expect(host.close).not.toHaveBeenCalled();
@@ -275,12 +284,12 @@ describe('the panel', () => {
         expect(names()[0]).toBe('typed');
         key('Enter');
         await flush();
-        expect(invoke).toHaveBeenCalledWith('open_folder_in_explorer', { path: 'C:\\typed' });
+        expect(host.openWorkspace).toHaveBeenCalledWith('C:\\typed');
     });
 
     it('leaves the keys alone while an IME is composing', () => {
         key('Enter', { isComposing: true });
-        expect(invoke).not.toHaveBeenCalledWith('open_folder_in_explorer', expect.anything());
+        expect(host.openWorkspace).not.toHaveBeenCalled();
     });
 
     it('draws folder names as text, never as markup', () => {
