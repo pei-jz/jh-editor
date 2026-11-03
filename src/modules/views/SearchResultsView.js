@@ -1,14 +1,22 @@
 import { invoke } from '@tauri-apps/api/core';
+import { EditorView, Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { Transaction } from '@codemirror/state';
+import { foldEffect, foldedRanges, foldService, unfoldEffect } from '@codemirror/language';
 import { State } from '../core/Store.js';
 import { iconEl } from '../ui/Icons.js';
+import { InlineAI } from '../ui/InlineAI.js';
 import { t } from '../utils/I18n.js';
+import { markSaved } from '../utils/DirtyState.js';
+import { isFolderLine, isPathLine, isUnderFolder, locateHit, planAppend, rowPrefixLength } from '../utils/SearchResultsText.js';
+import { CodeMirrorView } from './CodeMirrorView.js';
 
-// Renders workspace grep results as an interactive tab, grouped by file, each
-// match line clickable to open the file at that line. Supports STREAMING: the
-// grep-match/grep-done events are owned by the MODEL (Editor.openSearchResults,
+// Renders workspace grep results as a tab of ordinary editable text, grouped by
+// file, each hit shown with its whole line. Ctrl+click on a line opens the file
+// there; editing the text changes this tab and nothing else. Supports STREAMING:
+// the grep-match/grep-done events are owned by the MODEL (Editor.openSearchResults,
 // so results keep accumulating into file.matches even while this tab isn't
 // active); when active, the model calls appendMatches()/setDone() live. On
-// (re)construction the view renders whatever file.matches has accumulated.
+// (re)construction the view shows the tab's text, and adds what arrived meanwhile.
 /**
  * Send the next `openFile` to the pane the results are NOT in.
  *
@@ -24,7 +32,33 @@ function openHitInOtherPane() {
 }
 
 const MB = 1024 * 1024;
-const MAX_MARKS_PER_LINE = 8;
+// Only lines on screen are marked, so this is a guard against a pattern that
+// hits at nearly every character of a very long line, not a budget.
+const MAX_MARKS_PER_LINE = 500;
+
+const FOLDER_LINE = Decoration.line({ class: 'sr-folder-line' });
+const PATH_LINE = Decoration.line({ class: 'sr-path-line' });
+const LINK = Decoration.mark({ class: 'sr-link' });
+const ROW_LINE = Decoration.line({ class: 'sr-row' });
+const ROW_NUMBER = Decoration.mark({ class: 'sr-line-no' });
+const HIT = Decoration.mark({ class: 'sr-hit' });
+
+/** How many hits a file had: drawn beside its path, so the text stays only the path. */
+class HitCount extends WidgetType {
+    constructor(count) {
+        super();
+        this.count = count;
+    }
+
+    eq(other) { return other.count === this.count; }
+
+    toDOM() {
+        const el = document.createElement('span');
+        el.className = 'sr-count';
+        el.textContent = t('{n} hits', { n: this.count });
+        return el;
+    }
+}
 
 /**
  * How far a running search has got, in words. There is no total to count down
@@ -44,33 +78,35 @@ export function describeProgress(p) {
     return parts.join('  ·  ');
 }
 
-export class SearchResultsView {
-    constructor(container, file) {
-        this.container = container;
+export class SearchResultsView extends CodeMirrorView {
+    constructor(container, file, options = {}) {
+        const { renderTabs } = options;
+        super(container, {
+            ...options,
+            // Results arriving are not an edit: nothing on the tab changes.
+            renderTabs: () => { if (renderTabs && !this._appending) renderTabs(); },
+        });
+        this._outer = container;
         this.file = file;
         this.query = file.query || '';
-        this.options = file.options || {};
+        this._searchOptions = file.options || {};
         this.searchId = file.searchId;
         this.streaming = !!file.streaming;
-        this.singleFile = !!file.singleFile;
-        this._groups = new Map();   // path -> { linesDiv, countEl, count, dirChain }
-        this._dirNodes = new Map(); // dirRel -> { childrenEl, countEl, count }
-        // Collapsed state lives on the MODEL, not the view: switching tabs
-        // destroys and rebuilds the view, which used to re-expand everything
-        // the user had folded away.
-        if (!(file._srCollapsedDirs instanceof Set)) file._srCollapsedDirs = new Set();
-        if (!(file._srCollapsedFiles instanceof Set)) file._srCollapsedFiles = new Set();
-        this._collapsedDirs = file._srCollapsedDirs;
-        this._collapsedFiles = file._srCollapsedFiles;
-        this._total = 0;
+        // What is on the model outlives the view: switching tabs destroys and
+        // rebuilds this, and the text may hold the user's edits by then.
+        if (!(file._srGroups instanceof Map)) file._srGroups = new Map();
+        if (!(file._srCounts instanceof Map)) file._srCounts = new Map();
+        if (typeof file._srShown !== 'number') file._srShown = 0;
+        if (typeof file.content !== 'string') file.content = '';
+        if (!Array.isArray(file.matches)) file.matches = [];
         this._done = !!file._done;
         this._truncated = !!file._truncated;
         this._canceled = !!file._canceled;
         this._progress = file._progress || null;
         this._injectStyles();
         this._re = this._highlighter();
-        this.render();
-        if (Array.isArray(file.matches) && file.matches.length) this.appendMatches(file.matches);
+        this.render(file.content, file);
+        this.appendMatches();
     }
 
     setDone(truncated, canceled = false) {
@@ -95,50 +131,32 @@ export class SearchResultsView {
         const style = document.createElement('style');
         style.id = 'search-results-styles';
         style.textContent = `
-        .search-results-view { height: 100%; overflow: auto; font-size: 13px; color: var(--text-color); padding: 8px 4px; }
-        .sr-header { padding: 6px 12px; opacity: 0.85; position: sticky; top: 0; background: var(--bg-color); z-index: 1; display: flex; align-items: center; gap: 8px; }
-        .sr-summary { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-results-view { height: 100%; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; color: var(--text-color); }
+        .sr-header { flex-shrink: 0; padding: 6px 12px 2px; opacity: 0.85; display: flex; align-items: center; gap: 8px; }
+        .sr-summary { flex: 0 1 auto; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sr-progress { flex: 0 0 auto; opacity: 0.7; font-size: 12px; white-space: nowrap; }
         .sr-cancel { margin-left: auto; flex-shrink: 0; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--text-color); background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px; }
         .sr-cancel:hover { background: var(--hover-color); border-color: var(--primary-color); }
         .sr-spinner { width: 12px; height: 12px; border: 2px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: sr-spin 0.7s linear infinite; }
         @keyframes sr-spin { to { transform: rotate(360deg); } }
-        /* Directory tree: each nesting level indents via padding on its children
-           container, so depth is automatic. */
-        .sr-dir { margin: 0; }
-        .sr-dir-head { display: flex; align-items: center; gap: 6px; padding: 3px 12px; cursor: pointer; user-select: none; font-weight: 600; opacity: 0.9; }
-        .sr-dir-head:hover { background: var(--hover-color); }
-        .sr-dir-name { color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sr-dir-name { display: inline-flex; align-items: center; gap: 5px; }
-        .sr-dir-count { opacity: 0.5; font-weight: 400; font-size: 11px; }
-        .sr-dir-children { padding-left: 12px; border-left: 1px solid var(--border-color); margin-left: 6px; }
-        .sr-caret { width: 10px; display: inline-block; opacity: 0.7; flex-shrink: 0; }
-        .sr-file { margin: 1px 0; }
-        .sr-file-head { display: flex; align-items: center; gap: 8px; padding: 3px 12px; cursor: pointer; user-select: none; font-weight: 600; }
-        .sr-file-head:hover { background: var(--hover-color); }
-        .sr-file-caret { width: 10px; display: inline-block; opacity: 0.7; }
-        .sr-file-path { color: var(--primary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sr-file-count { opacity: 0.6; font-weight: 400; }
-        .sr-lines { display: block; }
-        .sr-line { display: flex; gap: 10px; padding: 2px 12px 2px 22px; cursor: pointer; white-space: pre; font-family: monospace; content-visibility: auto; contain-intrinsic-size: auto 21px; }
-        .sr-line:hover { background: var(--hover-color); }
-        .sr-line-no { color: var(--text-color); opacity: 0.5; min-width: 4ch; text-align: right; user-select: none; -webkit-user-select: none; }
-        .sr-line-text { overflow: hidden; text-overflow: ellipsis; }
-        .sr-line-text mark { background: var(--search-highlight, #ffd54f66); color: inherit; border-radius: 2px; }
-        .sr-empty { padding: 20px; opacity: 0.6; }
+        .sr-hint { flex-shrink: 0; padding: 0 12px 6px; font-size: 12px; opacity: 0.6; border-bottom: 1px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sr-editor { flex: 1; min-height: 0; position: relative; }
+        .sr-folder-line { font-weight: 600; opacity: 0.75; }
+        .sr-path-line { color: var(--primary-color); font-weight: 600; }
+        .sr-editor .cm-foldGutter .cm-gutterElement { padding: 0 4px; cursor: pointer; color: var(--primary-color); }
+        .sr-fold-marker { display: inline-flex; align-items: center; height: 100%; }
+        .sr-link { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+        .sr-count { margin-left: 8px; font-weight: normal; color: var(--text-color); opacity: 0.7; }
+        .sr-line-no { opacity: 0.5; }
+        .sr-hit { background: var(--search-highlight, #ffd54f66); border-radius: 2px; }
+        /* Holding Ctrl over the text says which rows lead somewhere. */
+        .sr-ctrl .sr-row:hover { cursor: pointer; text-decoration: underline; }
         `;
         document.head.appendChild(style);
     }
 
-    _relPath(p) {
-        const root = String(State.currentDir || '').replace(/\\/g, '/').replace(/\/+$/, '');
-        const np = String(p || '').replace(/\\/g, '/');
-        if (root && np.toLowerCase().startsWith(root.toLowerCase() + '/')) return np.slice(root.length + 1);
-        return np;
-    }
-
     _highlighter() {
-        const { query, options } = this;
+        const { query, _searchOptions: options } = this;
         if (!query) return null;
         try {
             if (this.file.highlight) return new RegExp(this.file.highlight, 'gi');
@@ -148,46 +166,200 @@ export class SearchResultsView {
         } catch (_) { return null; }
     }
 
-    _renderLineText(text) {
-        const span = document.createElement('span');
-        span.className = 'sr-line-text';
+    _isKnownPath = (path) => !!this.file && this.file._srGroups.has(path);
+
+    /** The hits on one row's own text, not its number; empty matches mark nothing. */
+    _hitRanges(text) {
+        const out = [];
         const re = this._re;
-        if (!re) { span.textContent = text; return span; }
+        if (!re) return out;
         re.lastIndex = 0;
-        let last = 0, m, any = false, marks = 0;
-        // A line of a log can hit dozens of times, and each mark is two nodes:
-        // 5000 such lines came to 125,000 of them. A row shows about a hundred
-        // characters before it is cut, so the marks past the first few are never seen.
-        while (marks < MAX_MARKS_PER_LINE && (m = re.exec(text)) !== null) {
-            any = true;
-            marks += 1;
-            if (m.index > last) span.appendChild(document.createTextNode(text.slice(last, m.index)));
-            const mark = document.createElement('mark');
-            mark.textContent = m[0];
-            span.appendChild(mark);
-            last = m.index + m[0].length;
-            if (m[0].length === 0) re.lastIndex++;
+        let m;
+        while (out.length < MAX_MARKS_PER_LINE && (m = re.exec(text)) !== null) {
+            if (m[0].length === 0) { re.lastIndex++; continue; }
+            out.push([m.index, m.index + m[0].length]);
         }
-        if (last < text.length) span.appendChild(document.createTextNode(text.slice(last)));
-        if (!any) span.textContent = text;
-        return span;
+        return out;
     }
 
-    render() {
-        this.container.innerHTML = '';
+    _decorationsFor(view) {
+        const ranges = [];
+        const { doc } = view.state;
+        let lastLine = 0;
+        for (const { from, to } of view.visibleRanges) {
+            for (let pos = from; pos <= to;) {
+                const line = doc.lineAt(pos);
+                pos = line.to + 1;
+                if (line.number === lastLine) continue;
+                lastLine = line.number;
+                const prefix = rowPrefixLength(line.text);
+                if (prefix === null) {
+                    const folder = isFolderLine(line.text);
+                    if (!folder && !isPathLine(line.text, this._isKnownPath)) continue;
+                    ranges.push((folder ? FOLDER_LINE : PATH_LINE).range(line.from));
+                    ranges.push(LINK.range(line.from, line.from + line.text.trimEnd().length));
+                    const count = this.file._srCounts.get(line.text.trimEnd());
+                    if (count) {
+                        ranges.push(Decoration.widget({ widget: new HitCount(count), side: 1 }).range(line.to));
+                    }
+                    continue;
+                }
+                ranges.push(ROW_LINE.range(line.from));
+                ranges.push(ROW_NUMBER.range(line.from, line.from + prefix));
+                const start = line.from + prefix;
+                for (const [a, b] of this._hitRanges(line.text.slice(prefix))) {
+                    ranges.push(HIT.range(start + a, start + b));
+                }
+            }
+        }
+        return Decoration.set(ranges, true);
+    }
+
+    _showsLineNumbers() { return false; } // each row carries its file's line number
+
+    /** Opening and closing a file is a main way through the results: make it visible. */
+    _foldGutterConfig() {
+        return {
+            markerDOM: (open) => {
+                const marker = document.createElement('span');
+                marker.className = 'sr-fold-marker';
+                marker.title = open ? t('Collapse') : t('Expand');
+                marker.appendChild(iconEl(open ? 'caret-down' : 'caret-right', { size: 16 }));
+                return marker;
+            },
+        };
+    }
+
+    _extraExtensions() {
+        const owner = this;
+        return [
+            ViewPlugin.fromClass(class {
+                constructor(view) { this.decorations = owner._decorationsFor(view); }
+                update(update) {
+                    if (update.docChanged || update.viewportChanged) {
+                        this.decorations = owner._decorationsFor(update.view);
+                    }
+                }
+            }, { decorations: (plugin) => plugin.decorations }),
+            // A file folds away its rows, up to the blank line or the next file;
+            // a folder folds away everything under it.
+            foldService.of((state, from) => this._foldableGroup(state, from)),
+            // Ctrl+click here is the way to the file, not an extra cursor.
+            EditorView.clickAddsSelectionRange.of(() => false),
+            EditorView.domEventHandlers({
+                mousemove: (event, view) => {
+                    view.scrollDOM.classList.toggle('sr-ctrl', event.ctrlKey || event.metaKey);
+                },
+                // A path opens and closes what is under it. Ctrl+click goes to it
+                // from the editor's own handler; a drag across it is a selection.
+                click: (event, view) => {
+                    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return false;
+                    if (!event.target.closest('.sr-link') || !view.state.selection.main.empty) return false;
+                    this._toggleGroup(view.posAtDOM(event.target), view);
+                    return true;
+                },
+            }),
+            // Where each group ends has to follow what the user types. A sibling
+            // pane's copy of the same change is already counted by its source.
+            EditorView.updateListener.of((update) => {
+                if (!update.docChanged || this._appending || this._applyingRemote) return;
+                const groups = this.file._srGroups;
+                for (const [path, at] of groups) groups.set(path, update.changes.mapPos(at, 1));
+            }),
+        ];
+    }
+
+    _foldableGroup(state, from) {
+        const { doc } = state;
+        const head = doc.lineAt(from);
+        if (!isPathLine(head.text, this._isKnownPath)) return null;
+        const folder = isFolderLine(head.text);
+        let end = head;
+        for (let n = head.number + 1; n <= doc.lines; n++) {
+            const line = doc.line(n);
+            const blank = !line.text.trim();
+            if (folder) {
+                if (isPathLine(line.text, this._isKnownPath) && !isUnderFolder(line.text, head.text)) break;
+                if (blank) continue;
+            } else if (blank || isPathLine(line.text, this._isKnownPath)) break;
+            end = line;
+        }
+        return end === head ? null : { from: head.to, to: end.to };
+    }
+
+    _toggleGroup(pos, view) {
+        const { state } = view;
+        const { to: head } = state.doc.lineAt(pos);
+        let closed = null;
+        foldedRanges(state).between(head, head, (from, to) => {
+            if (from === head) closed = { from, to };
+        });
+        if (closed) {
+            view.dispatch({ effects: unfoldEffect.of(closed) });
+            return;
+        }
+        const range = this._foldableGroup(state, pos);
+        if (range) view.dispatch({ effects: foldEffect.of(range) });
+    }
+
+    _handleModClick(pos, view) {
+        const { doc } = view.state;
+        const { text, number } = doc.lineAt(pos);
+        if (isFolderLine(text)) {
+            window.app.openDirectory(text.trimEnd().replace(/[\\/]+$/, ''));
+            return;
+        }
+        const hit = locateHit((n) => doc.line(n).text, number, this._isKnownPath);
+        if (!hit) return;
+        try {
+            openHitInOtherPane();
+            // forcePlainText: grep reports line numbers, and only the plain-text
+            // editor can jump to one (structure/CSV views aren't line-addressable).
+            window.app.openFile(hit.path, false, hit.line, hit.line !== null);
+        } catch (e) { console.warn(e); }
+    }
+
+    _isDirtyAfterChange() {
+        // Results arriving are not an edit, nor is a change the other pane made.
+        if (this._appending || this._applyingRemote) return !!this.file.isDirty;
+        return super._isDirtyAfterChange();
+    }
+
+    toggleBookMode() {} // results are worked through as text
+
+    render(content, file) {
+        if (this.editorView) this.destroy();
+        if (!this.inlineAI) this.inlineAI = new InlineAI(this);
+        this.file = file;
+
+        this._outer.innerHTML = '';
         const root = document.createElement('div');
         root.className = 'search-results-view';
 
         this._headerEl = document.createElement('div');
         this._headerEl.className = 'sr-header';
-        root.appendChild(this._headerEl);
+        const hint = document.createElement('div');
+        hint.className = 'sr-hint';
+        hint.textContent = t('Editable text: the searched files do not change. Click a path to show or hide what is under it, or Ctrl+Click it or a line to go there.');
+        hint.title = hint.textContent;
+        const host = document.createElement('div');
+        host.className = 'sr-editor';
+        root.append(this._headerEl, hint, host);
+        this._outer.appendChild(root);
 
-        this._bodyEl = document.createElement('div');
-        root.appendChild(this._bodyEl);
-
-        this.container.appendChild(root);
         this._buildHeader();
         this._updateHeader();
+
+        this.container = host;
+        const toolbar = document.createElement('div');
+        toolbar.className = 'cm-view-toolbar';
+        host.appendChild(toolbar);
+        this._viewToolbar = toolbar;
+        this._renderEditor(content);
+        this._restoreFolds();
+
+        // A tab nobody has edited is clean, and undoing back to this is too.
+        if (!file.isDirty) markSaved(file);
     }
 
     /**
@@ -222,9 +394,11 @@ export class SearchResultsView {
     _updateHeader() {
         if (!this._summaryEl) return;
         const running = this.streaming && !this._done;
-        const base = `${this._total} matches in ${this._groups.size} files  —  "${this.query}"`;
-        const text = running ? `Searching…  ${base}`
-            : (this._total === 0 && !this._canceled ? `No results for "${this.query}"` : base)
+        const total = this.file._srShown;
+        const files = [...this.file._srGroups.keys()].filter((path) => !isFolderLine(path)).length;
+        const base = `${t('{files} files, {hits} hits', { files, hits: total })}  —  "${this.query}"`;
+        const text = running ? `${t('Searching…')}  ${base}`
+            : (total === 0 && !this._canceled ? t('No results for "{query}"', { query: this.query }) : base)
               + (this._truncated ? ` (${t('Stopped at the result limit. Settings can raise it.')})` : '')
               + (this._canceled ? ` (${t('canceled')})` : '');
         this._summaryEl.textContent = text;
@@ -237,146 +411,68 @@ export class SearchResultsView {
         }
     }
 
-    /** Cumulative ancestor dir paths of a dirRel, e.g. "a/b/c" → ["a","a/b","a/b/c"]. */
-    _dirChain(dirRel) {
-        if (!dirRel) return [];
-        const parts = dirRel.split('/');
-        const chain = [];
-        for (let i = 0; i < parts.length; i++) chain.push(parts.slice(0, i + 1).join('/'));
-        return chain;
-    }
-
-    /** Ensure the collapsible directory node for `dirRel` exists; return the
-        container that its files/subdirs should be appended into. */
-    _ensureDir(dirRel) {
-        if (!dirRel) return this._bodyEl; // root
-        const existing = this._dirNodes.get(dirRel);
-        if (existing) return existing.childrenEl;
-
-        const slash = dirRel.lastIndexOf('/');
-        const parentRel = slash === -1 ? '' : dirRel.slice(0, slash);
-        const name = slash === -1 ? dirRel : dirRel.slice(slash + 1);
-        const parentChildren = this._ensureDir(parentRel);
-
-        const dirDiv = document.createElement('div');
-        dirDiv.className = 'sr-dir';
-        const head = document.createElement('div');
-        head.className = 'sr-dir-head';
-        const caret = document.createElement('span');
-        caret.className = 'sr-caret';
-        caret.replaceChildren(iconEl('caret-down', { size: 12 }));
-        const nameEl = document.createElement('span');
-        nameEl.className = 'sr-dir-name';
-        nameEl.appendChild(iconEl('folder', { size: 12 }));
-        nameEl.appendChild(document.createTextNode(name));
-        nameEl.title = dirRel;
-        const countEl = document.createElement('span');
-        countEl.className = 'sr-dir-count';
-        countEl.textContent = '0';
-        head.append(caret, nameEl, countEl);
-        const childrenEl = document.createElement('div');
-        childrenEl.className = 'sr-dir-children';
-        const applyDirState = () => {
-            const collapsed = this._collapsedDirs.has(dirRel);
-            childrenEl.style.display = collapsed ? 'none' : 'block';
-            caret.replaceChildren(iconEl(collapsed ? 'caret-right' : 'caret-down', { size: 12 }));
-        };
-        head.onclick = () => {
-            if (this._collapsedDirs.has(dirRel)) this._collapsedDirs.delete(dirRel);
-            else this._collapsedDirs.add(dirRel);
-            applyDirState();
-        };
-        applyDirState();
-        dirDiv.append(head, childrenEl);
-        parentChildren.appendChild(dirDiv);
-        this._dirNodes.set(dirRel, { childrenEl, countEl, count: 0 });
-        return childrenEl;
-    }
-
-    _ensureGroup(path) {
-        let g = this._groups.get(path);
-        if (g) return g;
-
-        // Split the (relative) path into its directory chain + file name so the
-        // results can be browsed as a collapsible directory tree.
-        const rel = this._relPath(path);
-        const slash = rel.lastIndexOf('/');
-        // singleFile mode: no workspace root, so an absolute path would build a
-        // pointless deep tree — show just the basename at the root instead.
-        const dirRel = this.singleFile ? '' : (slash === -1 ? '' : rel.slice(0, slash));
-        const fileName = slash === -1 ? rel : rel.slice(slash + 1);
-        const parentChildren = this._ensureDir(dirRel);
-
-        const fileDiv = document.createElement('div');
-        fileDiv.className = 'sr-file';
-        const head = document.createElement('div');
-        head.className = 'sr-file-head';
-        const caret = document.createElement('span');
-        caret.className = 'sr-file-caret';
-        caret.replaceChildren(iconEl('caret-down', { size: 12 }));
-        const pathEl = document.createElement('span');
-        pathEl.className = 'sr-file-path';
-        pathEl.textContent = fileName;
-        pathEl.title = path;
-        const countEl = document.createElement('span');
-        countEl.className = 'sr-file-count';
-        countEl.textContent = '0';
-        head.append(caret, pathEl, countEl);
-        const linesDiv = document.createElement('div');
-        linesDiv.className = 'sr-lines';
-        const applyFileState = () => {
-            const collapsed = this._collapsedFiles.has(path);
-            linesDiv.style.display = collapsed ? 'none' : 'block';
-            caret.replaceChildren(iconEl(collapsed ? 'caret-right' : 'caret-down', { size: 12 }));
-        };
-        head.onclick = () => {
-            if (this._collapsedFiles.has(path)) this._collapsedFiles.delete(path);
-            else this._collapsedFiles.add(path);
-            applyFileState();
-        };
-        applyFileState();
-        fileDiv.append(head, linesDiv);
-        parentChildren.appendChild(fileDiv);
-        g = { linesDiv, countEl, count: 0, dirChain: this._dirChain(dirRel) };
-        this._groups.set(path, g);
-        return g;
-    }
-
-    appendMatches(matches) {
-        if (!matches || !matches.length) return;
-        for (const m of matches) {
-            const g = this._ensureGroup(m.path);
-            const lineEl = document.createElement('div');
-            lineEl.className = 'sr-line';
-            const noEl = document.createElement('span');
-            noEl.className = 'sr-line-no';
-            noEl.textContent = String(m.line);
-            lineEl.appendChild(noEl);
-            lineEl.appendChild(this._renderLineText(m.text));
-            // forcePlainText: grep reports line numbers, and only the plain-text
-            // editor can jump to one (structure/CSV views aren't line-addressable).
-            lineEl.onclick = () => {
-                try {
-                    openHitInOtherPane();
-                    window.app.openFile(m.path, false, m.line, true);
-                } catch (e) { console.warn(e); }
-            };
-            g.linesDiv.appendChild(lineEl);
-            g.count += 1;
-            g.countEl.textContent = String(g.count);
-            // Roll the count up through every ancestor directory.
-            for (const dirRel of g.dirChain) {
-                const d = this._dirNodes.get(dirRel);
-                if (d) { d.count += 1; d.countEl.textContent = String(d.count); }
+    /**
+     * Bring the text up to date with file.matches. Kept out of the undo history:
+     * Ctrl+Z takes back what the user typed, not the results.
+     */
+    appendMatches() {
+        const { file, editorView } = this;
+        const pending = file.matches.slice(file._srShown);
+        if (pending.length && editorView) {
+            for (const { path } of pending) file._srCounts.set(path, (file._srCounts.get(path) || 0) + 1);
+            const changes = editorView.state.changes(
+                planAppend(pending, file._srGroups, editorView.state.doc.length, file.root),
+            );
+            const closed = this._closedRanges();
+            this._appending = true;
+            try {
+                editorView.dispatch({ changes, annotations: Transaction.addToHistory.of(false) });
+            } finally {
+                this._appending = false;
             }
-            this._total += 1;
+            file._srShown += pending.length;
+            if (!file.isDirty) markSaved(file);
+            this._refold(closed, changes);
         }
         this._updateHeader();
+    }
+
+    _closedRanges() {
+        const out = [];
+        const { state } = this.editorView;
+        foldedRanges(state).between(0, state.doc.length, (from, to) => { out.push({ from, to }); });
+        return out;
+    }
+
+    /**
+     * What is added to a closed file or folder goes in at the edge of its fold, and
+     * would show outside it: close each again around what it holds now.
+     */
+    _refold(closed, changes) {
+        if (!closed.length) return;
+        const { state } = this.editorView;
+        const effects = this._closedRanges().map((range) => unfoldEffect.of(range));
+        for (const { from, to } of closed) {
+            const range = this._foldableGroup(state, changes.mapPos(from, -1))
+                || { from: changes.mapPos(from, 1), to: changes.mapPos(to, -1) };
+            if (range.to > range.from) effects.push(foldEffect.of(range));
+        }
+        this.editorView.dispatch({ effects });
+    }
+
+    _restoreFolds() {
+        const { file, editorView } = this;
+        if (!file._srFolds || !file._srFolds.length) return;
+        const length = editorView.state.doc.length;
+        const effects = file._srFolds.filter((r) => r.to <= length).map((r) => foldEffect.of(r));
+        if (effects.length) editorView.dispatch({ effects });
     }
 
     destroy() {
         // Streaming listeners live on the model (see Editor.openSearchResults),
         // not the view, so they survive tab switches — nothing to tear down here.
-        if (this.container) this.container.innerHTML = '';
+        if (this.editorView) this.file._srFolds = this._closedRanges();
+        super.destroy();
+        if (this._outer) this._outer.innerHTML = '';
     }
 }

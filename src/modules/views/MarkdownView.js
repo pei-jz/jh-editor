@@ -3556,6 +3556,7 @@ export class MarkdownView extends BaseView {
             options: { regex: true, caseSensitive: false, wholeWord: false },
             searchId,
             streaming: true,
+            root: State.currentDir,
         });
         invoke('start_grep', {
             dir: State.currentDir,

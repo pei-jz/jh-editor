@@ -77,7 +77,7 @@ describe('the results tab is listening before the search starts', () => {
 
     it.each([
         ['src/modules/views/MarkdownView.js', 'await window.app.openSearchResults({'],
-        ['src/modules/ui/GrepModal.js', 'await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly });'],
+        ['src/modules/ui/GrepModal.js', 'await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly, root: fileOnly ? null : folder });'],
     ])('%s awaits it before start_grep', (file, awaited) => {
         const src = read(file);
         const at = src.indexOf(awaited);

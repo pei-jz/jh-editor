@@ -153,7 +153,7 @@ that tab; the current mode is always shown in the status bar.
   the path. Pin a folder with `Ctrl+D` and the folders below it are searched too. Turned on
   in Settings, the app stays in the notification area and `Win+Shift+E` (or a key of your
   choosing) brings the search up from any app
-- **Grep** (`Ctrl+G`) from the open file's folder or the workspace root, or in the open file alone, with **glob filters** (`*.java`), opening into its own results tab
+- **Grep** (`Ctrl+G`) from the open file's folder or the workspace root, or in the open file alone, with **glob filters** (`*.java`), opening into its own results tab of editable text that shows each hit's whole line (clicking a folder or file path opens and closes it, `Ctrl+Click` on a path or line goes there, and hit counts show in total and per file)
 - **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
   exact name, then a name that starts with the query, then one that contains it, then

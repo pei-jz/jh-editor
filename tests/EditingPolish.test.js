@@ -128,8 +128,8 @@ describe('opening a grep hit while split', () => {
     });
 
     it('does it before the file is opened', () => {
-        const i = src.indexOf('lineEl.onclick');
-        const handler = src.slice(i, src.indexOf('};', i));
+        const i = src.indexOf('_handleModClick(pos, view) {');
+        const handler = src.slice(i, src.indexOf('\n    }', i));
         expect(handler.indexOf('openHitInOtherPane()'))
             .toBeLessThan(handler.indexOf('window.app.openFile'));
     });

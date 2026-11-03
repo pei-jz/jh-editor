@@ -652,18 +652,24 @@ fn grep_file(
     }
 }
 
-/// A line as a results row shows it: from the start, or, when the hit is further
-/// along than a row has room for, from just before the hit. The row is one line
-/// cut at the window's edge, so a hit past that was found and could not be seen.
+/// A line as the results show it: all of it. Only one past `max_chars` (a minified
+/// bundle, a dump on one line) is cut, keeping the hit in view, and says so with
+/// a `…`: thousands of hits on lines like that would otherwise fill the memory.
 fn shown_line(line: &str, start: usize, max_chars: usize) -> String {
-    const VISIBLE_CHARS: usize = 100;
     const LEAD_CHARS: usize = 40;
-    let before = &line[..start];
-    if before.chars().count() < VISIBLE_CHARS {
-        return line.chars().take(max_chars).collect();
+    if line.len() <= max_chars {
+        return line.to_string();
     }
-    let lead = before.char_indices().rev().nth(LEAD_CHARS - 1).map_or(0, |(at, _)| at);
-    format!("…{}", line[lead..].chars().take(max_chars).collect::<String>())
+    let before = &line[..start];
+    let (from, lead) = if before.chars().count() + LEAD_CHARS < max_chars {
+        (0, "")
+    } else {
+        (before.char_indices().rev().nth(LEAD_CHARS - 1).map_or(0, |(at, _)| at), "…")
+    };
+    let mut rest = line[from..].chars();
+    let shown: String = rest.by_ref().take(max_chars).collect();
+    let tail = if rest.next().is_some() { "…" } else { "" };
+    format!("{lead}{shown}{tail}")
 }
 
 /// How far a search has got, shared between the threads doing it.
@@ -706,7 +712,7 @@ fn grep_worker(emit: impl Fn(GrepEvent) + Send + 'static, request: GrepRequest) 
         search_id,
         my_gen,
     } = request;
-    const MAX_LINE_LEN: usize = 500;
+    const MAX_LINE_LEN: usize = 20_000;
 
     let (tx, rx) = unbounded::<GrepMatch>();
     let count = Arc::new(AtomicUsize::new(0));
@@ -944,18 +950,24 @@ mod grep_glob_tests {
     }
 
     #[test]
-    fn a_hit_past_the_end_of_a_row_is_shown_with_what_is_around_it() {
+    fn a_line_is_shown_whole_and_only_an_enormous_one_is_cut_around_its_hit() {
         assert_eq!(shown_line("short needle", 6, 500), "short needle");
-        // On screen as it is: keep the start of the line.
+        // A long line, hit far along it, comes back as it is.
+        let long = format!("{}needle{}", "あ".repeat(3000), "い".repeat(3000));
+        assert_eq!(shown_line(&long, "あ".len() * 3000, 20_000), long);
+
+        // Past the limit: keep the start of the line while the hit is in it.
         let near = format!("{}needle{}", "a".repeat(50), "b".repeat(1000));
-        assert!(shown_line(&near, 50, 500).starts_with("aaa"));
+        let cut = shown_line(&near, 50, 500);
+        assert!(cut.starts_with("aaa"));
+        assert!(cut.ends_with('…'));
 
         let far = format!("{}needle{}", "あ".repeat(1000), "い".repeat(1000));
         let shown = shown_line(&far, "あ".len() * 1000, 500);
         assert!(shown.starts_with('…'));
+        assert!(shown.ends_with('…'));
         assert_eq!(shown.chars().position(|c| c == 'n'), Some(41));
-        assert_eq!(shown.chars().count(), 501);
-        assert_eq!(shown_line(&"x".repeat(600), 0, 500).chars().count(), 500);
+        assert_eq!(shown.chars().count(), 502);
     }
 
     /// (line number, column, line) of every hit.

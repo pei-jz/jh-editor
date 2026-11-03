@@ -6,6 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const invoke = vi.hoisted(() => vi.fn(async () => null));
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 
+// CodeMirror measures its text in the next frame; jsdom lays nothing out.
+Range.prototype.getClientRects = () => [];
+Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
+
 const { SearchResultsView, describeProgress } = await import('../src/modules/views/SearchResultsView.js');
 
 const MB = 1024 * 1024;
@@ -18,6 +22,7 @@ describe('search results while the search runs', () => {
     });
     const header = () => container.querySelector('.sr-header');
     const cancel = () => container.querySelector('.sr-cancel');
+    const arrive = (v, ...matches) => { v.file.matches.push(...matches); v.appendMatches(); };
 
     beforeEach(() => {
         invoke.mockClear();
@@ -45,7 +50,7 @@ describe('search results while the search runs', () => {
     it('cancels its own search, with a button that survives new matches', () => {
         const v = view();
         const button = cancel();
-        v.appendMatches([{ path: 'C:/ws/a.txt', line: 1, text: 'needle' }]);
+        arrive(v, { path: 'C:/ws/a.txt', line: 1, text: 'needle' });
         expect(cancel()).toBe(button);
         button.click();
         expect(invoke).toHaveBeenCalledWith('cancel_grep', { searchId: 42 });
@@ -53,11 +58,11 @@ describe('search results while the search runs', () => {
 
     it('stops looking busy when done, and says if it was canceled', () => {
         const v = view();
-        v.appendMatches([{ path: 'C:/ws/a.txt', line: 1, text: 'needle' }]);
+        arrive(v, { path: 'C:/ws/a.txt', line: 1, text: 'needle' });
         v.setDone(false, true);
         expect(cancel()).toBeNull();
         expect(header().querySelector('.sr-spinner')).toBeNull();
-        expect(header().textContent).toContain('1 matches in 1 files');
+        expect(header().textContent).toContain('1 files, 1 hits');
         expect(header().textContent).toContain('canceled');
     });
 
@@ -65,15 +70,6 @@ describe('search results while the search runs', () => {
         const v = view();
         v.setDone(false, true);
         expect(header().textContent).not.toContain('No results');
-    });
-
-    it('marks the first few hits on a line and keeps all of its text', () => {
-        const v = view();
-        const text = 'sample log text '.repeat(30);
-        v._re = /sample/gi;
-        const line = v._renderLineText(text);
-        expect(line.querySelectorAll('mark').length).toBe(8);
-        expect(line.textContent).toBe(text);
     });
 
     it('rebuilds from what the tab has kept when switched back to', () => {
