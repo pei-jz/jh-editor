@@ -800,7 +800,13 @@ export function renderEditor(targetPane = null) {
 
         // Special Case: Workspace Grep results
         if (file.type === 'search-results') {
-            const view = new SearchResultsView(container, file);
+            container.classList.add('plain-mode');
+            const view = new SearchResultsView(container, file, {
+                pane,
+                updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
+                renderTabs: () => renderTabs(pane),
+                onDocChanged: mirrorToSibling,
+            });
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -1576,7 +1582,7 @@ window.app.openMarkdownResult = function (title, md) {
 
 // Open (or reuse) a tab showing workspace grep results (streaming when a
 // searchId is given — matches arrive live via grep-match/grep-done events).
-window.app.openSearchResults = function ({ query, matches, options, searchId, streaming, highlight, singleFile }) {
+window.app.openSearchResults = function ({ query, matches, options, searchId, streaming, highlight, singleFile, root }) {
     const title = String(query || '').slice(0, 30);
     // Every search opens its own tab so earlier results stay available for
     // comparison. Each needs a unique path (tabs are matched by path).
@@ -1593,6 +1599,8 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
         searchId: searchId,
         streaming: !!streaming,
         singleFile: !!singleFile,
+        // The searched folder: the results open and close by the folders under it.
+        root: root || null,
         _done: false,
         _truncated: false,
         _grepUnlisteners: [],
@@ -1615,7 +1623,7 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
     let ready = Promise.resolve();
     if (streaming && searchId != null) {
         const liveView = () => {
-            const v = getCurrentView();
+            const v = viewShowing(file);
             return (v && typeof v.appendMatches === 'function' && v.searchId === searchId) ? v : null;
         };
         const onMatch = listen('grep-match', (event) => {
@@ -1624,7 +1632,7 @@ window.app.openSearchResults = function ({ query, matches, options, searchId, st
             if (Array.isArray(p.matches) && p.matches.length) {
                 for (const m of p.matches) file.matches.push(m);
                 const v = liveView();
-                if (v) v.appendMatches(p.matches);
+                if (v) v.appendMatches();
             }
         }).then(un => file._grepUnlisteners.push(un)).catch(() => {});
         const onProgress = listen('grep-progress', (event) => {
@@ -1753,7 +1761,7 @@ export async function closeTab(index, pane = activePane()) {
     const isVirtualTab = file.type === 'compare' || file.type === 'agent';
 
     if (file.isDirty && !isVirtualTab) {
-        const displayName = file.type === 'diff'
+        const displayName = file.type === 'diff' || file.type === 'search-results'
             ? file.name
             : (file.path ? file.path.split(/[\\/]/).pop() : 'Untitled');
         // Three buttons, not two. The obvious answer to "this has unsaved
@@ -2647,6 +2655,7 @@ function renderPathCrumbs(dirWithTrailingSlash) {
 }
 
 /** Inside the workspace → the explorer. Outside it → the OS file manager. */
+window.app.openDirectory = (dir) => openDirectoryFromCrumb(dir);
 async function openDirectoryFromCrumb(dir) {
     try {
         if (await revealDirectory(dir)) {

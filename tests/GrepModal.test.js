@@ -185,20 +185,31 @@ describe('GrepModal', () => {
         localStorage.removeItem('settings_grepMaxMatches');
     });
 
-    it('shows a hit too far along a line for a row to reach', async () => {
+    it('keeps the whole line, however far along it the hit is', async () => {
         expect(clipAroundHit('short needle', 6)).toBe('short needle');
-        const far = `${'x'.repeat(2000)}needle${'y'.repeat(2000)}`;
-        const shown = clipAroundHit(far, 2000);
-        expect(shown.startsWith('…')).toBe(true);
-        expect(shown.indexOf('needle')).toBe(41);
+        const long = `${'x'.repeat(2000)}needle${'y'.repeat(2000)}`;
+        expect(clipAroundHit(long, 2000)).toBe(long);
 
-        State.openFiles = [file({ content: far })];
+        State.openFiles = [file({ content: long })];
         GrepModal.show();
         seg('Current file').click();
         input().value = 'needle';
         search();
         await flush();
-        expect(opened[0].matches[0].text).toContain('needle');
+        expect(opened[0].matches[0].text).toBe(long);
+    });
+
+    it('cuts only an enormous line, around its hit, and says so', () => {
+        const far = `${'x'.repeat(30000)}needle${'y'.repeat(30000)}`;
+        const shown = clipAroundHit(far, 30000);
+        expect(shown.startsWith('…')).toBe(true);
+        expect(shown.endsWith('…')).toBe(true);
+        expect(shown.indexOf('needle')).toBe(41);
+
+        const near = `needle${'y'.repeat(30000)}`;
+        const head = clipAroundHit(near, 0);
+        expect(head.startsWith('needle')).toBe(true);
+        expect(head.endsWith('…')).toBe(true);
     });
 
     it('keeps typing where it was after a scope is chosen', () => {

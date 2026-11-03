@@ -115,16 +115,18 @@ export function defaultSearchFolder(file) {
 }
 
 /**
- * A line as a results row shows it: from the start, or, when the hit is further
- * along than a row has room for, from just before the hit (shown_line in
+ * A line as the results show it: all of it. Only one past the limit is cut,
+ * keeping the hit in view, and says so with a `…` (shown_line in
  * commands/search.rs does the same for the backend's results).
  */
 export function clipAroundHit(line, index) {
-    const VISIBLE_CHARS = 100;
     const LEAD_CHARS = 40;
-    const MAX_CHARS = 1000;
-    if (index < VISIBLE_CHARS) return line.slice(0, MAX_CHARS);
-    return `…${line.slice(index - LEAD_CHARS, index - LEAD_CHARS + MAX_CHARS)}`;
+    const MAX_CHARS = 20000;
+    if (line.length <= MAX_CHARS) return line;
+    if (index + LEAD_CHARS < MAX_CHARS) return `${line.slice(0, MAX_CHARS)}…`;
+    const from = index - LEAD_CHARS;
+    const end = from + MAX_CHARS;
+    return `…${line.slice(from, end)}${end < line.length ? '…' : ''}`;
 }
 
 /** Grep a file's in-memory content in JS; returns grep-match-shaped rows. */
@@ -352,7 +354,7 @@ export const GrepModal = {
             // off the async search. Results stream in live; the editor stays usable.
             // ...and wait for them to be registered: a search that finishes
             // first has nobody to tell, and the tab never leaves "Searching…".
-            await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly });
+            await window.app.openSearchResults({ query: q, matches: [], options: opts, searchId, streaming: true, singleFile: fileOnly, root: fileOnly ? null : folder });
             try {
                 await invoke('start_grep', {
                     dir: fileOnly ? onDiskOnly.path : folder, term: q,

@@ -648,6 +648,31 @@ export class CodeMirrorView {
         this.render(this.editorView ? this.editorView.state.doc.toString() : (this.file?.content || ''), this.file);
     }
 
+    // The points where a view built on this editor differs (SearchResultsView).
+    _showsLineNumbers() { return true; }
+    _extraExtensions() { return []; }
+    _foldGutterConfig() { return {}; }
+
+    /** Ctrl/Cmd+click: go to the definition, or follow a link or path. */
+    _handleModClick(pos, view) {
+        this._triggerDefinition(pos);
+
+        const text = view.state.doc.toString();
+        const filePath = this.file ? this.file.path : '';
+        const token = Navigation.resolveToken(text, pos, filePath);
+        if (token) {
+            Navigation.handleNavigation(token);
+        }
+    }
+
+    /**
+     * Compared, not latched: undoing back to the saved text makes the buffer
+     * clean again.
+     */
+    _isDirtyAfterChange() {
+        return !isAtSavedState(this.file);
+    }
+
     _renderEditor(content) {
         // Restore the per-file preference before the split is built.
         if (this.file && this._htmlPreviewOn === undefined) {
@@ -718,11 +743,10 @@ export class CodeMirrorView {
         const extensions = [
             // Vim MUST be the first extension so its keymap has top precedence.
             this.vimCompartment.of(this.vimEnabled ? vim() : []),
-            lineNumbers(),
-            highlightActiveLineGutter(),
+            this._showsLineNumbers() ? [lineNumbers(), highlightActiveLineGutter()] : [],
             highlightSpecialChars(),
             history(),
-            foldGutter(),
+            foldGutter(this._foldGutterConfig()),
             drawSelection(),
             dropCursor(),
             EditorState.allowMultipleSelections.of(true),
@@ -731,7 +755,7 @@ export class CodeMirrorView {
             closeBrackets(),
             autocompletion({ override: [this._lspCompletionSource.bind(this), snippetCompletionSource()] }),
             this._lspHoverTooltip(),
-            lintGutter(),
+            this._showsLineNumbers() ? lintGutter() : [],
             this.lineWrappingCompartment.of(this.isLineWrapping ? EditorView.lineWrapping : []),
             indentUnit.of("\t"),
             this.whitespaceCompartment.of(this._whitespaceExtensions()),
@@ -747,18 +771,12 @@ export class CodeMirrorView {
                         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
                         if (pos !== null) {
                             event.preventDefault();
-                            this._triggerDefinition(pos);
-                            
-                            const text = view.state.doc.toString();
-                            const filePath = this.file ? this.file.path : '';
-                            const token = Navigation.resolveToken(text, pos, filePath);
-                            if (token) {
-                                Navigation.handleNavigation(token);
-                            }
+                            this._handleModClick(pos, view);
                         }
                     }
                 }
             }),
+            this._extraExtensions(),
             keymap.of([
                 {
                     key: "Ctrl-Alt-u",
@@ -817,9 +835,7 @@ export class CodeMirrorView {
                     const newContent = update.state.doc.toString();
                     if (this.file) {
                         this.file.content = newContent;
-                        // Compared, not latched: undoing back to the saved text
-                        // makes the buffer clean again.
-                        this.file.isDirty = !isAtSavedState(this.file);
+                        this.file.isDirty = this._isDirtyAfterChange();
                         // The other pane may be showing this same buffer. Send
                         // it the CHANGES rather than the whole text: the two
                         // documents start identical and every edit is mirrored,

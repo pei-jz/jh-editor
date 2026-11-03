@@ -1099,7 +1099,7 @@ function setupCloseListener() {
             // A buffer open in both panes is one object in two lists; the Set
             // keeps it from being listed — and saved — twice.
             const dirty = [...new Set([...(State.openFiles || []), ...(State.rightOpenFiles || [])])]
-                .filter((f) => f && f.isDirty && (!f.type || f.type === 'file' || f.type === 'diff'));
+                .filter((f) => f && f.isDirty && (!f.type || ['file', 'diff', 'search-results'].includes(f.type)));
             if (!dirty.length) return;
 
             event.preventDefault();
