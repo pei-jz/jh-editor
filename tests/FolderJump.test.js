@@ -386,6 +386,12 @@ describe('structure', () => {
         expect(page.indexOf('await open(')).toBeLessThan(page.indexOf("hold: false"));
     });
 
+    // ShortcutManager listens first and treats Win as Ctrl, so without this
+    // Win+Shift+E never reached the box: it was taken as Ctrl+Shift+E.
+    it('keeps the app\'s shortcuts away from the hotkey box', () => {
+        expect(read('index.html')).toMatch(/id="folder-jump-hotkey"[^>]*data-shortcut-keys="own"/);
+    });
+
     it('stays off until it is turned on', () => {
         expect(read('src-tauri/src/commands/folder_jump.rs')).toMatch(/enabled: false, hotkey: DEFAULT_HOTKEY/);
     });
