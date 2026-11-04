@@ -12,7 +12,7 @@ Range.prototype.getClientRects = () => [];
 Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
 
 const { SearchResultsView } = await import('../src/modules/views/SearchResultsView.js');
-const { foldersBetween, formatRow, isFolderLine, isPathLine, locateHit, planAppend } = await import('../src/modules/utils/SearchResultsText.js');
+const { foldersBetween, formatRow, hitsUnderFolder, isFolderLine, isPathLine, locateHit, planAppend, treePlace } = await import('../src/modules/utils/SearchResultsText.js');
 
 const A = 'C:\\ws\\a.txt';
 const B = 'C:\\ws\\b.txt';
@@ -168,6 +168,7 @@ describe('the results tab', () => {
     afterEach(() => {
         container.remove();
         localStorage.removeItem('jh_wordWrap');
+        localStorage.removeItem('search_results_tree');
     });
 
     it('shows a line whole, wrapped unless wrapping was turned off', () => {
@@ -340,7 +341,8 @@ describe('the results tab', () => {
             expect(counts(v)).toEqual(['2 hits']);
         });
 
-        it('gives a folder no count of its own', () => {
+        it('gives a folder no count of its own with the tree off', () => {
+            localStorage.setItem('search_results_tree', 'false');
             const v = view({ root: 'C:\\ws', matches: [hit('C:\\ws\\src\\a.js', 1)] });
             expect(counts(v)).toEqual(['1 hits']);
         });
@@ -362,6 +364,7 @@ describe('the results tab', () => {
         const tree = () => view({ root: 'C:\\ws', matches: [hit(`${F}a.js`, 1)] });
 
         it('marks the paths, not the rows', () => {
+            localStorage.setItem('search_results_tree', 'false');
             expect(links(tree()).map((el) => el.textContent)).toEqual([F, `${F}a.js`]);
         });
 
@@ -471,5 +474,101 @@ describe('the results tab', () => {
         file.matches.push(hit(A, 2));
         const again = new SearchResultsView(container, file);
         expect(closed(again)).toEqual([`\n${formatRow(1, 'needle')}\n${formatRow(2, 'needle')}`]);
+    });
+
+    describe('the tree', () => {
+        const F = 'C:\\ws\\src\\';
+        const results = () => view({
+            root: 'C:\\ws',
+            matches: [hit(`${F}a.js`, 1), hit(`${F}a.js`, 2), hit(`${F}lib\\b.js`, 3), hit('C:\\ws\\top.js', 4)],
+        });
+        const content = (v) => v.editorView.contentDOM;
+        const names = (v) => [...content(v).querySelectorAll('.sr-link')].map((el) => el.textContent);
+        const counts = (v) => [...content(v).querySelectorAll('.sr-count')].map((el) => el.textContent);
+        const lineOf = (v, name) => [...content(v).querySelectorAll('.cm-line')].find((l) => l.textContent.includes(name));
+        const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+        it('draws names and depth, with the whole paths still in the text', () => {
+            const v = results();
+            expect(names(v)).toEqual(['src', 'lib', 'b.js', 'a.js', 'top.js']);
+            expect(doc(v)).toContain(`${F}lib\\b.js`);
+            const padding = (name) => parseInt(lineOf(v, name).style.paddingLeft, 10);
+            expect(padding('src')).toBeLessThan(padding('lib'));
+            expect(padding('lib')).toBeLessThan(padding('b.js'));
+            expect(padding('top.js')).toBe(padding('src'));
+        });
+
+        it('adds up what is under a folder', () => {
+            expect(counts(results())).toEqual(['3 hits', '1 hits', '1 hits', '2 hits', '1 hits']);
+        });
+
+        it('closes and opens on a click anywhere on the row, and the marker follows', () => {
+            const v = results();
+            const row = lineOf(v, 'lib');
+            expect(row.querySelector('.sr-tree-marker').title).toBe('Collapse');
+            click(row);
+            expect(doc(v)).toContain('b.js');
+            expect(content(v).textContent).not.toContain('b.js');
+            const shut = lineOf(v, 'lib');
+            expect(shut.querySelector('.sr-tree-marker').title).toBe('Expand');
+            click(shut.querySelector('.sr-tree-marker'));
+            expect(content(v).textContent).toContain('b.js');
+        });
+
+        it('Ctrl+click still goes to the whole path', () => {
+            const openFile = vi.fn();
+            window.app = { openFile };
+            const v = results();
+            v._handleModClick(doc(v).indexOf(`${F}a.js`), v.editorView);
+            expect(openFile).toHaveBeenCalledWith(`${F}a.js`, false, null, false);
+        });
+
+        it('turns off from the header and stays off', () => {
+            const v = results();
+            const toggle = container.querySelector('.sr-tree-toggle');
+            expect(toggle.getAttribute('aria-pressed')).toBe('true');
+            toggle.click();
+            expect(names(v)).toContain(`${F}a.js`);
+            expect(content(v).querySelector('.sr-tree-marker')).toBeNull();
+            expect(container.querySelector('.sr-editor').classList.contains('sr-tree')).toBe(false);
+            expect(localStorage.getItem('search_results_tree')).toBe('false');
+        });
+
+        it('has nothing to offer for a search with no folder', () => {
+            const v = view({ matches: [hit(A, 1)] });
+            expect(container.querySelector('.sr-tree-toggle')).toBeNull();
+            expect(names(v)).toEqual([A]);
+        });
+
+        it('keeps a path typed from elsewhere whole', () => {
+            const v = results();
+            type(v, 0, 'D:\\other\\x.js\n     9: note\n\n');
+            expect(names(v)).toContain('D:\\other\\x.js');
+        });
+    });
+
+    describe('where a path sits in the tree', () => {
+        it('reads depth and name, for files and folders', () => {
+            const text = 'C:\\ws\\src\\lib\\b.js';
+            const place = treePlace(text, 'C:\\ws');
+            expect(place.depth).toBe(2);
+            expect(text.slice(place.nameFrom, place.nameTo)).toBe('b.js');
+            const folder = 'C:\\ws\\src\\lib\\';
+            const at = treePlace(folder, 'c:/WS/');
+            expect(at).toMatchObject({ depth: 1, folder: true });
+            expect(folder.slice(at.nameFrom, at.nameTo)).toBe('lib');
+        });
+
+        it('has no place for what is outside the folder, or the folder itself', () => {
+            expect(treePlace('D:\\x.js', 'C:\\ws')).toBeNull();
+            expect(treePlace('C:\\ws2\\x.js', 'C:\\ws')).toBeNull();
+            expect(treePlace('C:\\ws\\', 'C:\\ws')).toBeNull();
+            expect(treePlace('C:\\ws\\x.js', null)).toBeNull();
+        });
+
+        it('counts a folder\'s hits, not those of one with a similar name', () => {
+            const counts = new Map([['C:\\ws\\src\\a.js', 2], ['C:\\ws\\srcish\\b.js', 5], ['C:\\ws\\src\\l\\c.js', 1]]);
+            expect(hitsUnderFolder(counts, 'C:\\ws\\src\\')).toBe(3);
+        });
     });
 });

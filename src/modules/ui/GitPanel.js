@@ -12,6 +12,10 @@ import { buildFileTree, fileOrder } from '../utils/GitCompare.js';
 import { listChangedFiles } from '../utils/GitDiffFiles.js';
 import { parseMerged } from '../utils/ConflictRegions.js';
 import {
+    parseStatusPath, selectedEntries, selectRange, batchPaths, splitForRevert,
+    deletableEntries, pathListText,
+} from '../utils/GitSelection.js';
+import {
     mergeBranch, rebaseBranch, resetBranch, undoLastCommit, continueOperation,
 } from './GitBranchOps.js';
 
@@ -21,6 +25,8 @@ export { buildFileTree };
 
 /** History page size, and how much "Load more" adds each time. */
 const HISTORY_PAGE = 100;
+/** A row being dragged between CHANGES and STAGED CHANGES (never read back: see _gitDrag). */
+const GIT_DRAG_MIME = 'application/x-jheditor-git-files';
 /** The history filter's two fixed choices; anything else is a ref name. */
 const HISTORY_ALL = '--all';
 const HISTORY_CURRENT = '';
@@ -281,6 +287,8 @@ class GitPanel {
                         <div class="git-section-actions">
                             <button id="git-stage-all-btn" title="Stage All"><svg viewBox="0 0 12 12" width="10" height="10"><line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" stroke-width="2"/><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="2"/></svg></button>
                         </div>
+                        <!-- Over the header, so picking files never moves the rows being picked. -->
+                        <div class="git-selection-bar" id="git-selection-stage" hidden></div>
                     </div>
                     <div class="git-section-list" id="git-list-changes"></div>
                 </section>
@@ -294,6 +302,7 @@ class GitPanel {
                             <button id="git-unstage-all-btn" title="Unstage All"><svg viewBox="0 0 12 12" width="10" height="10"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="2"/></svg></button>
                             <button id="git-commit-modal-btn" title="${t('Commit')}" aria-label="Commit" class="git-commit-btn-icon">${svgIcon('check', { size: 13 })}</button>
                         </div>
+                        <div class="git-selection-bar" id="git-selection-unstage" hidden></div>
                     </div>
                     <div class="git-section-list" id="git-list-staged"></div>
                 </section>
@@ -335,6 +344,11 @@ class GitPanel {
         `;
 
         this.expandedNodes = new Set(); // For tree view
+        // The rows picked in each list, by path (a folder's path stands for
+        // everything under it). By path because every refresh rebuilds the rows.
+        this._gitSelection = { stage: new Set(), unstage: new Set() };
+        this._gitAnchor = { stage: null, unstage: null };
+        this._gitDrag = null;
         // Whose history: the checked-out branch, every branch, or one ref.
         this._historyRef = localStorage.getItem('git_history_ref') ?? HISTORY_CURRENT;
         this._historyCount = HISTORY_PAGE;
@@ -374,7 +388,7 @@ class GitPanel {
         // Section Toggles
         this.element.querySelectorAll('.git-section-header').forEach(header => {
             header.onclick = (e) => {
-                if (e.target.tagName === 'BUTTON') return;
+                if (e.target.tagName === 'BUTTON' || e.target.closest('.git-selection-bar')) return;
                 const section = header.parentElement;
                 section.classList.toggle('collapsed');
                 header.querySelector('.git-section-arrow')
@@ -397,6 +411,347 @@ class GitPanel {
             this._historyCount += HISTORY_PAGE;
             this._loadHistory();
         };
+
+        this._bindDropTargets();
+    }
+
+    // ── Picking several files ────────────────────────────────────────────────
+
+    /** The files a list holds, without git's status spelling. */
+    _listEntries(list) {
+        const status = this._lastStatus;
+        if (!status) return [];
+        const strip = (p) => p.replace(/[/\\]+$/, '');
+        if (list === 'unstage') return (status.staged || []).map((p) => ({ path: strip(p), status: 'S' }));
+        return [
+            ...(status.modified || []).map((p) => ({ path: strip(p), status: 'M' })),
+            ...(status.deleted || []).map((p) => ({ path: strip(p), status: 'D' })),
+            ...(status.untracked || []).map((p) => ({ path: strip(p), status: 'U' })),
+        ];
+    }
+
+    _listElement(list) {
+        return this.element.querySelector(list === 'unstage' ? '#git-list-staged' : '#git-list-changes');
+    }
+
+    /** Which list a row belongs to; null for one outside them (a conflict). */
+    _listOfRow(row) {
+        if (row.closest('#git-list-changes')) return 'stage';
+        if (row.closest('#git-list-staged')) return 'unstage';
+        return null;
+    }
+
+    _selectedFiles(list) {
+        return selectedEntries(this._gitSelection[list], this._listEntries(list));
+    }
+
+    /** Replace a list's selection. One list at a time: their actions differ. */
+    _setSelection(list, paths, anchor = null) {
+        const other = list === 'stage' ? 'unstage' : 'stage';
+        this._gitSelection[other].clear();
+        this._gitAnchor[other] = null;
+        this._gitSelection[list] = new Set(paths);
+        if (anchor !== null) this._gitAnchor[list] = anchor;
+        this._syncSelection();
+    }
+
+    clearSelection() {
+        this._gitSelection = { stage: new Set(), unstage: new Set() };
+        this._gitAnchor = { stage: null, unstage: null };
+        this._syncSelection();
+    }
+
+    /**
+     * What a click on a row does to the selection. Ctrl toggles the row and
+     * Shift takes the range from the last one clicked; either way that is all
+     * the click does, and the caller returns true's "handled". A plain click
+     * selects just the row and goes on to open it.
+     */
+    _selectFromClick(e, list, path) {
+        const selection = this._gitSelection[list];
+        if (e.ctrlKey || e.metaKey) {
+            const next = new Set(selection);
+            if (next.has(path)) next.delete(path); else next.add(path);
+            this._setSelection(list, next, path);
+            return true;
+        }
+        if (e.shiftKey) {
+            const order = [...this._listElement(list).querySelectorAll('.git-tree-item')].map((r) => r.dataset.gitPath);
+            this._setSelection(list, selectRange(order, this._gitAnchor[list] ?? path, path));
+            return true;
+        }
+        this._setSelection(list, [path], path);
+        return false;
+    }
+
+    /** The row's own buttons act on the whole selection when it is part of one. */
+    _inMultiSelection(list, path) {
+        return this._gitSelection[list].has(path) && this._selectedFiles(list).length > 1;
+    }
+
+    /** Bring the rows and the action bars in line with the selection. */
+    _syncSelection() {
+        for (const list of ['stage', 'unstage']) {
+            const selection = this._gitSelection[list];
+            const host = this._listElement(list);
+            for (const row of host ? host.querySelectorAll('.git-tree-item') : []) {
+                row.classList.toggle('is-selected', selection.has(row.dataset.gitPath));
+            }
+            this._renderSelectionBar(list);
+        }
+    }
+
+    /** With several files picked, say so and offer what can be done to them. */
+    _renderSelectionBar(list) {
+        const bar = this.element.querySelector(`#git-selection-${list}`);
+        if (!bar) return;
+        const count = this._selectedFiles(list).length;
+        bar.hidden = count < 2;
+        bar.textContent = '';
+        if (count < 2) return;
+        const label = document.createElement('span');
+        label.className = 'git-selection-count';
+        label.textContent = t('{n} selected', { n: count });
+        bar.appendChild(label);
+        const button = (text, title, onClick, className = '') => {
+            const b = document.createElement('button');
+            b.textContent = text;
+            b.title = title;
+            b.className = className;
+            b.onclick = onClick;
+            bar.appendChild(b);
+        };
+        if (list === 'stage') {
+            button(t('Stage'), t('Stage the selected files'), () => this.stageSelected());
+            button(t('Revert'), t('Throw away the changes in the selected files'), () => this.revertSelected());
+        } else {
+            button(t('Unstage'), t('Unstage the selected files'), () => this.unstageSelected());
+        }
+        button(t('Delete'), t('Move the selected files to the Recycle Bin'), () => this.deleteSelected(list));
+        button('×', t('Clear the selection'), () => this.clearSelection(), 'git-selection-clear');
+    }
+
+    /** The right-click menu of a row, for the selection it belongs to. */
+    _rowMenuItems(list, path) {
+        const n = this._selectedFiles(list).length;
+        const items = list === 'stage'
+            ? [
+                { label: t('Stage ({n})', { n }), action: () => this.stageSelected() },
+                { label: t('Revert ({n})', { n }), action: () => this.revertSelected() },
+            ]
+            : [{ label: t('Unstage ({n})', { n }), action: () => this.unstageSelected() }];
+        items.push({ label: t('Delete ({n})', { n }), action: () => this.deleteSelected(list) });
+        items.push({ type: 'separator' });
+        items.push({ label: t('Copy Path'), action: () => this._copyText(path) });
+        return items;
+    }
+
+    _showRowMenu(e, list, path) {
+        e.preventDefault();
+        if (!this._gitSelection[list].has(path)) this._setSelection(list, [path], path);
+        ContextMenu.show(e, this._rowMenuItems(list, path));
+    }
+
+    // ── Dragging between CHANGES and STAGED CHANGES ──────────────────────────
+
+    /** A row can be dragged, taking the selection with it when it is part of one. */
+    _makeRowDraggable(row, list, path) {
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => {
+            if (!this._gitSelection[list].has(path)) this._setSelection(list, [path], path);
+            const files = this._selectedFiles(list);
+            if (!files.length) {
+                e.preventDefault();
+                return;
+            }
+            // dataTransfer cannot be read during dragover, which is where a
+            // section has to say whether it takes the drop.
+            this._gitDrag = { from: list, paths: files.map((f) => f.path) };
+            e.dataTransfer.effectAllowed = 'move';
+            // Deliberately not text/plain: an editor would take the drop as text.
+            e.dataTransfer.setData(GIT_DRAG_MIME, list);
+            this._setDragImage(e, files.length);
+        });
+        row.addEventListener('dragend', () => this._endGitDrag());
+    }
+
+    /** "3 files" under the pointer: the browser's own picture shows one row only. */
+    _setDragImage(e, count) {
+        if (typeof e.dataTransfer.setDragImage !== 'function') return;
+        const badge = document.createElement('div');
+        badge.className = 'git-drag-badge';
+        badge.textContent = t('{n} files', { n: count });
+        document.body.appendChild(badge);
+        e.dataTransfer.setDragImage(badge, 10, 10);
+        // Only needed for the moment the picture is taken.
+        setTimeout(() => badge.remove(), 0);
+    }
+
+    _endGitDrag() {
+        this._gitDrag = null;
+        for (const section of this.element.querySelectorAll('.git-drop-target')) {
+            section.classList.remove('git-drop-target');
+        }
+        // A refresh that came during the drag waited for it (see _renderStatus).
+        if (this._pendingStatus) {
+            const status = this._pendingStatus;
+            this._pendingStatus = null;
+            this._renderStatus(status);
+        }
+    }
+
+    /** Each list's section takes the other list's files. Bound once: sections are not rebuilt. */
+    _bindDropTargets() {
+        const targets = [
+            ['#git-section-staged', 'stage', (paths) => this.stagePaths(paths)],
+            ['#git-section-changes', 'unstage', (paths) => this.unstagePaths(paths)],
+        ];
+        for (const [selector, from, apply] of targets) {
+            const section = this.element.querySelector(selector);
+            section.addEventListener('dragover', (e) => {
+                if (!this._gitDrag || this._gitDrag.from !== from) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                section.classList.add('git-drop-target');
+            });
+            section.addEventListener('dragleave', (e) => {
+                if (!section.contains(e.relatedTarget)) section.classList.remove('git-drop-target');
+            });
+            section.addEventListener('drop', (e) => {
+                if (!this._gitDrag || this._gitDrag.from !== from) return;
+                e.preventDefault();
+                const { paths } = this._gitDrag;
+                this._endGitDrag();
+                apply(paths);
+            });
+        }
+        // Not only on the row: a drag can outlive the row it started from.
+        document.addEventListener('dragend', () => { if (this._gitDrag) this._endGitDrag(); });
+    }
+
+    // ── Acting on several files ──────────────────────────────────────────────
+
+    /** Run one git command over many paths, as many times as the paths need. */
+    async _gitForPaths(prefix, paths) {
+        // Literally: a file really named `*.js` or `[a].txt` means itself, and
+        // must not take every file that pattern matches along with it.
+        for (const batch of batchPaths(paths)) {
+            await this._git(['--literal-pathspecs', ...prefix, '--', ...batch]);
+        }
+    }
+
+    stageSelected() {
+        return this.stagePaths(this._selectedFiles('stage').map((f) => f.path));
+    }
+
+    unstageSelected() {
+        return this.unstagePaths(this._selectedFiles('unstage').map((f) => f.path));
+    }
+
+    /** Stage these files, whatever happened to them (`-A`: a deletion too). */
+    async stagePaths(paths) {
+        if (!paths.length) return;
+        try {
+            await this._gitForPaths(['add', '-A'], paths);
+        } catch (e) {
+            showAlert(gitErrorText(e), { title: 'Git', kind: 'error' });
+        }
+        this.clearSelection();
+        await this.refresh();
+    }
+
+    /** Take these files out of the index again; a rename takes both of its names. */
+    async unstagePaths(paths) {
+        if (!paths.length) return;
+        const renamed = (this._lastStatus && this._lastStatus.renamedFrom) || {};
+        const all = paths.flatMap((p) => (renamed[p] ? [p, renamed[p]] : [p]));
+        try {
+            try {
+                await this._gitForPaths(['reset', '-q', 'HEAD'], all);
+            } catch (e) {
+                // No commit yet, so no HEAD to go back to: all that is staged is new.
+                if (!/ambiguous argument 'HEAD'|Failed to resolve 'HEAD'|unknown revision/i.test(String(e))) throw e;
+                await this._gitForPaths(['rm', '-r', '-q', '--cached'], all);
+            }
+        } catch (e) {
+            showAlert(gitErrorText(e), { title: 'Git', kind: 'error' });
+        }
+        this.clearSelection();
+        await this.refresh();
+    }
+
+    _absolute(path) {
+        return `${State.gitRoot}/${path}`.replace(/\\/g, '/');
+    }
+
+    /**
+     * Throw away the changes in the selected files. Tracked files go back to
+     * their staged or committed version; an untracked file has no earlier
+     * version, so it goes to the Recycle Bin, where it can still be fetched.
+     */
+    async revertSelected() {
+        const files = this._selectedFiles('stage');
+        if (!files.length) return;
+        const { tracked, untracked } = splitForRevert(files);
+        const lines = [t('Revert {n} files? Their uncommitted changes cannot be brought back.', { n: files.length })];
+        if (untracked.length) {
+            lines.push(t('{n} of them are untracked, with no earlier version: those go to the Recycle Bin.', { n: untracked.length }));
+        }
+        lines.push('', this._pathList(files.map((f) => f.path)));
+        const yes = await showConfirm(lines.join('\n'), { title: t('Revert Changes'), kind: 'warning', okLabel: t('Revert') });
+        if (!yes) return;
+        try {
+            if (tracked.length) await this._gitForPaths(['checkout'], tracked);
+            if (untracked.length) await this._trash(untracked);
+        } catch (e) {
+            showAlert(t('Revert failed: {error}', { error: String(e) }), { title: 'Git', kind: 'error' });
+        }
+        this.clearSelection();
+        await this.refresh();
+    }
+
+    /**
+     * Delete the selected files: off the disk, to the Recycle Bin. From the
+     * staged list the file leaves the index too, so what is staged is the
+     * deletion rather than a version that no longer exists anywhere else.
+     */
+    async deleteSelected(list) {
+        const files = deletableEntries(this._selectedFiles(list));
+        if (!files.length) {
+            if (window.showToast) window.showToast(t('Nothing to delete: these files are already gone.'));
+            return;
+        }
+        const paths = files.map((f) => f.path);
+        const lines = [t('Move {n} files to the Recycle Bin?', { n: paths.length })];
+        if (list === 'unstage') lines.push(t('They are also removed from the staged changes.'));
+        lines.push('', this._pathList(paths));
+        const yes = await showConfirm(lines.join('\n'), { title: t('Delete Files'), kind: 'warning', okLabel: t('Delete') });
+        if (!yes) return;
+        try {
+            // A staged file may be gone from the disk already, and the shell
+            // fails the whole list over one missing entry.
+            const onDisk = await Promise.all(paths.map((p) => invoke('exists', { path: this._absolute(p) })));
+            await this._trash(paths.filter((_, i) => onDisk[i]));
+            if (list === 'unstage') await this._gitForPaths(['rm', '-r', '-q', '--cached', '--ignore-unmatch'], paths);
+        } catch (e) {
+            showAlert(t('Delete failed: {error}', { error: String(e) }), { title: t('Delete'), kind: 'error' });
+        }
+        this.clearSelection();
+        await this.refresh();
+    }
+
+    /** To the Recycle Bin, as the Files tab does — their open tabs go first. */
+    async _trash(paths) {
+        if (!paths.length) return;
+        const full = paths.map((p) => this._absolute(p));
+        if (window.Editor?.closeFileByPath) {
+            for (const p of full) await window.Editor.closeFileByPath(p);
+        }
+        await invoke('trash_paths', { paths: full });
+    }
+
+    _pathList(paths) {
+        return pathListText(paths, 12, (n) => t('… and {n} more', { n }));
     }
 
     /**
@@ -658,10 +1013,43 @@ class GitPanel {
         if (prompt) prompt.style.display = 'none';
     }
 
-    _renderStatus(status) {
+    /**
+     * The status with git's spelling of paths taken out: unquoted, and a rename
+     * under its new name with the old one remembered.
+     */
+    _normalizeStatus(status) {
+        const renamedFrom = {};
+        const clean = (raw) => {
+            const { path, from } = parseStatusPath(raw);
+            if (from) renamedFrom[path] = from;
+            return path;
+        };
+        const out = { ...status };
+        for (const key of ['staged', 'modified', 'deleted', 'untracked']) {
+            if (Array.isArray(status[key])) out[key] = status[key].map(clean);
+        }
+        out.renamedFrom = renamedFrom;
+        return out;
+    }
+
+    _renderStatus(raw) {
+        // Rebuilding the rows under a drag would take away the row it started
+        // from, and the drag's end with it. It catches up when the drag is over.
+        if (this._gitDrag) {
+            this._pendingStatus = raw;
+            return;
+        }
+        const status = this._normalizeStatus(raw);
         this._lastStatus = status;
         this._loadBranches(status.branch);
-        
+        // Files that have left a list since do not stay selected, unseen.
+        for (const list of ['stage', 'unstage']) {
+            const entries = this._listEntries(list);
+            for (const p of [...this._gitSelection[list]]) {
+                if (!entries.some((e) => e.path === p || e.path.startsWith(`${p}/`))) this._gitSelection[list].delete(p);
+            }
+        }
+
         const changesList = this.element.querySelector('#git-list-changes');
         const stagedList = this.element.querySelector('#git-list-staged');
         
@@ -676,6 +1064,7 @@ class GitPanel {
 
         this._renderFileList(changesList, changes, 'stage');
         this._renderFileList(stagedList, status.staged.map(f => ({ path: f, status: 'S' })), 'unstage');
+        this._syncSelection();
         this._renderConflicts(this._conflicts());
         this._renderOperationBanner(status.operation || null, this._conflicts().length);
     }
@@ -1171,6 +1560,44 @@ class GitPanel {
             const path = row.dataset.gitPath || '';
             const isFolder = row.dataset.gitKind === 'folder';
             const isOpen = row.dataset.gitOpen === 'true';
+            const list = this._listOfRow(row);
+
+            if (list) {
+                const inList = () => [...this._listElement(list).querySelectorAll('.git-tree-item')];
+                // Shift+Up / Shift+Down: stretch the selection from where it began.
+                if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
+                    && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                    e.preventDefault();
+                    const all = inList();
+                    const next = all[all.indexOf(row) + (e.key === 'ArrowDown' ? 1 : -1)];
+                    if (!next) return;
+                    if (this._gitAnchor[list] === null || !this._gitSelection[list].size) this._gitAnchor[list] = path;
+                    const order = all.map((r) => r.dataset.gitPath);
+                    this._setSelection(list, selectRange(order, this._gitAnchor[list], next.dataset.gitPath));
+                    focusRow(next);
+                    return;
+                }
+                // Ctrl+A: the whole list, as anywhere else things are selected.
+                if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this._setSelection(list, inList().map((r) => r.dataset.gitPath));
+                    return;
+                }
+                if (e.key === 'Delete') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!this._gitSelection[list].has(path)) this._setSelection(list, [path], path);
+                    this.deleteSelected(list);
+                    return;
+                }
+                if (e.key === 'Escape' && this._gitSelection[list].size) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.clearSelection();
+                    return;
+                }
+            }
 
             // Ctrl+Up / Ctrl+Down: the previous / next changed file's diff,
             // as inside the diff itself — folders left closed included.
@@ -1352,8 +1779,12 @@ class GitPanel {
                         ${folderActionHtml}
                     </div>
                 `;
+                if (this._gitSelection[actionType].has(fullPath)) div.classList.add('is-selected');
+                this._makeRowDraggable(div, actionType, fullPath);
+                div.oncontextmenu = (e) => this._showRowMenu(e, actionType, fullPath);
                 div.onclick = (e) => {
                     if (e.target.closest('.git-folder-action')) return;
+                    if (this._selectFromClick(e, actionType, fullPath)) return;
                     if (this.expandedNodes.has(fullPath)) this.expandedNodes.delete(fullPath);
                     else this.expandedNodes.add(fullPath);
                     // Keeps the keyboard on the folder just clicked, so mouse
@@ -1366,7 +1797,10 @@ class GitPanel {
                 if (folderActionBtn) {
                     folderActionBtn.onclick = (e) => {
                         e.stopPropagation();
-                        if (actionType === 'stage') {
+                        if (this._inMultiSelection(actionType, fullPath)) {
+                            if (actionType === 'stage') this.stageSelected();
+                            else this.unstageSelected();
+                        } else if (actionType === 'stage') {
                             this.stageFile(fullPath + '/');
                         } else {
                             this.unstageFile(fullPath + '/');
@@ -1411,12 +1845,22 @@ class GitPanel {
                         </div>
                     `;
                     
-                    div.onclick = () => this.showDiff(file.path, actionType === 'unstage');
-                    
+                    if (this._gitSelection[actionType].has(file.path)) div.classList.add('is-selected');
+                    this._makeRowDraggable(div, actionType, file.path);
+                    div.oncontextmenu = (e) => this._showRowMenu(e, actionType, file.path);
+                    div.onclick = (e) => {
+                        if (this._selectFromClick(e, actionType, file.path)) return;
+                        this.showDiff(file.path, actionType === 'unstage');
+                    };
+
                     const discardBtn = div.querySelector('.git-discard-btn');
                     if (discardBtn) {
                         discardBtn.onclick = async (e) => {
                             e.stopPropagation();
+                            if (this._inMultiSelection('stage', file.path)) {
+                                this.revertSelected();
+                                return;
+                            }
                             const confirmMsg = file.status === 'U' 
                                 ? `Are you sure you want to delete "${filename}"? This action cannot be undone.` 
                                 : `Are you sure you want to discard changes in "${filename}"? This will revert the file to the last committed state.`;
@@ -1452,7 +1896,8 @@ class GitPanel {
                     if (stageBtn) {
                         stageBtn.onclick = (e) => {
                             e.stopPropagation();
-                            this.stageFile(file.path);
+                            if (this._inMultiSelection('stage', file.path)) this.stageSelected();
+                            else this.stageFile(file.path);
                         };
                     }
 
@@ -1460,7 +1905,8 @@ class GitPanel {
                     if (unstageBtn) {
                         unstageBtn.onclick = (e) => {
                             e.stopPropagation();
-                            this.unstageFile(file.path);
+                            if (this._inMultiSelection('unstage', file.path)) this.unstageSelected();
+                            else this.unstageFile(file.path);
                         };
                     }
 
@@ -2471,9 +2917,19 @@ class GitPanel {
         }
     }
 
+    /** A file at a revision ('' = the index), as text; absent means empty. */
+    async _readRevision(root, revision, file) {
+        try {
+            return await invoke('git_show', { path: root, revision, file });
+        } catch (_) {
+            return '';
+        }
+    }
+
     async showDiff(filePath, isStaged, { replaces = null, focus = false } = {}) {
         if (!State.gitRoot || !window.app?.openMergeTab) return;
-        
+        const root = State.gitRoot;
+
         try {
             // Original: Fetch from HEAD
             let original = '';
@@ -2547,12 +3003,19 @@ class GitPanel {
                 title: `Diff: ${name}`,
                 path: filePath,
                 nav,
-                left: { label: `${filePath} (HEAD)`, text: original },
+                left: {
+                    label: `${filePath} (HEAD)`,
+                    text: original,
+                    reload: () => this._readRevision(root, 'HEAD', filePath),
+                },
                 right: {
                     label: `${filePath} (${isStaged ? 'Index' : 'Working Tree'})`,
                     text: modified,
                     writable: !!rightTarget,
                     target: rightTarget,
+                    // The index moves as files are staged; the working tree's
+                    // target already says how to read it (Editor.js).
+                    reload: isStaged ? () => this._readRevision(root, '', filePath) : undefined,
                 },
             });
             // Opened from the keyboard inside a diff: stay in the diff, so the

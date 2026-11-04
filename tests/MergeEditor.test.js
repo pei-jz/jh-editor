@@ -204,6 +204,167 @@ describe('MergeEditor', () => {
     });
 });
 
+describe('MergeEditor compare again', () => {
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const left = () => editor.mergeView.a.state.doc.toString();
+    const right = () => editor.mergeView.b.state.doc.toString();
+
+    it('picks up what a side reads now and lines the changes up with it', async () => {
+        let onDisk = 'one\ntwo\n';
+        open({ label: 'HEAD', text: 'one\ntwo\n' }, { label: 'disk', text: 'one\ntwo\n', reload: async () => onDisk });
+        await flush();
+        expect(editor.mergeView.chunks).toHaveLength(0);
+        onDisk = 'one\nTWO\nthree\n';
+        expect(await editor.recompare()).toEqual(['right']);
+        expect(right()).toBe('one\nTWO\nthree\n');
+        expect(editor.mergeView.chunks).toHaveLength(1);
+    });
+
+    it('never replaces unsaved edits, and reads the side as clean otherwise', async () => {
+        const reload = vi.fn(async () => 'a\n');
+        open({ label: 'L', text: 'a\n' }, {
+            label: 'R', text: 'a\n', writable: true, target: { kind: 'custom', save: async () => {} }, reload,
+        });
+        await flush();
+        reload.mockClear();
+        reload.mockResolvedValue('from elsewhere\n');
+        editor.mergeView.b.dispatch({ changes: { from: 0, insert: 'typed ' } });
+        expect(await editor.recompare()).toEqual([]);
+        expect(reload).not.toHaveBeenCalled();
+        expect(right()).toBe('typed a\n');
+        expect(editor.merge.right.savedText).toBe('a\n');
+    });
+
+    it('a side replaced from its source is not unsaved', async () => {
+        open({ label: 'L', text: 'a\n' }, {
+                label: 'R', text: 'a\n', writable: true, target: { kind: 'custom', save: async () => {} },
+                reload: async () => 'b\n',
+            });
+        await editor.recompare();
+        expect(right()).toBe('b\n');
+        expect(editor.merge.right.savedText).toBe('b\n');
+        expect(editor.file.isDirty).toBeFalsy();
+    });
+
+    it('undo does not bring back the version from before the reload', async () => {
+        let text = 'a\n';
+        open({ label: 'L', text: 'a\n' }, {
+                label: 'R', text: 'a\n', writable: true, target: { kind: 'custom', save: async () => {} },
+                reload: async () => text,
+            });
+        await flush();
+        text = 'b\n';
+        await editor.recompare();
+        editor.undo();
+        expect(right()).toBe('b\n');
+    });
+
+    it('keeps the texts when a read fails or says nothing', async () => {
+        open({ label: 'L', text: 'a\n', reload: async () => { throw new Error('gone'); } }, { label: 'R', text: 'b\n', reload: async () => null });
+        expect(await editor.recompare()).toEqual([]);
+        expect(left()).toBe('a\n');
+        expect(right()).toBe('b\n');
+    });
+
+    it('still recomputes with nothing to reload (scratch text)', async () => {
+        open({ label: 'L', text: 'a\n' }, { label: 'R', text: 'b\n' });
+        expect(await editor.recompare()).toEqual([]);
+        expect(editor.mergeView.chunks).toHaveLength(1);
+    });
+
+    it('is on Alt+R', () => {
+        expect(mergeKeyAction({ key: 'r', altKey: true, shiftKey: false, ctrlKey: false, metaKey: false })).toBe('recompare');
+    });
+
+    it('re-reads when the window comes back, and drops an answer for a closed tab', async () => {
+        const reload = vi.fn(async () => 'x\n');
+        open({ label: 'L', text: 'x\n' }, { label: 'R', text: 'x\n', reload });
+        await flush();
+        reload.mockClear();
+        window.dispatchEvent(new Event('focus'));
+        expect(reload).toHaveBeenCalledTimes(1);
+        editor.destroy();
+        reload.mockClear();
+        window.dispatchEvent(new Event('focus'));
+        expect(reload).not.toHaveBeenCalled();
+    });
+});
+
+describe('MergeEditor toolbar', () => {
+    const menu = () => host.querySelector('.diff-view-menu');
+
+    it('keeps the settings in a menu that stays open while they are flipped', () => {
+        open(readOnly('a\n'), writable('b\n'));
+        expect(menu().hidden).toBe(true);
+        host.querySelector('.diff-view-btn').click();
+        expect(menu().hidden).toBe(false);
+        menu().querySelector('.diff-ws-view-btn').click();
+        expect(editor.showWhitespace).toBe(true);
+        expect(menu().hidden).toBe(false);
+    });
+
+    it('closes on a press outside, and on Esc', () => {
+        open(readOnly('a\n'), writable('b\n'));
+        editor.openViewMenu();
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        expect(menu().hidden).toBe(true);
+        editor.openViewMenu();
+        menu().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(menu().hidden).toBe(true);
+    });
+
+    it('says on the closed menu when a setting is changing what is shown', () => {
+        open(readOnly('a\n'), writable('b\n'));
+        const btn = host.querySelector('.diff-view-btn');
+        expect(btn.classList.contains('has-active')).toBe(false);
+        editor.toggleIgnoreWhitespace();
+        expect(btn.classList.contains('has-active')).toBe(true);
+        editor.toggleIgnoreWhitespace();
+        editor.toggleViewMode();
+        expect(btn.classList.contains('has-active')).toBe(true);
+    });
+
+    it('leaves no listener behind when closed with the menu open', () => {
+        open(readOnly('a\n'), writable('b\n'));
+        editor.openViewMenu();
+        editor.destroy();
+        expect(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))).not.toThrow();
+        editor = null;
+    });
+});
+
+describe('MergeEditor divider', () => {
+    const copySide = { writable: true, target: { kind: 'custom', save: async () => {} } };
+
+    it('a press on a band beside its buttons changes neither side', () => {
+        open({ label: 'L', text: 'a\n', ...copySide }, { label: 'R', text: 'b\n', ...copySide });
+        const column = editor.mergeView.dom.querySelector('.cm-merge-revert');
+        editor.mergeView.measure();
+        const band = column.querySelector('.merge-copy-control');
+        expect(band).not.toBeNull();
+        band.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+        document.dispatchEvent(new MouseEvent('mouseup'));
+        expect(editor.mergeView.a.state.doc.toString()).toBe('a\n');
+        expect(editor.mergeView.b.state.doc.toString()).toBe('b\n');
+    });
+
+    it('with nothing to copy, the divider is a strip of its own', () => {
+        open({ label: 'L', text: 'a\n' }, { label: 'R', text: 'b\n' });
+        expect(editor.mergeView.dom.querySelector('.merge-split-strip')).not.toBeNull();
+        expect(host.querySelector('.merge-header-gap')).not.toBeNull();
+    });
+
+    it('double-click goes back to an even split, and that is what is kept', () => {
+        open({ label: 'L', text: 'a\n' }, { label: 'R', text: 'b\n' });
+        host.style.setProperty('--merge-split', '0.8');
+        editor.split = 0.8;
+        host.querySelector('.merge-header-gap').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        expect(editor.split).toBe(0.5);
+        expect(host.style.getPropertyValue('--merge-split')).toBe('0.5');
+        expect(localStorage.getItem('diff_split')).toBe('0.5');
+    });
+});
+
 describe('MergeEditor word-level navigation', () => {
     it('steps through the changed words on both sides, and wraps', async () => {
         open(readOnly('a b c\n'), writable('A b C\n'));
@@ -448,7 +609,7 @@ describe('MergeEditor with whitespace ignored', () => {
         const { file } = open(readOnly('a\n  b\nc\nd\n'), writable('a\nb\nc\nD\n'));
         await tick();
         expect(editor.mergeView.chunks.map((c) => c.kind)).toEqual(['ws', 'both']);
-        expect(host.querySelector('.diff-sum-blocks').textContent).toContain('1');
+        expect(editor.navLabel.textContent).toContain('1');
         editor.navigate(1);
         await tick();
         // Landed on "D", not on the indentation-only line.

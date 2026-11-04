@@ -16,17 +16,20 @@
  *   target    where saving writes it (resolved by Editor.js)
  *   live      scratch text with no target: every edit is kept at once, so it
  *             is never "unsaved"
+ *   reload    optional async () => string|null: what the side's source holds
+ *             now (null when it cannot say), for comparing again
  *
  * The text lives on the tab's file object, not in the view, so switching tabs
  * or redrawing the view loses nothing and a background tab can still be saved.
  */
 
 /** Build a side. A side with nowhere to write cannot be writable. */
-export function makeSide({ label = '', text = '', writable = false, target = null, live = false, onLive = null } = {}) {
+export function makeSide({ label = '', text = '', writable = false, target = null, live = false, onLive = null, reload = null } = {}) {
     // The panes hold LF, as every editor buffer does. A CRLF copy would never
     // match the pane's text again, so the side could never be clean.
     const value = String(text ?? '').replace(/\r\n?/g, '\n');
     return {
+        reload: typeof reload === 'function' ? reload : null,
         label: String(label),
         text: value,
         savedText: value,
@@ -45,6 +48,17 @@ export function sideDirty(side) {
 /** Either side holds unsaved edits. */
 export function mergeDirty(merge) {
     return !!merge && (sideDirty(merge.left) || sideDirty(merge.right));
+}
+
+/**
+ * The share of the width the left pane gets, kept where both panes stay usable.
+ * `value` may be anything a saved preference holds; junk means an even split.
+ */
+export function clampSplit(value, width = 0, minPane = 120) {
+    const ratio = Number.parseFloat(value);
+    if (!Number.isFinite(ratio)) return 0.5;
+    const floor = width > 0 ? Math.min(0.5, minPane / width) : 0.1;
+    return Math.min(1 - floor, Math.max(floor, ratio));
 }
 
 /** Copying a change toward `toward` ('left' | 'right') is allowed. */

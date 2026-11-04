@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import {
     makeSide, sideDirty, mergeDirty, canCopyToward, blockCopyEdit, applyBlockCopy,
-    blockCombineEdit,
+    blockCombineEdit, clampSplit,
 } from '../src/modules/utils/MergeSides.js';
+
+describe('clampSplit', () => {
+    it('falls back to even on anything that is not a number', () => {
+        expect(clampSplit(null)).toBe(0.5);
+        expect(clampSplit('junk')).toBe(0.5);
+    });
+
+    it('keeps both panes wide enough to use', () => {
+        expect(clampSplit(0, 1000)).toBe(0.12);
+        expect(clampSplit(1, 1000)).toBe(0.88);
+        expect(clampSplit('0.3', 1000)).toBe(0.3);
+    });
+
+    it('on a very narrow view, both get half rather than crossing over', () => {
+        expect(clampSplit(0.1, 100)).toBe(0.5);
+    });
+});
 
 describe('MergeSides: sides', () => {
     it('a side with nowhere to write is read-only, whatever it asks for', () => {

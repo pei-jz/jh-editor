@@ -66,6 +66,161 @@
     white-space: nowrap;
 }
 
+/* The comparison's bar (MergeEditor._buildToolbar). The title gives way first,
+   and the groups then wrap onto a second row rather than hiding behind a
+   sideways scrollbar, so Save is always on screen. */
+.diff-toolbar.is-compact {
+    padding: 5px 10px;
+    gap: 10px;
+    overflow: visible;
+}
+
+.diff-toolbar.is-compact .diff-toolbar-title {
+    flex: 1 1 40px;
+    overflow: hidden;
+}
+
+.diff-toolbar.is-compact .diff-toolbar-title strong {
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.diff-toolbar.is-compact .diff-toolbar-actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 10px;
+}
+
+.diff-toolbar.is-compact .diff-nav .diff-btn {
+    padding: 4px 6px;
+}
+
+.diff-toolbar.is-compact .diff-nav-label {
+    margin: 0 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.diff-toolbar.is-compact .diff-nav-label:empty {
+    display: none;
+}
+
+.diff-toolbar.is-compact .diff-summary {
+    gap: 4px;
+    font-size: 11px;
+}
+
+.diff-toolbar.is-compact .diff-sum-kind {
+    padding: 0 6px;
+}
+
+/* What can be done, set apart by a rule from where you are. */
+.diff-tools {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 10px;
+    border-left: 1px solid var(--border-color);
+}
+
+.diff-toolbar.is-compact .diff-tools .diff-btn {
+    padding: 4px 8px;
+    border-color: var(--border-color);
+}
+
+.diff-seg {
+    display: inline-flex;
+}
+
+.diff-toolbar.is-compact .diff-seg .diff-btn {
+    padding: 4px 7px;
+}
+
+.diff-toolbar.is-compact .diff-seg .diff-btn:first-child {
+    border-radius: 4px 0 0 4px;
+    border-right-width: 0;
+}
+
+.diff-toolbar.is-compact .diff-seg .diff-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+/* One arrow left (the other side is read-only) is a whole button. */
+.diff-toolbar.is-compact .diff-seg .diff-btn[hidden] + .diff-btn,
+.diff-toolbar.is-compact .diff-seg .diff-btn:has(+ .diff-btn[hidden]) {
+    border-radius: 4px;
+    border-right-width: 1px;
+}
+
+.diff-toolbar.is-compact .diff-seg:not(:has(.diff-btn:not([hidden]))) {
+    display: none;
+}
+
+.diff-view-btn::after {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid currentColor;
+    opacity: 0.7;
+}
+
+/* A setting in the closed menu is changing what is on screen: say so. */
+.diff-toolbar.is-compact .diff-tools .diff-view-btn.has-active {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.diff-view-menu {
+    position: fixed;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 230px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+
+.diff-view-menu[hidden] {
+    display: none;
+}
+
+.diff-toolbar.is-compact .diff-tools .diff-view-menu .diff-menu-item {
+    width: 100%;
+    height: 26px;
+    justify-content: flex-start;
+    padding: 4px 8px 4px 24px;
+    position: relative;
+    font-weight: 500;
+    color: var(--text-color);
+    border-color: transparent;
+}
+
+.diff-menu-label {
+    flex: 1 1 auto;
+    text-align: left;
+}
+
+/* A check in the margin says it is on. */
+.diff-view-menu .diff-menu-item.active::before {
+    content: '✓';
+    position: absolute;
+    left: 8px;
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.diff-menu-sep {
+    margin: 3px 4px;
+    border-top: 1px solid var(--border-color);
+}
+
 /* Primary Button */
 .diff-primary-btn {
     display: flex;
@@ -125,10 +280,10 @@
 /* Whitespace toggles: flat "pressed" state so the persisted choice is obvious
    at a glance. */
 .diff-btn.diff-ws-btn.active,
-.diff-btn.diff-ws-view-btn.active {
-    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+.diff-btn.diff-ws-view-btn.active,
+.diff-btn.diff-details-btn.active {
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     color: var(--primary-color);
-    border-color: var(--primary-color);
 }
 
 /* Shortcut hint chip inside a toolbar button. */
@@ -197,9 +352,53 @@
     border-right: 1px solid var(--border-color);
 }
 
+/* The left pane and its header take the same share of what the gap leaves
+   (MergeEditor._startSplitDrag); the right ones fill the rest. Widths rather
+   than flex-grow: the header's padding would throw a grown share off. */
+.merge-headers:not(.conflict-headers) .merge-header-left,
+.merge-body .cm-mergeViewEditors > .cm-mergeViewEditor:first-child {
+    box-sizing: border-box;
+    flex: 0 0 calc((100% - var(--merge-gap-width)) * var(--merge-split, 0.5));
+}
+
+/* No copy controls: all that is left between the panes is the divider itself. */
+.merge-no-controls {
+    --merge-gap-width: 7px;
+}
+
+.merge-split-strip {
+    flex: 0 0 var(--merge-gap-width);
+    background: var(--bg-color-secondary);
+    border-left: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
 .merge-header-gap {
     flex: 0 0 var(--merge-gap-width);
     border-right: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+/* Everything between the panes takes hold of the divider. */
+.merge-header-gap,
+.merge-split-strip,
+.merge-editor .cm-merge-revert,
+.merge-editor .cm-merge-revert .merge-copy-control {
+    cursor: col-resize;
+}
+
+.merge-header-gap:hover,
+.merge-split-strip:hover,
+.merge-split-dragging .merge-header-gap,
+.merge-split-dragging .merge-split-strip {
+    background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+/* A drag across the panes must not select their text on the way. */
+.merge-split-dragging,
+.merge-split-dragging * {
+    user-select: none;
+    cursor: col-resize !important;
 }
 
 .merge-header-label {

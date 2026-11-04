@@ -443,12 +443,16 @@ export class GitCompareView {
             left.target = right.target = null;
         }
 
+        // A revision never changes; the working tree does, behind this tab's back.
+        const reread = (side, sidePath, read) => (side.rev === '' && !read.binary
+            ? async () => (await this._readSide(side, sidePath, entry)).text
+            : null);
         this.file.merge = {
             title: entry.path,
             path: entry.path,
             nav: this._nav(),
-            left: makeSide(left),
-            right: makeSide(right),
+            left: makeSide({ ...left, reload: reread(this.gc.from, entry.old_path || entry.path, left) }),
+            right: makeSide({ ...right, reload: reread(this.gc.to, entry.path, right) }),
         };
         this.file.isDirty = false;
         this._mountEditor();

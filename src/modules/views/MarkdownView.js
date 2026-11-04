@@ -742,7 +742,23 @@ export class MarkdownView extends BaseView {
                     // modal would have opened on (and saved back) the old text.
                     this.enterEditMode(div, this.blocksData[index], index);
                 };
-                tools.append(copyBtn, icon);
+                tools.appendChild(copyBtn);
+                // A table has two things worth copying, and they go to different
+                // places: its source to another Markdown file, the table itself
+                // to a spreadsheet. Two buttons, so neither takes a menu to reach.
+                if (TableEditor.isTable(blockText)) {
+                    copyBtn.title = t('Copy as Markdown source');
+                    const tableBtn = document.createElement('div');
+                    tableBtn.className = 'md-block-tool md-copy-table-icon';
+                    tableBtn.title = t('Copy as a table: tab-separated, and pastes into Excel with formatting');
+                    tableBtn.replaceChildren(iconEl('copy-table', { size: 12 }));
+                    tableBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        this._copyBlockAsTable(index, tableBtn);
+                    };
+                    tools.appendChild(tableBtn);
+                }
+                tools.appendChild(icon);
                 div.appendChild(tools);
                 this.tableEdit.attach(div, index);
                 // No double-click to edit: a double-click selects the word, as
@@ -2361,8 +2377,29 @@ export class MarkdownView extends BaseView {
             Toast.show(t('Could not copy to the clipboard.'), 'error');
             return;
         }
-        // Answered where the click was, not in the corner of the screen. A toast
-        // for something this small is a notification about a non-event.
+        this._showCopied(button, 'copy');
+    }
+
+    /**
+     * Copy a table block as a table, the same way the table editor's own copy
+     * button does. Read from blocksData, not the render's text: a cell edited in
+     * place changes the block without drawing it again.
+     */
+    async _copyBlockAsTable(index, button) {
+        const source = String(this.blocksData[index] || '');
+        const ok = source ? await TableEditor.copyToClipboard(TableEditor.parse(source)) : false;
+        if (!ok) {
+            Toast.show(t('Could not copy to the clipboard.'), 'error');
+            return;
+        }
+        this._showCopied(button, 'copy-table');
+    }
+
+    /**
+     * Answered where the click was, not in the corner of the screen. A toast for
+     * something this small is a notification about a non-event.
+     */
+    _showCopied(button, restingIcon) {
         if (!button || !button.isConnected) return;
         button.classList.add('copied');
         button.replaceChildren(iconEl('check', { size: 12 }));
@@ -2370,7 +2407,7 @@ export class MarkdownView extends BaseView {
         button._revert = setTimeout(() => {
             if (!button.isConnected) return;
             button.classList.remove('copied');
-            button.replaceChildren(iconEl('copy', { size: 12 }));
+            button.replaceChildren(iconEl(restingIcon, { size: 12 }));
         }, 1200);
     }
 

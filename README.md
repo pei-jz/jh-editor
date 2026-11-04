@@ -114,7 +114,7 @@ that tab; the current mode is always shown in the status bar.
 | **Markdown (block)** | Notion-style block editing. `F2` or the block's pencil opens a large split modal — source on the left, live preview on the right |
 | **Structure** | Tree + source dual pane for JSON / XML / HTML / JSP, with drag-and-drop node manipulation |
 | **Table (CSV/TSV)** | Spreadsheet-style grid: double-click or `F2` edits a cell; virtual scrolling, row/column select, resize, sort, transpose, Excel-style insert/delete keys |
-| **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
+| **Diff** | Side-by-side merge where either side can be edited: line-first diff (patience) with word-level highlights, changes marked as left-only / right-only / conflict, ← / → per change and *keep both* (either order) for conflicts (`Alt+M`), paired lines lined up inside a change, sync points to line up two lines by hand (`Alt+S`), Recompare to read both sides again and line them up anew (`Alt+R`, also on returning to the tab or window; unsaved edits stay), a draggable divider to give one side more room (double-click evens it out), a line-details pane showing the cursor line and its counterpart wrapped one above the other (`Alt+D`), one horizontal scrollbar moving both panes, whitespace-ignore toggle, and a change minimap |
 | **3-way merge** | For a Git conflict: base, ours and theirs lined up row for row with the result. One click takes a side (or both); *Save and mark resolved* moves on to the next conflicted file |
 | **Book** | Page-turning reading view (`Ctrl+Alt+B`) for long documents, with syntax highlighting intact |
 | **Deck** | A [jh-presentation](https://github.com/pei-jz/jh-presentation) deck shown as slides. Double-click a box to fix its text in place; only that text changes in the source |
@@ -153,7 +153,7 @@ that tab; the current mode is always shown in the status bar.
   the path. Pin a folder with `Ctrl+D` and the folders below it are searched too. Turned on
   in Settings, the app stays in the notification area and `Win+Shift+E` (or a key of your
   choosing) brings the search up from any app
-- **Grep** (`Ctrl+G`) from the open file's folder or the workspace root, or in the open file alone, with **glob filters** (`*.java`), opening into its own results tab of editable text that shows each hit's whole line (clicking a folder or file path opens and closes it, `Ctrl+Click` on a path or line goes there, and hit counts show in total and per file)
+- **Grep** (`Ctrl+G`) from the open file's folder or the workspace root, or in the open file alone, with **glob filters** (`*.java`), opening into its own results tab of editable text that shows each hit's whole line (clicking a folder or file path opens and closes it, `Ctrl+Click` on a path or line goes there, and hit counts show in total and per file) Results from a folder are drawn as a folder tree that opens and closes row by row; the text keeps its full paths, and **Tree view** in the header turns the drawing off to see and edit them.
 - **File search** (`Ctrl+Shift+R`) — the workspace's file list is indexed
   once, then every keystroke narrows it in milliseconds. The best match comes first —
   exact name, then a name that starts with the query, then one that contains it, then
@@ -246,6 +246,7 @@ the numbers, which is what a "let me just check something" open is after.
 ### 🐙 Git
 
 - **Status panel** — branch selector (filterable), stage/unstage, commit, push/pull/fetch
+- **Several files at once** — Ctrl/Shift+click (or Shift+arrows, Ctrl+A) to pick files, then stage, unstage, revert or delete them together; drag them between *Changes* and *Staged Changes*. Deleting goes to the Recycle Bin
 - **Compare in an editor tab** — modified, added, deleted and untracked files against
   HEAD, from a click or the context menu; the working-tree side stays editable, and
   `Ctrl+↑` / `Ctrl+↓` step through the changed files
@@ -521,7 +522,7 @@ definitions the app dispatches, so it cannot drift out of date.
 | `Ctrl+Shift+\` | Focus other pane |
 | `Ctrl+Shift+W` | Close split |
 | `Ctrl+Shift+D` / `Ctrl+Alt+D` | Compare with file / Compare scratch text |
-| `Alt+M` / `Alt+S` / `Alt+D` / `Alt+I` | Compare: keep both / sync point / line details / ignore whitespace |
+| `Alt+M` / `Alt+S` / `Alt+R` / `Alt+D` / `Alt+I` | Compare: keep both / sync point / recompare / line details / ignore whitespace |
 | `Ctrl+Space` | Inline AI |
 | `Ctrl+Alt+C` | AI chat |
 | `F12` / `Shift+F12` | Go to definition / Find references |

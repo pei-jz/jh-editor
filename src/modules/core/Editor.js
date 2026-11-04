@@ -163,6 +163,35 @@ export function toggleWhitespace() {
 }
 
 /**
+ * How to read a comparison side's target again, or null when it has no such
+ * thing. Mirrors writeMergeSide: a file open in a tab is that tab's text, since
+ * that is what saving the side would be measured against. Null from the reader
+ * means "cannot say", and the side stays as it is.
+ */
+function targetReader(target) {
+    if (!target) return null;
+    if (target.kind === 'buffer' && target.file) {
+        return async () => {
+            const open = [...State.openFiles, ...State.rightOpenFiles].includes(target.file);
+            return open ? target.file.content : null;
+        };
+    }
+    if (target.kind === 'path' && target.path) {
+        return async () => {
+            const open = findOpenFile(String(target.path).replace(/\\/g, '/'));
+            if (open) return open.file.content;
+            try {
+                return (await FS.readFileWithEncoding(target.path, target.encoding || 'UTF-8')).content;
+            } catch (_) {
+                // Gone since it was opened; say nothing rather than empty it.
+                return null;
+            }
+        };
+    }
+    return null;
+}
+
+/**
  * Open a comparison tab: two texts side by side, where each side says whether
  * it can be edited and where saving it writes.
  *
@@ -174,12 +203,16 @@ export function toggleWhitespace() {
  *
  * `id` names the comparison: opening the same one again brings its tab to the
  * front, and replaces the texts only when nothing in it is unsaved.
+ *
+ * A side's optional `reload` says how to read it again for "Recompare"; a
+ * buffer or path target knows that without being told.
  */
 export function openMergeTab({ id, title, path = '', left, right, nav = null, replaces = null }) {
     const pane = activePane();
     const openFiles = paneFiles(pane);
     const virtualPath = `diff://${id || path || 'temp'}`;
-    const merge = { title: title || '', path: path || '', nav, left: makeSide(left), right: makeSide(right) };
+    const side = (spec) => makeSide({ ...spec, reload: spec.reload || targetReader(spec.target) });
+    const merge = { title: title || '', path: path || '', nav, left: side(left), right: side(right) };
 
     let existingIndex = openFiles.findIndex((f) => f.path === virtualPath);
     // Walking files with Ctrl+Up / Ctrl+Down: the comparison being left takes
@@ -4001,5 +4034,6 @@ window.Editor = {
     saveCurrentFile,
     saveCurrentFileAs,
     compareWithFile,
-    compareWithDisk
+    compareWithDisk,
+    closeFileByPath
 };

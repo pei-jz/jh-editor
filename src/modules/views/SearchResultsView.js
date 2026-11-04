@@ -1,13 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { EditorView, Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
-import { Transaction } from '@codemirror/state';
+import { StateEffect, Transaction } from '@codemirror/state';
 import { foldEffect, foldedRanges, foldService, unfoldEffect } from '@codemirror/language';
 import { State } from '../core/Store.js';
 import { iconEl } from '../ui/Icons.js';
 import { InlineAI } from '../ui/InlineAI.js';
 import { t } from '../utils/I18n.js';
 import { markSaved } from '../utils/DirtyState.js';
-import { isFolderLine, isPathLine, isUnderFolder, locateHit, planAppend, rowPrefixLength } from '../utils/SearchResultsText.js';
+import { hitsUnderFolder, isFolderLine, isPathLine, isUnderFolder, locateHit, planAppend, rowPrefixLength, treePlace } from '../utils/SearchResultsText.js';
 import { CodeMirrorView } from './CodeMirrorView.js';
 
 // Renders workspace grep results as a tab of ordinary editable text, grouped by
@@ -43,6 +43,53 @@ const ROW_LINE = Decoration.line({ class: 'sr-row' });
 const ROW_NUMBER = Decoration.mark({ class: 'sr-line-no' });
 const HIT = Decoration.mark({ class: 'sr-hit' });
 
+// The tree is how the text is drawn, never what it says: every path stays whole
+// in the document, so Ctrl+click, copying and editing see what they always did.
+// Only what is on screen is worked out, so a large result costs what a small one does.
+const TREE_KEY = 'search_results_tree';
+const TREE_STEP = 16;
+const HIDDEN = Decoration.replace({});
+const BLANK_LINE = Decoration.line({ class: 'sr-blank' });
+const refreshTree = StateEffect.define();
+const indentLines = new Map();
+
+/** A line drawn `depth` levels in, with a guide down each level it is inside. */
+function indentLine(depth) {
+    if (!indentLines.has(depth)) {
+        indentLines.set(depth, Decoration.line({
+            attributes: {
+                style: `padding-left: ${depth * TREE_STEP + 6}px;`
+                    + `background-image: repeating-linear-gradient(to right, var(--border-color) 0 1px, transparent 1px ${TREE_STEP}px);`
+                    + `background-size: ${depth * TREE_STEP}px 100%; background-position: 13px 0; background-repeat: no-repeat;`,
+            },
+        }));
+    }
+    return indentLines.get(depth);
+}
+
+/** The marker in front of a folder or file in the tree. */
+class TreeMarker extends WidgetType {
+    constructor(open, folder) {
+        super();
+        this.open = open;
+        this.folder = folder;
+    }
+
+    eq(other) { return other.open === this.open && other.folder === this.folder; }
+
+    toDOM() {
+        const el = document.createElement('span');
+        el.className = 'sr-tree-marker';
+        el.title = this.open ? t('Collapse') : t('Expand');
+        el.appendChild(iconEl(this.open ? 'caret-down' : 'caret-right', { size: 14 }));
+        if (this.folder) el.appendChild(iconEl(this.open ? 'folder-open' : 'folder', { size: 13 }));
+        return el;
+    }
+
+    // The click is the editor's to see: it opens and closes the row.
+    ignoreEvent() { return false; }
+}
+
 /** How many hits a file had: drawn beside its path, so the text stays only the path. */
 class HitCount extends WidgetType {
     constructor(count) {
@@ -58,6 +105,8 @@ class HitCount extends WidgetType {
         el.textContent = t('{n} hits', { n: this.count });
         return el;
     }
+
+    ignoreEvent() { return false; }
 }
 
 /**
@@ -141,6 +190,17 @@ export class SearchResultsView extends CodeMirrorView {
         @keyframes sr-spin { to { transform: rotate(360deg); } }
         .sr-hint { flex-shrink: 0; padding: 0 12px 6px; font-size: 12px; opacity: 0.6; border-bottom: 1px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sr-editor { flex: 1; min-height: 0; position: relative; }
+        .sr-tree-toggle { margin-left: auto; flex-shrink: 0; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--text-color); background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px; }
+        .sr-tree-toggle:hover { background: var(--hover-color); }
+        .sr-tree-toggle[aria-pressed="true"] { color: var(--primary-color); border-color: var(--primary-color); }
+        .sr-tree-toggle + .sr-cancel { margin-left: 0; }
+        .sr-editor.sr-tree .cm-gutter.cm-foldGutter { display: none !important; }
+        .sr-editor.sr-tree .sr-folder-line, .sr-editor.sr-tree .sr-path-line { cursor: pointer; }
+        .sr-editor.sr-tree .sr-folder-line:hover, .sr-editor.sr-tree .sr-path-line:hover { background-color: var(--hover-color); }
+        .sr-editor.sr-tree .sr-folder-line { opacity: 1; }
+        .sr-editor.sr-tree .sr-link { text-decoration: none; }
+        .sr-editor.sr-tree .sr-blank { line-height: 4px; }
+        .sr-tree-marker { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; vertical-align: -2px; color: var(--text-secondary); }
         .sr-folder-line { font-weight: 600; opacity: 0.75; }
         .sr-path-line { color: var(--primary-color); font-weight: 600; }
         .sr-editor .cm-foldGutter .cm-gutterElement { padding: 0 4px; cursor: pointer; color: var(--primary-color); }
@@ -184,9 +244,12 @@ export class SearchResultsView extends CodeMirrorView {
 
     _decorationsFor(view) {
         const ranges = [];
+        const hidden = [];
         const { doc } = view.state;
+        const tree = this._treeMode();
         let lastLine = 0;
         for (const { from, to } of view.visibleRanges) {
+            let rowDepth = tree ? this._rowDepthAt(doc, doc.lineAt(from).number) : 0;
             for (let pos = from; pos <= to;) {
                 const line = doc.lineAt(pos);
                 pos = line.to + 1;
@@ -195,16 +258,40 @@ export class SearchResultsView extends CodeMirrorView {
                 const prefix = rowPrefixLength(line.text);
                 if (prefix === null) {
                     const folder = isFolderLine(line.text);
-                    if (!folder && !isPathLine(line.text, this._isKnownPath)) continue;
+                    if (!folder && !isPathLine(line.text, this._isKnownPath)) {
+                        if (tree) {
+                            if (line.text.trim()) ranges.push(indentLine(rowDepth).range(line.from));
+                            else ranges.push(BLANK_LINE.range(line.from));
+                        }
+                        continue;
+                    }
                     ranges.push((folder ? FOLDER_LINE : PATH_LINE).range(line.from));
-                    ranges.push(LINK.range(line.from, line.from + line.text.trimEnd().length));
-                    const count = this.file._srCounts.get(line.text.trimEnd());
+                    const trimmed = line.text.trimEnd();
+                    const place = tree ? treePlace(trimmed, this.file.root) : null;
+                    if (place) {
+                        rowDepth = place.depth + (folder ? 0 : 1);
+                        ranges.push(indentLine(place.depth).range(line.from));
+                        ranges.push(Decoration.widget({
+                            widget: new TreeMarker(!this._isClosed(view.state, line.to), folder),
+                            side: -1,
+                        }).range(line.from));
+                        hidden.push(HIDDEN.range(line.from, line.from + place.nameFrom));
+                        if (place.nameTo < trimmed.length) hidden.push(HIDDEN.range(line.from + place.nameTo, line.from + trimmed.length));
+                        ranges.push(LINK.range(line.from + place.nameFrom, line.from + place.nameTo));
+                    } else {
+                        if (tree) rowDepth = 1;
+                        ranges.push(LINK.range(line.from, line.from + trimmed.length));
+                    }
+                    const count = tree && folder
+                        ? hitsUnderFolder(this.file._srCounts, trimmed)
+                        : this.file._srCounts.get(trimmed);
                     if (count) {
                         ranges.push(Decoration.widget({ widget: new HitCount(count), side: 1 }).range(line.to));
                     }
                     continue;
                 }
                 ranges.push(ROW_LINE.range(line.from));
+                if (tree) ranges.push(indentLine(rowDepth).range(line.from));
                 ranges.push(ROW_NUMBER.range(line.from, line.from + prefix));
                 const start = line.from + prefix;
                 for (const [a, b] of this._hitRanges(line.text.slice(prefix))) {
@@ -212,7 +299,46 @@ export class SearchResultsView extends CodeMirrorView {
                 }
             }
         }
-        return Decoration.set(ranges, true);
+        return {
+            decorations: Decoration.set([...ranges, ...hidden], true),
+            hidden: Decoration.set(hidden, true),
+        };
+    }
+
+    /** Is the folder or file whose line ends at `lineEnd` closed? */
+    _isClosed(state, lineEnd) {
+        let closed = false;
+        foldedRanges(state).between(lineEnd, lineEnd, (from) => { if (from === lineEnd) closed = true; });
+        return closed;
+    }
+
+    /** How deep the rows at this line are drawn: one in from the file above them. */
+    _rowDepthAt(doc, number) {
+        for (let n = number; n >= 1; n--) {
+            const { text } = doc.line(n);
+            if (!isPathLine(text, this._isKnownPath)) continue;
+            const place = treePlace(text, this.file.root);
+            return place ? place.depth + (isFolderLine(text) ? 0 : 1) : 1;
+        }
+        return 0;
+    }
+
+    /** A results tab from a folder search can be drawn as that folder's tree. */
+    _treeMode() {
+        if (!this.file || !this.file.root) return false;
+        try { return localStorage.getItem(TREE_KEY) !== 'false'; } catch (_) { return true; }
+    }
+
+    _setTreeMode(on) {
+        try { localStorage.setItem(TREE_KEY, on ? 'true' : 'false'); } catch (_) { /* private mode */ }
+        this._syncTreeChrome();
+        if (this.editorView) this.editorView.dispatch({ effects: refreshTree.of(null) });
+    }
+
+    _syncTreeChrome() {
+        const on = this._treeMode();
+        if (this.container) this.container.classList.toggle('sr-tree', on);
+        if (this._treeToggleEl) this._treeToggleEl.setAttribute('aria-pressed', String(on));
     }
 
     _showsLineNumbers() { return false; } // each row carries its file's line number
@@ -232,15 +358,25 @@ export class SearchResultsView extends CodeMirrorView {
 
     _extraExtensions() {
         const owner = this;
-        return [
-            ViewPlugin.fromClass(class {
-                constructor(view) { this.decorations = owner._decorationsFor(view); }
-                update(update) {
-                    if (update.docChanged || update.viewportChanged) {
-                        this.decorations = owner._decorationsFor(update.view);
-                    }
+        const drawn = ViewPlugin.fromClass(class {
+            constructor(view) { Object.assign(this, owner._decorationsFor(view)); }
+            update(update) {
+                if (update.docChanged || update.viewportChanged
+                    || foldedRanges(update.startState) !== foldedRanges(update.state)
+                    || update.transactions.some((tr) => tr.effects.some((e) => e.is(refreshTree)))) {
+                    Object.assign(this, owner._decorationsFor(update.view));
                 }
-            }, { decorations: (plugin) => plugin.decorations }),
+            }
+        }, {
+            decorations: (plugin) => plugin.decorations,
+            // The cursor steps over the hidden part of a path instead of into it.
+            provide: (plugin) => EditorView.atomicRanges.of((view) => {
+                const value = view.plugin(plugin);
+                return value ? value.hidden : Decoration.none;
+            }),
+        });
+        return [
+            drawn,
             // A file folds away its rows, up to the blank line or the next file;
             // a folder folds away everything under it.
             foldService.of((state, from) => this._foldableGroup(state, from)),
@@ -254,8 +390,11 @@ export class SearchResultsView extends CodeMirrorView {
                 // from the editor's own handler; a drag across it is a selection.
                 click: (event, view) => {
                     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return false;
-                    if (!event.target.closest('.sr-link') || !view.state.selection.main.empty) return false;
-                    this._toggleGroup(view.posAtDOM(event.target), view);
+                    if (!view.state.selection.main.empty) return false;
+                    // In the tree the whole row is the handle, as in any tree.
+                    const row = this._treeMode() ? event.target.closest('.sr-folder-line, .sr-path-line') : null;
+                    if (!row && !event.target.closest('.sr-link')) return false;
+                    this._toggleGroup(view.posAtDOM(row || event.target), view);
                     return true;
                 },
             }),
@@ -351,6 +490,7 @@ export class SearchResultsView extends CodeMirrorView {
         this._updateHeader();
 
         this.container = host;
+        this._syncTreeChrome();
         const toolbar = document.createElement('div');
         toolbar.className = 'cm-view-toolbar';
         host.appendChild(toolbar);
@@ -386,8 +526,17 @@ export class SearchResultsView extends CodeMirrorView {
             this._cancelBtn.className = 'sr-cancel';
             this._cancelBtn.textContent = t('Cancel');
             this._cancelBtn.onclick = () => this._cancelSearch();
-            parts.push(this._progressEl, this._cancelBtn);
+            parts.push(this._progressEl);
         }
+        if (this.file.root) {
+            this._treeToggleEl = document.createElement('button');
+            this._treeToggleEl.className = 'sr-tree-toggle';
+            this._treeToggleEl.textContent = t('Tree view');
+            this._treeToggleEl.title = t('Draw the results as a folder tree. The text itself keeps the full paths: turn this off to see and edit them.');
+            this._treeToggleEl.onclick = () => this._setTreeMode(!this._treeMode());
+            parts.push(this._treeToggleEl);
+        }
+        if (this._cancelBtn) parts.push(this._cancelBtn);
         this._headerEl.append(...parts);
     }
 

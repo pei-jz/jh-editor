@@ -43,7 +43,7 @@ import { pageMotionKeymap } from '../utils/CMPageMotion.js';
 import { t } from '../utils/I18n.js';
 import { languageExtensionFor, syntaxExtensionForTheme } from '../views/CodeMirrorView.js';
 import {
-    canCopyToward, mergeDirty, sideDirty, blockCopyEdit, blockCombineEdit,
+    canCopyToward, mergeDirty, sideDirty, blockCopyEdit, blockCombineEdit, clampSplit,
 } from '../utils/MergeSides.js';
 import { computeDiff } from '../utils/LineDiff.js';
 
@@ -155,6 +155,12 @@ const readFlag = (key) => {
 const writeFlag = (key, on) => {
     try { localStorage.setItem(key, on ? 'true' : 'false'); } catch (_) { /* private mode */ }
 };
+const readSetting = (key) => {
+    try { return localStorage.getItem(key); } catch (_) { return null; }
+};
+const writeSetting = (key, value) => {
+    try { localStorage.setItem(key, String(value)); } catch (_) { /* private mode */ }
+};
 
 function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -188,6 +194,7 @@ function linesIn(doc, from, to) {
  *   Alt+Shift+← / Alt+Shift+→ copy the current change to that side
  *   Alt+M                    how to merge the current change (keep both, …)
  *   Alt+S                    sync point: the cursor lines on both sides belong together
+ *   Alt+R                    compare again: read the sources anew and line everything up
  *   Alt+D                    line details: the cursor line and its counterpart, wrapped
  *   Alt+I / Alt+W            ignore / show whitespace
  *   Ctrl+↑ / Ctrl+↓          previous / next file (Git comparisons only)
@@ -214,6 +221,7 @@ export function mergeKeyAction(e, { hasFileNav = false } = {}) {
         case 'd': case 'D': return 'toggle-details';
         case 'm': case 'M': return 'merge-menu';
         case 's': case 'S': return 'sync-point';
+        case 'r': case 'R': return 'recompare';
         default: return null;
     }
 }
@@ -598,7 +606,16 @@ export class MergeEditor {
         this._onKeyDown = this._onKeyDown.bind(this);
         window.addEventListener('keydown', this._onKeyDown, true);
 
+        // Edits made here re-diff as they happen; edits made anywhere else (the
+        // file's own tab, another program) only reach the sides when they are
+        // read again. Coming back to the window is when those have happened.
+        this._onWindowFocus = () => { this.recompare({ quiet: true }); };
+        window.addEventListener('focus', this._onWindowFocus);
+
+        this.split = clampSplit(readSetting('diff_split'));
         this._build();
+        // The tab came to the front: it may have been behind a save or an edit.
+        this.recompare({ quiet: true });
     }
 
     // ── Layout ───────────────────────────────────────────────────────────────
@@ -615,7 +632,16 @@ export class MergeEditor {
         c.style.flexDirection = 'column';
         c.appendChild(this._buildToolbar());
 
+        this._applySplit();
+
         this.headersEl = el('div', 'merge-headers');
+        // The gap is redrawn with the headers, so it is answered from here.
+        this.headersEl.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && e.target.closest('.merge-header-gap')) this._startSplitDrag(e);
+        });
+        this.headersEl.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.merge-header-gap')) this.resetSplit();
+        });
         c.appendChild(this.headersEl);
 
         this.bodyEl = el('div', 'merge-body');
@@ -655,11 +681,17 @@ export class MergeEditor {
         return b;
     }
 
+    /**
+     * Where you are on the left, what you can do on the right, and the settings
+     * that are rarely changed behind one "View" menu: laid out in a row of labelled
+     * buttons they outgrew the bar, and Save ended up out of sight at the far end.
+     */
     _buildToolbar() {
-        const bar = el('div', 'diff-toolbar');
+        const bar = el('div', 'diff-toolbar is-compact');
 
         const title = el('div', 'diff-toolbar-title');
         title.appendChild(el('strong', null, this.merge.title || ''));
+        title.title = this.merge.title || '';
         bar.appendChild(title);
 
         const actions = el('div', 'diff-toolbar-actions');
@@ -681,9 +713,6 @@ export class MergeEditor {
             actions.appendChild(files);
         }
 
-        this.summaryEl = el('div', 'diff-summary');
-        actions.appendChild(this.summaryEl);
-
         const nav = el('div', 'diff-nav');
         nav.appendChild(this._button('↑', t('Previous change (Alt+Up)'), () => this.navigate(-1)));
         this.navLabel = el('span', 'diff-nav-label');
@@ -698,63 +727,138 @@ export class MergeEditor {
         inlineNav.appendChild(this._button('›', t('Next inline change (Alt+Right)'), () => this.navigateInline(1)));
         actions.appendChild(inlineNav);
 
-        // Bulk copies, only toward a side that can take them.
-        this.copyAllLeftBtn = this._button(`⇐ ${t('Copy all')}`, t('Copy all changes to the left'),
-            () => this.copyAll('left'));
-        this.copyAllRightBtn = this._button(`${t('Copy all')} ⇒`, t('Copy all changes to the right'),
-            () => this.copyAll('right'));
-        actions.appendChild(this.copyAllLeftBtn);
-        actions.appendChild(this.copyAllRightBtn);
+        this.summaryEl = el('div', 'diff-summary');
+        actions.appendChild(this.summaryEl);
+
+        const tools = el('div', 'diff-tools');
+
+        this.recompareBtn = this._button(t('Recompare'),
+            t('Read both sides again and line up the lines anew. A side with unsaved edits stays as it is (Alt+R)'),
+            () => this.recompare(), 'diff-btn diff-recompare-btn');
+        tools.appendChild(this.recompareBtn);
+
+        // Bulk copies, only toward a side that can take them. The tooltip says
+        // what each arrow does; the words did not fit twice over.
+        const copies = el('div', 'diff-seg');
+        this.copyAllLeftBtn = this._button('⇐', t('Copy all changes to the left'), () => this.copyAll('left'));
+        this.copyAllRightBtn = this._button('⇒', t('Copy all changes to the right'), () => this.copyAll('right'));
+        copies.append(this.copyAllLeftBtn, this.copyAllRightBtn);
+        tools.appendChild(copies);
 
         // When the match goes wrong: say which two lines belong together.
-        const sync = el('div', 'diff-nav');
         this.syncBtn = this._button(t('Sync lines'),
             t('Line up the cursor lines of both sides — put the cursor on a line on each side first (Alt+S)'),
             () => this.toggleSyncPoint(), 'diff-btn diff-sync-btn');
-        this.syncBtn.appendChild(el('span', 'diff-btn-key', 'Alt+S'));
-        sync.appendChild(this.syncBtn);
+        tools.appendChild(this.syncBtn);
         this.clearSyncBtn = this._button('', t('Remove every sync point'), () => this.clearSyncPoints(),
             'diff-btn diff-sync-clear');
-        sync.appendChild(this.clearSyncBtn);
-        actions.appendChild(sync);
+        tools.appendChild(this.clearSyncBtn);
 
         for (const extra of this.options.extraActions || []) {
-            actions.appendChild(this._button(extra.label, extra.title || '', extra.onClick));
+            tools.appendChild(this._button(extra.label, extra.title || '', extra.onClick));
         }
 
-        this.ignoreWsBtn = this._button(t('Ignore whitespace'),
-            t('Ignore whitespace differences (indentation, trailing spaces, run length) — Alt+I'),
-            () => this.toggleIgnoreWhitespace(), 'diff-btn diff-ws-btn');
-        this.ignoreWsBtn.appendChild(el('span', 'diff-btn-key', 'Alt+I'));
-        this.ignoreWsBtn.classList.toggle('active', this.ignoreWhitespace);
-        actions.appendChild(this.ignoreWsBtn);
-
-        this.showWsBtn = this._button(t('Show whitespace'),
-            t('Show whitespace characters (spaces / tabs) — Alt+W'),
-            () => this.toggleShowWhitespace(), 'diff-btn diff-ws-view-btn');
-        this.showWsBtn.appendChild(el('span', 'diff-btn-key', 'Alt+W'));
-        this.showWsBtn.classList.toggle('active', this.showWhitespace);
-        actions.appendChild(this.showWsBtn);
-
-        this.detailsBtn = this._button(t('Line details'),
-            t('Show the cursor line and its counterpart one above the other, wrapped — for long lines (Alt+D)'),
-            () => this.toggleDetails(), 'diff-btn diff-details-btn');
-        this.detailsBtn.appendChild(el('span', 'diff-btn-key', 'Alt+D'));
-        this.detailsBtn.classList.toggle('active', this.showDetails);
-        actions.appendChild(this.detailsBtn);
-
-        this.viewToggleBtn = this._button('', '', () => this.toggleViewMode());
-        actions.appendChild(this.viewToggleBtn);
+        tools.appendChild(this._buildViewMenu());
 
         // A tab with nothing it could ever write has no Save button at all.
         const saveable = ['left', 'right'].some((k) => this.merge[k].writable && !this.merge[k].live);
         if (saveable) {
             this.saveBtn = this._button(t('Save'), 'Ctrl+S', () => this._save(), 'diff-primary-btn');
-            actions.appendChild(this.saveBtn);
+            tools.appendChild(this.saveBtn);
         }
 
+        actions.appendChild(tools);
         bar.appendChild(actions);
         return bar;
+    }
+
+    /** One row of the View menu: a setting, with its key at the end of the row. */
+    _viewMenuItem(label, title, key, onClick, className) {
+        const item = this._button('', title, onClick, `diff-btn diff-menu-item ${className}`);
+        item.appendChild(el('span', 'diff-menu-label', label));
+        item.appendChild(el('span', 'diff-btn-key', key));
+        return item;
+    }
+
+    _buildViewMenu() {
+        const box = el('div', 'diff-view');
+        this.viewBtn = this._button(t('View'), '', () => this.toggleViewMenu(), 'diff-btn diff-view-btn');
+        this.viewBtn.setAttribute('aria-haspopup', 'menu');
+        this.viewBtn.setAttribute('aria-expanded', 'false');
+        box.appendChild(this.viewBtn);
+
+        this.viewMenuEl = el('div', 'diff-view-menu');
+        this.viewMenuEl.setAttribute('role', 'menu');
+        this.viewMenuEl.hidden = true;
+
+        this.ignoreWsBtn = this._viewMenuItem(t('Ignore whitespace'),
+            t('Ignore whitespace differences (indentation, trailing spaces, run length) — Alt+I'),
+            'Alt+I', () => this.toggleIgnoreWhitespace(), 'diff-ws-btn');
+        this.showWsBtn = this._viewMenuItem(t('Show whitespace'),
+            t('Show whitespace characters (spaces / tabs) — Alt+W'),
+            'Alt+W', () => this.toggleShowWhitespace(), 'diff-ws-view-btn');
+        this.detailsBtn = this._viewMenuItem(t('Line details'),
+            t('Show the cursor line and its counterpart one above the other, wrapped — for long lines (Alt+D)'),
+            'Alt+D', () => this.toggleDetails(), 'diff-details-btn');
+        this.ignoreWsBtn.classList.toggle('active', this.ignoreWhitespace);
+        this.showWsBtn.classList.toggle('active', this.showWhitespace);
+        this.detailsBtn.classList.toggle('active', this.showDetails);
+        this.viewToggleBtn = this._button('', '', () => this.toggleViewMode(), 'diff-btn diff-menu-item diff-layout-btn');
+        this.viewMenuEl.append(this.ignoreWsBtn, this.showWsBtn, this.detailsBtn, el('div', 'diff-menu-sep'), this.viewToggleBtn);
+        this.viewMenuEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeViewMenu();
+                this.viewBtn.focus();
+            }
+        });
+        box.appendChild(this.viewMenuEl);
+
+        this._syncViewBtn();
+        return box;
+    }
+
+    /** A setting that changes what is shown is not left hidden in a closed menu. */
+    _syncViewBtn() {
+        if (!this.viewBtn) return;
+        const on = [
+            this.ignoreWhitespace && t('Ignore whitespace'),
+            this.showWhitespace && t('Show whitespace'),
+            this.showDetails && t('Line details'),
+            this.viewMode === 'unified' && t('Unified view'),
+        ].filter(Boolean);
+        const about = t('Whitespace, line details and the layout of the comparison');
+        this.viewBtn.classList.toggle('has-active', on.length > 0);
+        this.viewBtn.title = on.length ? `${about}\n${on.join(' / ')}` : about;
+    }
+
+    /** Stays open while settings are flipped, so several can be changed in one go. */
+    toggleViewMenu() {
+        if (this.viewMenuEl.hidden) this.openViewMenu();
+        else this.closeViewMenu();
+    }
+
+    openViewMenu() {
+        this.viewMenuEl.hidden = false;
+        this.viewBtn.setAttribute('aria-expanded', 'true');
+        // Fixed, under its button and kept on screen: the panes below scroll on
+        // their own and would clip anything positioned inside them.
+        const r = this.viewBtn.getBoundingClientRect();
+        const width = this.viewMenuEl.offsetWidth || 240;
+        this.viewMenuEl.style.top = `${r.bottom + 4}px`;
+        this.viewMenuEl.style.left = `${Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))}px`;
+        this._onViewMenuOutside = (e) => {
+            if (!this.viewMenuEl.contains(e.target) && !this.viewBtn.contains(e.target)) this.closeViewMenu();
+        };
+        document.addEventListener('mousedown', this._onViewMenuOutside, true);
+    }
+
+    closeViewMenu() {
+        if (!this.viewMenuEl || this.viewMenuEl.hidden) return;
+        this.viewMenuEl.hidden = true;
+        this.viewBtn.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('mousedown', this._onViewMenuOutside, true);
     }
 
     _renderHeaders() {
@@ -782,7 +886,9 @@ export class MergeEditor {
             return;
         }
         h.appendChild(header('left'));
-        if (this._hasCopyControls()) h.appendChild(el('div', 'merge-header-gap'));
+        const gap = el('div', 'merge-header-gap');
+        gap.title = t('Drag to change the width of the two sides (double-click to even them out)');
+        h.appendChild(gap);
         h.appendChild(header('right'));
     }
 
@@ -960,10 +1066,26 @@ export class MergeEditor {
                 ...this._mergeConfig(),
             });
             const dom = this.mergeView.dom;
+            // With nothing to copy there is no column between the panes, and so
+            // nothing to take hold of: the divider gets a strip of its own.
+            if (!this._hasCopyControls()) {
+                const wrapB = this.mergeView.b.dom.parentNode;
+                const strip = el('div', 'merge-split-strip');
+                wrapB.parentNode.insertBefore(strip, wrapB);
+            }
             this._onControlsMouseDown = (e) => {
-                const btn = e.target && e.target.closest
-                    ? e.target.closest('.merge-copy-btn, .merge-pick-btn') : null;
-                if (!btn) return;
+                const target = e.target && e.target.closest ? e.target : null;
+                const btn = target && target.closest('.merge-copy-btn, .merge-pick-btn');
+                if (!btn) {
+                    // The rest of the column is the divider. The package would
+                    // take a press on a band for "revert this chunk", right to
+                    // left — even into a side that is read-only.
+                    if (target && target.closest('.cm-merge-revert, .merge-split-strip')) {
+                        e.stopPropagation();
+                        if (e.button === 0) this._startSplitDrag(e);
+                    }
+                    return;
+                }
                 // Ahead of the package's own handler, which would always revert
                 // in its single configured direction.
                 e.preventDefault();
@@ -973,6 +1095,12 @@ export class MergeEditor {
                 if (btn.classList.contains('merge-pick-btn')) this.openMergeMenu(index, btn);
                 else this.copyChunk(index, btn.dataset.toward);
             };
+            this._onDividerDblClick = (e) => {
+                const target = e.target && e.target.closest ? e.target : null;
+                if (target && target.closest('.cm-merge-revert, .merge-split-strip')
+                    && !target.closest('.merge-copy-btn, .merge-pick-btn')) this.resetSplit();
+            };
+            dom.addEventListener('dblclick', this._onDividerDblClick);
             this._onControlsOver = (e) => {
                 const box = e.target && e.target.closest ? e.target.closest('.merge-copy-control') : null;
                 this._setHoverChunk(box ? Number(box.dataset.chunk) : null);
@@ -1016,6 +1144,7 @@ export class MergeEditor {
         this.copyAllRightBtn.hidden = !split || !canCopyToward(this.merge, 'right');
         // Two cursors are needed to say which lines belong together.
         this.syncBtn.disabled = !split;
+        this._syncViewBtn();
 
         this._appliedFocusKey = '';
         this._appliedSyncKey = '';
@@ -1046,6 +1175,7 @@ export class MergeEditor {
             dom.removeEventListener('mousedown', this._onControlsMouseDown, true);
             dom.removeEventListener('mouseover', this._onControlsOver);
             dom.removeEventListener('mouseleave', this._onControlsLeave);
+            dom.removeEventListener('dblclick', this._onDividerDblClick);
             this.mergeView.destroy();
             dom.remove();
             this.mergeView = null;
@@ -1144,7 +1274,6 @@ export class MergeEditor {
             chip('left', t('Left only'), t('Changes whose lines exist on the left only'));
             chip('right', t('Right only'), t('Changes whose lines exist on the right only'));
             chip('both', t('Conflict'), t('Changes where both sides have their own lines — choose which to keep'));
-            this.summaryEl.appendChild(el('span', 'diff-sum-blocks', t('{n} changes', { n: chunks.length })));
             this.summaryEl.title = t('{left} changed lines on the left, {right} on the right', { left, right });
         }
 
@@ -1166,7 +1295,7 @@ export class MergeEditor {
         if (this.copyAllRightBtn) this.copyAllRightBtn.disabled = !chunks.length;
         const syncs = this.merge.anchors.length;
         this.clearSyncBtn.hidden = !syncs;
-        this.clearSyncBtn.textContent = t('Clear sync points ({n})', { n: syncs });
+        this.clearSyncBtn.textContent = `× ${syncs}`;
         this._renderHeaders();
         this._applySyncLines();
         this._applyFocus();
@@ -1226,6 +1355,65 @@ export class MergeEditor {
         this._layoutFrame = typeof requestAnimationFrame === 'function'
             ? requestAnimationFrame(run)
             : setTimeout(run, 16);
+    }
+
+    // ── The divider between the panes ────────────────────────────────────────
+
+    _applySplit() {
+        // On the root, so the panes and their headers read the same number.
+        this.container.style.setProperty('--merge-split', String(this.split));
+    }
+
+    /** Follow the pointer until it is let go; the choice is kept for next time. */
+    _startSplitDrag(e) {
+        const editors = this.mergeView && this.mergeView.dom.querySelector('.cm-mergeViewEditors');
+        const wrapA = this.mergeView && this.mergeView.a.dom.parentNode;
+        const wrapB = this.mergeView && this.mergeView.b.dom.parentNode;
+        if (!editors || !wrapA || !wrapB) return;
+        e.preventDefault();
+        this._endSplitDrag();
+        // Held where it was taken, however wide the gap: it does not jump to
+        // centre itself under the pointer.
+        const gap = wrapB.getBoundingClientRect().left - wrapA.getBoundingClientRect().right;
+        const grabbedAt = e.clientX - wrapA.getBoundingClientRect().right;
+        const onMove = (ev) => {
+            const box = editors.getBoundingClientRect();
+            const room = box.width - gap;
+            if (room <= 0) return;
+            this.split = clampSplit((ev.clientX - grabbedAt - box.left) / room, room);
+            this._applySplit();
+            this._scheduleControlLayout();
+        };
+        const onUp = () => {
+            this._endSplitDrag();
+            writeSetting('diff_split', this.split);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        window.addEventListener('blur', onUp);
+        this.container.classList.add('merge-split-dragging');
+        document.body.style.cursor = 'col-resize';
+        this._splitDragEnd = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            window.removeEventListener('blur', onUp);
+            this.container.classList.remove('merge-split-dragging');
+            document.body.style.cursor = '';
+        };
+    }
+
+    _endSplitDrag() {
+        if (!this._splitDragEnd) return;
+        this._splitDragEnd();
+        this._splitDragEnd = null;
+    }
+
+    /** Back to half and half. */
+    resetSplit() {
+        this.split = 0.5;
+        this._applySplit();
+        writeSetting('diff_split', this.split);
+        this._scheduleControlLayout();
     }
 
     // ── Sideways scrolling ───────────────────────────────────────────────────
@@ -1721,6 +1909,89 @@ export class MergeEditor {
         this._queueRefresh();
     }
 
+    /**
+     * Compare again: read each side's source anew, recompute the changes and
+     * fold what is unchanged afresh, so the lines line up with what is really
+     * there. A side with unsaved edits keeps them — nothing typed here is ever
+     * replaced by this. `quiet` is the automatic kind (the tab or the window came
+     * to the front): it says nothing and leaves the folds alone when nothing
+     * changed.
+     *
+     * Resolves to the sides whose text was replaced.
+     */
+    async recompare({ quiet = false } = {}) {
+        const token = (this._recompareToken = (this._recompareToken || 0) + 1);
+        const keys = ['left', 'right'];
+        const fresh = await Promise.all(keys.map(async (key) => {
+            const side = this.merge[key];
+            if (!side.reload || sideDirty(side)) return null;
+            try {
+                return await side.reload();
+            } catch (err) {
+                console.warn('MergeEditor: could not read a side again:', err);
+                return null;
+            }
+        }));
+        // Closed, redrawn or asked again while reading: the answer is out of date.
+        if (this._destroyed || token !== this._recompareToken) return [];
+
+        const replaced = [];
+        keys.forEach((key, i) => {
+            const side = this.merge[key];
+            if (fresh[i] == null || sideDirty(side)) return;
+            const text = String(fresh[i]).replace(/\r\n?/g, '\n');
+            if (text === side.text) return;
+            this._replaceSideText(key, text);
+            replaced.push(key);
+        });
+
+        if (quiet && !replaced.length) return replaced;
+        this._rediff();
+        this._refold();
+        if (!quiet && typeof window.showToast === 'function') {
+            window.showToast(mergeDirty(this.merge)
+                ? t('Compared again. Sides with unsaved edits were kept as they are.')
+                : t('Compared again.'));
+        }
+        return replaced;
+    }
+
+    /**
+     * The side's source holds `text` now. Only the part that differs is
+     * replaced, so the cursor and the scroll position survive, and it stays out
+     * of the undo history: undoing must not bring back a version from elsewhere.
+     */
+    _replaceSideText(key, text) {
+        const side = this.merge[key];
+        side.savedText = text;
+        const view = this.mergeView && (key === 'left' ? this.mergeView.a : this.mergeView.b);
+        if (!view) {
+            side.text = text;
+            if (this.unifiedView) this._mountEditors();
+            return;
+        }
+        const old = view.state.doc.toString();
+        let from = 0;
+        const max = Math.min(old.length, text.length);
+        while (from < max && old[from] === text[from]) from++;
+        let tail = 0;
+        while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
+        view.dispatch({
+            changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) },
+            annotations: Transaction.addToHistory.of(false),
+        });
+    }
+
+    /** Fold the unchanged stretches again, from the changes as they are now. */
+    _refold() {
+        if (!this.mergeView) return;
+        // A folded range stays where it was through edits, and a change that
+        // arrives inside one stays hidden. Taking the extension away and
+        // putting it back makes it start over; the panes keep their history.
+        this.mergeView.reconfigure({ collapseUnchanged: undefined });
+        this.mergeView.reconfigure({ collapseUnchanged: COLLAPSE });
+    }
+
     _applySyncLines() {
         const anchors = this.merge.anchors;
         const key = anchors.map((p) => `${p.a}:${p.b}`).join(',');
@@ -1737,6 +2008,7 @@ export class MergeEditor {
         this.ignoreWhitespace = !this.ignoreWhitespace;
         writeFlag('diff_ignoreWhitespace', this.ignoreWhitespace);
         this.ignoreWsBtn.classList.toggle('active', this.ignoreWhitespace);
+        this._syncViewBtn();
         // MergeView.reconfigure only stores a new diffConfig for the NEXT edit;
         // the changes on screen are not recomputed. Rebuilding is what applies
         // it now — and loses nothing, since the texts live on the tab.
@@ -1747,6 +2019,7 @@ export class MergeEditor {
         this.showDetails = !this.showDetails;
         writeFlag('diff_showDetails', this.showDetails);
         this.detailsBtn.classList.toggle('active', this.showDetails);
+        this._syncViewBtn();
         this.detailsEl.hidden = !this.showDetails;
         this._appliedDetailsKey = '';
         this._renderDetails();
@@ -1856,6 +2129,7 @@ export class MergeEditor {
         this.showWhitespace = !this.showWhitespace;
         writeFlag('diff_showWhitespace', this.showWhitespace);
         this.showWsBtn.classList.toggle('active', this.showWhitespace);
+        this._syncViewBtn();
         this._forEachEditor((ed) => ed.dispatch({
             effects: this.whitespaceCompartment.reconfigure(this.showWhitespace ? highlightWhitespace() : []),
         }));
@@ -1904,6 +2178,7 @@ export class MergeEditor {
             case 'copy-right': return this.copyAtCursor('right');
             case 'merge-menu': return this.openMergeMenu(this._currentChunkIndex());
             case 'sync-point': return this.toggleSyncPoint();
+            case 'recompare': this.recompare(); return true;
             case 'ignore-whitespace': this.toggleIgnoreWhitespace(); return true;
             case 'show-whitespace': this.toggleShowWhitespace(); return true;
             case 'toggle-details': this.toggleDetails(); return true;
@@ -2034,8 +2309,12 @@ export class MergeEditor {
     }
 
     destroy() {
+        this._destroyed = true;
+        this._endSplitDrag();
+        this.closeViewMenu();
         window.removeEventListener('keydown', this._onKeyDown, true);
         window.removeEventListener('themeChanged', this._onThemeChanged);
+        window.removeEventListener('focus', this._onWindowFocus);
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
             this._refreshTimer = null;

@@ -886,6 +886,90 @@ body.theme-solarized-dark .tree-icon {
     background: var(--hover-color);
 }
 
+/* The rows picked for a bulk action (GitPanel._syncSelection). */
+.git-tree-item.is-selected {
+    background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.git-tree-item.is-selected:hover {
+    background: color-mix(in srgb, var(--primary-color) 28%, transparent);
+}
+
+/* Laid over the section's header: a bar of its own would push the rows down the
+   moment a second one is picked, and the next click would land on another file. */
+.git-selection-bar {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px 0 10px;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: default;
+    background: color-mix(in srgb, var(--primary-color) 16%, var(--sidebar-bg, var(--bg-color)));
+}
+
+.git-section-header:has(> .git-selection-bar) {
+    position: relative;
+}
+
+.git-selection-bar[hidden] {
+    display: none;
+}
+
+.git-selection-count {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+}
+
+.git-selection-bar button {
+    flex-shrink: 0;
+    padding: 1px 7px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.git-selection-bar button:hover {
+    background: var(--hover-color);
+}
+
+.git-selection-bar .git-selection-clear {
+    border-color: transparent;
+    padding: 1px 4px;
+}
+
+/* A section that would take the files being dragged. */
+.git-section.git-drop-target {
+    outline: 2px dashed var(--primary-color);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+/* Drawn off screen: the browser takes its picture of it for the drag. */
+.git-drag-badge {
+    position: fixed;
+    top: -100px;
+    left: -100px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    background: var(--primary-color);
+    color: var(--text-on-primary, #fff);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .git-tree-arrow {
     width: 12px;
     font-size: 8px;

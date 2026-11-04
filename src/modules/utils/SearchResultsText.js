@@ -86,6 +86,33 @@ export function foldersBetween(root, path) {
     return out;
 }
 
+/**
+ * Where a path line sits in the tree under the searched folder: how deep, and
+ * which part of the text is its own name ([nameFrom, nameTo)). Null for a path
+ * outside that folder, which has no place in the tree and is shown in full.
+ */
+export function treePlace(text, root) {
+    if (!root) return null;
+    const path = text.trimEnd();
+    const base = `${forwardSlashes(root).replace(/\/+$/, '')}/`;
+    const plain = forwardSlashes(path);
+    if (!plain.toLowerCase().startsWith(base.toLowerCase()) || plain.length === base.length) return null;
+    const folder = plain.endsWith('/');
+    const nameTo = folder ? plain.replace(/\/+$/, '').length : plain.length;
+    const nameFrom = plain.lastIndexOf('/', nameTo - 1) + 1;
+    const depth = plain.slice(base.length, nameFrom).split('/').length - 1;
+    return { depth, nameFrom, nameTo, folder };
+}
+
+/** All the hits in the files under a folder line. */
+export function hitsUnderFolder(counts, folder) {
+    let total = 0;
+    for (const [path, count] of counts) {
+        if (isUnderFolder(path, folder)) total += count;
+    }
+    return total;
+}
+
 /** Sorts folders before the files beside them; a folder's key starts all of its contents'. */
 function treeKey(path) {
     const parts = forwardSlashes(path).toLowerCase().split('/');
