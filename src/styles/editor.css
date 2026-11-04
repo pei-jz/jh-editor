@@ -13,14 +13,8 @@
     line-height: 1.6;
 }
 
-/* Hover feedback is an outline, not a fill: a background tint washes over the
-   block's own surfaces (tables, code, callouts) and hurts readability — the
-   same reason .md-block.selected below draws only a border. */
-.md-block:hover {
-    outline: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
-    outline-offset: -1px;
-    border-radius: 3px;
-}
+/* ホバーしても枠は描かない。読んでいるそばで枠が出たり消えたりするとうるさい
+   ので、ホバーで出るのは右上のツールだけにしている。 */
 
 .md-block.editing {
     width: 100%;
@@ -554,34 +548,61 @@ body.theme-dark .visual-table-editor .range-selected {
     border-bottom-style: solid;
 }
 
-/* Block selection: outline only.
-   A background tint fought with the content's own backgrounds (tables, code
-   blocks, callouts) and made those areas hard to read, so selection is shown
-   purely as a border + accent bar. `outline` doesn't affect layout, so nothing
-   shifts when a block becomes selected. */
-.md-block.selected {
-    border-left: 4px solid var(--primary-color);
-    padding-left: 8px;
-    /* 12px (default) - 4px (border) */
-    outline: 3px solid color-mix(in srgb, var(--primary-color) 70%, transparent);
-    outline-offset: -1px;
-    border-radius: 3px;
-}
-
-/* The rest of a multi-block selection. Quieter than the cursor block on
-   purpose: one of them holds the caret and takes the next keystroke, and
-   drawing all of them identically would hide which. A tinted ground rather
-   than an outline, so a run of selected blocks reads as one region instead of
-   a stack of separate boxes. */
-.md-block.range-selected {
-    border-left: 4px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
-    padding-left: 8px;
-    background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
-    border-radius: 3px;
-}
-
-.md-block.range-selected:hover {
+/* ブロックの選択は左端の縦棒だけで示す。
+   枠や背景は本文 (表・コード・引用) の見た目と競合するので使わない。
+   棒はブロックの外の余白に置く。本文との間を空けないと、箇条書きの記号や引用の線に
+   くっついて、本文の一部に見える。上下も少し詰めて、隣のブロックの棒と離す。
+   疑似要素なら幅を取らないので、選択しても本文が 1px も動かない。
+   フォーカスの標準の枠も消す。tabindex 付きなのでキー操作後に太い枠が出るため。 */
+.md-block:focus,
+.md-block:focus-visible {
     outline: none;
+}
+
+.md-block.selected::before,
+.md-block.range-selected::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 3px;
+    bottom: 3px;
+    width: 2px;
+    border-radius: 1px;
+    background-color: var(--primary-color);
+    pointer-events: none;
+}
+
+/* 複数選択の残りのブロック。キーを受けるカーソルのブロックと区別するため、
+   同じ太さの棒を薄く描く。 */
+.md-block.range-selected::before {
+    background-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+}
+
+/* 表示モードのままセルを編集する (MarkdownTableEdit.js)。
+   枠をセルの内側に描くので、編集に入っても表の寸法は変わらない。 */
+.md-block td.md-cell-editing,
+.md-block th.md-cell-editing {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+    background-color: var(--bg-color);
+    white-space: pre-wrap;
+    cursor: text;
+}
+
+/* 全部空の行も、クリックできる高さを保つ。 */
+.md-block :is(td, th):empty:not(.md-cell-editing)::after {
+    content: "\00a0";
+}
+
+/* 列の境界にマウスが乗っているあいだ。 */
+.md-block table.md-col-resize-hover,
+.md-block table.md-col-resize-hover :is(th, td) {
+    cursor: col-resize;
+}
+
+/* 幅を指定した列では、長い語も折り返さないと指定した幅に収まらない。 */
+.md-block :is(th, td).md-col-sized {
+    overflow-wrap: anywhere;
 }
 
 .editor-toolbar button:hover {

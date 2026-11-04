@@ -142,6 +142,8 @@ export class ShortcutManager {
         }
 
         if (target.closest('.md-block')) {
+            // In-place table cell: nothing of the block's own keys applies.
+            if (target.closest('.md-cell-editing')) return 'GLOBAL';
             if (target.tagName === 'TEXTAREA' || target.isContentEditable) {
                 // Block editor: keep the MARKDOWN(_TABLE) scope so Ctrl+Enter
                 // (save), Escape (cancel) and the formatting shortcuts fire.
@@ -274,6 +276,17 @@ export class ShortcutManager {
         const match = matches.find(s => s.scope === this.currentScope) || matches.find(s => s.scope === 'GLOBAL');
 
         if (match) {
+            // A markdown table cell being edited in place is a text field.
+            const editingCell = e.target && typeof e.target.closest === 'function'
+                ? e.target.closest('.md-cell-editing') : null;
+            if (editingCell) {
+                // Its own text: clipboard and undo stay native, plain keys type.
+                if (['app:copy', 'app:cut', 'app:paste', 'app:undo', 'app:redo'].includes(match.cmd)) return;
+                if (!ctrl && !alt && !/^f\d{1,2}$/.test(eventKey)) return;
+                // Anything else (Ctrl+S, Ctrl+Tab, F2) acts on the document, and
+                // has to see the edit. Blurring commits it.
+                editingCell.blur();
+            }
             // F2 inside the markdown TABLE editor starts cell editing
             // (TableEditor.handleTableKey). Don't let the GLOBAL F2
             // (md-block:edit) hijack it — it would open a nested block
@@ -324,11 +337,15 @@ export class ShortcutManager {
                 if (e.repeat && match.cmd === 'app:toggle-view-mode') return;
                 e.preventDefault();
                 e.stopPropagation();
+                // stopPropagation() cannot stop other capture listeners on
+                // window, which run for this same event. They read this.
+                e.__shortcutHandled = true;
                 match.action(e);
             } else if (match.cmd) {
                 if (e.repeat && match.cmd === 'app:toggle-view-mode') return;
                 e.preventDefault();
                 e.stopPropagation();
+                e.__shortcutHandled = true;
                 window.dispatchEvent(new CustomEvent('shortcutTriggered', {
                     detail: { command: match.cmd, originalEvent: e }
                 }));
