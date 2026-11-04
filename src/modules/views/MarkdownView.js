@@ -28,6 +28,7 @@ import { attachDiagramZoom } from '../ui/DiagramZoom.js';
 import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 import { isFullScreenKey } from '../utils/FullScreenKey.js';
 import { invoke } from '@tauri-apps/api/core';
+import { MarkdownTableEdit } from './MarkdownTableEdit.js';
 import { PageFlip } from 'page-flip';
 // CodeMirror 6 — powers the block editor (replacing the plain textarea).
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
@@ -260,6 +261,8 @@ export class MarkdownView extends BaseView {
         // Writes this view's file to disk (Editor.saveFile). Ctrl+S inside the
         // block edit modal saves through it without closing the modal.
         this.saveFileToDisk = callbacks.saveFile;
+        // Editing table cells in place, and resizing their columns.
+        this.tableEdit = new MarkdownTableEdit(this);
 
         this._onFontChange = () => {
             // Closed tabs can leave callbacks behind. Only the view that still
@@ -279,6 +282,11 @@ export class MarkdownView extends BaseView {
     }
 
     render(content, file) {
+        // The DOM below is about to go. Every user-driven way here (a click, a
+        // shortcut) has already blurred the cell and committed it, so what is
+        // left is a redraw from elsewhere, like a reload from disk: `content`
+        // is newer than the cell's text, and it wins.
+        this.tableEdit.cancel();
         if (this.pageFlipInstance) {
             try { this.pageFlipInstance.destroy(); } catch (e) { /* ignore */ }
             this.pageFlipInstance = null;
@@ -447,6 +455,7 @@ export class MarkdownView extends BaseView {
             // selection the click landed in; book mode never collapsed it.
             div.onclick = (e) => {
                 if (div.classList.contains('editing')) return;
+                if (this.tableEdit.handleClick(e, div, i)) return;
                 const sel = window.getSelection();
                 const keepSelection = !!sel && !sel.isCollapsed && div.contains(sel.anchorNode);
                 this.selectBlock(i, { extend: e.ctrlKey || e.metaKey || e.shiftKey, keepSelection });
@@ -682,18 +691,23 @@ export class MarkdownView extends BaseView {
                 if (typeof marked !== 'undefined') {
                     div.innerHTML = this._parseMarkdown(blockText);
 
-                    // Delegate link clicks on this block
-                    div.addEventListener('click', (e) => {
-                        const link = e.target.closest('a[data-file-link], a[data-url-link]');
-                        if (!link) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (link.dataset.urlLink) {
-                            this._openUrlInBrowser(link.dataset.urlLink);
-                        } else if (link.dataset.fileLink) {
-                            this._openFileFromLink(link.dataset.fileLink);
-                        }
-                    });
+                    // Delegate link clicks on this block. Once per element:
+                    // _rerenderBlock comes through here again, and a second
+                    // listener would open the link twice.
+                    if (!div.__mdLinkDelegate) {
+                        div.__mdLinkDelegate = true;
+                        div.addEventListener('click', (e) => {
+                            const link = e.target.closest('a[data-file-link], a[data-url-link]');
+                            if (!link) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (link.dataset.urlLink) {
+                                this._openUrlInBrowser(link.dataset.urlLink);
+                            } else if (link.dataset.fileLink) {
+                                this._openFileFromLink(link.dataset.fileLink);
+                            }
+                        });
+                    }
                     // Relative-file links get a hover preview popup (task: 相対参照のプレビュー).
                     div.querySelectorAll('a[data-file-link]').forEach((a) => {
                         if (a.dataset.fileLink) this._installLinkPreview(a, a.dataset.fileLink);
@@ -723,10 +737,14 @@ export class MarkdownView extends BaseView {
                 icon.replaceChildren(iconEl('pencil', { size: 12 }));
                 icon.onclick = (e) => {
                     e.stopPropagation();
-                    this.enterEditMode(div, blockText, index);
+                    // From blocksData, not this render's text: a cell edited in
+                    // place changes the block without drawing it again, and the
+                    // modal would have opened on (and saved back) the old text.
+                    this.enterEditMode(div, this.blocksData[index], index);
                 };
                 tools.append(copyBtn, icon);
                 div.appendChild(tools);
+                this.tableEdit.attach(div, index);
                 // No double-click to edit: a double-click selects the word, as
                 // it does anywhere else you read text (picking a word to copy
                 // opened the editor instead). F2 or the pencil opens the block.
@@ -744,6 +762,14 @@ export class MarkdownView extends BaseView {
                 console.error('Markdown block render error', e);
             }
         }
+    }
+
+    /** Draw one block again from blocksData, after its text changed in place. */
+    _rerenderBlock(div) {
+        if (!div) return;
+        delete div.dataset.rendered;
+        div.innerHTML = '';
+        this._renderBlockInternal(div);
     }
 
     /**
@@ -1700,7 +1726,9 @@ export class MarkdownView extends BaseView {
      *
      * @param {number} index
      * @param {object} [opts]
-     * @param {'nearest'|'center'} [opts.reveal='nearest']
+     * @param {'nearest'|'center'|null} [opts.reveal='nearest']
+     *   null does not scroll at all: for a click in a table cell, where sliding
+     *   the block out from under the pointer would misplace the caret.
      *   `nearest` for arrow-key navigation, where scrolling the page under a
      *   reader who can already see the target is worse than not scrolling.
      *   `center` after an EDIT, where the block has just been re-rendered at a
@@ -1802,8 +1830,8 @@ export class MarkdownView extends BaseView {
                     // top. Scrolling here then was lost both ways, which left a
                     // block below the fold of an overflowing page selected but
                     // out of sight. _settleBookSpread reveals it once it shows.
-                    if (!this._bookMoving()) this._revealInBookPage(b, reveal, 'smooth');
-                } else if (typeof b.scrollIntoView === 'function') {
+                    if (reveal && !this._bookMoving()) this._revealInBookPage(b, reveal, 'smooth');
+                } else if (reveal && typeof b.scrollIntoView === 'function') {
                     b.scrollIntoView({ behavior: 'smooth', block: reveal });
                 }
                 if (!focus) return;
@@ -2072,6 +2100,13 @@ export class MarkdownView extends BaseView {
         }
         this._navKeyHandler = (e) => {
             const isArrow = e.key === 'ArrowUp' || e.key === 'ArrowDown';
+            // ShortcutManager already moved the block for this keypress. It
+            // listens on the same target in the same phase, so its
+            // stopPropagation() does not reach here, and the guard further down
+            // only recognises it while focus is on a block. After a page turn
+            // focus has dropped to <body> with the scope still MARKDOWN_BLOCK,
+            // so both moved: one ↓ went from block 1 to block 3.
+            if (isArrow && e.__shortcutHandled) return;
             // Delete/Backspace remove the selection. They are handled here as
             // well as in the MARKDOWN_BLOCK scope because the scope only
             // applies while focus is literally on a block, and the selection
@@ -2118,7 +2153,7 @@ export class MarkdownView extends BaseView {
             if (document.activeElement && typeof document.activeElement.closest === 'function' &&
                 document.activeElement.closest('#explorer')) return;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-            if (t && typeof t.closest === 'function' && t.closest('.cm-editor, .editing, #search-panel')) return;
+            if (t && typeof t.closest === 'function' && t.closest('.cm-editor, .editing, .md-cell-editing, #search-panel')) return;
             // Focus inside a .md-block: ShortcutManager (MARKDOWN_BLOCK scope)
             // already resolves ↑/↓ to md-block:nav / md-block:move. Handling
             // them here as well made each keypress advance TWO blocks (double
@@ -2913,6 +2948,9 @@ export class MarkdownView extends BaseView {
 
             // Fix text selection and arrow key focus
             bookDiv.addEventListener('mousedown', (e) => {
+                // Taking focus from a cell being edited would end the edit on
+                // the very click that was placing the caret inside it.
+                if (e.target.closest && e.target.closest('.md-cell-editing')) return;
                 layoutDiv.focus();
             }, true);
 
@@ -3001,6 +3039,8 @@ export class MarkdownView extends BaseView {
             if (document.activeElement && (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT')) {
                 return;
             }
+            // A table cell being edited in place: ← / → move the caret.
+            if (e.target && e.target.isContentEditable) return;
             // The explorer owns the arrow keys while it has focus: its rows
             // live in #file-list, a descendant of #explorer. Judge by the EVENT
             // TARGET first (virtual scrolling destroys the focused row on every
@@ -3114,12 +3154,17 @@ export class MarkdownView extends BaseView {
                 div.onclick = (e) => {
                     e.stopPropagation();
                     if (div.classList.contains('editing')) return;
+                    if (this.tableEdit.handleClick(e, div, item.index)) return;
                     // Ctrl / Shift extend, matching the scroll-mode handler.
                     this._setCursor(item.index, {
                         extend: e.ctrlKey || e.metaKey || e.shiftKey,
                     });
+                    const range = this.selectedRange();
                     const blocks = this.container.querySelectorAll('.md-block');
                     blocks.forEach((b) => {
+                        const bIdx = parseInt(b.dataset.index);
+                        b.classList.toggle('range-selected',
+                            !!range && b !== div && bIdx >= range.from && bIdx <= range.to);
                         if (b === div) {
                             b.classList.add('selected');
                             b.focus({ preventScroll: true });
@@ -3291,7 +3336,15 @@ export class MarkdownView extends BaseView {
         // _resetSpreadScroll just put the spread at its top. A selected block
         // further down an overflowing page has to be brought back into view.
         const el = this.container && this.container.querySelector(`.stf__page .md-block[data-index="${sel}"]`);
-        if (el) this._revealInBookPage(el, 'nearest', 'auto');
+        if (el) {
+            this._revealInBookPage(el, 'nearest', 'auto');
+            // selectBlock() could not focus it: while the book was turning, its
+            // page was display:none. Pick that up now, so the keyboard stays on
+            // the block. Only when focus has gone nowhere; it may have been
+            // moved somewhere deliberately during the 800ms turn.
+            const active = document.activeElement;
+            if (!active || active === document.body) el.focus({ preventScroll: true });
+        }
     }
 
     /**
@@ -3378,6 +3431,7 @@ export class MarkdownView extends BaseView {
     }
 
     destroy() {
+        this.tableEdit.commit();
         if (this.container.__mdViewOwner?.deref() === this) {
             delete this.container.__mdViewOwner;
         }

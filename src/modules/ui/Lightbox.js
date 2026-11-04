@@ -9,6 +9,8 @@
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
+// How far the pointer may travel and still count as a click, not a pan.
+const CLICK_SLOP = 4;
 
 function _injectStyles() {
     if (document.getElementById('lightbox-styles')) return;
@@ -90,7 +92,7 @@ export const Lightbox = {
 
         const hint = document.createElement('div');
         hint.className = 'lb-hint';
-        hint.textContent = 'Wheel to zoom · drag to pan · +/− zoom · 0 actual size · F fit';
+        hint.textContent = 'Wheel to zoom · drag to pan · +/− zoom · 0 actual size · F fit · click outside to close';
 
         overlay.append(bar, stage, hint);
         document.body.appendChild(overlay);
@@ -122,9 +124,14 @@ export const Lightbox = {
         }, { passive: false });
 
         let dragging = false, lastX = 0, lastY = 0;
+        // Pressed on the empty stage around the content. Released without
+        // moving, that is a click outside it and closes the lightbox; moved,
+        // it was a pan that happened to start outside the image.
+        let pressOutside = null;
         stage.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             dragging = true; lastX = e.clientX; lastY = e.clientY;
+            pressOutside = e.target === stage ? { x: e.clientX, y: e.clientY } : null;
             stage.classList.add('dragging');
             e.preventDefault();
         });
@@ -136,7 +143,13 @@ export const Lightbox = {
             lastX = e.clientX; lastY = e.clientY;
             apply();
         }
-        function onUp() { dragging = false; stage.classList.remove('dragging'); }
+        function onUp(e) {
+            dragging = false;
+            stage.classList.remove('dragging');
+            const press = pressOutside;
+            pressOutside = null;
+            if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) <= CLICK_SLOP) close();
+        }
 
         const close = () => {
             document.removeEventListener('keydown', onKey, true);
@@ -158,7 +171,12 @@ export const Lightbox = {
         oneBtn.onclick = () => { tx = 0; ty = 0; setZoom(1); };
         fitBtn.onclick = fit;
         closeBtn.onclick = close;
-        overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+        // The title bar's empty part and the hint line are outside the content
+        // too. The stage handles its own clicks above, to tell them from a pan.
+        overlay.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            if ([overlay, bar, titleEl, hint].includes(e.target)) close();
+        });
 
         // Images may still be decoding when cloned; fit once they have a size.
         const img = inner.querySelector('img');
