@@ -11,6 +11,7 @@
  *   Shift+Enter       セル内の改行 (<br>)
  *   Esc               取り消す
  *   外をクリック      確定
+ *   Ctrl+Z / Ctrl+Y   入力の取り消し / やり直し。尽きたら確定済みの編集を文書の履歴で戻す
  *
  * 編集中のセルには原文 (**太字** などの記号も含む) を見せる。描画後の文字を編集して
  * しまうと、書式を書き戻す手段がなくなるため。
@@ -324,10 +325,48 @@ export class MarkdownTableEdit {
             : caret.bottom > edge.top + 1;
     }
 
+    /**
+     * セルの中の Ctrl+Z / Ctrl+Y。このセルで入力した分はブラウザーの標準の取り消しに
+     * 任せる。それが尽きたら、確定済みの編集を文書の履歴から戻す。Enter で次のセルへ
+     * 移った直後は、新しいセルに戻せるものがないので、ここを通らないと何も起きない。
+     *
+     * @returns {boolean} 文書の履歴で処理した (標準の動作を止めた) か
+     */
+    _handleHistoryKey(e, state, dir) {
+        const unchanged = toCellSource(state.cell.textContent) === state.raw;
+        if (dir === 'undo') {
+            if (!unchanged) {
+                state.undidNatively = true;
+                return false;
+            }
+        } else if (!unchanged || state.undidNatively) {
+            // 標準の取り消しで元に戻した直後なら、やり直しも標準の動作で入力を復元する。
+            return false;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        const view = this.view;
+        const file = view._viewFile();
+        const stack = file && file._mdHistory && file._mdHistory[dir];
+        // 戻すものがなければ、編集を続けられるようにセルに留まる。
+        if (!stack || !stack.length) return true;
+        // 文書を描き直すので、未入力のセルの編集は閉じる。戻した先はブロックの選択。
+        this.cancel();
+        view[dir]();
+        return true;
+    }
+
     _onKeyDown(e, state) {
         if (e.isComposing || e.keyCode === 229) return;
         const { row, col, table, cell } = state;
         const columns = table.rows[0] ? table.rows[0].cells.length : 0;
+
+        const key = e.key.toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && (key === 'z' || key === 'y')) {
+            this._handleHistoryKey(e, state, key === 'y' || e.shiftKey ? 'redo' : 'undo');
+            return;
+        }
 
         if (e.key === 'Escape') {
             e.preventDefault();
