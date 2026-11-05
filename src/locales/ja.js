@@ -1057,4 +1057,8 @@ export default {
     'Draw the results as a folder tree. The text itself keeps the full paths: turn this off to see and edit them.': '結果をフォルダのツリーで表示します。テキスト自体はフルパスのままです。パスを確認・編集するときはオフにしてください。',
     'Copy as Markdown source': 'Markdown のソースをコピー',
     'Copy as a table: tab-separated, and pastes into Excel with formatting': '表としてコピー（タブ区切り。Excel には書式付きで貼り付け）',
+    'Search files... (glob: *.txt, src/*.js)': 'ファイルを検索... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '{n} ファイルを索引化 ({ms}ms)',
+    '{n} files (cached)': '{n} ファイル (キャッシュ)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} ファイル (上限適用{timing}) — すべて検索するにはサブフォルダーを開いてください',
 };

@@ -51,12 +51,14 @@ function indexStatus(statusBar, elapsed) {
     if (_fileCacheTotal > FILE_CACHE_LIMIT) {
         statusBar.classList.add('jh-icon-row');
         statusBar.replaceChildren(iconEl('warning', { size: 11 }), document.createTextNode(
-            `${FILE_CACHE_LIMIT.toLocaleString()}/${_fileCacheTotal.toLocaleString()} files (limit applied${timing}) — open a subfolder to search all of it`));
+            t('{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it', {
+                shown: FILE_CACHE_LIMIT.toLocaleString(), total: _fileCacheTotal.toLocaleString(), timing,
+            })));
     } else {
         statusBar.classList.remove('jh-icon-row');
         statusBar.textContent = elapsed != null
-            ? `${_fileCache.length.toLocaleString()} files indexed (${elapsed}ms)`
-            : `${_fileCache.length.toLocaleString()} files (cached)`;
+            ? t('{n} files indexed ({ms}ms)', { n: _fileCache.length.toLocaleString(), ms: elapsed })
+            : t('{n} files (cached)', { n: _fileCache.length.toLocaleString() });
     }
 }
 
@@ -121,7 +123,7 @@ export const FileSearchModal = {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'tab-search-input';
-        input.placeholder = 'Search files... (glob: *.txt, src/*.js)';
+        input.placeholder = t('Search files... (glob: *.txt, src/*.js)');
         input.style.paddingLeft = '35px';
         input.style.fontSize = '16px';
         input.style.height = '48px';
@@ -191,10 +193,13 @@ export const FileSearchModal = {
                         <span style="opacity: 0.8; display: inline-flex;">${icon}</span>
                         <span class="file-search-name" style="flex-shrink: 0;"></span>
                     </span>
-                    <span class="dir" title="${escapeHtml(hit.item.dir)}"></span>
+                    <span class="dir" title="${escapeHtml(hit.item.dir)}"><bdi dir="ltr"></bdi></span>
                 `;
                 appendHighlighted(li.querySelector('.file-search-name'), hit.name, nameRanges);
-                appendHighlighted(li.querySelector('.dir'), displayDir, split.dirRanges);
+                // .dir is rtl so a long folder is cut on the left; the ltr
+                // isolate keeps that from reordering the text itself, which
+                // turned "01_基本設計" into "基本設計_01".
+                appendHighlighted(li.querySelector('.dir bdi'), displayDir, split.dirRanges);
                 li.onclick = () => selectAndClose(hit);
                 list.appendChild(li);
             });

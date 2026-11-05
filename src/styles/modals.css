@@ -500,6 +500,8 @@
     flex: 1;                  /* Take remaining space */
     text-align: right;        /* Align to right */
     direction: rtl;           /* Start ellipsis from left (shows end of path) */
+    /* The text sits in <bdi dir="ltr">, so rtl only moves the ellipsis and
+       never reorders the path ("01_基本設計" stays as written). */
 }
 
 /* Fix direction: rtl side effects on slashes if needed, 

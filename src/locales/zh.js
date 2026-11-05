@@ -1057,4 +1057,8 @@ export default {
     'Draw the results as a folder tree. The text itself keeps the full paths: turn this off to see and edit them.': '以文件夹树显示结果。文本本身仍保留完整路径：关闭此项即可查看和编辑。',
     'Copy as Markdown source': '复制 Markdown 源码',
     'Copy as a table: tab-separated, and pastes into Excel with formatting': '复制为表格（制表符分隔，粘贴到 Excel 时保留格式）',
+    'Search files... (glob: *.txt, src/*.js)': '搜索文件... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '已索引 {n} 个文件 ({ms}ms)',
+    '{n} files (cached)': '{n} 个文件 (已缓存)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} 个文件 (已应用上限{timing}) — 打开子文件夹以搜索全部内容',
 };

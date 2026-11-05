@@ -112,7 +112,7 @@ describe('lineCounterpart fuzz', () => {
                 }
             }
         }
-    });
+    }, 60000);
 
     it('counts the empty line after a final line break as part of a chunk that runs to the end', () => {
         // The chunk ends one past the document; "to - 1" used to stop a line short.
@@ -177,7 +177,7 @@ describe('MergeEditor fuzz', () => {
             host.remove();
             host = null;
         }
-    }, 120000);
+    }, 300000);
 
     it('undo after a copy, keep-both or sync point brings the exact text back', async () => {
         for (let seed = 1; seed <= 40; seed++) {

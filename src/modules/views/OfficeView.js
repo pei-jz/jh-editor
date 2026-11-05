@@ -684,9 +684,26 @@ export class OfficeView {
             const value = row[c] || '';
             const style = this.styles[ids[c]];
             if (!value || !style || !style.wrap) continue;
-            const lines = this._wrappedLineCount(value, this.colWidths[c] || 0);
+            // A merge wraps across its whole width, not the anchor column's.
+            // On grid-paper sheets (every column ~25px) the anchor alone made
+            // one sentence count as dozens of lines.
+            const merge = this._mergeAnchoredAt(rowIndex, c);
+            let width = this.colWidths[c] || 0;
+            if (merge) {
+                width = 0;
+                for (let k = merge.col; k < merge.col + merge.cols; k++) width += this.colWidths[k] || 0;
+            }
+            const lines = this._wrappedLineCount(value, width);
             // The CSS cell has 2px top padding and uses a 1.35 line-height.
-            height = Math.max(height, Math.ceil(lines * WRAP_LINE_HEIGHT + 4));
+            let needed = Math.ceil(lines * WRAP_LINE_HEIGHT + 4);
+            // A merge several rows tall already has the rows below it to fill;
+            // only what they cannot hold falls to the first row.
+            if (merge && merge.rows > 1) {
+                for (let r = rowIndex + 1; r < rowIndex + merge.rows; r++) {
+                    needed -= this.baseRowHeights[r] || ROW_HEIGHT;
+                }
+            }
+            height = Math.max(height, needed);
         }
         return height;
     }
@@ -1588,6 +1605,14 @@ export class OfficeView {
         window.addEventListener('pointerup', up);
         window.addEventListener('pointercancel', up);
         this._selectionDragCleanup = up;
+    }
+
+    /** The merge whose top-left cell is (r, c), if any. */
+    _mergeAnchoredAt(r, c) {
+        for (const m of this.merges || []) {
+            if (m.row === r && m.col === c) return m;
+        }
+        return null;
     }
 
     /** The merged box a cell falls inside, or null. */

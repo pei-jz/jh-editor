@@ -795,6 +795,39 @@ describe('the preview view', () => {
         view.destroy();
     });
 
+    // Grid-paper (方眼紙) sheets: every column ~25px, text merged across many
+    // of them. Wrapping against the anchor column alone counted one sentence
+    // as dozens of lines and stretched the row to the cap.
+    it('wraps a merged cell against the whole merge, not its first column', () => {
+        const cols = 30;
+        const text = 'A design note written across the grid-paper columns of the sheet.';
+        const blank = Array(cols - 1).fill('');
+        const { view } = show(sheetsPreview({
+            sheets: [{
+                name: 'Grid', rows: [[text, ...blank], [text, ...blank], ['', ...blank]],
+                total_rows: 3, total_cols: cols, truncated: false, error: null,
+                layout: {
+                    col_widths: Array(cols).fill(25), row_heights: [24, 24, 24],
+                    merges: [
+                        { row: 0, col: 0, rows: 1, cols },
+                        { row: 1, col: 0, rows: 2, cols: 8 },
+                    ],
+                    styles: [{ wrap: false }, { wrap: true }],
+                    style_ids: [[1], [1], [0]],
+                },
+            }],
+        }));
+
+        // 750px holds the sentence on one line: the row keeps its height.
+        expect(view.rowHeights[0]).toBe(24);
+        // 200px needs a few lines; a merge two rows tall has the second row to
+        // fill, so the first does not take the whole height on its own.
+        const twoRow = view._wrappedLineCount(text, 200) * 16.2 + 4;
+        expect(view.rowHeights[1]).toBe(Math.max(24, Math.ceil(twoRow) - 24));
+        expect(view.rowHeights[2]).toBe(24);
+        view.destroy();
+    });
+
     it('lets a reader drag a row height and double-click back to auto-fit', () => {
         const { view, file } = show(sheetsPreview({
             sheets: [{

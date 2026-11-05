@@ -1057,4 +1057,8 @@ export default {
     'Draw the results as a folder tree. The text itself keeps the full paths: turn this off to see and edit them.': '결과를 폴더 트리로 표시합니다. 텍스트 자체는 전체 경로를 유지합니다. 경로를 보거나 편집하려면 끄세요.',
     'Copy as Markdown source': 'Markdown 소스 복사',
     'Copy as a table: tab-separated, and pastes into Excel with formatting': '표로 복사 (탭으로 구분, Excel에 서식과 함께 붙여넣기)',
+    'Search files... (glob: *.txt, src/*.js)': '파일 검색... (glob: *.txt, src/*.js)',
+    '{n} files indexed ({ms}ms)': '파일 {n}개 색인됨 ({ms}ms)',
+    '{n} files (cached)': '파일 {n}개 (캐시)',
+    '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '파일 {shown}/{total}개 (제한 적용{timing}) — 전체를 검색하려면 하위 폴더를 여세요',
 };
