@@ -551,7 +551,8 @@ body.theme-dark .visual-table-editor .range-selected {
 /* ブロックの選択は左端の縦棒だけで示す。
    枠や背景は本文 (表・コード・引用) の見た目と競合するので使わない。
    棒はブロックの外の余白に置く。本文との間を空けないと、箇条書きの記号や引用の線に
-   くっついて、本文の一部に見える。上下も少し詰めて、隣のブロックの棒と離す。
+   くっついて、本文の一部に見える。上下は本文の範囲に合わせ、中身の余白の分を除く
+   (MarkdownView._fitSelectionBar)。2px は .md-block の padding。
    疑似要素なら幅を取らないので、選択しても本文が 1px も動かない。
    フォーカスの標準の枠も消す。tabindex 付きなのでキー操作後に太い枠が出るため。 */
 .md-block:focus,
@@ -564,8 +565,8 @@ body.theme-dark .visual-table-editor .range-selected {
     content: "";
     position: absolute;
     left: -8px;
-    top: 3px;
-    bottom: 3px;
+    top: calc(2px + var(--md-bar-top, 0px));
+    bottom: calc(2px + var(--md-bar-bottom, 0px));
     width: 2px;
     border-radius: 1px;
     background-color: var(--primary-color);

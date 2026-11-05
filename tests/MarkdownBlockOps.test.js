@@ -157,6 +157,50 @@ describe('TableEditor clipboard export', () => {
         expect(html).toContain('font-weight:bold');
     });
 
+    describe('borders, which have to survive leaving the app', () => {
+        const borderIn = (html) => html.match(/border:1px solid ([^;]+);/)[1];
+        const theme = (vars) => {
+            for (const [k, v] of Object.entries(vars)) document.body.style.setProperty(k, v);
+        };
+        afterEach(() => {
+            for (const k of ['--bg-color', '--border-color', '--table-header-bg', '--text-color']) {
+                document.body.style.removeProperty(k);
+            }
+        });
+
+        it('turns a faint rgba border into a solid one that shows on a light cell', () => {
+            theme({ '--bg-color': '#ffffff', '--border-color': 'rgba(0, 0, 0, 0.09)' });
+            expect(borderIn(TableEditor.toHtml(data))).toBe('#a6a6a6');
+        });
+
+        it('does the same on a dark cell, in the other direction', () => {
+            theme({ '--bg-color': '#1e1e1e', '--border-color': 'rgba(255, 255, 255, 0.09)' });
+            expect(borderIn(TableEditor.toHtml(data))).toBe('#6d6d6d');
+        });
+
+        it('keeps a theme border that is already easy to see', () => {
+            theme({ '--bg-color': '#ffffff', '--border-color': '#808080' });
+            expect(borderIn(TableEditor.toHtml(data))).toBe('#808080');
+        });
+
+        it('leaves no transparency anywhere in the styles', () => {
+            theme({
+                '--bg-color': 'rgb(255, 255, 255)',
+                '--border-color': 'rgba(0, 0, 0, 0.09)',
+                '--table-header-bg': 'rgba(0, 0, 0, 0.05)',
+                '--text-color': 'rgba(0, 0, 0, 0.9)',
+            });
+            const html = TableEditor.toHtml(data);
+            expect(html).not.toContain('rgb');
+            expect(html).toContain('background-color:#f2f2f2');
+        });
+
+        it('falls back when a colour is not one it can read', () => {
+            theme({ '--bg-color': '#ffffff', '--border-color': 'color-mix(in srgb, red, blue)' });
+            expect(borderIn(TableEditor.toHtml(data))).toBe('#a6a6a6');
+        });
+    });
+
     it('keeps every style declaration inside its attribute', () => {
         // A double quote in the font stack closed style="..." early, so
         // everything after it — including the background colour — became

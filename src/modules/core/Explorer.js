@@ -104,6 +104,8 @@ class VirtualExplorer {
 
         this.scroller = new VirtualScroll(this.container, 0, this.rowHeight, this.render.bind(this));
 
+        this._bindNamePeek();
+
         // Key Navigation
         this._onKeyDown = this.handleKeyDown.bind(this);
         this.container.addEventListener('keydown', this._onKeyDown);
@@ -230,8 +232,46 @@ class VirtualExplorer {
         else if (e.clientY > rect.bottom - edge) this.container.scrollTop += this.rowHeight / 2;
     }
 
+    /**
+     * Show a cut-off name in full while the mouse is on its row. The tree cannot
+     * wrap (its rows are one fixed height) and a tooltip would make you wait, so
+     * the name is drawn over the row and past the panel's edge. It takes no
+     * clicks: whatever is under it behaves as if it were not there.
+     */
+    _bindNamePeek() {
+        this.contentHost.addEventListener('mouseover', (e) => {
+            const row = e.target.closest && e.target.closest('.tree-item');
+            const label = row && row.querySelector('.tree-label');
+            if (!label || label.scrollWidth <= label.clientWidth) {
+                this._hideNamePeek();
+                return;
+            }
+            this._showNamePeek(row, label);
+        });
+        this.container.addEventListener('mouseleave', () => this._hideNamePeek());
+        this.container.addEventListener('dragstart', () => this._hideNamePeek());
+    }
+
+    _showNamePeek(row, label) {
+        if (!this._namePeek) {
+            this._namePeek = document.createElement('div');
+            this._namePeek.className = 'tree-name-peek';
+        }
+        const peek = this._namePeek;
+        const box = label.getBoundingClientRect();
+        peek.textContent = label.textContent;
+        peek.style.left = `${Math.max(0, box.left - 5)}px`;
+        peek.style.top = `${row.getBoundingClientRect().top + 1}px`;
+        document.body.appendChild(peek);
+    }
+
+    _hideNamePeek() {
+        if (this._namePeek) this._namePeek.remove();
+    }
+
     /** Tear down listeners so a re-init can't leave ghost handlers behind. */
     destroy() {
+        this._hideNamePeek();
         if (this.scroller) this.scroller.destroy();
         if (this._onGitStatus) window.removeEventListener('git-status-updated', this._onGitStatus);
         if (this._onKeyDown) this.container.removeEventListener('keydown', this._onKeyDown);
@@ -564,6 +604,8 @@ class VirtualExplorer {
     }
 
     render({ startIndex, endIndex, offsetY, totalHeight }) {
+        // The rows are about to be replaced, and a removed row sends no mouseout.
+        this._hideNamePeek();
         this.contentHost.style.height = totalHeight + 'px';
         this.contentHost.innerHTML = '';
 

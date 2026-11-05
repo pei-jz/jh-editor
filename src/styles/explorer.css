@@ -138,6 +138,25 @@
     background-color: var(--hover-color);
 }
 
+/* A cut-off name in full, over its row (VirtualExplorer._showNamePeek).
+   Fixed and on the body, since #explorer clips whatever is inside it. */
+.tree-name-peek {
+    position: fixed;
+    z-index: 10000;
+    box-sizing: border-box;
+    max-width: calc(100vw - 16px);
+    padding: 0 6px 0 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background-color: var(--bg-color);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-color);
+    font-size: 13px;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
 /* Selection and cursor are two different things, drawn two different ways.
    Every selected row gets the same solid fill, so a multi-selection reads as
    one; the cursor (the row the keys act from) is an outline on top. The old

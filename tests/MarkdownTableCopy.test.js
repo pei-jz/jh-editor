@@ -37,6 +37,16 @@ describe('copying a table block', () => {
         document.body.innerHTML = '';
     });
 
+    it('fits the selection bar to the margins of what is inside', () => {
+        view.blocksData = ['x'];
+        block = document.createElement('div');
+        block.innerHTML = '<h2 style="margin-top: 27px">a</h2><ul style="margin-bottom: 12px"></ul><div class="md-block-tools" style="margin-bottom: 99px"></div>';
+        document.getElementById('host').appendChild(block);
+        view._fitSelectionBar(block);
+        expect(block.style.getPropertyValue('--md-bar-top')).toBe('27px');
+        expect(block.style.getPropertyValue('--md-bar-bottom')).toBe('12px');
+    });
+
     it('offers both on a table', () => {
         draw(TABLE);
         expect(block.querySelector('.md-copy-icon')).not.toBeNull();

@@ -761,6 +761,7 @@ export class MarkdownView extends BaseView {
                 tools.appendChild(icon);
                 div.appendChild(tools);
                 this.tableEdit.attach(div, index);
+                this._fitSelectionBar(div);
                 // No double-click to edit: a double-click selects the word, as
                 // it does anywhere else you read text (picking a word to copy
                 // opened the editor instead). F2 or the pencil opens the block.
@@ -778,6 +779,20 @@ export class MarkdownView extends BaseView {
                 console.error('Markdown block render error', e);
             }
         }
+    }
+
+    /**
+     * Run the selection bar along the text, not along the block's spacing.
+     * That spacing is the margins of what is inside, which differ by kind: a
+     * heading has a lot above it, a list a lot below. They do not depend on the
+     * width, so this holds when the text wraps differently.
+     */
+    _fitSelectionBar(div) {
+        const content = [...div.children].filter((el) => !el.classList.contains('md-block-tools'));
+        if (!content.length) return;
+        const margin = (el, side) => parseFloat(getComputedStyle(el)[side]) || 0;
+        div.style.setProperty('--md-bar-top', `${margin(content[0], 'marginTop')}px`);
+        div.style.setProperty('--md-bar-bottom', `${margin(content[content.length - 1], 'marginBottom')}px`);
     }
 
     /** Draw one block again from blocksData, after its text changed in place. */

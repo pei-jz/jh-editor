@@ -145,6 +145,13 @@ describe('block selection draws only the bar', () => {
         expect(css.slice(at, css.indexOf('}', at))).toMatch(/left: -\d+px/);
     });
 
+    it('runs the bar along the text, leaving out the spacing inside the block', () => {
+        const at = css.indexOf('\n.md-block.selected::before,');
+        const rule = css.slice(at, css.indexOf('}', at));
+        expect(rule).toContain('var(--md-bar-top');
+        expect(rule).toContain('var(--md-bar-bottom');
+    });
+
     it('draws nothing around a hovered block', () => {
         expect(css).not.toMatch(/\n\.md-block:hover \{/);
         expect(css).toMatch(/\.md-block:hover \.md-block-tools/);

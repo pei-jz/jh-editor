@@ -26,26 +26,76 @@ function esc(v) {
         .replace(/"/g, '&quot;');
 }
 
+/** Read #rgb, #rgba, #rrggbb, #rrggbbaa or rgb()/rgba(). Null for anything else. */
+function parseColor(value) {
+    const text = String(value || '').trim().toLowerCase();
+    const hex = text.match(/^#([0-9a-f]{3,8})$/);
+    if (hex && hex[1].length !== 5 && hex[1].length !== 7) {
+        const h = hex[1].length < 6 ? [...hex[1]].map((d) => d + d).join('') : hex[1];
+        const at = (i) => parseInt(h.slice(i, i + 2), 16);
+        return { r: at(0), g: at(2), b: at(4), a: h.length === 8 ? at(6) / 255 : 1 };
+    }
+    const fn = text.match(/^rgba?\(([^)]+)\)$/);
+    if (fn) {
+        const parts = fn[1].split(/[\s,/]+/).filter(Boolean).map(parseFloat);
+        if (parts.length >= 3 && parts.every(Number.isFinite)) {
+            return { r: parts[0], g: parts[1], b: parts[2], a: parts.length > 3 ? parts[3] : 1 };
+        }
+    }
+    return null;
+}
+
+const toHex = ({ r, g, b }) => '#' + [r, g, b]
+    .map((n) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, '0'))
+    .join('');
+
+/** Paint `top` over the opaque `under` at the given strength. */
+const mix = (top, under, a) => ({
+    r: top.r * a + under.r * (1 - a),
+    g: top.g * a + under.g * (1 - a),
+    b: top.b * a + under.b * (1 - a),
+});
+
 /**
- * Resolve the current theme's table colours to literal values.
+ * The border as a solid colour that can be seen on the cell.
+ *
+ * Most themes draw their borders as a faint rgba(): fine on screen, nothing in
+ * a spreadsheet, whose own gridlines are darker than the result. So too close
+ * to the background means the border gets drawn stronger rather than faithfully.
+ */
+function visibleBorder(value, bg) {
+    const under = parseColor(bg) || { r: 255, g: 255, b: 255 };
+    const c = parseColor(value);
+    const brightness = ({ r, g, b }) => (r + g + b) / 3;
+    const solid = c ? mix(c, under, c.a) : null;
+    if (solid && Math.abs(brightness(solid) - brightness(under)) >= 64) return toHex(solid);
+    const ink = brightness(under) >= 128 ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 };
+    return toHex(mix(ink, under, 0.35));
+}
+
+/**
+ * Resolve the current theme's table colours to literal, opaque values.
  *
  * The clipboard leaves the app, so `var(--border-color)` means nothing on the
- * other side — Excel needs the colour itself. Custom properties compute to
- * their declared value, which in every theme here is a literal, so reading
- * them off the body is enough.
+ * other side — Excel needs the colour itself, and it does not do transparency.
  */
 function themeTableColors() {
     const fallback = {
-        headerBg: '#f2f2f2', bg: '#ffffff', text: '#111111', border: '#c9c9c9',
+        headerBg: '#f2f2f2', bg: '#ffffff', text: '#111111', border: '#a6a6a6',
     };
     try {
         const cs = getComputedStyle(document.body);
-        const v = (name, alt) => ((cs.getPropertyValue(name) || '').trim() || alt);
+        const v = (name) => (cs.getPropertyValue(name) || '').trim();
+        const over = (value, under, alt) => {
+            const c = parseColor(value);
+            return c ? toHex(mix(c, parseColor(under), c.a)) : alt;
+        };
+        const bg = over(v('--bg-color'), '#ffffff', fallback.bg);
         return {
-            headerBg: v('--table-header-bg', fallback.headerBg),
-            bg: v('--bg-color', fallback.bg),
-            text: v('--text-color', fallback.text),
-            border: v('--border-color', fallback.border),
+            headerBg: over(v('--table-header-bg'), bg, fallback.headerBg),
+            bg,
+            text: over(v('--text-color'), bg, fallback.text),
+            border: visibleBorder(v('--border-color'), bg),
         };
     } catch (_) {
         return fallback;
