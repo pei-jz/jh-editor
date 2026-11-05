@@ -54,7 +54,9 @@ function _injectBlockEditStyles() {
         display: flex; align-items: center; justify-content: center;
     }
     .mbe-box {
-        width: min(1180px, 94vw); height: min(760px, 88vh);
+        /* Wide enough that the source pane holds the whole format toolbar in
+           every language; Japanese is the longest, at 725px. */
+        width: min(1340px, 96vw); height: min(760px, 88vh);
         min-width: 640px; min-height: 360px; max-width: 99vw; max-height: 98vh;
         background: var(--bg-color); color: var(--text-color);
         border: 1px solid var(--border-color); border-radius: 8px;
@@ -117,8 +119,18 @@ function _injectBlockEditStyles() {
         flex: 1; min-height: 0; display: flex; flex-direction: column;
     }
     .mbe-left .table-editor-scroll { flex: 1; min-height: 0; overflow: auto; }
-    /* Clear of the scroller's own vertical scrollbar, which it now has. */
-    .mbe-left .table-editor-host > .table-copy-btn { right: 16px; }
+    /* In the table's own corner, inside the margin below. */
+    .mbe-left .table-editor-host > .table-copy-btn { top: 18px; right: 20px; }
+    .mbe-left .visual-table-editor { width: calc(100% - 32px); margin: 14px 16px; }
+
+    /* The table editor is its own preview: it shows the cells formatted, and a
+       second copy of the same table beside it only made it hard to tell which
+       one was being edited. The text editor brings the preview back. */
+    .mbe-box.mbe-no-preview .mbe-split,
+    .mbe-box.mbe-no-preview .mbe-right,
+    .mbe-box.mbe-no-preview .mbe-layout-btn:not(.mbe-max-btn) { display: none; }
+    /* !important: a splitter drag leaves a width on the pane's own style. */
+    .mbe-box.mbe-no-preview .mbe-left { flex: 1 1 100% !important; }
     /* The key hints stay on screen while the table scrolls under them. */
     .mbe-left .table-editor-scroll .table-editor-hints {
         position: sticky; left: 0; bottom: 0; z-index: 2; margin-top: 0;
@@ -1033,6 +1045,15 @@ export class MarkdownView extends BaseView {
                 textarea.focus();
             }
             this._updateToggleText(toggleBtn, isTableMode);
+            showPreviewForMode();
+            // Here rather than in Ctrl+E's action, so the button gets the format
+            // toolbar and the keys of the new mode too.
+            registerShortcuts(isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN');
+        };
+
+        const showPreviewForMode = () => {
+            const box = container.closest('.mbe-box');
+            if (box) box.classList.toggle('mbe-no-preview', isTableMode);
         };
 
         const showAltHints = () => {
@@ -1230,8 +1251,6 @@ export class MarkdownView extends BaseView {
             'md:toggle-mode': (e) => {
                 e.preventDefault();
                 toggleMode();
-                const newScope = isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN';
-                registerShortcuts(newScope);
             },
             'md:save': (e) => {
                 e.preventDefault();
@@ -1436,6 +1455,7 @@ export class MarkdownView extends BaseView {
             blockIndex, total: this.blocksData.length,
             onBackdropClose: cancelAndClose,
         });
+        showPreviewForMode();
 
         if (typeof marked !== 'undefined') {
             previewContent.innerHTML = this._parseMarkdown(textarea.value);
@@ -1534,7 +1554,12 @@ export class MarkdownView extends BaseView {
         let isVertical = false;
         try { isVertical = localStorage.getItem(MBE_LAYOUT_KEY) === 'vertical'; } catch (_) {}
         applyLayout(isVertical);
-        const toggleLayout = () => { isVertical = !isVertical; applyLayout(isVertical); };
+        const toggleLayout = () => {
+            // Ctrl+Alt+L still arrives here while the preview is hidden.
+            if (box.classList.contains('mbe-no-preview')) return;
+            isVertical = !isVertical;
+            applyLayout(isVertical);
+        };
         if (layoutBtn) layoutBtn.onclick = toggleLayout;
         this._toggleEditLayout = toggleLayout;
 

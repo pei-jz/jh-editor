@@ -49,14 +49,14 @@
     border: 1px solid var(--border-color);
     background-color: var(--table-header-bg);
     color: var(--text-color);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .visual-table-editor td {
     padding: 0;
     border: 1px solid var(--border-color);
-    font-size: 14px;
+    font-size: 13px;
     background-color: var(--bg-color);
 }
 
@@ -64,10 +64,10 @@
 .visual-table-editor input,
 .visual-table-editor textarea {
     width: 100%;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border: none;
     outline: none;
-    font-size: 14px;
+    font-size: 13px;
     font-family: inherit;
     line-height: 1.5;
     background-color: transparent;
@@ -98,7 +98,7 @@
 }
 
 .visual-table-editor .cell-text {
-    padding: 8px 12px;
+    padding: 6px 10px;
     min-height: 1em;
     line-height: 1.5;
     /* `break-all` split ordinary words mid-letter. Wrap at word boundaries and
@@ -110,7 +110,37 @@
 }
 
 .visual-table-editor th .cell-text {
-    text-align: center;
+    text-align: left;
+}
+
+/* Rendered marks in a cell that is not being edited. The link is for reading:
+   a click on it selects the cell, as a click anywhere else in the cell does. */
+.visual-table-editor .cell-text code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color-secondary);
+    font-size: 0.92em;
+}
+
+.visual-table-editor .cell-text a {
+    color: var(--primary-color);
+    pointer-events: none;
+}
+
+/* The selected cell's editor, waiting unseen for an IME. See armCell(). */
+.visual-table-editor td,
+.visual-table-editor th {
+    position: relative;
+}
+
+.visual-table-editor textarea.cell-armed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100% !important;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .visual-table-editor tr.selected-row {
@@ -119,9 +149,6 @@
 
 .visual-table-editor .column-no,
 .visual-table-editor .column-no-header {
-    width: 40px !important;
-    min-width: 40px !important;
-    max-width: 40px !important;
     text-align: center;
     background-color: var(--table-header-bg) !important;
     color: var(--text-color-muted);
@@ -150,8 +177,7 @@ body.theme-dark .visual-table-editor .range-selected {
 
 .visual-table-editor td,
 .visual-table-editor th {
-    height: 38px;
-    max-height: 38px;
+    height: 32px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -160,7 +186,7 @@ body.theme-dark .visual-table-editor .range-selected {
 
 .visual-table-editor .cell-text {
     display: block;
-    padding: 8px 12px;
+    padding: 6px 10px;
     height: 100%;
     box-sizing: border-box;
     overflow: hidden;

@@ -59,6 +59,63 @@ describe('Ctrl+Z inside a table cell', () => {
         return table.rows[2].cells[0];
     };
 
+    /** セルの中のカーソルを offset 文字目に置く。 */
+    const caretAt = (cell, offset) => {
+        const range = document.createRange();
+        range.setStart(cell.firstChild, offset);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    };
+
+    it('moves to the cell on the left with the caret at the start', () => {
+        const cell = open(1, 1);
+        caretAt(cell, 0);
+        const e = press(cell, 'ArrowLeft');
+        expect(e.defaultPrevented).toBe(true);
+        const left = table.rows[1].cells[0];
+        expect(left.classList.contains('md-cell-editing')).toBe(true);
+        expect(window.getSelection().anchorOffset).toBe(left.childNodes.length);
+    });
+
+    it('stays in the cell while the caret is inside the text', () => {
+        table.rows[1].cells[1].textContent = '2';
+        const cell = open(1, 1);
+        caretAt(cell, 1);
+        expect(press(cell, 'ArrowLeft').defaultPrevented).toBe(false);
+        expect(cell.classList.contains('md-cell-editing')).toBe(true);
+    });
+
+    it('moves to the cell on the right with the caret at the end, starting at its start', () => {
+        const cell = open(1, 0);
+        caretAt(cell, 1);
+        expect(press(cell, 'ArrowRight').defaultPrevented).toBe(true);
+        const right = table.rows[1].cells[1];
+        expect(right.classList.contains('md-cell-editing')).toBe(true);
+        expect(window.getSelection().anchorOffset).toBe(0);
+    });
+
+    it('wraps to the end of the previous row from a row\'s first cell', () => {
+        const cell = open(2, 0);
+        caretAt(cell, 0);
+        press(cell, 'ArrowLeft');
+        expect(table.rows[1].cells[1].classList.contains('md-cell-editing')).toBe(true);
+    });
+
+    it('stays in the very first cell, with nowhere to go', () => {
+        const cell = open(0, 0);
+        caretAt(cell, 0);
+        expect(press(cell, 'ArrowLeft').defaultPrevented).toBe(false);
+        expect(cell.classList.contains('md-cell-editing')).toBe(true);
+    });
+
+    it('leaves the arrow alone while Shift is extending a selection', () => {
+        const cell = open(1, 1);
+        caretAt(cell, 0);
+        expect(press(cell, 'ArrowLeft', { shiftKey: true }).defaultPrevented).toBe(false);
+    });
+
     it('takes back the edit committed by Enter, from the next cell', () => {
         const next = commitThenMoveDown();
         expect(next.classList.contains('md-cell-editing')).toBe(true);

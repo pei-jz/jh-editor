@@ -8,6 +8,7 @@
  *   Enter             確定して下のセルへ
  *   Tab / Shift+Tab   確定して右 / 左のセルへ
  *   ↑ / ↓             1 行目 / 最終行にカーソルがあれば上 / 下のセルへ
+ *   ← / →             セルの先頭 / 末尾にカーソルがあれば左 / 右のセルへ
  *   Shift+Enter       セル内の改行 (<br>)
  *   Esc               取り消す
  *   外をクリック      確定
@@ -198,7 +199,8 @@ export class MarkdownTableEdit {
             range.collapse(true);
         } else {
             range.selectNodeContents(cell);
-            if (caret !== 'all') range.collapse(false);
+            if (caret === 'start') range.collapse(true);
+            else if (caret !== 'all') range.collapse(false);
         }
         sel.removeAllRanges();
         sel.addRange(range);
@@ -325,6 +327,18 @@ export class MarkdownTableEdit {
             : caret.bottom > edge.top + 1;
     }
 
+    /** カーソルがセルの先頭 (dir<0) / 末尾 (dir>0) にあるか。文字を選択中なら false。 */
+    _caretAtCellEnd(cell, dir) {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+        const caret = sel.getRangeAt(0);
+        const rest = document.createRange();
+        rest.selectNodeContents(cell);
+        if (dir < 0) rest.setEnd(caret.startContainer, caret.startOffset);
+        else rest.setStart(caret.endContainer, caret.endOffset);
+        return rest.toString().length === 0;
+    }
+
     /**
      * セルの中の Ctrl+Z / Ctrl+Y。このセルで入力した分はブラウザーの標準の取り消しに
      * 任せる。それが尽きたら、確定済みの編集を文書の履歴から戻す。Enter で次のセルへ
@@ -397,6 +411,18 @@ export class MarkdownTableEdit {
                 e.preventDefault();
                 e.stopPropagation();
                 this._moveTo(state, row + dir, col, 'end');
+            }
+        } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            const dir = e.key === 'ArrowLeft' ? -1 : 1;
+            let r = row;
+            let c = col + dir;
+            if (c >= columns) { c = 0; r++; }
+            if (c < 0) { c = columns - 1; r--; }
+            // 表の端では移動先がない。セルの中に留まる。
+            if (table.rows[r] && table.rows[r].cells[c] && this._caretAtCellEnd(cell, dir)) {
+                e.preventDefault();
+                e.stopPropagation();
+                this._moveTo(state, r, c, dir < 0 ? 'end' : 'start');
             }
         }
     }

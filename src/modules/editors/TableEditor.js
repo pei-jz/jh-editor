@@ -18,6 +18,30 @@ function cellEditor(cell) {
     return cell ? cell.querySelector('textarea, input') : null;
 }
 
+/**
+ * Share of the width each column gets, from the longest thing in it.
+ *
+ * Equal columns left a short one half empty while the long one beside it
+ * wrapped. Full-width characters count double, and the range is capped so one
+ * very long cell cannot squeeze the others to nothing.
+ */
+function columnShares(data) {
+    const cols = data[0] ? data[0].length : 0;
+    const weights = new Array(cols).fill(0).map((_, c) => {
+        let longest = 0;
+        for (const row of data) {
+            let width = 0;
+            for (const ch of inlineText((row && row[c]) || '')) {
+                width += ch.codePointAt(0) > 0xff ? 2 : 1;
+            }
+            longest = Math.max(longest, width);
+        }
+        return Math.min(48, Math.max(12, longest));
+    });
+    const total = weights.reduce((sum, w) => sum + w, 0) || 1;
+    return weights.map((w) => (w / total) * 100);
+}
+
 /** Escape a cell value for insertion into the generated HTML table. */
 function esc(v) {
     return String(v == null ? '' : v)
@@ -446,6 +470,7 @@ export const TableEditor = {
             if (editMode) {
                 const input = cellEditor(cell);
                 if (input) {
+                    input.classList.remove('cell-armed');
                     input.style.display = 'block';
                     input.style.height = 'auto';
                     input.style.height = `${input.scrollHeight}px`;
@@ -495,7 +520,41 @@ export const TableEditor = {
             };
         }
 
-        const updateSelection = (r, c, edit = false, extend = false) => {
+        // An undo can take away the row or column the selection is on, and the
+        // keys read this before the selection is next redrawn.
+        {
+            const lastRow = Math.max(0, data.length - 1);
+            const lastCol = Math.max(0, (data[0] ? data[0].length : 1) - 1);
+            const s = this._state;
+            s.activeRow = Math.min(s.activeRow, lastRow);
+            s.activeCol = Math.min(s.activeCol, lastCol);
+            s.selectionEndRow = Math.min(s.selectionEndRow, lastRow);
+            s.selectionEndCol = Math.min(s.selectionEndCol, lastCol);
+        }
+
+        /**
+         * Where the keyboard rests while a cell is only selected: its own
+         * editor, invisible, with the text selected.
+         *
+         * An IME has to find a text field in focus BEFORE the key goes down.
+         * Moving focus from the keydown is too late: that key is typed as a bare
+         * letter and only the next one is converted, so 入力 came out as nゆうりょく.
+         * With the field already there, the IME just starts in it, and what it
+         * writes replaces the selected text, as typing over a cell should.
+         */
+        const armCell = (cell) => {
+            const input = cellEditor(cell);
+            if (!input) return;
+            input.value = (data[parseInt(cell.dataset.row)] || [])[parseInt(cell.dataset.col)] || '';
+            input.classList.add('cell-armed');
+            input.style.display = 'block';
+            input.focus();
+            input.select();
+        };
+
+        // `keepCaret`: text is already arriving in the armed editor, so show it
+        // without touching its focus or selection. Either would end a conversion.
+        const updateSelection = (r, c, edit = false, extend = false, keepCaret = false) => {
             const rowCount = data.length;
             const colCount = data[0] ? data[0].length : 0;
 
@@ -532,7 +591,12 @@ export const TableEditor = {
 
                 const input = cellEditor(cell);
                 const textSpan = cell.querySelector('.cell-text');
-                if (input && !edit) input.style.display = 'none';
+                if (input) {
+                    input.classList.remove('cell-armed');
+                    if (!edit || !cell.classList.contains('active-cell')) {
+                        input.style.display = 'none';
+                    }
+                }
                 if (textSpan) textSpan.style.display = (edit && cell.classList.contains('active-cell')) ? 'none' : 'block';
             });
 
@@ -544,11 +608,13 @@ export const TableEditor = {
                         input.style.display = 'block';
                         input.style.height = 'auto';
                         input.style.height = `${input.scrollHeight}px`;
-                        input.focus();
-                        input.select(); 
+                        if (!keepCaret) {
+                            input.focus();
+                            input.select();
+                        }
                     }
                 } else {
-                    target.focus();
+                    armCell(target);
                 }
             }
         };
@@ -559,15 +625,71 @@ export const TableEditor = {
             el.style.height = `${el.scrollHeight}px`;
         };
 
+        /** Show the active cell's editor holding `text`, caret at the end. */
+        const openEditorWith = (text) => {
+            const { activeRow: r, activeCol: c } = this._state;
+            updateSelection(r, c, true);
+            const cell = table.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+            const input = cellEditor(cell);
+            if (!input) return null;
+            input.value = text;
+            input.setSelectionRange(text.length, text.length);
+            autoGrow(input);
+            // Replacing the cell is a new step, even right after editing it.
+            this._ensureHistory(data).coalesceKey = null;
+            return { input, cell, r, c };
+        };
+
+        /** A key typed on a selected cell replaces what the cell holds. */
+        const replaceCellWith = (text) => {
+            const opened = openEditorWith(text);
+            if (!opened) return;
+            data[opened.r][opened.c] = text;
+            opened.cell.querySelector('.cell-text').innerHTML = inlineHtml(text);
+            notify(`cell:${opened.r}:${opened.c}`);
+        };
+
+        /** Selection set first: a re-render restores it, in the new table. */
+        const renderWithActiveCell = (r, c) => {
+            Object.assign(this._state, {
+                activeRow: r, activeCol: c, selectionEndRow: r, selectionEndCol: c, isEditing: false,
+            });
+            this.render(container, data, onChange);
+        };
+
+        const moveVertically = (back) => {
+            updateSelection(this._state.activeRow + (back ? -1 : 1), this._state.activeCol);
+        };
+
+        const moveByTab = (back) => {
+            const { activeRow: r, activeCol: c } = this._state;
+            const lastCol = data[0].length - 1;
+            if (back) {
+                if (c > 0) updateSelection(r, c - 1);
+                else if (r > 0) updateSelection(r - 1, lastCol);
+                else updateSelection(r, c);
+            } else if (c < lastCol) {
+                updateSelection(r, c + 1);
+            } else if (r < data.length - 1) {
+                updateSelection(r + 1, 0);
+            } else {
+                data.push(new Array(lastCol + 1).fill(''));
+                renderWithActiveCell(r + 1, 0);
+                notify();
+            }
+        };
+
         const createCellInstance = (r, c, value, isHeader = false) => {
             const cell = document.createElement(isHeader ? 'th' : 'td');
             cell.dataset.row = r;
             cell.dataset.col = c;
             cell.tabIndex = 0;
             
+            // What the cell says, formatted as in the preview. The source is in
+            // the editor below, and shows only while the cell is being edited.
             const textSpan = document.createElement('span');
             textSpan.className = 'cell-text';
-            textSpan.textContent = value || '';
+            textSpan.innerHTML = inlineHtml(value);
             cell.appendChild(textSpan);
 
             // A TEXTAREA, not an input. An <input type="text"> is single-line
@@ -586,6 +708,22 @@ export const TableEditor = {
             input.addEventListener('input', () => autoGrow(input));
             cell.appendChild(input);
 
+            /** Text has started arriving in this cell's armed editor. */
+            const beginEditingInPlace = () => {
+                if (this._state.isEditing) return;
+                if (this._state.activeRow !== r || this._state.activeCol !== c) return;
+                this._ensureHistory(data).coalesceKey = null;
+                updateSelection(r, c, true, false, true);
+            };
+            input.addEventListener('compositionstart', beginEditingInPlace);
+
+            cell.addEventListener('focus', () => {
+                if (!this._state.isEditing && this._state.activeRow === r
+                    && this._state.activeCol === c) {
+                    armCell(cell);
+                }
+            });
+
             cell.onmousedown = (e) => {
                 e.stopPropagation();
                 if (e.button !== 0) return;          // right-click opens the menu
@@ -593,6 +731,9 @@ export const TableEditor = {
                     && this._state.activeCol === c) {
                     return;                          // let the caret land in the editor
                 }
+                // The click would otherwise move focus to the cell itself, off
+                // the armed editor updateSelection is about to focus.
+                e.preventDefault();
                 updateSelection(r, c, false, e.shiftKey);
                 this._drag.active = true;
                 // The browser would otherwise start a text selection across the
@@ -617,23 +758,25 @@ export const TableEditor = {
             cell.addEventListener('paste', (e) => handleTablePaste(e));
 
             input.oninput = (e) => {
+                beginEditingInPlace();
                 data[r][c] = e.target.value;
-                textSpan.textContent = e.target.value;
+                textSpan.innerHTML = inlineHtml(e.target.value);
                 notify(`cell:${r}:${c}`);
             };
 
             input.onkeydown = (e) => {
+                // Only armed: the keys are the grid's, and reach it by bubbling.
+                if (!this._state.isEditing) return;
+                // Enter here confirms the IME's conversion; the cell is not done.
+                if (e.isComposing || e.keyCode === 229) return;
                 if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') {
                     e.preventDefault();
-                    if (e.key === 'Enter') {
-                         updateSelection(r, c, false);
-                         updateSelection(r + 1, c);
-                    } else if (e.key === 'Tab') {
-                         updateSelection(r, c, false);
-                         updateSelection(r, c + 1);
-                    } else {
-                         updateSelection(r, c, false);
-                    }
+                    // The cell's own handler is next on this event's path. By
+                    // then editing has ended, so it would move a second time.
+                    e.stopPropagation();
+                    if (e.key === 'Enter') moveVertically(e.shiftKey);
+                    else if (e.key === 'Tab') moveByTab(e.shiftKey);
+                    else updateSelection(r, c, false);
                 }
             };
 
@@ -653,13 +796,11 @@ export const TableEditor = {
                     if (isShift) {
                         data.forEach(row => row.splice(this._state.activeCol + 1, 0, ''));
                         if (Array.isArray(data.align)) data.align.splice(this._state.activeCol + 1, 0, null);
-                        this.render(container, data, onChange);
-                        setTimeout(() => updateSelection(this._state.activeRow, this._state.activeCol + 1), 0);
+                        renderWithActiveCell(this._state.activeRow, this._state.activeCol + 1);
                     } else {
                         const cols = data[0] ? data[0].length : 1;
                         data.splice(this._state.activeRow + 1, 0, new Array(cols).fill(''));
-                        this.render(container, data, onChange);
-                        setTimeout(() => updateSelection(this._state.activeRow + 1, this._state.activeCol), 0);
+                        renderWithActiveCell(this._state.activeRow + 1, this._state.activeCol);
                     }
                     notify();
                     return;
@@ -730,26 +871,13 @@ export const TableEditor = {
 
             if (e.key === 'Tab') {
                 e.preventDefault();
-                if (isShift) updateSelection(this._state.activeRow, this._state.activeCol - 1);
-                else {
-                    if (this._state.activeCol === data[0].length - 1 && this._state.activeRow === data.length - 1) {
-                        const cols = data[0].length;
-                        data.push(new Array(cols).fill(''));
-                        this.render(container, data, onChange);
-                        setTimeout(() => updateSelection(this._state.activeRow + 1, 0), 0);
-                        notify();
-                    } else if (this._state.activeCol === data[0].length - 1) {
-                        updateSelection(this._state.activeRow + 1, 0);
-                    } else {
-                        updateSelection(this._state.activeRow, this._state.activeCol + 1);
-                    }
-                }
+                moveByTab(isShift);
                 return;
             }
 
             if (e.key === 'Enter') {
                 e.preventDefault();
-                updateSelection(this._state.activeRow + 1, this._state.activeCol);
+                moveVertically(isShift);
                 return;
             }
 
@@ -763,14 +891,14 @@ export const TableEditor = {
 
             if (e.key.length === 1 && !isCtrl && !isAlt && e.key !== 'Escape') {
                 e.preventDefault();
-                data[this._state.activeRow][this._state.activeCol] = ""; 
-                updateSelection(this._state.activeRow, this._state.activeCol, true);
-                const target = table.querySelector(`[data-row="${this._state.activeRow}"][data-col="${this._state.activeCol}"] input`);
-                if (target) {
-                    target.value = e.key;
-                    data[this._state.activeRow][this._state.activeCol] = e.key;
-                    notify();
-                }
+                replaceCellWith(e.key);
+                return;
+            }
+
+            // These would move the armed editor's caret off its selected text,
+            // and the next thing typed would land inside the old text.
+            if (e.key === 'Home' || e.key === 'End') {
+                e.preventDefault();
                 return;
             }
 
@@ -778,6 +906,7 @@ export const TableEditor = {
         };
 
         const handleTableCopy = (e) => {
+            if (this._state.isEditing) return;       // text selected inside the cell
             const r1 = Math.min(this._state.activeRow, this._state.selectionEndRow);
             const r2 = Math.max(this._state.activeRow, this._state.selectionEndRow);
             const c1 = Math.min(this._state.activeCol, this._state.selectionEndCol);
@@ -828,6 +957,22 @@ export const TableEditor = {
             e.preventDefault();
             e.stopPropagation();
         };
+
+        // Set when the table is drawn, not as it is typed into: the column being
+        // edited must not change width under the caret.
+        const colgroup = document.createElement('colgroup');
+        const noCol = document.createElement('col');
+        noCol.style.width = '32px';
+        colgroup.appendChild(noCol);
+        const shares = columnShares(data);
+        shares.forEach((share) => {
+            const col = document.createElement('col');
+            col.style.width = `${share}%`;
+            colgroup.appendChild(col);
+        });
+        table.appendChild(colgroup);
+        // Too many columns for the pane scroll sideways rather than crush.
+        table.style.minWidth = `${32 + shares.length * 72}px`;
 
         const thead = document.createElement('thead');
         const headerTr = document.createElement('tr');

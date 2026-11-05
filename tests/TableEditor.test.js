@@ -337,4 +337,230 @@ describe('TableEditor', () => {
             expect(editor.style.display).toBe('block');
         });
     });
+
+    describe('keys on a selected cell', () => {
+        let container;
+        let data;
+        const at = (r, c) => container.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+        const key = (el, init) => {
+            const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+            el.dispatchEvent(e);
+            return e;
+        };
+        const select = (r, c) => at(r, c).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        const active = () => [TableEditor._state.activeRow, TableEditor._state.activeCol];
+
+        beforeEach(() => {
+            document.body.innerHTML = '';
+            container = document.createElement('div');
+            document.body.appendChild(container);
+            data = [['H1', 'H2'], ['a1', 'a2'], ['b1', 'b2'], ['c1', 'c2']];
+            TableEditor._state = null;
+            TableEditor.render(container, data, () => {});
+            select(1, 0);
+        });
+
+        afterEach(() => { document.body.innerHTML = ''; });
+
+        it('keeps the first key typed, replacing the old text', () => {
+            const e = key(at(1, 0), { key: 'a' });
+            const editor = at(1, 0).querySelector('textarea');
+
+            expect(e.defaultPrevented).toBe(true);
+            expect(document.activeElement).toBe(editor);
+            expect(editor.value).toBe('a');
+            expect(editor.selectionStart).toBe(1);
+            expect(editor.selectionEnd).toBe(1);
+            expect(data[1][0]).toBe('a');
+            expect(at(1, 0).querySelector('.cell-text').textContent).toBe('a');
+        });
+
+        it('undoes a typed-over cell as one step', () => {
+            key(at(1, 0), { key: 'a' });
+            const editor = at(1, 0).querySelector('textarea');
+            editor.value = 'abc';
+            editor.dispatchEvent(new Event('input'));
+            expect(data[1][0]).toBe('abc');
+
+            TableEditor.undo(container, data, () => {});
+            expect(data[1][0]).toBe('a1');
+        });
+
+        // An IME needs a text field in focus before the key goes down. Moving
+        // focus from the keydown typed the first letter bare: nゆうりょく.
+        it('rests in the selected cell\'s editor, unseen, with its text selected', () => {
+            const editor = at(1, 0).querySelector('textarea');
+            expect(document.activeElement).toBe(editor);
+            expect(editor.classList.contains('cell-armed')).toBe(true);
+            expect(editor.selectionStart).toBe(0);
+            expect(editor.selectionEnd).toBe(2);
+            expect(TableEditor._state.isEditing).toBe(false);
+
+            select(2, 1);
+            expect(editor.classList.contains('cell-armed')).toBe(false);
+            expect(editor.style.display).toBe('none');
+            expect(document.activeElement).toBe(at(2, 1).querySelector('textarea'));
+        });
+
+        it('leaves a key the IME took alone', () => {
+            const editor = at(1, 0).querySelector('textarea');
+            const e = key(editor, { key: 'Process', code: 'KeyN', keyCode: 229 });
+            expect(e.defaultPrevented).toBe(false);
+            expect(TableEditor._state.isEditing).toBe(false);
+            expect(data[1][0]).toBe('a1');
+        });
+
+        it('shows a conversion in place, without touching focus or selection', () => {
+            const editor = at(1, 0).querySelector('textarea');
+            const selectAll = vi.spyOn(editor, 'select');
+            const focus = vi.spyOn(editor, 'focus');
+
+            editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+
+            expect(selectAll).not.toHaveBeenCalled();
+            expect(focus).not.toHaveBeenCalled();
+            expect(TableEditor._state.isEditing).toBe(true);
+            expect(editor.classList.contains('cell-armed')).toBe(false);
+            expect(at(1, 0).querySelector('.cell-text').style.display).toBe('none');
+
+            editor.value = 'にゅうりょく';
+            editor.dispatchEvent(new Event('input'));
+            expect(data[1][0]).toBe('にゅうりょく');
+        });
+
+        it('drives the grid from the armed editor', () => {
+            key(at(1, 0).querySelector('textarea'), { key: 'ArrowDown' });
+            expect(active()).toEqual([2, 0]);
+            key(at(2, 0).querySelector('textarea'), { key: 'Enter' });
+            expect(active()).toEqual([3, 0]);
+            key(at(3, 0).querySelector('textarea'), { key: 'Tab' });
+            expect(active()).toEqual([3, 1]);
+        });
+
+        it('opens the cell when the armed text is deleted', () => {
+            const editor = at(1, 0).querySelector('textarea');
+            editor.value = '';
+            editor.dispatchEvent(new Event('input'));
+            expect(TableEditor._state.isEditing).toBe(true);
+            expect(data[1][0]).toBe('');
+        });
+
+        it('keeps Home and End from moving the armed caret', () => {
+            expect(key(at(1, 0).querySelector('textarea'), { key: 'Home' }).defaultPrevented).toBe(true);
+        });
+
+        it('leaves copying to the browser while the cell is being edited', () => {
+            at(1, 0).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            const setData = vi.fn();
+            const copy = new Event('copy', { bubbles: true, cancelable: true });
+            copy.clipboardData = { setData };
+            at(1, 0).querySelector('textarea').dispatchEvent(copy);
+            expect(setData).not.toHaveBeenCalled();
+            expect(copy.defaultPrevented).toBe(false);
+        });
+
+        it('takes the click itself, so focus stays on the armed editor', () => {
+            const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+            at(2, 0).dispatchEvent(down);
+            expect(down.defaultPrevented).toBe(true);
+        });
+
+        it.each([
+            ['Enter', {}, [2, 0]],
+            ['Enter', { shiftKey: true }, [0, 0]],
+            ['Tab', {}, [1, 1]],
+        ])('moves one cell on %s %j while editing', (name, mods, expected) => {
+            at(1, 0).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            key(at(1, 0).querySelector('textarea'), { key: name, ...mods });
+            expect(active()).toEqual(expected);
+            expect(TableEditor._state.isEditing).toBe(false);
+        });
+
+        it('moves one cell on Enter and Tab while selected', () => {
+            key(at(1, 0), { key: 'Enter' });
+            expect(active()).toEqual([2, 0]);
+            key(at(2, 0), { key: 'Tab' });
+            expect(active()).toEqual([2, 1]);
+        });
+
+        it('wraps Tab to the next row while editing, as it does while selected', () => {
+            select(1, 1);
+            at(1, 1).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            key(at(1, 1).querySelector('textarea'), { key: 'Tab' });
+            expect(active()).toEqual([2, 0]);
+        });
+
+        it('wraps Shift+Tab back to the end of the previous row', () => {
+            select(2, 0);
+            key(at(2, 0), { key: 'Tab', shiftKey: true });
+            expect(active()).toEqual([1, 1]);
+        });
+
+        it('leaves Enter to the IME while it is converting', () => {
+            at(1, 0).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            const e = key(at(1, 0).querySelector('textarea'), { key: 'Enter', isComposing: true });
+            expect(e.defaultPrevented).toBe(false);
+            expect(TableEditor._state.isEditing).toBe(true);
+            expect(active()).toEqual([1, 0]);
+        });
+
+        it('lands on the new row after Tab appends one', () => {
+            vi.useFakeTimers();
+            try {
+                select(3, 1);
+                key(at(3, 1), { key: 'Tab' });
+                vi.runAllTimers();
+                expect(data.length).toBe(5);
+                expect(active()).toEqual([4, 0]);
+                expect(at(4, 0).classList.contains('active-cell')).toBe(true);
+                expect(document.activeElement).toBe(at(4, 0).querySelector('textarea'));
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+    });
+
+    describe('what a cell shows', () => {
+        let container;
+        const mount = (data) => {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+            TableEditor._state = null;
+            TableEditor.render(container, data, () => {});
+        };
+        const cell = (r, c) => container.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+
+        afterEach(() => { document.body.innerHTML = ''; });
+
+        it('renders the marks, and keeps the source for editing', () => {
+            mount([['**H**', 'b'], ['**差分**', '`Alt+R` と <script>x</script>']]);
+            expect(cell(0, 0).querySelector('.cell-text b').textContent).toBe('H');
+            expect(cell(1, 0).querySelector('.cell-text b').textContent).toBe('差分');
+            expect(cell(1, 1).querySelector('.cell-text code').textContent).toBe('Alt+R');
+            expect(cell(1, 1).querySelector('.cell-text script')).toBeNull();
+            expect(cell(1, 0).querySelector('textarea').value).toBe('**差分**');
+        });
+
+        it('renders what was typed', () => {
+            const data = [['a'], ['b']];
+            mount(data);
+            const editor = cell(1, 0).querySelector('textarea');
+            editor.value = '**new**';
+            editor.dispatchEvent(new Event('input'));
+            expect(data[1][0]).toBe('**new**');
+            expect(cell(1, 0).querySelector('.cell-text b').textContent).toBe('new');
+        });
+    });
+
+    describe('column widths', () => {
+        it('gives more of the width to the column with more in it', () => {
+            const container = document.createElement('div');
+            TableEditor._state = null;
+            TableEditor.render(container, [['a', 'b'], ['短い', '長い説明がここに入ります。とても長い説明です']], () => {});
+            const cols = [...container.querySelectorAll('col')].map((c) => c.style.width);
+            expect(cols[0]).toBe('32px');
+            expect(parseFloat(cols[2])).toBeGreaterThan(parseFloat(cols[1]));
+            expect(parseFloat(cols[1]) + parseFloat(cols[2])).toBeCloseTo(100);
+        });
+    });
 });
