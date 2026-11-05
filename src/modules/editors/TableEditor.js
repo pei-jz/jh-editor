@@ -1,5 +1,6 @@
 import { icon as svgIcon } from '../ui/Icons.js';
 import { t } from '../utils/I18n.js';
+import { inlineHtml, inlineText } from '../utils/MarkdownInline.js';
 
 /**
  * The editing control inside a cell.
@@ -147,10 +148,14 @@ export const TableEditor = {
      * looks like what was on screen is the point of the exercise.
      *
      * First row is treated as the header, matching Markdown's own table rule.
+     *
+     * `opts.formatted` reads each cell's Markdown, so `**a**` arrives as bold.
+     * Without it the cell's text is kept exactly as written.
      */
     toHtml(data, opts = {}) {
         if (!Array.isArray(data) || !data.length) return '';
         const c = themeTableColors();
+        const cell = opts.formatted ? inlineHtml : esc;
         // SINGLE quotes around the family names. The stack goes inside a
         // style="..." attribute, so a double quote here closes the attribute
         // early and the rest of the declaration becomes stray markup — the
@@ -165,12 +170,12 @@ export const TableEditor = {
             + 'vertical-align:top;white-space:normal;';
 
         const head = (data[0] || []).map((v) =>
-            `<th style="${cellBase}background-color:${c.headerBg};font-weight:bold;text-align:center;">${esc(v)}</th>`
+            `<th style="${cellBase}background-color:${c.headerBg};font-weight:bold;text-align:center;">${cell(v)}</th>`
         ).join('');
 
         const body = data.slice(1).map((row) =>
             '<tr>' + (row || []).map((v) =>
-                `<td style="${cellBase}background-color:${c.bg};">${esc(v)}</td>`
+                `<td style="${cellBase}background-color:${c.bg};">${cell(v)}</td>`
             ).join('') + '</tr>'
         ).join('');
 
@@ -188,14 +193,22 @@ export const TableEditor = {
      * fallback selects a detached node and lets a one-shot `copy` listener
      * fill in both types, so the user never sees the scratch markup.
      *
+     * This is the table going to another program, so what it carries is what
+     * the cells say, not their Markdown. Copying cells to paste back inside the
+     * editor goes through the `copy` handler instead, which keeps the source.
+     *
      * @returns {Promise<boolean>} whether anything reached the clipboard
      */
     async copyToClipboard(data, range = null) {
-        const text = this.toTsv(data, range);
+        const text = this.toTsv(
+            (Array.isArray(data) ? data : []).map((row) => (row || []).map(inlineText)),
+            range,
+        );
         const html = this.toHtml(
             range
                 ? data.slice(range.r1, range.r2 + 1).map((row) => row.slice(range.c1, range.c2 + 1))
                 : data,
+            { formatted: true },
         );
         if (!text) return false;
 
