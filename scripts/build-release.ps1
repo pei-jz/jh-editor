@@ -278,16 +278,11 @@ THIRD-PARTY-NOTICES.md に記載しています。
 
     $portableZip = Join-Path $repo ("src-tauri\target\release\J.H.Editor_{0}_x64-portable.zip" -f $version)
     if (Test-Path $portableZip) { Remove-Item $portableZip -Force }
-    # Compress-Archive の進捗バーは、画面幅を返さない端末 (エディタ内蔵の
-    # ターミナルなど) で IndexOutOfRangeException を投げて止まる。
-    # 出さなければ落ちず、速くもなる。
-    $prevProgress = $ProgressPreference
-    $ProgressPreference = 'SilentlyContinue'
-    try {
-        Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $portableZip
-    } finally {
-        $ProgressPreference = $prevProgress
-    }
+    # Compress-Archive は使わない。進捗バーが、幅の狭い端末やエディタ内蔵の
+    # ターミナルで IndexOutOfRangeException を投げて止まる。モジュールの関数は
+    # このスクリプトの $ProgressPreference を見ないので、ここで消しても効かない。
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $portableZip)
     Remove-Item $stage -Recurse -Force
 
     Write-Ok ('{0} ({1:N0} bytes)' -f (Split-Path $portableZip -Leaf), (Get-Item $portableZip).Length)

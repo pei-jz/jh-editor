@@ -235,6 +235,17 @@ describe('installing', () => {
         expect(build).toContain("'J.H Editor Portable.exe'");
     });
 
+    // Its progress bar throws in a narrow terminal, after the installer has
+    // already been built and signed, and a script cannot turn it off.
+    it('builds the portable zip without Compress-Archive', () => {
+        const code = read('scripts/build-release.ps1')
+            .split(/\r?\n/)
+            .filter((line) => !line.trim().startsWith('#'))
+            .join('\n');
+        expect(code).not.toContain('Compress-Archive');
+        expect(code).toContain('ZipFile]::CreateFromDirectory($stage, $portableZip)');
+    });
+
     // A name only helps until the thing is running. The About panel says
     // which build this is, rather than leaving it to be inferred from whether
     // the update button happens to be there.
