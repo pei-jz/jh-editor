@@ -125,7 +125,7 @@ describe('Ctrl+S in the edit modal', async () => {
     const { SHORTCUTS } = await import('../src/modules/core/ShortcutDefinitions.js');
 
     it('saves and keeps editing; Ctrl+Enter still saves and closes', () => {
-        for (const scope of ['MARKDOWN', 'MARKDOWN_TABLE']) {
+        for (const scope of ['MARKDOWN']) {
             const s = SHORTCUTS[scope].find((x) => x.key === 's' && x.ctrl && !x.shift && !x.alt);
             expect(s.cmd, scope).toBe('md:save-progress');
             const enter = SHORTCUTS[scope].find((x) => x.key === 'Enter' && x.ctrl);

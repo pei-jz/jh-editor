@@ -881,7 +881,7 @@ async function bootstrap() {
     // Skip GLOBAL as it's handled separately above. IMPORTANT: only register
     // the view-delegation fallback for commands that NO module has already
     // claimed with a real action. Editor.js (GLOBAL/MARKDOWN_BLOCK/EDITOR),
-    // Explorer.js (EXPLORER) and MarkdownView (MARKDOWN/MARKDOWN_TABLE)
+    // Explorer.js (EXPLORER) and MarkdownView (MARKDOWN)
     // register concrete actions at import/init time; blindly re-registering
     // every scope entry here with delegateToView() would OVERWRITE those real
     // actions, and views without handleShortcut (MarkdownView, the explorer)

@@ -408,13 +408,6 @@ describe('ShortcutManager — dispatch', () => {
             expect(action).toHaveBeenCalledOnce();
         });
 
-        it('leaves clipboard keys to the table editor in MARKDOWN_TABLE scope', () => {
-            const action = vi.fn();
-            sm.register({ key: 'c', ctrl: true, cmd: 'app:copy', scope: 'MARKDOWN_TABLE', action });
-            sm.setScope('MARKDOWN_TABLE');
-            sm.handleKeyDown(key({ key: 'c', ctrlKey: true }));
-            expect(action).not.toHaveBeenCalled();
-        });
     });
 
     describe('inline rename input (explorer F2)', () => {
@@ -453,29 +446,6 @@ describe('ShortcutManager — dispatch', () => {
             const e = key({ key: 'F2', target: input });
             sm.handleKeyDown(e);
             expect(action).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('MARKDOWN_TABLE scope', () => {
-        it('does not let the GLOBAL F2 (md-block:edit) hijack the table cell edit', () => {
-            const action = vi.fn();
-            sm.register({ key: 'F2', cmd: 'md-block:edit', scope: 'GLOBAL', action });
-            sm.setScope('MARKDOWN_TABLE');
-            const e = key({ key: 'F2' });
-            sm.handleKeyDown(e);
-            // The event must pass through untouched so TableEditor's own
-            // cell handler can start editing.
-            expect(action).not.toHaveBeenCalled();
-            expect(e.preventDefault).not.toHaveBeenCalled();
-            expect(e.stopPropagation).not.toHaveBeenCalled();
-        });
-
-        it('still dispatches other MARKDOWN_TABLE commands (md:save)', () => {
-            const action = vi.fn();
-            sm.register({ key: 'Enter', ctrl: true, cmd: 'md:save', scope: 'MARKDOWN_TABLE', action });
-            sm.setScope('MARKDOWN_TABLE');
-            sm.handleKeyDown(key({ key: 'Enter', ctrlKey: true }));
-            expect(action).toHaveBeenCalledOnce();
         });
     });
 

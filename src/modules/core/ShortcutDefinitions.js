@@ -222,7 +222,6 @@ export const SHORTCUTS = {
     MARKDOWN: [
         { key: 'Enter', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
         { key: 's', ctrl: true, cmd: 'md:save-progress', description: 'Save (keep editing)' },
-        { key: 'e', ctrl: true, cmd: 'md:toggle-mode', description: 'Switch Table / Text Editor' },
         { key: 'Escape', cmd: 'md:cancel', description: 'Cancel & Close' },
         { key: '?', ctrl: true, cmd: 'md:shortcut-guide', description: 'Shortcut Guide' },
         { key: '/', ctrl: true, shift: true, cmd: 'md:shortcut-guide' },
@@ -248,22 +247,23 @@ export const SHORTCUTS = {
         { key: 'Alt', description: 'Show toolbar format hints (tap Alt)' }
     ],
 
+    // Documentation only (no cmd): the table in the Markdown view edits its
+    // cells in place, and MarkdownTableEdit reads these keys itself.
     MARKDOWN_TABLE: [
-        { key: 'Enter', ctrl: true, cmd: 'md:save', description: 'Save & Close' },
-        { key: 's', ctrl: true, cmd: 'md:save-progress', description: 'Save (keep editing)' },
-        { key: 'e', ctrl: true, cmd: 'md:toggle-mode', description: 'Toggle Mode' },
-        { key: 'Escape', cmd: 'md:cancel', description: 'Cancel & Close' },
-        { key: '?', ctrl: true, cmd: 'md:shortcut-guide', description: 'Shortcut Guide' },
-        { key: '/', ctrl: true, shift: true, cmd: 'md:shortcut-guide' },
-        // Table Ops (Handled locally by TableEditor for context awareness, 
-        // but Ctrl+Space needs definition to override Global AI)
-        { key: ' ', ctrl: true, cmd: 'md:table-row-select', description: 'Select Row' },
-        // F2 starts cell editing, handled by TableEditor's own key handler.
-        // Deliberately no `cmd`: giving it one would make ShortcutManager
-        // preventDefault and block the cell handler (and the GLOBAL F2
-        // md-block:edit is short-circuited for this scope in ShortcutManager).
-        { key: 'F2', description: 'Edit Cell' },
-        { key: 'e', ctrl: true, shift: true, cmd: 'app:toggle-view-mode', description: 'Toggle View Mode' }
+        { key: 'Enter', description: 'Commit and move to the cell below' },
+        { key: 'Tab', description: 'Commit and move to the next cell (adds a row after the last)' },
+        { key: 'Enter', shift: true, description: 'Line break in the cell' },
+        { key: 'Escape', description: 'Cancel the cell / end the selection' },
+        { key: 'Arrows', shift: true, description: 'Select cells (from the edge of the cell)' },
+        { key: 'Space', shift: true, description: 'Select the whole rows' },
+        { key: 'a', ctrl: true, description: 'Select the whole table' },
+        { key: 'Delete', description: 'Clear the selected cells' },
+        { key: '+', ctrl: true, shift: true, description: 'Insert rows above (columns when whole columns are selected)' },
+        { key: '-', ctrl: true, description: 'Delete the selected rows (or whole columns)' },
+        { key: 'c', ctrl: true, description: 'Copy the selected cells (pastes into Excel)' },
+        { key: 'x', ctrl: true, description: 'Cut the selected cells' },
+        { key: 'v', ctrl: true, description: 'Paste cells from Excel' },
+        { key: 'F2', description: 'Edit the block as text' }
     ],
 
     MARKDOWN_BLOCK: [
@@ -273,7 +273,8 @@ export const SHORTCUTS = {
         { key: 'ArrowDown', shift: true, cmd: 'md-block:extend', description: 'Extend Selection Down' },
         { key: 'ArrowUp', alt: true, cmd: 'md-block:move', description: 'Move Block Up' },
         { key: 'ArrowDown', alt: true, cmd: 'md-block:move', description: 'Move Block Down' },
-        { key: 'Enter', cmd: 'md-block:edit', description: 'Edit Block' },
+        // Enter edits the block where it stands; F2 opens the modal.
+        { key: 'Enter', cmd: 'md-block:edit-inline', description: 'Edit Block in Place' },
         { key: 'F2', cmd: 'md-block:edit', description: 'Edit Block' },
         // Deleting a block used to mean opening it, clearing the text and
         // saving. Ctrl+click or Shift+arrow first to remove several at once.

@@ -372,60 +372,6 @@ describe('the block editor modal owns its own keys', () => {
     });
 });
 
-describe('the table carries its own copy control', () => {
-    const src = read('src/modules/editors/TableEditor.js');
-    const view = read('src/modules/views/MarkdownView.js');
-
-    it('puts the button on the non-scrolling host', () => {
-        // Absolutely positioned inside the scroller, it slid out of view the
-        // moment a wide table was scrolled sideways.
-        expect(src).toContain("container.closest('.table-editor-host')");
-        expect(view).toContain("tableHost.className = 'table-editor-host'");
-        expect(view).toContain("tableContainer.className = 'table-editor-scroll'");
-    });
-
-    it('does not also keep a duplicate in the toolbar', () => {
-        expect(view).not.toContain('copyTableBtn');
-    });
-
-    it('extends the selection on drag, and stops on mouseup', () => {
-        expect(src).toContain('this._drag.active = true;');
-        expect(src).toContain('cell.onmouseenter = () => {');
-        expect(src).toContain("document.addEventListener('mouseup', this._endDrag, true);");
-        // A drag that started must not survive a re-render.
-        expect(src).toContain("document.removeEventListener('mouseup', this._endDrag, true);");
-    });
-
-    it('leaves the right mouse button to the context menu', () => {
-        expect(src).toContain('if (e.button !== 0) return;');
-    });
-});
-
-/* Two more from use. Both are the same shape: the code was right and one line
-   of plumbing was not, so the feature existed and was unreachable. */
-describe('the table copy button reaches the page', () => {
-    const view = read('src/modules/views/MarkdownView.js');
-
-    it('appends the HOST, not the scroller inside it', () => {
-        // Appending tableContainer left tableHost — and the copy button
-        // positioned against it — out of the document entirely. The table
-        // rendered from inside the detached host, so everything looked normal
-        // except that the button did not exist.
-        expect(view).toContain('container.appendChild(tableHost);');
-        expect(view).not.toContain('container.appendChild(tableContainer);');
-    });
-
-    it('keeps the host out of the scrolling box', () => {
-        // The button is absolutely positioned against the host; inside the
-        // scroller it slides away as soon as a wide table is scrolled.
-        const host = view.indexOf("tableHost.className = 'table-editor-host'");
-        const scroll = view.indexOf("tableContainer.className = 'table-editor-scroll'");
-        expect(host).toBeGreaterThan(-1);
-        expect(scroll).toBeGreaterThan(host);
-        expect(view).toContain('tableHost.appendChild(tableContainer);');
-    });
-});
-
 describe('the toolbar hints belong to Alt alone', () => {
     const view = read('src/modules/views/MarkdownView.js');
 

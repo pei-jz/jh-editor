@@ -110,10 +110,21 @@ describe('Ctrl+Z inside a table cell', () => {
         expect(cell.classList.contains('md-cell-editing')).toBe(true);
     });
 
-    it('leaves the arrow alone while Shift is extending a selection', () => {
+    it('leaves Shift+Arrow to the text while there is text left to select', () => {
+        table.rows[1].cells[1].textContent = '2';
+        const cell = open(1, 1);
+        caretAt(cell, 1);
+        expect(press(cell, 'ArrowLeft', { shiftKey: true }).defaultPrevented).toBe(false);
+        expect(cell.classList.contains('md-cell-editing')).toBe(true);
+    });
+
+    it('turns Shift+Arrow at the edge of the cell into a cell range', () => {
         const cell = open(1, 1);
         caretAt(cell, 0);
-        expect(press(cell, 'ArrowLeft', { shiftKey: true }).defaultPrevented).toBe(false);
+        expect(press(cell, 'ArrowLeft', { shiftKey: true }).defaultPrevented).toBe(true);
+        expect(cell.classList.contains('md-cell-editing')).toBe(false);
+        expect(view.tableEdit.range.anchor).toEqual({ r: 1, c: 1 });
+        expect(view.tableEdit.range.focus).toEqual({ r: 1, c: 0 });
     });
 
     it('takes back the edit committed by Enter, from the next cell', () => {

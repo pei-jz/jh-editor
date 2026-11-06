@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { applyTableOp, cellSource, findTables, replaceCell, toCellSource } from '../src/modules/utils/MarkdownTableCells.js';
+import {
+    applyTableOp, cellSource, clearCells, findTables, parseTsv, replaceCell, toCellSource, writeGrid,
+} from '../src/modules/utils/MarkdownTableCells.js';
+import { TableEditor } from '../src/modules/editors/TableEditor.js';
 
 // 表示モードのセル編集は、原文のうちセルの文字だけを差し替える。ここが 1 文字でも
 // ずれると、見ているセルとは別の場所を書き換えてしまう。描画と同じ marked で表の
@@ -146,5 +149,70 @@ describe('applyTableOp', () => {
         expect(run('col-delete', 1, 1).grid).toEqual([['a'], ['1']]);
         const single = '| a |\n|---|\n| 1 |';
         expect(applyTableOp(single, tablesOf(single)[0], 'col-delete', 1, 0)).toContain('| a');
+    });
+});
+
+describe('range edits', () => {
+    const T = '| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 |\n| 4 | 5 |\n| 7 | 8 | 9 |';
+
+    it('clearCells empties only the range and leaves the layout alone', () => {
+        const out = clearCells(T, tablesOf(T)[0], { r1: 1, r2: 3, c1: 1, c2: 2 });
+        expect(out).toBe('| a | b | c |\n|---|---|---|\n| 1 |  |  |\n| 4 |  |\n| 7 |  |  |');
+    });
+
+    it('writeGrid replaces cells in place when the values fit', () => {
+        const out = writeGrid(T, tablesOf(T)[0], 1, 0, [['x', 'y'], ['z', 'w']]);
+        expect(out).toBe('| a | b | c |\n|---|---|---|\n| x | y | 3 |\n| z | w |\n| 7 | 8 | 9 |');
+    });
+
+    it('writeGrid fills a short row without scrambling the order', () => {
+        const out = writeGrid(T, tablesOf(T)[0], 2, 1, [['p', 'q']]);
+        const [table] = tablesOf(out);
+        expect([1, 2].map((c) => cellSource(out, table, 2, c))).toEqual(['p', 'q']);
+        expect(cellSource(out, table, 2, 0)).toBe('4');
+    });
+
+    it('writeGrid grows the table for values that run past it', () => {
+        const out = writeGrid(T, tablesOf(T)[0], 3, 2, [['p', 'q'], ['r', 's']]);
+        const [table] = tablesOf(out);
+        expect(table.columns).toBe(4);
+        expect(table.rows).toHaveLength(5);
+        expect(cellSource(out, table, 4, 3)).toBe('s');
+    });
+
+    it('writeGrid keeps | and line breaks inside their cell', () => {
+        const out = writeGrid(T, tablesOf(T)[0], 1, 0, [['a|b', 'x\ny']]);
+        const [table] = tablesOf(out);
+        expect(cellSource(out, table, 1, 0)).toBe('a\\|b');
+        expect(cellSource(out, table, 1, 1)).toBe('x<br>y');
+    });
+
+    it('applyTableOp deletes a span of rows, never the header', () => {
+        const out = applyTableOp(T, tablesOf(T)[0], 'row-delete', 0, 0, 2, 0);
+        expect(TableEditor.parse(out)).toEqual([['a', 'b', 'c'], ['7', '8', '9']]);
+    });
+
+    it('applyTableOp deletes a span of columns but keeps one', () => {
+        const out = applyTableOp(T, tablesOf(T)[0], 'col-delete', 0, 0, 0, 1);
+        expect(TableEditor.parse(out)[0]).toEqual(['c']);
+        expect(applyTableOp(T, tablesOf(T)[0], 'col-delete', 0, 0, 0, 2)).toBe(TableEditor.serialize(TableEditor.parse(T).map((r) => [...r, '', ''].slice(0, 3))));
+    });
+});
+
+describe('parseTsv', () => {
+    it('reads what Excel puts on the clipboard', () => {
+        expect(parseTsv('a\tb\r\nc\td\r\n')).toEqual([['a', 'b'], ['c', 'd']]);
+    });
+
+    it('reads quoted cells with line breaks, tabs and quotes', () => {
+        expect(parseTsv('"x\ny"\t"a\tb"\t"say ""hi"""\n')).toEqual([['x\ny', 'a\tb', 'say "hi"']]);
+    });
+
+    it('keeps a quote that does not wrap the whole cell', () => {
+        expect(parseTsv('"a" b\tc')).toEqual([['"a" b', 'c']]);
+    });
+
+    it('keeps empty cells', () => {
+        expect(parseTsv('\t\nx\t')).toEqual([['', ''], ['x', '']]);
     });
 });

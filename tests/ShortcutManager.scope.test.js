@@ -38,10 +38,6 @@ describe('ShortcutManager.resolveScope', () => {
         expect(sm.resolveScope({})).toBeNull();
     });
 
-    it('detects the markdown table editor', () => {
-        expect(sm.resolveScope(nest([{ cls: 'visual-table-editor' }, { tag: 'td' }]))).toBe('MARKDOWN_TABLE');
-    });
-
     it('detects the explorer', () => {
         expect(sm.resolveScope(nest([{ id: 'explorer-list-container' }, { cls: 'row' }]))).toBe('EXPLORER');
     });
@@ -89,12 +85,6 @@ describe('ShortcutManager.resolveScope', () => {
             expect(sm.resolveScope(el)).toBeNull(); // null = don't change
         });
 
-        it('keeps MARKDOWN_TABLE while editing inside a block', () => {
-            const el = nest([{ cls: 'md-block' }, { tag: 'textarea' }]);
-            sm.setScope('MARKDOWN_TABLE');
-            expect(sm.resolveScope(el)).toBeNull();
-        });
-
         it('falls back to EDITOR when the block editor is focused from another scope', () => {
             const el = nest([{ cls: 'md-block' }, { tag: 'textarea' }]);
             sm.setScope('GLOBAL');
@@ -108,7 +98,7 @@ describe('ShortcutManager.resolveScope', () => {
             expect(sm.resolveScope(nest([{ cls: 'block-editor' }]))).toBe('EDITOR');
         });
 
-        it.each(['AI_REVIEW', 'MARKDOWN', 'MARKDOWN_TABLE'])('does not steal the %s scope', (scope) => {
+        it.each(['AI_REVIEW', 'MARKDOWN'])('does not steal the %s scope', (scope) => {
             const el = nest([{ cls: 'plain-text-editor' }]);
             sm.setScope(scope);
             expect(sm.resolveScope(el)).toBeNull();
@@ -137,8 +127,8 @@ describe('ShortcutManager.resolveScope', () => {
         expect(sm.resolveScope(nest([{ cls: 'somewhere-else' }]))).toBeNull();
     });
 
-    it('prioritises the table editor over an enclosing md-block', () => {
-        const el = nest([{ cls: 'md-block' }, { cls: 'visual-table-editor' }, { tag: 'td' }]);
-        expect(sm.resolveScope(el)).toBe('MARKDOWN_TABLE');
+    it('treats the hidden input of a table cell range as a text field', () => {
+        const el = nest([{ cls: 'md-block' }, { tag: 'textarea', cls: 'md-cell-editing md-range-sink' }]);
+        expect(sm.resolveScope(el)).toBe('GLOBAL');
     });
 });

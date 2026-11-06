@@ -11,7 +11,7 @@ const SCOPE_META = [
     { scope: 'EXPLORER',        label: t('Explorer'),       hint: 'File tree' },
     { scope: 'SEARCH',          label: t('Search Panel'),   hint: 'Find & replace' },
     { scope: 'MARKDOWN',        label: t('Markdown Edit'),  hint: 'Editing a block' },
-    { scope: 'MARKDOWN_TABLE',  label: t('Markdown Table'), hint: 'Table editor' },
+    { scope: 'MARKDOWN_TABLE',  label: t('Markdown Table'), hint: 'Table in the view' },
     { scope: 'MARKDOWN_BLOCK',  label: t('Markdown Select'), hint: 'Block selected' },
     { scope: 'CSV',             label: t('CSV Grid'),       hint: 'Cell selection' },
     { scope: 'CSV_EDIT',        label: t('CSV Cell Edit'),  hint: 'Editing a cell' },
@@ -26,7 +26,6 @@ const CHIPS_PER_ROW = 6;
 // Legacy: callers pass a mode ('text' | 'table' | 'csv') to preselect a category.
 const modeMapping = {
     'text': 'MARKDOWN',
-    'table': 'MARKDOWN_TABLE',
     'csv': 'CSV'
 };
 

@@ -228,6 +228,10 @@ export default {
     'Decimal (signed)': '小数（带符号）',
     'Delete': '删除',
     'Delete Block': '删除块',
+    'Clear Contents': '清除内容',
+    'Delete {n} Rows': '删除 {n} 行',
+    'Delete {n} Columns': '删除 {n} 列',
+    'Selected cells': '所选单元格',
     'Delete Column': '删除列',
     'Delete Row': '删除行',
     'Delete snippet': '删除代码片段',
@@ -518,8 +522,6 @@ export default {
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
-    'Copy the whole table': '复制整个表格',
-    'Copy the whole table (paste into Excel with formatting)': '复制整个表格（可带格式粘贴到 Excel）',
 
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well

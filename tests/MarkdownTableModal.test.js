@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-// The table editor shows its cells formatted, so a preview beside it was the
-// same table twice, and hard to tell which one was being edited.
+// F2 used to open a table in a grid of its own, beside a second copy of the
+// same table as the preview. Tables are edited in the view now (click a cell,
+// select a range, right-click for rows and columns), so F2 opens a table the
+// way it opens every other block: its Markdown source, with the preview.
 
 const TABLE = '| a | b |\n|---|---|\n| 1 | 2 |';
 
-describe('the preview in the block editor', () => {
+describe('a table in the block editor', () => {
     let MarkdownView, EL, view;
 
     beforeAll(async () => {
@@ -41,49 +43,29 @@ describe('the preview in the block editor', () => {
         document.getElementById('host').appendChild(block);
         view.enterEditMode(block, text, 0);
     };
-    const box = () => document.querySelector('.mbe-box');
-    const hidden = () => box().classList.contains('mbe-no-preview');
-    const toggle = () => document.querySelector('.toggle-mode-btn').click();
 
-    it('is hidden while a table is edited as a table', () => {
+    it('opens as its Markdown source, with the format toolbar', () => {
         open(TABLE);
-        expect(hidden()).toBe(true);
-        expect(document.querySelector('.visual-table-editor')).not.toBeNull();
+        expect(view._blockCM.state.doc.toString()).toBe(TABLE);
+        expect(document.querySelector('.editor-toolbar').style.display).toBe('flex');
+        expect(document.querySelector('.block-cm').style.display).toBe('');
     });
 
-    it('is shown for any other block', () => {
-        open('just a paragraph');
-        expect(hidden()).toBe(false);
-    });
-
-    it('comes and goes with the switch between table and text', () => {
+    it('has no grid and no switch to one', () => {
         open(TABLE);
-        toggle();
-        expect(hidden()).toBe(false);
-        toggle();
-        expect(hidden()).toBe(true);
+        expect(document.querySelector('.visual-table-editor')).toBeNull();
+        expect(document.querySelector('.toggle-mode-btn')).toBeNull();
     });
 
-    it('stays when text that is not a table cannot switch to the table editor', () => {
-        open('just a paragraph');
-        toggle();
-        expect(hidden()).toBe(false);
-    });
-
-    it('brings the format toolbar along when the button switches modes', () => {
+    it('shows the table in the preview beside the source', () => {
         open(TABLE);
-        const toolbar = document.querySelector('.editor-toolbar');
-        expect(toolbar.style.display).toBe('none');
-        toggle();
-        expect(toolbar.style.display).toBe('flex');
-        toggle();
-        expect(toolbar.style.display).toBe('none');
+        expect(document.querySelector('.mbe-box .mbe-right table')).not.toBeNull();
     });
 
-    it('does not let the layout key change the hidden layout', () => {
+    it('still lets the layout key turn the preview below the source', () => {
         open(TABLE);
         const before = document.querySelector('.mbe-body').classList.contains('mbe-vertical');
         view._toggleEditLayout();
-        expect(document.querySelector('.mbe-body').classList.contains('mbe-vertical')).toBe(before);
+        expect(document.querySelector('.mbe-body').classList.contains('mbe-vertical')).toBe(!before);
     });
 });

@@ -27,201 +27,6 @@
 
 
 
-/* Beautiful Visual Table Editor (Matches Markdown Preview) */
-.visual-table-editor {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    margin-bottom: 20px;
-    background-color: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    overflow: hidden;
-    table-layout: fixed;
-}
-
-.visual-table-editor thead {
-    background-color: var(--table-header-bg);
-}
-
-.visual-table-editor th {
-    padding: 0;
-    border: 1px solid var(--border-color);
-    background-color: var(--table-header-bg);
-    color: var(--text-color);
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.visual-table-editor td {
-    padding: 0;
-    border: 1px solid var(--border-color);
-    font-size: 13px;
-    background-color: var(--bg-color);
-}
-
-/* The cell editor is a <textarea> so it wraps like the text it replaces. */
-.visual-table-editor input,
-.visual-table-editor textarea {
-    width: 100%;
-    padding: 6px 10px;
-    border: none;
-    outline: none;
-    font-size: 13px;
-    font-family: inherit;
-    line-height: 1.5;
-    background-color: transparent;
-    color: var(--text-color);
-    box-sizing: border-box;
-    display: block;
-}
-
-.visual-table-editor textarea {
-    /* Height is set from scrollHeight as you type; no inner scrollbar and no
-       drag handle, so the cell looks like a cell rather than a form field. */
-    resize: none;
-    overflow: hidden;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
-.visual-table-editor input:focus,
-.visual-table-editor textarea:focus {
-    background-color: rgba(var(--primary-color-rgb), 0.05);
-}
-
-.visual-table-editor .active-cell {
-    outline: 2px solid var(--primary-color) !important;
-    outline-offset: -2px;
-    z-index: 10;
-    background-color: rgba(var(--primary-color-rgb), 0.1) !important;
-}
-
-.visual-table-editor .cell-text {
-    padding: 6px 10px;
-    min-height: 1em;
-    line-height: 1.5;
-    /* `break-all` split ordinary words mid-letter. Wrap at word boundaries and
-       only break a token that genuinely cannot fit — which is what the preview
-       does, and the two are meant to look the same. */
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: normal;
-}
-
-.visual-table-editor th .cell-text {
-    text-align: left;
-}
-
-/* Rendered marks in a cell that is not being edited. The link is for reading:
-   a click on it selects the cell, as a click anywhere else in the cell does. */
-.visual-table-editor .cell-text code {
-    padding: 1px 5px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-color-secondary);
-    font-size: 0.92em;
-}
-
-.visual-table-editor .cell-text a {
-    color: var(--primary-color);
-    pointer-events: none;
-}
-
-/* The selected cell's editor, waiting unseen for an IME. See armCell(). */
-.visual-table-editor td,
-.visual-table-editor th {
-    position: relative;
-}
-
-.visual-table-editor textarea.cell-armed {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100% !important;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.visual-table-editor tr.selected-row {
-    background-color: rgba(var(--primary-color-rgb), 0.15) !important;
-}
-
-.visual-table-editor .column-no,
-.visual-table-editor .column-no-header {
-    text-align: center;
-    background-color: var(--table-header-bg) !important;
-    color: var(--text-color-muted);
-    font-size: 11px;
-    border-right: 1px solid var(--border-color);
-    user-select: none;
-}
-
-.visual-table-editor td.column-no {
-    font-weight: 500;
-}
-
-.visual-table-editor .editing-cell {
-    background-color: var(--bg-color) !important;
-}
-
-.visual-table-editor .range-selected {
-    background-color: rgba(13, 110, 253, 0.1) !important;
-    /* Standard blue highlight */
-}
-
-/* Dark theme overrides */
-body.theme-dark .visual-table-editor .range-selected {
-    background-color: rgba(55, 148, 255, 0.2) !important;
-}
-
-.visual-table-editor td,
-.visual-table-editor th {
-    height: 32px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    padding: 0 !important;
-}
-
-.visual-table-editor .cell-text {
-    display: block;
-    padding: 6px 10px;
-    height: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.visual-table-editor tr.selected-row {
-    background-color: rgba(13, 110, 253, 0.15);
-}
-
-.visual-table-editor .row-index {
-    background-color: var(--bg-color-secondary);
-    color: var(--text-secondary);
-    text-align: center;
-    font-size: 11px;
-    user-select: none;
-    width: 30px;
-}
-
-.table-editor-hints {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    padding: 5px;
-    background-color: var(--bg-color-secondary);
-    border-radius: 4px;
-    margin-top: 5px;
-}
-
-.table-editor-hints strong {
-    color: var(--primary-color);
-}
-
 /* Per-block tools, top-right on hover: copy, then edit.
    ------------------------------------------------------------
    One row rather than two absolutely-positioned buttons, so adding a third
@@ -614,6 +419,58 @@ body.theme-dark .visual-table-editor .range-selected {
     background-color: var(--bg-color);
     white-space: pre-wrap;
     cursor: text;
+}
+
+/* 段落・見出し・リストのその場編集 (MarkdownBlockEdit.js)。原文を本文と同じ
+   文字の大きさで見せ、行が増えれば入力欄も伸びる。 */
+.md-block.md-inline-editing {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+.md-block textarea.md-block-inline-editor {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 1.8em;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 4px;
+    outline: 2px solid var(--primary-color);
+    outline-offset: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font: inherit;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow: hidden;
+    resize: none;
+}
+
+/* セルの範囲選択。見えない入力欄 (.md-range-sink) がキーを受ける。 */
+.md-block :is(td, th).md-cell-range {
+    background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+.md-block :is(td, th).md-cell-range-focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+.md-block table.md-range-dragging {
+    user-select: none;
+}
+.md-block textarea.md-range-sink {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    resize: none;
+    overflow: hidden;
+    pointer-events: none;
 }
 
 /* 全部空の行も、クリックできる高さを保つ。 */

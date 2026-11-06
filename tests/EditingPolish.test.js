@@ -3,73 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { TableEditor } from '../src/modules/editors/TableEditor.js';
-
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(join(here, '..', rel), 'utf8').replace(/\r\n/g, '\n');
-
-/* A Markdown table cell wrapped when you were reading it and stopped wrapping
-   the moment you edited it: the editor was an <input type="text">, which is
-   single-line by definition, so long text scrolled sideways through a narrow
-   column and you edited it through a letterbox. */
-describe('editing a table cell', () => {
-    let container;
-
-    beforeEach(() => {
-        document.body.innerHTML = '';
-        container = document.createElement('div');
-        document.body.appendChild(container);
-        TableEditor.render(container, [['h1', 'h2'], ['a', 'b']], vi.fn());
-    });
-
-    // Row 0 is the header; the first data cell is row 1.
-    const firstCell = () => container.querySelector('td[data-row="1"][data-col="0"]');
-
-    it('edits in a box that can wrap', () => {
-        const editor = firstCell().querySelector('textarea');
-        expect(editor, 'the cell editor is still a single-line input').not.toBeNull();
-        expect(firstCell().querySelector('input')).toBeNull();
-    });
-
-    // Enter has nothing to mean inside a cell: a Markdown table cannot hold a
-    // real newline, so it commits and moves down, exactly as before.
-    it('still commits on Enter instead of inserting a newline', () => {
-        const src = read('src/modules/editors/TableEditor.js');
-        const i = src.indexOf('input.onkeydown = (e) => {');
-        const fn = src.slice(i, src.indexOf('\n            };', i));
-        expect(fn).toContain("if (e.key === 'Enter'");
-        expect(fn).toContain('e.preventDefault();');
-    });
-
-    it('grows to fit rather than hiding text below the fold', () => {
-        const src = read('src/modules/editors/TableEditor.js');
-        expect(src).toContain('const autoGrow = (el) => {');
-        expect(src).toContain("input.addEventListener('input', () => autoGrow(input));");
-        // ...and is sized the moment it is revealed, not only on the next key.
-        expect((src.match(/input\.style\.height = `\$\{input\.scrollHeight\}px`;/g) || []).length)
-            .toBe(2);
-    });
-
-    it('is styled to wrap, with no inner scrollbar or drag handle', () => {
-        const css = read('src/styles/editor.css');
-        // lastIndexOf: the selector also appears in the shared input/textarea rule.
-        const i = css.lastIndexOf('.visual-table-editor textarea {');
-        const block = css.slice(i, css.indexOf('}', i));
-        expect(block).toContain('white-space: pre-wrap');
-        expect(block).toContain('overflow-wrap: anywhere');
-        expect(block).toContain('resize: none');
-        expect(block).toContain('overflow: hidden');
-    });
-
-    // `break-all` split ordinary words mid-letter; the preview does not.
-    it('wraps the read-only text at word boundaries', () => {
-        const css = read('src/styles/editor.css');
-        const i = css.indexOf('.visual-table-editor .cell-text {');
-        const block = css.slice(i, css.indexOf('}', i));
-        expect(block).toContain('word-break: normal');
-        expect(block).not.toContain('word-break: break-all');
-    });
-});
 
 /* After saving a block the view re-renders, and `block: 'nearest'` then parks
    the edited block flush against the top or bottom edge — which reads as

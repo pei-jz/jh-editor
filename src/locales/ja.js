@@ -228,6 +228,10 @@ export default {
     'Decimal (signed)': '小数 (符号付き)',
     'Delete': '削除',
     'Delete Block': 'ブロックを削除',
+    'Clear Contents': '内容を消去',
+    'Delete {n} Rows': '{n} 行を削除',
+    'Delete {n} Columns': '{n} 列を削除',
+    'Selected cells': '選択したセル',
     'Delete Column': '列を削除',
     'Delete Row': '行を削除',
     'Delete snippet': 'スニペットを削除',
@@ -518,8 +522,6 @@ export default {
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
-    'Copy the whole table': 'テーブル全体をコピー',
-    'Copy the whole table (paste into Excel with formatting)': 'テーブル全体をコピー (書式付きで Excel に貼り付け)',
 
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well

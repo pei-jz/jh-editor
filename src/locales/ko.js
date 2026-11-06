@@ -228,6 +228,10 @@ export default {
     'Decimal (signed)': '소수 (부호 포함)',
     'Delete': '삭제',
     'Delete Block': '블록 삭제',
+    'Clear Contents': '내용 지우기',
+    'Delete {n} Rows': '{n}개 행 삭제',
+    'Delete {n} Columns': '{n}개 열 삭제',
+    'Selected cells': '선택한 셀',
     'Delete Column': '열 삭제',
     'Delete Row': '행 삭제',
     'Delete snippet': '스니펫 삭제',
@@ -518,8 +522,6 @@ export default {
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well
     // as its static chrome. Anything still missing renders in English.
-    'Copy the whole table': '표 전체 복사',
-    'Copy the whole table (paste into Excel with formatting)': '표 전체 복사 (서식을 유지한 채 Excel에 붙여넣기)',
 
     // ── Runtime strings ───────────────────────────────────────────
     // Added when the app's dynamic UI started going through t() as well

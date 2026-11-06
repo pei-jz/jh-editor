@@ -29,6 +29,7 @@ import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 import { isFullScreenKey } from '../utils/FullScreenKey.js';
 import { invoke } from '@tauri-apps/api/core';
 import { MarkdownTableEdit } from './MarkdownTableEdit.js';
+import { MarkdownBlockEdit } from './MarkdownBlockEdit.js';
 import { PageFlip } from 'page-flip';
 // CodeMirror 6 — powers the block editor (replacing the plain textarea).
 import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view';
@@ -108,34 +109,6 @@ function _injectBlockEditStyles() {
     .mbe-left .block-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .mbe-left .block-cm .cm-editor { flex: 1; min-height: 0; max-height: none; }
     .mbe-left .block-cm .cm-scroller { min-height: 0; overflow: auto; }
-
-    /* The visual table editor, the same way: the host fills the pane and the
-       scroller inside it scrolls both ways. It used to grow to the table's
-       full height with nothing to scroll it, and focusing a cell below the
-       fold then scrolled the DIALOG instead — the header slid out of sight
-       and the footer ended up drawn over the table. (Shown with display ''
-       rather than 'block' for the reason given at cmParent.) */
-    .mbe-left .table-editor-host {
-        flex: 1; min-height: 0; display: flex; flex-direction: column;
-    }
-    .mbe-left .table-editor-scroll { flex: 1; min-height: 0; overflow: auto; }
-    /* In the table's own corner, inside the margin below. */
-    .mbe-left .table-editor-host > .table-copy-btn { top: 18px; right: 20px; }
-    .mbe-left .visual-table-editor { width: calc(100% - 32px); margin: 14px 16px; }
-
-    /* The table editor is its own preview: it shows the cells formatted, and a
-       second copy of the same table beside it only made it hard to tell which
-       one was being edited. The text editor brings the preview back. */
-    .mbe-box.mbe-no-preview .mbe-split,
-    .mbe-box.mbe-no-preview .mbe-right,
-    .mbe-box.mbe-no-preview .mbe-layout-btn:not(.mbe-max-btn) { display: none; }
-    /* !important: a splitter drag leaves a width on the pane's own style. */
-    .mbe-box.mbe-no-preview .mbe-left { flex: 1 1 100% !important; }
-    /* The key hints stay on screen while the table scrolls under them. */
-    .mbe-left .table-editor-scroll .table-editor-hints {
-        position: sticky; left: 0; bottom: 0; z-index: 2; margin-top: 0;
-        border-radius: 0; border-top: 1px solid var(--border-color);
-    }
 
     /* The frame never scrolls. Its panes do; with overflow:hidden the browser
        could still scroll the frame itself to reveal a focused element, which
@@ -275,6 +248,7 @@ export class MarkdownView extends BaseView {
         this.saveFileToDisk = callbacks.saveFile;
         // Editing table cells in place, and resizing their columns.
         this.tableEdit = new MarkdownTableEdit(this);
+        this.blockEdit = new MarkdownBlockEdit(this);
 
         this._onFontChange = () => {
             // Closed tabs can leave callbacks behind. Only the view that still
@@ -293,12 +267,20 @@ export class MarkdownView extends BaseView {
         window.addEventListener('fontSettingsChanged', this._onFontChange);
     }
 
+    /** Throw away an in-place edit (cell, range or block) whose DOM is going. */
+    _dropInPlaceEdits() {
+        this.tableEdit.cancel();
+        this.tableEdit.clearRange();
+        this.blockEdit.cancel();
+        this.blockEdit.cancelClick();
+    }
+
     render(content, file) {
         // The DOM below is about to go. Every user-driven way here (a click, a
         // shortcut) has already blurred the cell and committed it, so what is
         // left is a redraw from elsewhere, like a reload from disk: `content`
         // is newer than the cell's text, and it wins.
-        this.tableEdit.cancel();
+        this._dropInPlaceEdits();
         if (this.pageFlipInstance) {
             try { this.pageFlipInstance.destroy(); } catch (e) { /* ignore */ }
             this.pageFlipInstance = null;
@@ -470,14 +452,22 @@ export class MarkdownView extends BaseView {
                 if (this.tableEdit.handleClick(e, div, i)) return;
                 const sel = window.getSelection();
                 const keepSelection = !!sel && !sel.isCollapsed && div.contains(sel.anchorNode);
+                // A second click on the block that is already selected edits it
+                // in place, after a pause that tells it apart from a double-click.
+                const again = !keepSelection && this.blockEdit.isSoleSelection(i);
                 this.selectBlock(i, { extend: e.ctrlKey || e.metaKey || e.shiftKey, keepSelection });
+                if (again) this.blockEdit.scheduleFromClick(e, div, i);
+                else this.blockEdit.cancelClick();
             };
         });
 
         const phantom = document.createElement('div');
         phantom.className = 'md-block phantom';
         phantom.textContent = t('+ Add Block');
-        phantom.onclick = () => this.enterEditMode(phantom, '', blocks.length);
+        // A new block is written in place; the modal is still F2 away.
+        phantom.onclick = () => {
+            if (!this.blockEdit.begin(blocks.length)) this.enterEditMode(phantom, '', blocks.length);
+        };
         if (State.vimState.selectedIndex === blocks.length) {
             phantom.classList.add('selected');
         }
@@ -489,6 +479,12 @@ export class MarkdownView extends BaseView {
         // before lazy rendering fills them in.
         const savedTop = file && file._mdScrollTop;
         if (savedTop) {
+            // Now, before anything is painted: emptying the container above
+            // dropped scrollTop to 0, and restoring it only in the next frame
+            // showed the top of the document first (Ctrl+Z after a table edit
+            // landed there). The frame callback stays for the heights lazy
+            // rendering settles after this.
+            this.container.scrollTop = savedTop;
             requestAnimationFrame(() => { if (this.container) this.container.scrollTop = savedTop; });
         }
 
@@ -593,7 +589,9 @@ export class MarkdownView extends BaseView {
         if (this.renderTabs) this.renderTabs();
         if (this.renderEditor) this.renderEditor();
         if (this.updateOutline) this.updateOutline();
-        setTimeout(() => this.selectBlock(at, { reveal: 'center' }), 50);
+        // 'nearest', not 'center': the block that changed is usually the one in
+        // view already, and re-centring it moved the page on every Ctrl+Z.
+        setTimeout(() => this.selectBlock(at, { reveal: 'nearest' }), 50);
     }
 
     _splitIntoBlocks(content) {
@@ -683,7 +681,11 @@ export class MarkdownView extends BaseView {
         const gapBefore = (k) => {
             if (k === 0) return old.gaps[0];
             if (n === m) return old.gaps[k];          // edited in place, or swapped
-            if (k <= p) return old.gaps[k];           // block k-1 unchanged, at the front
+            // Block k-1 unchanged, at the front. Not for k === m: gaps[m] is the
+            // file's TRAILING gap ('' or one newline), and putting it in front
+            // of a block appended at the end glued that block onto the last one
+            // — after a table, as one more row of it.
+            if (k <= p && k < m) return old.gaps[k];
             // Block k unchanged, at the back — unless that old gap was just
             // used in front of an insertion, where it would appear twice.
             if (k >= n - q && k - n + m > p) return old.gaps[k - n + m];
@@ -888,28 +890,14 @@ export class MarkdownView extends BaseView {
             }
         }, true);
 
-        let isTableMode = TableEditor.isTable(originalText || '');
-        let tableData = isTableMode ? TableEditor.parse(originalText) : [];
-
-        // The grid always writes its own layout (padding, separator row), so a
-        // table that was only looked at came back reformatted — and Escape
-        // then asked about "unsaved changes" nobody made. While the grid still
-        // serializes to what the opening text would, the opening text is used.
-        let tableBase = null;
-        const rememberTableBase = (source) => {
-            tableBase = { source, serialized: TableEditor.serialize(TableEditor.parse(source)) };
-        };
-        if (isTableMode) rememberTableBase(originalText || '');
-        const editedText = () => {
-            if (!isTableMode) return textarea.value;
-            const out = TableEditor.serialize(tableData);
-            return tableBase && out === tableBase.serialized ? tableBase.source : out;
-        };
+        // A table opens as text like any other block. Its cells are edited in
+        // the view itself (MarkdownTableEdit: click, ranges, rows and columns),
+        // so the modal no longer has a grid of its own to keep in step.
+        const editedText = () => textarea.value;
 
         // Initial setup for shortcuts
-        const scope = isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN';
+        const scope = 'MARKDOWN';
         shortcuts.unregisterScope('MARKDOWN');
-        shortcuts.unregisterScope('MARKDOWN_TABLE');
         shortcuts.setScope(scope);
 
         blockElement.classList.add('editing');
@@ -933,7 +921,7 @@ export class MarkdownView extends BaseView {
         // the modal's `.mbe-left .block-cm { display: flex }`, so the editor
         // grew to its full content height inside an overflow:hidden pane —
         // no scrollbar, no wheel scrolling, only the caret could move the view.
-        cmParent.style.display = isTableMode ? 'none' : '';
+        cmParent.style.display = '';
 
         const _cmInputHandlers = [];
         // Pick a highlight style that suits the active theme's background:
@@ -994,68 +982,6 @@ export class MarkdownView extends BaseView {
             dispatchEvent() { _cmInputHandlers.forEach((h) => h()); },
         };
 
-        // Two elements, not one: the copy button is positioned against the
-        // HOST, while the table scrolls inside the inner div. Absolutely
-        // positioning the button inside the scroller would have it slide out of
-        // view the moment a wide table was scrolled sideways.
-        const tableHost = document.createElement('div');
-        tableHost.className = 'table-editor-host';
-        tableHost.style.display = isTableMode ? '' : 'none';
-
-        const tableContainer = document.createElement('div');
-        tableContainer.className = 'table-editor-scroll';
-        tableContainer.style.overflow = 'auto';
-        tableHost.appendChild(tableContainer);
-
-        const syncTableToText = () => {
-            textarea.value = editedText();
-            if (typeof marked !== 'undefined') {
-                previewContent.innerHTML = this._parseMarkdown(textarea.value);
-                runMermaidPreview();
-            }
-        };
-
-        // Initial render for table if in table mode
-        if (isTableMode) {
-            TableEditor.render(tableContainer, tableData, syncTableToText);
-        }
-
-        const toggleMode = () => {
-            isTableMode = !isTableMode;
-            if (isTableMode) {
-                const currentText = textarea.value;
-                if (TableEditor.isTable(currentText) || currentText.trim() === '') {
-                    if (currentText.trim() === '') {
-                        tableData = [['Header 1', 'Header 2'], ['Row 1', 'Row 2']];
-                    } else {
-                        tableData = TableEditor.parse(currentText);
-                        rememberTableBase(currentText);
-                    }
-                    TableEditor.render(tableContainer, tableData, syncTableToText);
-                    textarea.style.display = 'none';
-                    tableHost.style.display = '';
-                    syncTableToText();
-                } else {
-                    showAlert('Current text is not recognized as a valid table.', { title: 'Invalid Table', kind: 'info' });
-                    isTableMode = false;
-                }
-            } else {
-                textarea.style.display = '';
-                tableHost.style.display = 'none';
-                textarea.focus();
-            }
-            this._updateToggleText(toggleBtn, isTableMode);
-            showPreviewForMode();
-            // Here rather than in Ctrl+E's action, so the button gets the format
-            // toolbar and the keys of the new mode too.
-            registerShortcuts(isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN');
-        };
-
-        const showPreviewForMode = () => {
-            const box = container.closest('.mbe-box');
-            if (box) box.classList.toggle('mbe-no-preview', isTableMode);
-        };
-
         const showAltHints = () => {
             const keys = '123456789abcdefghijklmnopqrstuvwxyz';
             toolbar.querySelectorAll('button').forEach((btn, i) => {
@@ -1072,11 +998,6 @@ export class MarkdownView extends BaseView {
         const hideAltHints = () => {
             toolbar.querySelectorAll('.alt-shortcut-hint').forEach(h => h.remove());
         };
-
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'toggle-mode-btn';
-        this._updateToggleText(toggleBtn, isTableMode);
-        toggleBtn.onclick = toggleMode;
 
         const tools = [
             { label: 'B', wrap: '**', key: 'b' },
@@ -1154,11 +1075,6 @@ export class MarkdownView extends BaseView {
             toolbar.appendChild(btn);
         });
 
-        // Copying the table is a control ON the table now — TableEditor draws a
-        // small button in its corner — rather than a second entry here. Two
-        // buttons for one action is how a toolbar stops being scannable, and a
-        // control that acts on the table belongs next to the table.
-
         const destroyBlockCM = () => {
             if (this._blockCM) { this._blockCM.destroy(); this._blockCM = null; }
         };
@@ -1182,7 +1098,6 @@ export class MarkdownView extends BaseView {
                     rangeCount = this.blocksData.length - (before - covered);
                     // Escape after this asks only about edits made since.
                     originalText = text;
-                    if (isTableMode) rememberTableBase(text);
                     if (this.renderTabs) this.renderTabs();
                 }
                 if (typeof this.saveFileToDisk === 'function') {
@@ -1218,8 +1133,7 @@ export class MarkdownView extends BaseView {
         };
 
         const cancelAndClose = async () => {
-            // Warn whenever the edits would be lost — for the table editor the
-            // textarea alone does not reflect cell edits, so serialize it too.
+            // Warn whenever the edits would be lost.
             const currentContent = editedText();
             if (currentContent !== originalText) {
                 const choice = await confirmDiscardChange();
@@ -1246,11 +1160,7 @@ export class MarkdownView extends BaseView {
         const mdActions = {
             'md:shortcut-guide': (e) => {
                 e.preventDefault(); e.stopPropagation();
-                toggleShortcutGuide(isTableMode ? 'table' : 'text');
-            },
-            'md:toggle-mode': (e) => {
-                e.preventDefault();
-                toggleMode();
+                toggleShortcutGuide('text');
             },
             'md:save': (e) => {
                 e.preventDefault();
@@ -1272,19 +1182,6 @@ export class MarkdownView extends BaseView {
                 const key = e.key.toLowerCase();
                 const tool = tools.find(t => t.key === key && !!t.shift === e.shiftKey);
                 if (tool) { e.preventDefault(); applyFormat(tool); }
-            },
-            'md:table-row-select': (e) => {
-                if (!isTableMode) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const activeCell = tableContainer.querySelector('.active-cell');
-                if (activeCell) {
-                    const r = parseInt(activeCell.dataset.row);
-                    TableEditor.selectRow(tableContainer, r);
-                }
-            },
-            'md:table-op': (e) => {
-                if (!isTableMode) return;
             },
             'md:format-index': (e) => {
                 const keys = '123456789abcdefghijklmnopqrstuvwxyz';
@@ -1312,9 +1209,8 @@ export class MarkdownView extends BaseView {
 
         const registerShortcuts = (targetScope) => {
             shortcuts.unregisterScope('MARKDOWN');
-            shortcuts.unregisterScope('MARKDOWN_TABLE');
-            
-            const config = targetScope === 'MARKDOWN_TABLE' ? SHORTCUTS.MARKDOWN_TABLE : SHORTCUTS.MARKDOWN;
+
+            const config = SHORTCUTS.MARKDOWN;
             
             config.forEach(s => {
                 if (mdActions[s.cmd]) {
@@ -1322,11 +1218,7 @@ export class MarkdownView extends BaseView {
                 }
             });
 
-            if (targetScope === 'MARKDOWN_TABLE') {
-                toolbar.style.display = 'none';
-            } else {
-                toolbar.style.display = 'flex';
-            }
+            toolbar.style.display = 'flex';
 
             const keys = '123456789abcdefghijklmnopqrstuvwxyz';
             for (let i = 0; i < Math.min(keys.length, tools.length); i++) {
@@ -1339,12 +1231,7 @@ export class MarkdownView extends BaseView {
         registerShortcuts(scope);
 
         textarea.addEventListener('focus', () => {
-            const currentScope = isTableMode ? 'MARKDOWN_TABLE' : 'MARKDOWN';
-            shortcuts.setScope(currentScope);
-        });
-
-        tableContainer.addEventListener('focusin', () => {
-            if (isTableMode) shortcuts.setScope('MARKDOWN_TABLE');
+            shortcuts.setScope('MARKDOWN');
         });
 
         let hintsVisible = false;
@@ -1432,20 +1319,14 @@ export class MarkdownView extends BaseView {
         saveBtn.textContent = t('Save (Ctrl+Enter)');
         saveBtn.onclick = saveAndClose;
 
-        toggleBtn.style.margin = '0';
-        toggleBtn.style.marginRight = 'auto';
-        toggleBtn.style.width = 'auto';
+        // The buttons sit at the right, where the mode switch used to push them.
+        cancelBtn.style.marginLeft = 'auto';
 
-        actions.appendChild(toggleBtn);
         actions.appendChild(cancelBtn);
         actions.appendChild(saveBtn);
 
         container.appendChild(toolbar);
         container.appendChild(cmParent);
-        // The HOST, not the scroller inside it. Appending the scroller left the
-        // host — and the copy button positioned against it — out of the
-        // document entirely: the table rendered, the button did not exist.
-        container.appendChild(tableHost);
 
         // Editing happens in a roomy modal (source left, live preview right)
         // rather than inside the block itself: an in-place box is bounded by the
@@ -1455,7 +1336,6 @@ export class MarkdownView extends BaseView {
             blockIndex, total: this.blocksData.length,
             onBackdropClose: cancelAndClose,
         });
-        showPreviewForMode();
 
         if (typeof marked !== 'undefined') {
             previewContent.innerHTML = this._parseMarkdown(textarea.value);
@@ -1464,14 +1344,10 @@ export class MarkdownView extends BaseView {
         if (closeBtn) {
             closeBtn.onclick = cancelAndClose;
         }
-        if (isTableMode) {
-            syncTableToText();
-        } else {
-            requestAnimationFrame(() => {
-                textarea.focus();
-                textarea.setSelectionRange(0, 0);
-            });
-        }
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(0, 0);
+        });
     }
 
     /**
@@ -1555,8 +1431,6 @@ export class MarkdownView extends BaseView {
         try { isVertical = localStorage.getItem(MBE_LAYOUT_KEY) === 'vertical'; } catch (_) {}
         applyLayout(isVertical);
         const toggleLayout = () => {
-            // Ctrl+Alt+L still arrives here while the preview is hidden.
-            if (box.classList.contains('mbe-no-preview')) return;
             isVertical = !isVertical;
             applyLayout(isVertical);
         };
@@ -1715,12 +1589,6 @@ export class MarkdownView extends BaseView {
         this._previewHome = null;
         this._editOverlay?.remove();
         this._editOverlay = null;
-    }
-
-    _updateToggleText(btn, isTableMode) {
-        btn.innerHTML = isTableMode
-            ? 'Switch to Text Editor <span class="shortcut-hint">(Ctrl+E)</span>'
-            : 'Switch to Table Editor <span class="shortcut-hint">(Ctrl+E)</span>';
     }
 
     /**
@@ -2024,6 +1892,11 @@ export class MarkdownView extends BaseView {
             this.editSelectedBlock();
             return true;
         }
+        if (cmd === 'md-block:edit-inline') {
+            if (e && e.preventDefault) e.preventDefault();
+            this.editSelectedBlockInPlace();
+            return true;
+        }
         if (cmd === 'md-block:nav') {
             if (e && e.preventDefault) e.preventDefault();
             const dir = (e && e.key === 'ArrowUp') ? -1 : 1;
@@ -2279,6 +2152,24 @@ export class MarkdownView extends BaseView {
      * join and the split both use the blank-line separator `_splitIntoBlocks`
      * defines, so a round trip with no edits changes nothing.
      */
+    /**
+     * Enter on a block: edit it where it stands. Blocks that need the modal
+     * (code, diagrams, math, HTML) and a selection of several blocks still go
+     * there; a table starts on its first cell instead.
+     */
+    editSelectedBlockInPlace() {
+        const range = this.selectedRange();
+        if (range && range.to > range.from) {
+            this._editBlockRange(range);
+            return;
+        }
+        let index = State.vimState.selectedIndex;
+        if (index < 0) index = 0;
+        if (this.blockEdit.begin(index)) return;
+        if (this.tableEdit.beginAtFirstCell(index)) return;
+        this.activateBlock(index);
+    }
+
     editSelectedBlock() {
         const range = this.selectedRange();
         if (range && range.to > range.from) {
@@ -3028,6 +2919,9 @@ export class MarkdownView extends BaseView {
                 // Taking focus from a cell being edited would end the edit on
                 // the very click that was placing the caret inside it.
                 if (e.target.closest && e.target.closest('.md-cell-editing')) return;
+                // Shift+click and right-click on a table belong to its cell
+                // range: taking focus from the range's hidden input ends it.
+                if ((e.shiftKey || e.button === 2) && e.target.closest && e.target.closest('.md-block table')) return;
                 layoutDiv.focus();
             }, true);
 
@@ -3232,6 +3126,12 @@ export class MarkdownView extends BaseView {
                     e.stopPropagation();
                     if (div.classList.contains('editing')) return;
                     if (this.tableEdit.handleClick(e, div, item.index)) return;
+                    // A second click on the selected block edits it in place,
+                    // as in scroll mode.
+                    const again = !(e.ctrlKey || e.metaKey || e.shiftKey)
+                        && this.blockEdit.isSoleSelection(item.index);
+                    if (again) this.blockEdit.scheduleFromClick(e, div, item.index);
+                    else this.blockEdit.cancelClick();
                     // Ctrl / Shift extend, matching the scroll-mode handler.
                     this._setCursor(item.index, {
                         extend: e.ctrlKey || e.metaKey || e.shiftKey,
@@ -3509,6 +3409,9 @@ export class MarkdownView extends BaseView {
 
     destroy() {
         this.tableEdit.commit();
+        this.blockEdit.commit();
+        this.blockEdit.cancelClick();
+        this.tableEdit.clearRange();
         if (this.container.__mdViewOwner?.deref() === this) {
             delete this.container.__mdViewOwner;
         }

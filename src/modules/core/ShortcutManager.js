@@ -126,7 +126,6 @@ export class ShortcutManager {
         // through to GLOBAL, undoing the scope its focus change just set.
         if (target.isConnected === false) return null;
 
-        if (target.closest('.visual-table-editor')) return 'MARKDOWN_TABLE';
         // The virtualized explorer renders rows inside #file-list (older markup
         // used #explorer-list-container, kept for safety). Without this the
         // scope fell back to GLOBAL while the explorer had focus and F2 hit
@@ -145,10 +144,10 @@ export class ShortcutManager {
             // In-place table cell: nothing of the block's own keys applies.
             if (target.closest('.md-cell-editing')) return 'GLOBAL';
             if (target.tagName === 'TEXTAREA' || target.isContentEditable) {
-                // Block editor: keep the MARKDOWN(_TABLE) scope so Ctrl+Enter
+                // Block editor: keep the MARKDOWN scope so Ctrl+Enter
                 // (save), Escape (cancel) and the formatting shortcuts fire.
                 // They are all Ctrl/Escape combos, so typing is unaffected.
-                if (this.currentScope === 'MARKDOWN' || this.currentScope === 'MARKDOWN_TABLE') return null;
+                if (this.currentScope === 'MARKDOWN') return null;
                 return 'EDITOR';
             }
             return 'MARKDOWN_BLOCK';
@@ -156,8 +155,7 @@ export class ShortcutManager {
 
         if (target.closest('.plain-text-editor') || target.closest('.block-editor')) {
             if (this.currentScope === 'AI_REVIEW'
-                || this.currentScope === 'MARKDOWN'
-                || this.currentScope === 'MARKDOWN_TABLE') return null;
+                || this.currentScope === 'MARKDOWN') return null;
             return 'EDITOR';
         }
 
@@ -287,12 +285,6 @@ export class ShortcutManager {
                 // has to see the edit. Blurring commits it.
                 editingCell.blur();
             }
-            // F2 inside the markdown TABLE editor starts cell editing
-            // (TableEditor.handleTableKey). Don't let the GLOBAL F2
-            // (md-block:edit) hijack it — it would open a nested block
-            // editor instead of editing the focused cell. Let the event
-            // reach the cell's own handler.
-            if (this.currentScope === 'MARKDOWN_TABLE' && match.cmd === 'md-block:edit') return;
             // Special case: Allow native clipboard behavior for normal inputs
             // so that 'paste' events (with image data) can fire.
             if (match.cmd === 'app:copy' || match.cmd === 'app:paste' || match.cmd === 'app:cut') {
@@ -322,18 +314,11 @@ export class ShortcutManager {
                 const isTextField = target
                     && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
                 if (this.currentScope === 'CSV_EDIT' && isTextField) return;
-                // The visual markdown table keeps its own history over the cell
-                // grid — see TableEditor.undo().
-                if (this.currentScope === 'MARKDOWN_TABLE') return;
                 if (target && typeof target.closest === 'function'
                     && target.closest('.block-editor')) return;
             }
 
             if (typeof match.action === 'function') {
-                if (this.currentScope === 'MARKDOWN_TABLE' &&
-                    (match.cmd === 'app:copy' || match.cmd === 'app:paste' || match.cmd === 'app:cut')) {
-                    return;
-                }
                 if (e.repeat && match.cmd === 'app:toggle-view-mode') return;
                 e.preventDefault();
                 e.stopPropagation();

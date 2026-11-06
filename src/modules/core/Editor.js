@@ -616,27 +616,34 @@ const editorActions = {
         const currentView = getCurrentView();
         if (currentView instanceof MarkdownView) currentView.moveBlock(dir);
     },
-    'md-block:edit': (e) => {
-        e.preventDefault();
-        const file = getActiveFile();
-        const isMarkdown = !!file && isMarkdownFile(file);
-        // Markdown normally opens in the MarkdownView (viewMode 'structure'),
-        // but if the user toggled it to plain text, F2 must switch back to the
-        // block view first so the .md-block elements exist, then open the block
-        // editor — otherwise editSelectedBlock() finds no blocks and silently
-        // does nothing.
-        if (isMarkdown && file.viewMode !== 'structure') {
-            file.viewMode = 'structure';
-            renderEditor();
-            renderTabs();
-        }
-        const currentView = getCurrentView();
-        if (currentView instanceof MarkdownView) {
-            currentView.editSelectedBlock();
-            return;
-        }
-    }
+    'md-block:edit': (e) => editMarkdownBlock(e, false),
+    // Enter: the same route, ending in the in-place editor instead of the modal.
+    'md-block:edit-inline': (e) => editMarkdownBlock(e, true)
 };
+
+/**
+ * F2 (the modal) and Enter (in place) on a Markdown block.
+ *
+ * Markdown normally opens in the MarkdownView (viewMode 'structure'), but if
+ * the user toggled it to plain text, the key must switch back to the block view
+ * first so the .md-block elements exist, then open the block editor — otherwise
+ * the view finds no blocks and silently does nothing.
+ */
+function editMarkdownBlock(e, inPlace) {
+    e.preventDefault();
+    const file = getActiveFile();
+    const isMarkdown = !!file && isMarkdownFile(file);
+    if (isMarkdown && file.viewMode !== 'structure') {
+        file.viewMode = 'structure';
+        renderEditor();
+        renderTabs();
+    }
+    const currentView = getCurrentView();
+    if (currentView instanceof MarkdownView) {
+        if (inPlace) currentView.editSelectedBlockInPlace();
+        else currentView.editSelectedBlock();
+    }
+}
 
 export async function closeAllTabs(action = 'prompt') {
     // action can be: 'prompt' (undefined), true (save), false (discard), or 'force' (discard)
@@ -1034,7 +1041,8 @@ export function addViewUsageHint(container, file, options = {}) {
             ['↑ / ↓', 'move between blocks'],
             ['Shift+↑ / ↓', 'select more blocks'],
             ['Ctrl+C', 'copy selected blocks'],
-            ['Enter / F2', 'edit block (modal)'],
+            ['Enter', 'edit block in place'],
+            ['F2', 'edit block (modal)'],
             ['Alt+↑ / ↓', 'move block up / down'],
             ['Delete', 'delete selected blocks'],
             ['Ctrl+Alt+B', 'book / scroll mode'],
