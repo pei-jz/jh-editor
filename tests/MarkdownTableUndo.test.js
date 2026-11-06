@@ -40,6 +40,8 @@ describe('Ctrl+Z inside a table cell', () => {
     });
 
     const open = (row, col) => {
+        // Ctrl+Z redraws the block in place, so the table element is a new one.
+        table = block.querySelector('table');
         const cell = table.rows[row].cells[col];
         view.tableEdit._begin(block, 0, cell, view.tableEdit._locate(block, 0, table), 'end');
         return cell;

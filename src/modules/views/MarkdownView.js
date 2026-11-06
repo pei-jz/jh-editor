@@ -561,6 +561,32 @@ export class MarkdownView extends BaseView {
     /** Ctrl+Y / Ctrl+Shift+Z in the block view. */
     redo() { this._stepHistory('redo'); }
 
+    /**
+     * After blocksData was replaced, redraw just the blocks whose text differs
+     * from `before`, in their existing elements.
+     *
+     * @returns {boolean} false when the blocks no longer line up (one was
+     *   added, removed or split) or an element is missing — the caller then
+     *   rebuilds the whole view.
+     */
+    _redrawChangedBlocks(before) {
+        const after = this.blocksData || [];
+        if (!this.container || !this.container.isConnected || after.length !== before.length) return false;
+        const changed = [];
+        for (let i = 0; i < after.length; i++) {
+            if (after[i] === before[i]) continue;
+            // Book mode can hold a second, hidden copy of a block for the page
+            // turn; the one on screen is the one to redraw.
+            const all = Array.from(this.container.querySelectorAll(`.md-block[data-index="${i}"]:not(.phantom)`));
+            const div = all.find((el) => el.offsetParent !== null) || all[0];
+            if (!div) return false;
+            changed.push(div);
+        }
+        this._dropInPlaceEdits();
+        changed.forEach((div) => this._rerenderBlock(div));
+        return true;
+    }
+
     _stepHistory(dir) {
         const file = this._viewFile();
         const h = file && file._mdHistory;
@@ -580,6 +606,7 @@ export class MarkdownView extends BaseView {
         (dir === 'undo' ? h.redo : h.undo).push(entry);
         file.content = dir === 'undo' ? entry.before : entry.after;
         this._refreshDirty(file);
+        const before = this.blocksData || [];
         this.blocksData = this._splitIntoBlocks(file.content);
 
         const last = Math.max(0, this.blocksData.length - 1);
@@ -587,7 +614,12 @@ export class MarkdownView extends BaseView {
         this._setCursor(at);
 
         if (this.renderTabs) this.renderTabs();
-        if (this.renderEditor) this.renderEditor();
+        // Redraw only what changed when the blocks still line up one for one —
+        // the usual case: a cell, a paragraph, a table's rows. Rebuilding the
+        // whole view replaced every block with a placeholder of guessed height,
+        // so the restored scroll position landed short and was corrected a
+        // frame later: the page visibly jumped up and came back on each Ctrl+Z.
+        if (!this._redrawChangedBlocks(before) && this.renderEditor) this.renderEditor();
         if (this.updateOutline) this.updateOutline();
         // 'nearest', not 'center': the block that changed is usually the one in
         // view already, and re-centring it moved the page on every Ctrl+Z.

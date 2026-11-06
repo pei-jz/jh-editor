@@ -164,6 +164,41 @@ describe('editing a block in place', () => {
         expect(file.content).toBe(BLOCKS.join('\n\n') + '\n\nappended' + tail);
     });
 
+    // Ctrl+Z rebuilt the whole view, whose placeholder blocks put the scroll
+    // position back short of where it was: the page jumped up and returned.
+    describe('Ctrl+Z after an edit', () => {
+        it('redraws only the block that changed', () => {
+            view.renderEditor = vi.fn();
+            view.blockEdit.begin(1);
+            editor().value = 'changed words';
+            key(editor(), 'Enter', { ctrlKey: true });
+            const heading = blockAt(0);
+            const changed = blockAt(1);
+
+            view.undo();
+
+            expect(view.renderEditor).not.toHaveBeenCalled();
+            expect(file.content).toBe(BLOCKS.join('\n\n'));
+            expect(blockAt(1)).toBe(changed);
+            expect(blockAt(1).textContent).toContain('plain words here');
+            expect(blockAt(0)).toBe(heading);
+
+            view.redo();
+            expect(view.renderEditor).not.toHaveBeenCalled();
+            expect(blockAt(1).textContent).toContain('changed words');
+        });
+
+        it('still rebuilds the view when the blocks no longer line up', () => {
+            view.renderEditor = vi.fn();
+            view.blockEdit.begin(1);
+            editor().value = 'first half\n\nsecond half';
+            editor().blur();
+            view.undo();
+            expect(view.renderEditor).toHaveBeenCalledTimes(1);
+            expect(file.content).toBe(BLOCKS.join('\n\n'));
+        });
+    });
+
     it('refuses code blocks, so the caller opens the modal', () => {
         expect(view.blockEdit.begin(4)).toBe(false);
     });
