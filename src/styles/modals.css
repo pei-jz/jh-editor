@@ -175,7 +175,10 @@
 }
 
 .context-menu-item {
-    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    padding: 4px 14px;
+    line-height: 20px;
     cursor: pointer;
     color: var(--text-color);
     font-size: 13px;
@@ -187,9 +190,16 @@
     color: var(--text-on-primary, #fff);
 }
 
+.context-menu-icon {
+    display: inline-flex;
+    width: 14px;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
 .context-menu-hint {
-    float: right;
-    margin-left: 24px;
+    margin-left: auto;
+    padding-left: 24px;
     font-size: 11px;
     line-height: 1.5;
 }

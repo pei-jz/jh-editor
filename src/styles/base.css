@@ -98,22 +98,26 @@ body.display-mode-compact p {
     transition: background-color 0.18s ease;
 }
 
-/* Revealed on hover over the scrollable element, while scrolling, and while
-   dragging the thumb itself. */
-:hover::-webkit-scrollbar-thumb,
+/* Only while actually scrolling, and barely there. The themes' colours are
+   for the thumb in hand, so they are thinned here rather than in each theme. */
 .is-scrolling::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--scrollbar-thumb, rgba(0, 0, 0, 0.28)) 40%, transparent);
+}
+
+/* The thumb can still be found and grabbed where it was. */
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
     background-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.28));
 }
 
-::-webkit-scrollbar-thumb:hover,
-::-webkit-scrollbar-thumb:active {
-    background-color: var(--scrollbar-thumb-hover, rgba(0, 0, 0, 0.45));
-}
-
-/* Firefox: thin overlay-ish bar (no per-state control available). */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.28)) transparent;
+/* Only where ::-webkit-scrollbar does not exist. Chromium drops every
+   ::-webkit-scrollbar rule for an element with scrollbar-color or
+   scrollbar-width set, so on `*` these left the bar permanently visible. */
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.28)) transparent;
+    }
 }
 
 /* Per-theme thumb colours (flat, no borders). */

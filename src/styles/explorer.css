@@ -1810,4 +1810,244 @@ body.theme-solarized-dark .tree-icon {
     font-size: 12px;
 }
 
+/* The tree narrowed to one folder (Explorer.js syncRootBar). */
+#explorer-root-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-bottom: 1px solid var(--border-color);
+}
 
+#explorer-root-bar[hidden] {
+    display: none;
+}
+
+.explorer-root-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 2px;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.explorer-root-btn:hover {
+    background: var(--hover-color);
+}
+
+.explorer-root-path {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* One folder's contents in an editor tab (views/FolderListView.js). */
+.folder-list-mode {
+    overflow: hidden;
+}
+
+.flv {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    color: var(--text-color);
+    container-type: inline-size;
+}
+
+.flv-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.flv-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 3px;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.flv-btn:hover:not(:disabled) {
+    background: var(--hover-color);
+}
+
+.flv-btn:disabled {
+    color: color-mix(in srgb, var(--text-color) 35%, transparent);
+    cursor: default;
+}
+
+.flv-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 12px;
+}
+
+.flv-count {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: color-mix(in srgb, var(--text-color) 65%, transparent);
+}
+
+.flv-row {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 12px;
+    user-select: none;
+}
+
+.flv-head {
+    flex-shrink: 0;
+    height: 26px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.flv-head .flv-cell {
+    position: relative;
+    height: 100%;
+    padding: 0 6px;
+    background: none;
+    border: none;
+    color: color-mix(in srgb, var(--text-color) 75%, transparent);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.flv-head .flv-cell:hover {
+    background: var(--hover-color);
+    color: var(--text-color);
+}
+
+.flv-cell {
+    flex-shrink: 0;
+    padding: 0 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Widths come from the headings' edges (FolderListView._resizer); the name
+   starts at half the pane. */
+.flv-name {
+    flex: 0 0 var(--flv-name, 50%);
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.flv-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.flv-size {
+    width: var(--flv-size, 84px);
+    text-align: right;
+}
+
+.flv-head .flv-size {
+    text-align: right;
+}
+
+.flv-modified {
+    width: var(--flv-modified, 136px);
+}
+
+.flv-type {
+    width: var(--flv-type, 80px);
+}
+
+.flv-head-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.flv-resize {
+    position: absolute;
+    top: 4px;
+    right: -3px;
+    bottom: 4px;
+    width: 7px;
+    z-index: 1;
+    cursor: col-resize;
+    border-right: 1px solid var(--border-color);
+    border-right-width: 1px;
+}
+
+.flv-resize:hover {
+    border-right: 2px solid var(--primary-color);
+}
+
+.flv-list .flv-size,
+.flv-list .flv-modified,
+.flv-list .flv-type {
+    color: color-mix(in srgb, var(--text-color) 72%, transparent);
+}
+
+/* A narrow pane keeps the name and size; the type goes first, then the date. */
+@container (max-width: 520px) {
+    .flv-type {
+        display: none;
+    }
+}
+
+@container (max-width: 380px) {
+    .flv-modified {
+        display: none;
+    }
+}
+
+.flv-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    outline: none;
+    padding: 2px 0;
+}
+
+.flv-list .flv-row:hover {
+    background: var(--hover-color);
+}
+
+.flv-list .flv-row.selected {
+    background-color: color-mix(in srgb, var(--selection-bg) 60%, transparent);
+}
+
+.flv-list:focus .flv-row.selected {
+    background-color: var(--selection-bg);
+    color: var(--selection-color, var(--text-color));
+}
+
+.flv-external .flv-label {
+    color: color-mix(in srgb, var(--text-color) 70%, transparent);
+}
+
+.flv-empty {
+    padding: 24px;
+    text-align: center;
+    color: color-mix(in srgb, var(--text-color) 65%, transparent);
+}

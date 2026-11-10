@@ -41,24 +41,24 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         for (const t of tokens) expect(block).toContain(`${t}:`);
     });
 
-    it('keeps the charred bamboo slip surfaces', () => {
-        expect(block).toContain('--bg-color: #3a2e1e;');
-        expect(block).toContain('--sidebar-bg: #2f2518;');
-        expect(block).toContain('--bg-color-secondary: #463a26;');
+    it('keeps the ink-bamboo (墨竹) slip surfaces', () => {
+        expect(block).toContain('--bg-color: #262823;');
+        expect(block).toContain('--sidebar-bg: #1d1f1b;');
+        expect(block).toContain('--bg-color-secondary: #2e302a;');
     });
 
     it('writes in faint ivory ink', () => {
-        expect(block).toContain('--text-color: #e8e0cc;');
-        expect(block).toContain('--text-secondary: #a89d84;');
+        expect(block).toContain('--text-color: #dfe0d4;');
+        expect(block).toContain('--text-secondary: #979a8c;');
     });
 
     it('uses bronze-verdigris (銅青) as the accent', () => {
-        expect(block).toContain('--primary-color: #7fc4b8;');
-        expect(block).toContain('--active-tab-border: #7fc4b8;');
+        expect(block).toContain('--primary-color: #7fb8ac;');
+        expect(block).toContain('--active-tab-border: #7fb8ac;');
     });
 
-    it('uses old darkened bamboo for the borders', () => {
-        expect(block).toContain('--border-color: #6b5a3c;');
+    it('uses old bamboo, in ink, for the borders', () => {
+        expect(block).toContain('--border-color: #3c3f37;');
     });
 
     // A hanging scroll: bamboo at the rods, paper in between. The slats used

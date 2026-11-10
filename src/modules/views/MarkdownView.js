@@ -1,4 +1,5 @@
 import { BaseView } from './BaseView.js';
+import { newSearchId } from '../utils/SearchId.js';
 import { t } from '../utils/I18n.js';
 import { createModifierTap } from '../utils/ModifierTap.js';
 import { iconEl } from '../ui/Icons.js';
@@ -2858,7 +2859,7 @@ export class MarkdownView extends BaseView {
 
         const hint = document.createElement('span');
         hint.className = 'pt-book-hint';
-        hint.textContent = '← / → : move to left/right page · Alt+←/→ : turn page';
+        hint.textContent = '← / → : move to left/right page · Ctrl+←/→ : turn page';
 
         footer.appendChild(progressContainer);
         footer.appendChild(pageInfo);
@@ -3070,8 +3071,10 @@ export class MarkdownView extends BaseView {
             // ← / → move the selection to the top block of the page to the
             // left / right (inside the current spread when possible; selectBlock
             // flips to a neighbouring spread once the edge is reached). Page
-            // flipping itself stays on Alt+← / Alt+→.
-            if (e.altKey) {
+            // flipping itself is Ctrl+← / Ctrl+→; Alt+← / Alt+→ belong to the
+            // tab history (Editor.js goTabHistory) and pass straight through.
+            if (e.altKey || e.metaKey) return;
+            if (e.ctrlKey) {
                 if (e.key === 'ArrowLeft') {
                     e.preventDefault();
                     e.stopPropagation();
@@ -3612,7 +3615,7 @@ export class MarkdownView extends BaseView {
         const q = backlinkQuery(path);
         if (!q) return;
 
-        const searchId = Date.now() + Math.random();
+        const searchId = newSearchId();
         // The tab is titled with the real file name, extension included; the
         // pattern itself is unreadable, so it only drives the hit marking.
         await window.app.openSearchResults({

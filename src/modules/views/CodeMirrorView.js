@@ -117,7 +117,7 @@ const jhTheme = EditorView.theme({
         fontFamily: "inherit",
         lineHeight: "inherit"
     },
-    // Flat overlay scrollbar: invisible until the editor is hovered or actively
+    // Flat overlay scrollbar: invisible until the editor is actively
     // scrolling (`.is-scrolling` is toggled by App.initScrollbarAutoHide).
     ".cm-scroller::-webkit-scrollbar": {
         width: "12px",
@@ -133,11 +133,11 @@ const jhTheme = EditorView.theme({
         backgroundClip: "content-box",
         transition: "background-color 0.18s ease"
     },
-    ".cm-scroller:hover::-webkit-scrollbar-thumb, .cm-scroller.is-scrolling::-webkit-scrollbar-thumb": {
-        backgroundColor: "var(--scrollbar-thumb, rgba(0,0,0,0.26))"
+    ".cm-scroller.is-scrolling::-webkit-scrollbar-thumb": {
+        backgroundColor: "color-mix(in srgb, var(--scrollbar-thumb, rgba(0,0,0,0.26)) 40%, transparent)"
     },
     ".cm-scroller::-webkit-scrollbar-thumb:hover, .cm-scroller::-webkit-scrollbar-thumb:active": {
-        backgroundColor: "var(--scrollbar-thumb-hover, rgba(0,0,0,0.42))"
+        backgroundColor: "var(--scrollbar-thumb, rgba(0,0,0,0.26))"
     },
     ".cm-content": {
         caretColor: "var(--text-color)",
@@ -2123,7 +2123,7 @@ export class CodeMirrorView {
 
         const hint = document.createElement('span');
         hint.className = 'pt-book-hint';
-        hint.textContent = 'Alt + ← / → : turn page';
+        hint.textContent = 'Ctrl + ← / → : turn page';
 
         footer.appendChild(progressContainer);
         footer.appendChild(pageInfo);
@@ -2224,13 +2224,15 @@ export class CodeMirrorView {
                 }
             }
 
-            // Page flipping is Alt+Left / Alt+Right so plain arrow keys don't
-            // unexpectedly turn pages (the hint is shown in the footer).
-            if (e.altKey && e.key === 'ArrowLeft') {
+            // Page flipping is Ctrl+Left / Ctrl+Right so plain arrow keys don't
+            // unexpectedly turn pages (the hint is shown in the footer). Alt
+            // was the key once; it is the tab history's now (goTabHistory).
+            const turn = e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+            if (turn && e.key === 'ArrowLeft') {
                 e.preventDefault();
                 e.stopPropagation();
                 this.pageFlipInstance.flipPrev();
-            } else if (e.altKey && e.key === 'ArrowRight') {
+            } else if (turn && e.key === 'ArrowRight') {
                 e.preventDefault();
                 e.stopPropagation();
                 this.pageFlipInstance.flipNext();

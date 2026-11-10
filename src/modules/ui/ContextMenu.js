@@ -1,3 +1,4 @@
+import { iconEl } from './Icons.js';
 
 export const ContextMenu = {
     element: null,
@@ -26,7 +27,9 @@ export const ContextMenu = {
     /**
      * @param {MouseEvent} event 
      * @param {Array<{label: string, hint?: string, action: Function}>} items
-     *   `hint` is the item's shortcut, drawn at the right edge.
+     *   `hint` is the item's shortcut, drawn at the right edge; `icon` an Icons.js
+     *   name drawn before the label. Once one item has an icon, the others keep
+     *   its room, so every label starts at the same place.
      */
     show(event, items) {
         event.preventDefault();
@@ -52,19 +55,26 @@ export const ContextMenu = {
     },
 
     renderItems(container, items) {
+        const withIcons = items.some(item => item.icon);
         items.forEach(item => {
             if (item.type === 'separator') {
                 const hr = document.createElement('div');
                 hr.className = 'context-menu-separator';
                 hr.style.borderTop = '1px solid var(--border-color)';
-                hr.style.margin = '4px 0';
+                hr.style.margin = '3px 0';
                 container.appendChild(hr);
                 return;
             }
 
             const div = document.createElement('div');
             div.className = 'context-menu-item';
-            div.textContent = item.label;
+            if (withIcons) {
+                const icon = document.createElement('span');
+                icon.className = 'context-menu-icon';
+                if (item.icon) icon.appendChild(iconEl(item.icon, { size: 14 }));
+                div.appendChild(icon);
+            }
+            div.appendChild(document.createTextNode(item.label));
             if (item.hint) {
                 const hint = document.createElement('span');
                 hint.className = 'context-menu-hint';
@@ -76,7 +86,8 @@ export const ContextMenu = {
                 div.classList.add('has-submenu');
                 const arrow = document.createElement('span');
                 arrow.textContent = ' ▶';
-                arrow.style.float = 'right';
+                arrow.style.marginLeft = 'auto';
+                arrow.style.paddingLeft = '16px';
                 arrow.style.fontSize = '10px';
                 arrow.style.marginTop = '4px';
                 div.appendChild(arrow);

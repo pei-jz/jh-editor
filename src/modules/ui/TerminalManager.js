@@ -1,4 +1,5 @@
 import { resolveDroppedPaths } from '../utils/DroppedFiles.js';
+import { clampTerminalWidth, setTerminalDock, terminalScrollback, setTerminalRightWidth, terminalDock, terminalRightWidth } from '../utils/TerminalPrefs.js';
 import { Terminal } from '@xterm/xterm';
 import { t } from '../utils/I18n.js';
 import '@xterm/xterm/css/xterm.css';
@@ -11,7 +12,6 @@ import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { ContextMenu } from './ContextMenu.js';
 import { themeById } from '../utils/Themes.js';
 import { appliedTheme } from '../utils/WorkspaceTheme.js';
-import { terminalScrollback } from '../utils/TerminalPrefs.js';
 import { Toast } from './Toast.js';
 
 /**
@@ -475,11 +475,11 @@ class TerminalManager {
             e.preventDefault();
             e.stopPropagation();
             ContextMenu.show(e, [
-                { label: t('Copy  (Ctrl+Shift+C)'), action: () => this.copySelection() },
-                { label: t('Paste  (Ctrl+V)'), action: () => this.pasteFromClipboard() },
+                { icon: 'copy', label: t('Copy  (Ctrl+Shift+C)'), action: () => this.copySelection() },
+                { icon: 'clipboard', label: t('Paste  (Ctrl+V)'), action: () => this.pasteFromClipboard() },
                 { type: 'separator' },
-                { label: t('Select All  (Ctrl+Shift+A)'), action: () => this.term?.selectAll() },
-                { label: t('Clear'), action: () => this.term?.clear() },
+                { icon: 'check', label: t('Select All  (Ctrl+Shift+A)'), action: () => this.term?.selectAll() },
+                { icon: 'trash', label: t('Clear'), action: () => this.term?.clear() },
             ]);
         });
 
@@ -558,6 +558,7 @@ class TerminalManager {
         EL.terminal.newBtn?.addEventListener('click', () => this.createSession());
 
         window.addEventListener('resize', () => {
+            if (this.dock === 'right') EL.terminal.panel.style.width = `${terminalRightWidth(this.dockRoom())}px`;
             if (this.isOpen) {
                 this.fitAddon?.fit();
                 this.notifyResize();
@@ -565,18 +566,37 @@ class TerminalManager {
         });
 
         // Resizer Logic
+        document.getElementById('dock-terminal-btn')?.addEventListener('click', () => {
+            this.moveDock(this.dock === 'right' ? 'bottom' : 'right');
+        });
+        this.applyDock(terminalDock());
+
         EL.terminal.resizer?.addEventListener('mousedown', (e) => {
             this.resizing = true;
+            this.startX = e.clientX;
             this.startY = e.clientY;
-            this.startHeight = EL.terminal.panel.getBoundingClientRect().height;
+            const box = EL.terminal.panel.getBoundingClientRect();
+            this.startWidth = box.width;
+            this.startHeight = box.height;
             EL.terminal.resizer.classList.add('resizing');
-            document.body.style.cursor = 'row-resize';
+            document.body.style.cursor = this.dock === 'right' ? 'col-resize' : 'row-resize';
             e.preventDefault();
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!this.resizing) return;
-            // For bottom docked terminal: 
+            if (this.dock === 'right') {
+                // Docked on the right, its left edge is the one being dragged.
+                const width = clampTerminalWidth(this.startWidth + this.startX - e.clientX, this.dockRoom());
+                EL.terminal.panel.style.width = `${width}px`;
+                setTerminalRightWidth(width);
+                if (this.term) {
+                    this.fitAddon?.fit();
+                    this.notifyResize();
+                }
+                return;
+            }
+            // For bottom docked terminal:
             // Dragging UP (smaller Y) should increase height.
             // Dragging DOWN (larger Y) should decrease height.
             const deltaY = this.startY - e.clientY;
@@ -633,6 +653,57 @@ class TerminalManager {
             this.setShell(sel.value);
         });
         sel.dataset.ready = '1';
+    }
+
+    /**
+     * Put the panel under the editors or beside them. The elements themselves
+     * move, so the terminals in them carry on with their output and scrollback.
+     */
+    applyDock(dock) {
+        const { panel, resizer } = EL.terminal;
+        const main = document.getElementById('horizontal-main');
+        if (!panel || !resizer || !main) return;
+        this.dock = dock;
+        const right = dock === 'right';
+        if (right) {
+            main.append(resizer, panel);
+            this._bottomHeight = panel.style.height || this._bottomHeight;
+            panel.style.height = '';
+            panel.style.width = `${terminalRightWidth(this.dockRoom())}px`;
+        } else {
+            main.after(resizer, panel);
+            panel.style.width = '';
+            panel.style.height = this._bottomHeight || '200px';
+        }
+        panel.classList.toggle('dock-right', right);
+        resizer.className = right ? 'resizer' : 'resizer-horizontal';
+
+        const btn = document.getElementById('dock-terminal-btn');
+        if (btn) {
+            const label = right ? t('Move terminal to the bottom') : t('Move terminal to the right');
+            btn.title = label;
+            btn.setAttribute('aria-label', label);
+        }
+    }
+
+    /** The width the terminal and the editors share when it is on the right. */
+    dockRoom() {
+        const explorer = document.getElementById('explorer');
+        return window.innerWidth - (explorer ? explorer.getBoundingClientRect().width : 0);
+    }
+
+    moveDock(dock) {
+        // Taking an element out of the document takes the keyboard from it too.
+        const hadFocus = EL.terminal.panel.contains(document.activeElement);
+        setTerminalDock(dock);
+        this.applyDock(dock);
+        setTimeout(() => {
+            if (this.isOpen && this.term) {
+                this.fitAddon?.fit();
+                this.notifyResize();
+            }
+            if (hadFocus) this.term?.focus();
+        }, 50);
     }
 
     async toggle() {

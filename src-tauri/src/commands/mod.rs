@@ -9,6 +9,7 @@ pub mod large_file;
 pub mod window;
 pub mod folder_jump;
 pub mod file_drop;
+pub mod file_drag;
 pub mod office;
 pub mod office_shapes;
 pub mod deck;

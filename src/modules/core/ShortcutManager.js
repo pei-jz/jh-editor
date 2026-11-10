@@ -231,6 +231,13 @@ export class ShortcutManager {
         // arrows walked the file tree behind it instead.
         if (e.target && typeof e.target.closest === 'function'
             && e.target.closest('[data-shortcut-keys="own"]')) return;
+        // A surface that gives Alt+arrows a meaning of its own (the comparison
+        // and merge editors: next change, take this side) marks itself
+        // `data-shortcut-keys="alt-arrows"`, and keeps those keys from the tab
+        // history and anything else bound to them. Every other key still works.
+        if (e.altKey && !e.ctrlKey && !e.metaKey && /^Arrow/.test(key)
+            && e.target && typeof e.target.closest === 'function'
+            && e.target.closest('[data-shortcut-keys="alt-arrows"]')) return;
 
         // When focus is inside the search panel, let the modal handle all keys itself.
         // Only allow Ctrl+F / Ctrl+H through (to re-open or toggle the modal).

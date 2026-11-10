@@ -945,10 +945,28 @@ th {
    Only while the editor is actually split. With one pane the stripe marks the
    only thing there is, which says nothing and reads as a stray rule across the
    top of the window — it stops at the explorer, because the explorer is not an
-   editor pane, and the break looks like an oversight rather than a boundary. */
-#editor-wrapper.is-split .editor-pane.active > #tab-bar,
-#editor-wrapper.is-split .editor-pane.active > #tab-bar-right {
-    box-shadow: inset 0 2px 0 0 var(--primary-color);
+   editor pane, and the break looks like an oversight rather than a boundary.
+
+   It was a stripe across the top of the whole tab bar, and it ran over the
+   rounded top of the tab itself and doubled the line some themes already draw
+   on the current tab. Now it is the current tab that says so, by its line
+   alone: the focused pane's has it, the other's does not and its text steps
+   back a little. The background stays the theme's own — made translucent it
+   read as a tab of some other colour, not as a quieter one. No change of
+   weight either: that would move every tab beside it as the focus went across. */
+#editor-wrapper.is-split .editor-pane.active .tab.active {
+    box-shadow: inset 0 2px 0 var(--active-tab-border, var(--primary-color));
+}
+
+#editor-wrapper.is-split .editor-pane:not(.active) .tab.active {
+    box-shadow: none;
+}
+
+/* Dimmed by colour, not opacity: opacity drops the text to grayscale
+   antialiasing on a 100%-scaled Windows screen. currentColor here is the
+   tab's own colour, so each theme's text colour is kept, only quieter. */
+#editor-wrapper.is-split .editor-pane:not(.active) .tab.active .tab-title {
+    color: color-mix(in srgb, currentColor 72%, transparent);
 }
 
 /* ── Tab drag & drop ─────────────────────────────────────────────────────── */

@@ -223,6 +223,8 @@ export class ConflictEditor {
         c.style.display = 'flex';
         c.style.flexDirection = 'column';
         c.addEventListener('keydown', this._onKeyDown, true);
+        // Alt+← / Alt+→ take a side here; ShortcutManager leaves them to us.
+        c.dataset.shortcutKeys = 'alt-arrows';
 
         c.appendChild(this._buildToolbar());
         this.headersEl = el('div', 'merge-headers conflict-headers');

@@ -5,6 +5,7 @@ import { icon as svgIcon } from './Icons.js';
 import { t } from '../utils/I18n.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
 import { getParentDir } from '../utils/FileSystem.js';
+import { newSearchId } from '../utils/SearchId.js';
 import { getGrepMaxMatches } from '../utils/GrepSetting.js';
 
 // Ctrl+G: grep. Pick a scope (a folder or the open file) + options, run the
@@ -106,11 +107,13 @@ function _isOnDisk(file) {
 export function canSearchInMemory(file) {
     return !!file && typeof file.content === 'string'
         && !file.isLarge && file.editId == null
-        && !['office', 'search-results', 'dir-diff'].includes(file.type);
+        && !['office', 'search-results', 'dir-diff', 'folder-list'].includes(file.type);
 }
 
 /** Where a search starts by default: beside the open file, else the workspace. */
 export function defaultSearchFolder(file) {
+    // The folder list is a folder: search the one it shows.
+    if (file && file.type === 'folder-list' && file.folder) return file.folder;
     return _isOnDisk(file) ? getParentDir(file.path) : (State.currentDir || null);
 }
 
@@ -335,7 +338,7 @@ export const GrepModal = {
             if (opts.regex) {
                 try { new RegExp(q); } catch (e) { status.textContent = t('Invalid regular expression: ') + e.message; return; }
             }
-            const searchId = Date.now() + Math.random();
+            const searchId = newSearchId();
 
             // Search the current file's in-memory content in JS.
             if (fileOnly && !onDiskOnly) {

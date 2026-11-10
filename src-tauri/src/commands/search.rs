@@ -335,6 +335,11 @@ struct GrepBatch {
 struct GrepProgress {
     search_id: f64,
     files: usize,
+    /// Folders walked. With a file filter, `files` only counts what passes it
+    /// and can stay at 0 for a long time while the search is hard at work.
+    folders: usize,
+    /// The folder last entered: "" before the first.
+    folder: String,
     bytes: u64,
     /// The large file being read, if any: "" when there is none.
     current: String,
@@ -393,14 +398,21 @@ pub fn start_grep(
     }
 
     // Optional filename filter, e.g. "*.java" or "*.java, *.xml" (a `!` prefix
-    // excludes). Built here so an invalid glob is reported to the caller before
-    // a results tab is opened.
-    let overrides = build_overrides(&dir, globs.as_deref())?;
-
-    // Build/validate the pattern up front so an invalid regex returns an error
-    // to the caller (before a results tab is opened).
-    let patterns = compile_patterns(&term, regex, case_sensitive, whole_word)
-        .map_err(|e| format!("Invalid search pattern: {}", e))?;
+    // excludes), and the pattern. The dialog shows the error, but its results
+    // tab is already open and listening: without a grep-done it says
+    // "Searching…" for good.
+    let prepared = build_overrides(&dir, globs.as_deref()).and_then(|overrides| {
+        compile_patterns(&term, regex, case_sensitive, whole_word)
+            .map(|patterns| (overrides, patterns))
+            .map_err(|e| format!("Invalid search pattern: {}", e))
+    });
+    let (overrides, patterns) = match prepared {
+        Ok(ready) => ready,
+        Err(e) => {
+            let _ = app.emit("grep-done", GrepDone { search_id, total: 0, truncated: false, canceled: true });
+            return Err(e);
+        }
+    };
 
     let request = GrepRequest {
         dir,
@@ -444,6 +456,11 @@ pub fn cancel_grep(search_id: f64) {
 /// Returns an empty (match-everything) Override when no globs are given.
 fn build_overrides(dir: &str, globs: Option<&str>) -> Result<Override, String> {
     let mut builder = OverrideBuilder::new(dir);
+    // File names here do not care about case, so neither does the filter:
+    // `*.java` has to find Main.JAVA.
+    builder
+        .case_insensitive(true)
+        .map_err(|e| format!("Invalid file glob: {}", e))?;
     let mut added = false;
     if let Some(raw) = globs {
         for g in raw.split(|c| c == ',' || c == ';' || c == ' ' || c == '\t') {
@@ -676,6 +693,8 @@ fn shown_line(line: &str, start: usize, max_chars: usize) -> String {
 #[derive(Default)]
 struct GrepScan {
     files: AtomicUsize,
+    folders: AtomicUsize,
+    folder: Mutex<String>,
     bytes: AtomicU64,
     /// The large file being read: path, bytes so far, size.
     current: Mutex<Option<(String, u64, u64)>>,
@@ -688,6 +707,8 @@ impl GrepScan {
         GrepProgress {
             search_id,
             files: self.files.load(Ordering::Relaxed),
+            folders: self.folders.load(Ordering::Relaxed),
+            folder: self.folder.lock().map(|f| f.clone()).unwrap_or_default(),
             bytes: self.bytes.load(Ordering::Relaxed),
             current,
             current_done,
@@ -763,6 +784,8 @@ fn grep_worker(emit: impl Fn(GrepEvent) + Send + 'static, request: GrepRequest) 
         if !batch.is_empty() {
             emit(GrepEvent::Match(GrepBatch { search_id, matches: batch }));
         }
+        // The final count: "no results" means more with how much was looked at.
+        emit(GrepEvent::Progress(collector_scan.progress(search_id)));
         emit(GrepEvent::Done(GrepDone {
             search_id,
             total,
@@ -792,6 +815,10 @@ fn grep_worker(emit: impl Fn(GrepEvent) + Send + 'static, request: GrepRequest) 
             };
             let path = entry.path();
             if path.is_dir() {
+                scan.folders.fetch_add(1, Ordering::Relaxed);
+                if let Ok(mut folder) = scan.folder.lock() {
+                    *folder = path.to_string_lossy().to_string();
+                }
                 return ignore::WalkState::Continue;
             }
             let path_str = path.to_string_lossy().to_string();
@@ -1191,5 +1218,20 @@ mod grep_glob_tests {
         assert!(re.is_match("[n]: ./THIRD-PARTY-NOTICES.md"));
         assert!(!re.is_match("`THIRD-PARTY-NOTICES.md`"));
         assert!(!re.is_match("[x](./MY-THIRD-PARTY-NOTICES.md)"));
+    }
+}
+
+#[cfg(test)]
+mod search_id_tests {
+    /// Events are matched to their tab by comparing this id exactly, and
+    /// serde_json may round a fraction when reading it: this one came back
+    /// one bit off, and the tab never heard from its own search. Whole numbers
+    /// (src/modules/utils/SearchId.js) arrive intact.
+    #[test]
+    fn a_whole_number_id_survives_the_trip_and_a_fraction_may_not() {
+        let whole: f64 = serde_json::from_str("1794216410306123").unwrap();
+        assert_eq!(whole, 1794216410306123.0);
+        let fraction: f64 = serde_json::from_str("1794216410306.9321").unwrap();
+        assert_ne!(fraction, "1794216410306.9321".parse::<f64>().unwrap());
     }
 }

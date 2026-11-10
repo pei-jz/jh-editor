@@ -536,13 +536,13 @@ class GitPanel {
         const n = this._selectedFiles(list).length;
         const items = list === 'stage'
             ? [
-                { label: t('Stage ({n})', { n }), action: () => this.stageSelected() },
-                { label: t('Revert ({n})', { n }), action: () => this.revertSelected() },
+                { icon: 'plus', label: t('Stage ({n})', { n }), action: () => this.stageSelected() },
+                { icon: 'replace', label: t('Revert ({n})', { n }), action: () => this.revertSelected() },
             ]
-            : [{ label: t('Unstage ({n})', { n }), action: () => this.unstageSelected() }];
-        items.push({ label: t('Delete ({n})', { n }), action: () => this.deleteSelected(list) });
+            : [{ icon: 'x', label: t('Unstage ({n})', { n }), action: () => this.unstageSelected() }];
+        items.push({ icon: 'trash', label: t('Delete ({n})', { n }), action: () => this.deleteSelected(list) });
         items.push({ type: 'separator' });
-        items.push({ label: t('Copy Path'), action: () => this._copyText(path) });
+        items.push({ icon: 'link', label: t('Copy Path'), action: () => this._copyText(path) });
         return items;
     }
 
@@ -1156,27 +1156,27 @@ class GitPanel {
         const items = [];
         if (c.code !== 'DD') {
             if (mergeable(c.code)) {
-                items.push({ label: t('Open in 3-Way Merge'), action: () => this.openConflict(c) });
+                items.push({ icon: 'merge', label: t('Open in 3-Way Merge'), action: () => this.openConflict(c) });
             }
-            items.push({ label: t('Open File as Text'), action: () => this.openConflictAsText(c) });
+            items.push({ icon: 'file-text', label: t('Open File as Text'), action: () => this.openConflictAsText(c) });
             items.push({ type: 'separator' });
             items.push({
-                label: currentGone ? t('Accept Deletion (current)')
+                icon: 'check', label: currentGone ? t('Accept Deletion (current)')
                     : names.current ? t('Keep Current Version ({name})', { name: names.current })
                         : t('Keep Current Version'),
                 action: () => this.takeSide(c, 'ours'),
             });
             items.push({
-                label: incomingGone ? t('Accept Deletion (incoming)')
+                icon: 'check', label: incomingGone ? t('Accept Deletion (incoming)')
                     : names.incoming ? t('Take Incoming Version ({name})', { name: names.incoming })
                         : t('Take Incoming Version'),
                 action: () => this.takeSide(c, 'theirs'),
             });
             items.push({ type: 'separator' });
         }
-        items.push({ label: t('Mark as Resolved'), action: () => this.markResolved(c) });
+        items.push({ icon: 'check', label: t('Mark as Resolved'), action: () => this.markResolved(c) });
         items.push({ type: 'separator' });
-        items.push({ label: t('Copy Path'), action: () => this._copyText(c.path) });
+        items.push({ icon: 'link', label: t('Copy Path'), action: () => this._copyText(c.path) });
         return items;
     }
 
@@ -1388,15 +1388,15 @@ class GitPanel {
         const branch = this._activeBranch || 'HEAD';
         const op = this._lastStatus && this._lastStatus.operation;
         const items = [
-            { label: t('Merge Branch into {branch}…', { branch }), action: () => mergeBranch(this) },
-            { label: t('Rebase {branch}…', { branch }), action: () => rebaseBranch(this) },
+            { icon: 'merge', label: t('Merge Branch into {branch}…', { branch }), action: () => mergeBranch(this) },
+            { icon: 'branch', label: t('Rebase {branch}…', { branch }), action: () => rebaseBranch(this) },
             { type: 'separator' },
-            { label: t('Reset {branch}…', { branch }), action: () => resetBranch(this) },
-            { label: t('Undo Last Commit'), action: () => undoLastCommit(this) },
+            { icon: 'warning', label: t('Reset {branch}…', { branch }), action: () => resetBranch(this) },
+            { icon: 'commit', label: t('Undo Last Commit'), action: () => undoLastCommit(this) },
         ];
         if (op) {
             items.push({ type: 'separator' });
-            items.push({ label: t('Abort'), action: () => this.abortOperation(op) });
+            items.push({ icon: 'x-circle', label: t('Abort'), action: () => this.abortOperation(op) });
         }
         return items;
     }
@@ -2083,22 +2083,22 @@ class GitPanel {
         const base = (this._selectedCommits || [])[0];
         const short = entry.short_hash;
         const items = [
-            { label: t('Open Changes in Editor'), action: () => this._openCommitCompare(entry) },
+            { icon: 'file-code', label: t('Open Changes in Editor'), action: () => this._openCommitCompare(entry) },
             { type: 'separator' },
-            { label: t('Compare with Working Tree'), action: () => this._compareWithWorkingTree(entry) },
+            { icon: 'diff', label: t('Compare with Working Tree'), action: () => this._compareWithWorkingTree(entry) },
         ];
         // Not on the current branch's own tip: that would compare it with itself.
         if (current && !this._branchesOf(entry).includes(current)) {
             items.push({
-                label: t('Compare with Current Branch ({branch})', { branch: current }),
+                icon: 'diff', label: t('Compare with Current Branch ({branch})', { branch: current }),
                 action: () => this._compareRefs(entry.hash, current, { baseLabel: short, useMergeBase: false }),
             });
         }
-        items.push({ label: t('Compare with Branch…'), action: () => this._compareWithPickedRef(entry) });
+        items.push({ icon: 'branch', label: t('Compare with Branch…'), action: () => this._compareWithPickedRef(entry) });
         items.push({ type: 'separator' });
         if (base && base.hash !== entry.hash) {
             items.push({
-                label: t('Compare with Selected ({hash})', { hash: base.short_hash }),
+                icon: 'compare', label: t('Compare with Selected ({hash})', { hash: base.short_hash }),
                 action: () => {
                     const [a, b] = this._olderFirst(base, entry);
                     this._clearCompareBase();
@@ -2106,28 +2106,28 @@ class GitPanel {
                 },
             });
         }
-        items.push({ label: t('Select for Compare'), action: () => this._setCompareBase(entry) });
-        if (base) items.push({ label: t('Clear Base'), action: () => this._clearCompareBase() });
+        items.push({ icon: 'pin', label: t('Select for Compare'), action: () => this._setCompareBase(entry) });
+        if (base) items.push({ icon: 'x', label: t('Clear Base'), action: () => this._clearCompareBase() });
 
         // The branches pointing at this commit, each with its own actions.
         const branches = this._branchesOf(entry);
         if (branches.length) {
             items.push({ type: 'separator' });
             for (const ref of branches) {
-                items.push({ label: t('Branch {name}', { name: ref }), submenu: this._refMenuItems(ref, entry) });
+                items.push({ icon: 'branch', label: t('Branch {name}', { name: ref }), submenu: this._refMenuItems(ref, entry) });
             }
         }
         items.push({ type: 'separator' });
         const branch = this._activeBranch || 'HEAD';
         items.push({
-            label: t('Reset {branch} to Here…', { branch }),
+            icon: 'warning', label: t('Reset {branch} to Here…', { branch }),
             action: () => resetBranch(this, entry.hash, `${short}  ${entry.message || ''}`.trim()),
         });
         if (/(^|, )HEAD( ->|$|,)/.test(entry.refs || '') && (entry.parents || []).length) {
-            items.push({ label: t('Undo Last Commit'), action: () => undoLastCommit(this) });
+            items.push({ icon: 'commit', label: t('Undo Last Commit'), action: () => undoLastCommit(this) });
         }
         items.push({ type: 'separator' });
-        items.push({ label: t('Copy Commit Hash'), action: () => this._copyText(entry.hash) });
+        items.push({ icon: 'copy', label: t('Copy Commit Hash'), action: () => this._copyText(entry.hash) });
         ContextMenu.show(e, items);
     }
 
@@ -2143,25 +2143,25 @@ class GitPanel {
         const items = [];
         if (current && name !== current) {
             items.push({
-                label: t('Compare with Current Branch ({branch})', { branch: current }),
+                icon: 'diff', label: t('Compare with Current Branch ({branch})', { branch: current }),
                 // What this branch adds on top of the current one.
                 action: () => this._compareRefs(current, name, { useMergeBase: true }),
             });
         }
         items.push({
-            label: t('Compare with Working Tree'),
+            icon: 'diff', label: t('Compare with Working Tree'),
             action: () => this._compareRefs(name, '', {}),
         });
-        items.push({ label: t('Compare with Branch…'), action: () => this._compareWithPickedRef({ ...entry, hash: name, short_hash: name }) });
+        items.push({ icon: 'branch', label: t('Compare with Branch…'), action: () => this._compareWithPickedRef({ ...entry, hash: name, short_hash: name }) });
         items.push({ type: 'separator' });
         if (current && name !== current) {
-            items.push({ label: t('Merge into {branch}…', { branch: current }), action: () => mergeBranch(this, name) });
-            items.push({ label: t('Rebase {branch} onto {name}…', { branch: current, name }), action: () => rebaseBranch(this, name) });
+            items.push({ icon: 'merge', label: t('Merge into {branch}…', { branch: current }), action: () => mergeBranch(this, name) });
+            items.push({ icon: 'branch', label: t('Rebase {branch} onto {name}…', { branch: current, name }), action: () => rebaseBranch(this, name) });
         }
-        items.push({ label: t('Reset {branch} to Here…', { branch: current || 'HEAD' }), action: () => resetBranch(this, name, name) });
+        items.push({ icon: 'warning', label: t('Reset {branch} to Here…', { branch: current || 'HEAD' }), action: () => resetBranch(this, name, name) });
         items.push({ type: 'separator' });
-        items.push({ label: t('Show Only This Branch'), action: () => this._setHistoryRef(name) });
-        items.push({ label: t('Copy Name'), action: () => this._copyText(name) });
+        items.push({ icon: 'filter', label: t('Show Only This Branch'), action: () => this._setHistoryRef(name) });
+        items.push({ icon: 'copy', label: t('Copy Name'), action: () => this._copyText(name) });
         return items;
     }
 

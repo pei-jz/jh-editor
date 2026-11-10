@@ -28,6 +28,46 @@ export function terminalScrollback() {
     }
 }
 
+const DOCK_KEY = 'terminal_dock';
+const WIDTH_KEY = 'terminal_right_width';
+
+export const TERMINAL_WIDTH_DEFAULT = 480;
+export const TERMINAL_WIDTH_MIN = 240;
+const TERMINAL_EDITOR_KEEP = 280;
+
+/** Where the panel sits: 'bottom' (the default) or 'right'. */
+export function terminalDock() {
+    try {
+        return localStorage.getItem(DOCK_KEY) === 'right' ? 'right' : 'bottom';
+    } catch (_) {
+        return 'bottom';
+    }
+}
+
+export function setTerminalDock(dock) {
+    try { localStorage.setItem(DOCK_KEY, dock === 'right' ? 'right' : 'bottom'); } catch (_) { /* ignore */ }
+}
+
+/**
+ * Keep a right-docked panel usable without taking the editors' room: `room` is
+ * the width beside the explorer, and the editors keep a share of it.
+ */
+export function clampTerminalWidth(width, room) {
+    const n = Number(width);
+    const wanted = Number.isFinite(n) && n > 0 ? n : TERMINAL_WIDTH_DEFAULT;
+    return Math.round(Math.max(TERMINAL_WIDTH_MIN, Math.min(wanted, room - TERMINAL_EDITOR_KEEP)));
+}
+
+export function terminalRightWidth(room) {
+    let raw = null;
+    try { raw = localStorage.getItem(WIDTH_KEY); } catch (_) { /* default */ }
+    return clampTerminalWidth(raw, room);
+}
+
+export function setTerminalRightWidth(width) {
+    try { localStorage.setItem(WIDTH_KEY, String(Math.round(width))); } catch (_) { /* ignore */ }
+}
+
 /** Store the setting; returns the value actually kept. */
 export function setTerminalScrollback(value) {
     const n = normalizeScrollback(value);

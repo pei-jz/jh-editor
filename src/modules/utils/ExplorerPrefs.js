@@ -47,3 +47,21 @@ export function setExplorerOpensOn(mode) {
         localStorage.setItem(KEY, mode === 'single' ? 'single' : 'double');
     } catch (_) { /* ignore */ }
 }
+
+// Whether moving the tree's cursor onto a folder shows it in the folder list
+// tab (views/FolderListView.js). Off by default: the tab is opened on purpose.
+const FOLDER_LIST_KEY = 'settings_explorerFolderList';
+
+export function explorerListsFolders() {
+    try {
+        return localStorage.getItem(FOLDER_LIST_KEY) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+export function setExplorerListsFolders(on) {
+    try {
+        localStorage.setItem(FOLDER_LIST_KEY, on ? '1' : '0');
+    } catch (_) { /* ignore */ }
+}

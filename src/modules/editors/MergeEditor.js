@@ -624,6 +624,9 @@ export class MergeEditor {
         const c = this.container;
         c.innerHTML = '';
         c.classList.add('merge-editor');
+        // Alt+arrows are this editor's (next change, copy a side), not the tab
+        // history's: ShortcutManager leaves them to it.
+        c.dataset.shortcutKeys = 'alt-arrows';
         // The editor area pads its content for documents; a comparison is a
         // tool surface and uses the whole pane, like the editor tab does.
         c.style.padding = '0';

@@ -64,7 +64,7 @@ export const THEMES = [
     { id: 'light', family: 'standard', dark: false, bootBg: '#ffffff' },
     { id: 'dark', family: 'standard', dark: true, bootBg: '#1e1e22' },
     { id: 'paper', family: 'paper', dark: false, bootBg: '#e7dab9' },
-    { id: 'paper-dark', family: 'paper', dark: true, bootBg: '#221a13' },
+    { id: 'paper-dark', family: 'paper', dark: true, bootBg: '#1c1c1c' },
     { id: 'sumi-e', family: 'sumi-e', dark: false, bootBg: '#ece8df' },
     { id: 'sumi-e-dark', family: 'sumi-e', dark: true, bootBg: '#0f0f0f' },
     // Hanging Scroll is deliberately NOT dark: its mounting is indigo, but the
@@ -76,7 +76,7 @@ export const THEMES = [
     { id: 'kakejiku-dark', family: 'kakejiku', dark: true, bootBg: '#232c3f' },
     // Fresh green slips, the same bundle before it was buried.
     { id: 'bamboo-light', family: 'bamboo', dark: false, bootBg: '#e2e4cf' },
-    { id: 'bamboo-ancient', family: 'bamboo', dark: true, bootBg: '#2f2518' },
+    { id: 'bamboo-ancient', family: 'bamboo', dark: true, bootBg: '#1d1f1b' },
     // Catppuccin Latte and Mocha.
     { id: 'latte', family: 'coffee', dark: false, bootBg: '#f0e8d0' },
     { id: 'latte-dark', family: 'coffee', dark: true, bootBg: '#1e1e2e' },

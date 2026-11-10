@@ -118,6 +118,10 @@ class HitCount extends WidgetType {
 export function describeProgress(p) {
     if (!p) return '';
     const parts = [t('{n} files searched', { n: p.files })];
+    // A file filter leaves the file count at 0 for as long as nothing passes
+    // it, so the folders are what shows the search is moving.
+    if (p.folders) parts.push(t('{n} folders', { n: p.folders }));
+    if (!p.current && p.folder) parts.push(String(p.folder).replace(/\\/g, '/').split('/').slice(-2).join('/'));
     if (p.current) {
         const name = String(p.current).replace(/\\/g, '/').split('/').pop();
         const percent = p.current_size > 0 ? Math.floor((p.current_done / p.current_size) * 100) : 0;
@@ -548,6 +552,9 @@ export class SearchResultsView extends CodeMirrorView {
         const base = `${t('{files} files, {hits} hits', { files, hits: total })}  —  "${this.query}"`;
         const text = running ? `${t('Searching…')}  ${base}`
             : (total === 0 && !this._canceled ? t('No results for "{query}"', { query: this.query }) : base)
+              // Zero hits from zero files is a different problem from zero hits.
+              + (total === 0 && !this._canceled && this._progress
+                  ? `  (${t('{n} files searched', { n: this._progress.files })}  ·  ${t('{n} folders', { n: this._progress.folders })})` : '')
               + (this._truncated ? ` (${t('Stopped at the result limit. Settings can raise it.')})` : '')
               + (this._canceled ? ` (${t('canceled')})` : '');
         this._summaryEl.textContent = text;

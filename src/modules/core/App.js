@@ -2,7 +2,7 @@ import { State } from './Store.js';
 import { EL } from './Constants.js';
 import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
-import { initExplorer, loadExplorer } from './Explorer.js';
+import { initExplorer, loadExplorer, showInFolderList } from './Explorer.js';
 import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, getActiveFile, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
 import { activePane, paneActiveIndex } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
@@ -552,10 +552,10 @@ async function bootstrap() {
                 pageX: r.left,
                 pageY: r.bottom,
             }, [
-                { label: t('New File'), hint: shortcuts.bindingFor('app:new-file'), action: () => createNewFileAction() },
-                { label: t('New Note'), hint: shortcuts.bindingFor('app:new-note'), action: () => NotesPanel.open({ create: true }) },
+                { icon: 'file-plus', label: t('New File'), hint: shortcuts.bindingFor('app:new-file'), action: () => createNewFileAction() },
+                { icon: 'note', label: t('New Note'), hint: shortcuts.bindingFor('app:new-note'), action: () => NotesPanel.open({ create: true }) },
                 { type: 'separator' },
-                { label: t('Compare Scratch Text'), hint: shortcuts.bindingFor('app:open-compare'), action: () => openCompareEditor() },
+                { icon: 'compare', label: t('Compare Scratch Text'), hint: shortcuts.bindingFor('app:open-compare'), action: () => openCompareEditor() },
             ]);
         };
         newTabMenuBtn.addEventListener('click', showNewTabMenu);
@@ -682,6 +682,9 @@ async function bootstrap() {
         'app:outline-modal': () => OutlineModal.show(),
         'app:workspace-menu': () => openWorkspaceMenu(),
         'app:folder-jump': () => openFolderJump(),
+        'app:show-folder-list': () => showInFolderList(),
+        'app:tab-back': () => window.app.goTabHistory(-1),
+        'app:tab-forward': () => window.app.goTabHistory(1),
         'app:new-file': createNewFileAction,
         // Ctrl+W closes the tab in the FOCUSED pane (split-aware). In an unsplit
         // editor activePane() is always 'left', so this is a plain close-tab.
@@ -825,9 +828,9 @@ async function bootstrap() {
     if (eolIndicator) {
         eolIndicator.addEventListener('click', (e) => {
             ContextMenu.show(e, [
-                { label: 'LF (\\n) — Unix/macOS', action: () => setFileEol('\n') },
-                { label: 'CRLF (\\r\\n) — Windows', action: () => setFileEol('\r\n') },
-                { label: 'CR (\\r) — Classic Mac', action: () => setFileEol('\r') },
+                { icon: 'file-text', label: 'LF (\\n) — Unix/macOS', action: () => setFileEol('\n') },
+                { icon: 'file-text', label: 'CRLF (\\r\\n) — Windows', action: () => setFileEol('\r\n') },
+                { icon: 'file-text', label: 'CR (\\r) — Classic Mac', action: () => setFileEol('\r') },
             ]);
         });
     }

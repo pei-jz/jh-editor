@@ -86,13 +86,13 @@
         if (theme === 'solarized-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#002b36; }';
         if (theme === 'solarized-light') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#fdf6e3; }';
         if (theme === 'paper') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e7dab9; }';
-        if (theme === 'bamboo-ancient') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#2f2518; }';
+        if (theme === 'bamboo-ancient') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#1d1f1b; }';
         if (theme === 'sumi-e') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ece8df; }';
         if (theme === 'nord') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#3b4252; }';
         if (theme === 'kakejiku') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#e8edf1; }';
         if (theme === 'kakejiku-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#232c3f; }';
         if (theme === 'sumi-e-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#0f0f0f; }';
-        if (theme === 'paper-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#221a13; }';
+        if (theme === 'paper-dark') document.getElementById('critical-css').innerHTML += ' html,body { background-color:#1c1c1c; }';
       } else {
         document.getElementById('critical-css').innerHTML += ' html,body { background-color:#ffffff; }';
       }
@@ -309,6 +309,7 @@
           <div style="display: flex; gap: 8px;">
             <button id="new-terminal-btn" class="terminal-new-btn" title="New terminal">+</button>
             <select id="terminal-shell-select" title="Shell for the next terminal" style="background: var(--bg-color-secondary); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 3px; font-size: 10px; padding: 1px 4px; text-transform: none; font-weight: normal;"></select>
+            <button id="dock-terminal-btn" data-icon="columns" data-icon-size="13" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
             <button id="clear-terminal-btn" title="Clear" data-i18n-title="Clear" data-icon="trash" data-icon-size="13" aria-label="Clear" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
             <button id="close-terminal-btn" title="Close" data-i18n-title="Close" data-icon="close" data-icon-size="13" aria-label="Close" style="background:none; border:none; cursor:pointer; color: var(--text-color); opacity: 0.7; transition: opacity 0.2s;"></button>
           </div>
@@ -494,6 +495,12 @@
                 <option value="double" data-i18n="Double-click (a single click selects)">Double-click (a single click selects)</option>
                 <option value="single" data-i18n="Single click">Single click</option>
               </select>
+            </div>
+            <div class="settings-option">
+              <label for="explorer-folder-list" data-i18n="Explorer: show the selected folder in the Folder List tab">Explorer: show the selected folder in the Folder List tab</label>
+              <div style="width: 400px;">
+                <input type="checkbox" id="explorer-folder-list">
+              </div>
             </div>
             <div class="settings-option">
               <label for="large-file-threshold" data-i18n="Open read-only above (MB)">Open read-only above (MB)</label>

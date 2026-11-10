@@ -21,6 +21,11 @@ export const SHORTCUTS = {
         // explorer folder button's list.
         { key: 'o', ctrl: true, alt: true, cmd: 'app:workspace-menu', description: 'Recent Workspaces' },
         { key: 'j', ctrl: true, alt: true, cmd: 'app:folder-jump', description: 'Folder Jump' },
+        { key: 'e', ctrl: true, alt: true, cmd: 'app:show-folder-list', description: 'Show in Folder List' },
+        // Back and forward through the tabs shown, as a browser does. A page
+        // turned in Book mode keeps these keys (Editor.js goTabHistory).
+        { key: 'ArrowLeft', alt: true, cmd: 'app:tab-back', description: 'Back to Previous Tab' },
+        { key: 'ArrowRight', alt: true, cmd: 'app:tab-forward', description: 'Forward to Next Tab' },
         // Ctrl+P prints, as it does in every other Windows program. File search
         // keeps Ctrl+Shift+R, which it already had.
         { key: 'p', ctrl: true, cmd: 'app:print', description: 'Print' },
@@ -117,6 +122,7 @@ export const SHORTCUTS = {
         { key: 'v', ctrl: true, cmd: 'explorer:nav', description: 'Paste into Folder' },
         { key: 'Tab', cmd: 'explorer:nav', description: 'Focus Next' },
         { key: 'Tab', shift: true, cmd: 'explorer:nav', description: 'Focus Previous' },
+        { key: 'ArrowUp', alt: true, cmd: 'explorer:nav', description: 'Show Parent Folder' },
         { key: 'F2', cmd: 'explorer:rename', description: 'Rename Item' },
         { key: 'n', ctrl: true, cmd: 'explorer:new-file', description: 'New File in Folder' }
     ],
@@ -135,8 +141,16 @@ export const SHORTCUTS = {
         { key: 'u', ctrl: true, alt: true, description: 'Toggle Word Wrap' },
         { key: 'Tab', description: 'Insert Tab / Indent Selection' },
         { key: 'Tab', shift: true, description: 'Outdent Selection' },
-        { key: 'ArrowLeft', alt: true, description: 'Book Mode: Previous Page' },
-        { key: 'ArrowRight', alt: true, description: 'Book Mode: Next Page' }
+
+        { key: 'ArrowLeft', ctrl: true, description: 'Book Mode: Previous Page' },
+        { key: 'ArrowRight', ctrl: true, description: 'Book Mode: Next Page' },
+
+        // Not documentation: an entry here wins over GLOBAL's, so a
+        // documentation-only Alt+← left the key to CodeMirror's syntax jump and
+        // the tab history never ran in a code editor. The comparison editors
+        // keep Alt+arrows for themselves (data-shortcut-keys="alt-arrows").
+        { key: 'ArrowLeft', alt: true, cmd: 'app:tab-back', description: 'Back to Previous Tab' },
+        { key: 'ArrowRight', alt: true, cmd: 'app:tab-forward', description: 'Forward to Next Tab' }
     ],
 
     CSV: [

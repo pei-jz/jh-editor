@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { State } from './Store.js';
 import * as FS from '../utils/FileSystem.js';
 import { getOsLineEnding } from '../utils/FileSystem.js';
-import { loadExplorer, revealDirectory } from './Explorer.js';
+import { isInsideWorkspace, loadExplorer, revealDirectory, revealInTree } from './Explorer.js';
 import { setExplorerVisible } from './Layout.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { showNewFileModal, showCustomConfirm } from '../ui/Modal.js';
@@ -31,6 +31,7 @@ import { CompareView } from '../editors/CompareView.js';
 import { TaskNotificationPanel } from '../ai/TaskNotificationPanel.js';
 import { SearchResultsView } from '../views/SearchResultsView.js';
 import { DirDiffView } from '../views/DirDiffView.js';
+import { FolderListView } from '../views/FolderListView.js';
 import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
 import { SettingsView } from '../views/SettingsView.js';
@@ -741,6 +742,9 @@ export function renderEditor(targetPane = null) {
         // and the pane rendered blank.
         container.removeAttribute('style');
         container.className = '';
+        // A comparison claims Alt+arrows on its pane (MergeEditor); the next
+        // view in the same pane must not inherit the claim.
+        delete container.dataset.shortcutKeys;
         container.style.flex = '1';
         container.style.minHeight = '0';
 
@@ -833,6 +837,18 @@ export function renderEditor(targetPane = null) {
         // Special Case: folder comparison result
         if (file.type === 'dir-diff') {
             const view = new DirDiffView(container, file);
+            if (isLeft) leftView = view;
+            else rightView = view;
+            return;
+        }
+
+        // Special Case: one folder's contents, listed (FolderListView)
+        if (file.type === 'folder-list') {
+            const view = new FolderListView(container, file, {
+                openFile: (path) => openFile(path),
+                showInTree: (path) => revealInTree(path),
+                onNavigate: () => renderTabs(pane),
+            });
             if (isLeft) leftView = view;
             else rightView = view;
             return;
@@ -1545,6 +1561,7 @@ window.app.getLineCount = () => {
 };
 
 window.app.openFile = openFile;
+window.app.goTabHistory = goTabHistory;
 window.app.openMergeTab = openMergeTab;
 window.app.openConflictTab = openConflictTab;
 window.app.openGitCompareTab = openGitCompareTab;
@@ -1569,6 +1586,54 @@ window.app.compareTwoFolders = function (leftRoot, rightRoot) {
         stats: { size: 0, mtime: 0 },
     });
     setActiveTab(State.openFiles.length - 1);
+};
+
+const FOLDER_LIST_PATH = 'folder://list';
+
+/**
+ * Show `dir` in the folder list tab, opening it if need be. There is one such
+ * tab, whichever pane it is in. `select` puts the cursor on an entry.
+ *
+ * `follow` is the tree's cursor moving with the setting on: the tab then
+ * changes folder without coming forward, so a file being edited stays in view.
+ */
+window.app.showFolderList = function (dir, { follow = false, select = null } = {}) {
+    // The list never leaves the workspace (FolderListView stops at its root too).
+    if (!dir || (State.currentDir && !isInsideWorkspace(dir))) return null;
+    const name = String(dir).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || String(dir);
+    for (const pane of ['left', 'right']) {
+        const files = paneFiles(pane);
+        const index = files.findIndex((f) => f.path === FOLDER_LIST_PATH);
+        if (index < 0) continue;
+        const file = files[index];
+        const showing = paneActiveIndex(pane) === index;
+        const same = file.folder === dir;
+        file.folder = dir;
+        file.name = name;
+        file.select = select;
+        if (follow && !showing) {
+            renderTabs(pane);
+        } else if (!(follow && same && !select)) {
+            setActiveTab(index, pane);
+        }
+        return file;
+    }
+    const file = {
+        name,
+        path: FOLDER_LIST_PATH,
+        type: 'folder-list',
+        folder: dir,
+        select,
+        content: '',
+        encoding: 'UTF-8',
+        eol: getOsLineEnding(),
+        isDirty: false,
+        stats: { size: 0, mtime: 0 },
+    };
+    const pane = activePane();
+    paneFiles(pane).push(file);
+    setActiveTab(paneFiles(pane).length - 1, pane);
+    return file;
 };
 
 const SETTINGS_PATH = 'settings://main';
@@ -1738,6 +1803,49 @@ window.app.reloadFileSilently = async function(path, newContent) {
     }
 };
 
+// The tabs shown, oldest first, for Alt+← / Alt+→. A tab is remembered by its
+// path (an untitled one by its draft id), never by the object: a closed tab's
+// text must not be kept alive by a list of where you have been.
+const tabHistory = [];
+let tabHistoryAt = -1;
+let walkingTabHistory = false;
+const TAB_HISTORY_LIMIT = 50;
+
+function tabKey(file) {
+    return file ? (file.path || file._draftId || null) : null;
+}
+
+function rememberTab(file) {
+    const key = tabKey(file);
+    if (!key || walkingTabHistory) return;
+    if (tabHistory[tabHistoryAt] === key) return;
+    tabHistory.splice(tabHistoryAt + 1);
+    tabHistory.push(key);
+    if (tabHistory.length > TAB_HISTORY_LIMIT) tabHistory.shift();
+    tabHistoryAt = tabHistory.length - 1;
+}
+
+/**
+ * Step back (-1) or forward (1) through the tabs shown. Tabs closed since are
+ * skipped. Book mode turns its pages with Ctrl+← / Ctrl+→, so these keys are
+ * free there too.
+ */
+export function goTabHistory(step) {
+    const current = tabKey(getActiveFile());
+    for (let at = tabHistoryAt + step; at >= 0 && at < tabHistory.length; at += step) {
+        const key = tabHistory[at];
+        if (key === current) continue;
+        for (const pane of ['left', 'right']) {
+            const index = paneFiles(pane).findIndex((f) => tabKey(f) === key);
+            if (index < 0) continue;
+            tabHistoryAt = at;
+            walkingTabHistory = true;
+            try { setActiveTab(index, pane); } finally { walkingTabHistory = false; }
+            return;
+        }
+    }
+}
+
 export function setActiveTab(index, pane = activePane()) {
     pane = normalizePane(pane);
     const isLeft = pane === 'left';
@@ -1751,6 +1859,7 @@ export function setActiveTab(index, pane = activePane()) {
         }
 
         setPaneActiveIndex(pane, index);
+        rememberTab(openFiles[index]);
 
         State.activePane = pane;
 
@@ -1870,6 +1979,7 @@ export function tabIconFor(file) {
     if (path.startsWith('agent://')) return 'robot';
     if (path.startsWith('search://')) return 'search';
     if (path.startsWith('settings://')) return 'settings';
+    if (path.startsWith('folder://')) return 'folder';
     if (path.startsWith('ai://')) return 'sparkles';
     return null;
 }
@@ -1910,7 +2020,7 @@ export function renderTabs(targetPane = null) {
             let fileName = file.name || 'Untitled';
             if (file.type === 'settings') {
                 fileName = t('Settings');
-            } else if (file.path && !/^(agent|diff|search):\/\//.test(file.path)) {
+            } else if (file.path && !/^(agent|diff|search|folder):\/\//.test(file.path)) {
                 fileName = file.path.replace(/\\/g, '/').split('/').pop();
             }
             
@@ -1973,19 +2083,19 @@ export function renderTabs(targetPane = null) {
                 e.preventDefault();
                 e.stopPropagation();
                 ContextMenu.show(e, [
-                    { label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
+                    { icon: 'link', label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
                     ...(canCompareWithSaved(file)
-                        ? [{ label: t('Compare with Saved File'), hint: shortcuts.bindingFor('app:diff'), action: () => compareWithDisk(file) }]
+                        ? [{ icon: 'diff', label: t('Compare with Saved File'), hint: shortcuts.bindingFor('app:diff'), action: () => compareWithDisk(file) }]
                         : []),
-                    { label: t('Compare with File...'), action: () => compareWithFile(file) },
-                    { label: t('Save As...'), action: () => saveCurrentFileAs() },
+                    { icon: 'compare', label: t('Compare with File...'), action: () => compareWithFile(file) },
+                    { icon: 'export', label: t('Save As...'), action: () => saveCurrentFileAs() },
                     { type: 'separator' },
-                    { label: t('New Window'), action: () => window.app?.openNewWindow?.() },
-                    { label: t('Move to Other Pane'), action: () => moveTabToOtherPane(index, pane) },
+                    { icon: 'layout-columns', label: t('New Window'), action: () => window.app?.openNewWindow?.() },
+                    { icon: 'swap', label: t('Move to Other Pane'), action: () => moveTabToOtherPane(index, pane) },
                     { type: 'separator' },
-                    { label: t('Close All (Discard)'), action: () => closeAllTabs(false) },
-                    { label: t('Close All (Save)'), action: () => closeAllTabs(true) },
-                    { label: t('Close Others'), action: () => closeOtherTabs(index, pane) }
+                    { icon: 'x', label: t('Close All (Discard)'), action: () => closeAllTabs(false) },
+                    { icon: 'check', label: t('Close All (Save)'), action: () => closeAllTabs(true) },
+                    { icon: 'close', label: t('Close Others'), action: () => closeOtherTabs(index, pane) }
                 ]);
             };
             const closeBtn = document.createElement('span');
@@ -2782,11 +2892,11 @@ function setupContextMenu(file) {
         // all, so all three silently did nothing — and would have gone on doing
         // nothing for every view that keeps its own selection.
         const menuItems = [
-            { label: t('Copy'), action: () => triggerCopy() },
-            { label: t('Cut'), action: () => triggerCut() },
-            { label: t('Paste'), action: () => triggerPaste() },
+            { icon: 'copy', label: t('Copy'), action: () => triggerCopy() },
+            { icon: 'scissors', label: t('Cut'), action: () => triggerCut() },
+            { icon: 'clipboard', label: t('Paste'), action: () => triggerPaste() },
             { type: 'separator' },
-            { label: t('Format Document'), action: () => formatCurrentFile() }
+            { icon: 'tool', label: t('Format Document'), action: () => formatCurrentFile() }
         ];
 
         if (file.path) {
@@ -2794,7 +2904,7 @@ function setupContextMenu(file) {
             if (currentView && typeof currentView._triggerDefinition === 'function') {
                 menuItems.push({ type: 'separator' });
                 menuItems.push({
-                    label: t('Go to Definition (F12)'),
+                    icon: 'bolt', label: t('Go to Definition (F12)'),
                     action: () => {
                         const offset = typeof currentView.getCursorOffset === 'function'
                             ? currentView.getCursorOffset()
@@ -2803,7 +2913,7 @@ function setupContextMenu(file) {
                     }
                 });
                 menuItems.push({
-                    label: t('Find References (Shift+F12)'),
+                    icon: 'search', label: t('Find References (Shift+F12)'),
                     action: () => {
                         const offset = typeof currentView.getCursorOffset === 'function'
                             ? currentView.getCursorOffset()
@@ -2815,11 +2925,11 @@ function setupContextMenu(file) {
 
             menuItems.push({ type: 'separator' });
             menuItems.push({
-                label: t('Reopen with Encoding'),
+                icon: 'file-text', label: t('Reopen with Encoding'),
                 submenu: [
-                    { label: t('UTF-8'), action: () => reopenWithEncoding(file, 'utf-8') },
-                    { label: t('Shift-JIS'), action: () => reopenWithEncoding(file, 'shift-jis') },
-                    { label: t('EUC-JP'), action: () => reopenWithEncoding(file, 'euc-jp') }
+                    { icon: 'file-text', label: t('UTF-8'), action: () => reopenWithEncoding(file, 'utf-8') },
+                    { icon: 'file-text', label: t('Shift-JIS'), action: () => reopenWithEncoding(file, 'shift-jis') },
+                    { icon: 'file-text', label: t('EUC-JP'), action: () => reopenWithEncoding(file, 'euc-jp') }
                 ]
             });
         }
@@ -2873,7 +2983,7 @@ export async function createNewFileAction() {
  */
 export async function saveCurrentFileAs() {
     const source = getActiveFile();
-    if (!source || source.type === 'settings') return;
+    if (!source || source.type === 'settings' || source.type === 'folder-list') return;
 
     if (source.type === 'diff' || source.type === 'compare'
         || source.viewMode === 'diff' || source.viewMode === 'compare') {
@@ -3011,7 +3121,7 @@ function showCompareHintOnce() {
 export async function saveCurrentFile() {
     const file = getActiveFile();
     // Settings save themselves, and there is no file behind the tab to write.
-    if (!file || file.type === 'settings') return false;
+    if (!file || file.type === 'settings' || file.type === 'folder-list') return false;
     const hadEdits = canCompareWithSaved(file);
     const saved = await saveFile(file, getCurrentView());
     if (saved && hadEdits) showCompareHintOnce();
@@ -3613,6 +3723,19 @@ export function updateStatusBar(forFile = null) {
         // file open is the same fault as inventing them: numbers that describe
         // nothing that is there.
         for (const id of ['status-selection', 'status-size', 'status-last-modified']) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '';
+        }
+        return;
+    }
+
+    // A folder list is no document: no size, encoding, line ending or cursor.
+    if (file.type === 'folder-list') {
+        const typeEl = document.getElementById('status-file-type');
+        if (typeEl) typeEl.textContent = t('Folder');
+        const modeHint = document.getElementById('status-view-mode');
+        if (modeHint) modeHint.style.display = 'none';
+        for (const id of ['status-selection', 'status-size', 'status-last-modified', 'status-encoding', 'status-eol']) {
             const el = document.getElementById(id);
             if (el) el.textContent = '';
         }

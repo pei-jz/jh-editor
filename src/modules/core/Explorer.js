@@ -4,7 +4,7 @@ import { State } from './Store.js';
 import { iconEl, iconForFile, setIcon } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
-import { explorerOpensOn, explorerShowsExternal, setExplorerShowsExternal, SHOW_EXTERNAL_KEY } from '../utils/ExplorerPrefs.js';
+import { explorerListsFolders, explorerOpensOn, explorerShowsExternal, setExplorerShowsExternal, SHOW_EXTERNAL_KEY } from '../utils/ExplorerPrefs.js';
 import { externalKind } from '../utils/ExternalFiles.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
 import { GrepModal } from '../ui/GrepModal.js';
@@ -16,6 +16,8 @@ import { showAlert, showDialog } from '../ui/Dialog.js';
 import { invoke } from '@tauri-apps/api/core';
 import { isExternalFileDrag, resolveDroppedPaths } from '../utils/DroppedFiles.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
+import { nativeDragAvailable, startNativeDrag } from '../utils/NativeDrag.js';
+import { typeAheadIndex } from '../utils/ExplorerTree.js';
 
 let openFileCallback = null;
 // { type: 'copy' | 'cut', paths, seq }. `seq` is the OS clipboard's change
@@ -26,6 +28,10 @@ let clipboardAction = null;
 // dragover, and dragover is where a drop onto the dragged folder itself has to
 // be refused.
 let dragPaths = null;
+// True while those rows are in an OS drag rather than the browser's.
+let nativeDragRunning = false;
+// Folder the tree is narrowed to, inside the workspace. Null shows all of it.
+let viewRoot = null;
 
 // Virtual Explorer Instance
 let vExplorer = null;
@@ -209,6 +215,17 @@ class VirtualExplorer {
         if (e.shiftKey) this.selectRangeTo(index, ctrl);
         else if (!ctrl) this.selectOnly(index);
         this.setFocus(index);
+        this._followFolder(this.flatItems[index]);
+    }
+
+    /** With the setting on, the folder list tab shows the folder under the cursor. */
+    _followFolder(item) {
+        if (!item || item.type !== 'DIRECTORY' || !explorerListsFolders()) return;
+        clearTimeout(this._followTimer);
+        // Walking down the tree with the arrows lists the folder it stops on.
+        this._followTimer = setTimeout(() => {
+            if (window.app && window.app.showFolderList) window.app.showFolderList(item.path, { follow: true });
+        }, 150);
     }
 
     setDropTarget(dir) {
@@ -288,6 +305,12 @@ class VirtualExplorer {
         // handlers run — so e.target.closest('#explorer') is null and
         // document.activeElement has already dropped to <body>.
         e.__explorerKeyDown = true;
+        // Before the empty-list return: an empty folder still has a parent.
+        if (e.altKey && e.key === 'ArrowUp' && !this._renaming) {
+            e.preventDefault();
+            showParentOfViewRoot();
+            return;
+        }
         if (this.flatItems.length === 0) return;
         // While an inline rename is active the input owns all keys
         // (Enter commits, Escape cancels, arrows type). Never navigate,
@@ -408,7 +431,7 @@ class VirtualExplorer {
             } else if (e.key === 'n' || e.key === 'N') {
                 // New File in current focus dir or root
                 e.preventDefault();
-                const dir = (item && item.type === 'DIRECTORY') ? item.path : (item ? FS.getParentDir(item.path) : State.currentDir);
+                const dir = (item && item.type === 'DIRECTORY') ? item.path : (item ? FS.getParentDir(item.path) : treeRoot());
                 handleNewFile(dir);
             }
         } else if (e.key === 'Tab') {
@@ -433,7 +456,25 @@ class VirtualExplorer {
                     if (editor) editor.focus();
                 }
             }
+        } else {
+            this.typeAhead(e);
         }
+    }
+
+    /** Typing a name walks to it, as in a file manager. */
+    typeAhead(e) {
+        if (e.key.length !== 1 || e.altKey || e.isComposing) return;
+        // Vim mode has its own use for letters in the tree (Vim.js).
+        if (localStorage.getItem('settings_vimMode') === 'true') return;
+        const now = Date.now();
+        const typed = now - (this._typedAt || 0) < 800 ? (this._typed || '') : '';
+        // A space only continues a name; it starts nothing.
+        if (e.key === ' ' && !typed) return;
+        e.preventDefault();
+        this._typed = typed + e.key;
+        this._typedAt = now;
+        const index = typeAheadIndex(this.flatItems.map(it => it.name), this._typed, this.focusedIndex);
+        if (index >= 0) this.moveCursor(index, {});
     }
 
 
@@ -830,6 +871,7 @@ class VirtualExplorer {
                 // Re-focus explorer so keyboard shortcuts (Delete, etc.) still work
                 this.setFocus(index);
                 this.refresh();
+                this._followFolder(item);
             }
             // Ensure explorer retains focus after click so Delete/F2/etc. work.
             // At once as well as later: the re-render above detached the row
@@ -961,10 +1003,7 @@ class VirtualExplorer {
                 this.selectOnly(parseInt(div.dataset.index, 10));
             }
             const paths = this.selectionInOrder();
-            dragPaths = outermostPaths(paths.length ? paths : [item.path]);
-            e.dataTransfer.setData('text/plain', dragPaths.join('\n'));
-            e.dataTransfer.setData('application/x-editor-item', 'true');
-            e.dataTransfer.effectAllowed = 'copyMove';
+            beginRowDrag(e, paths.length ? paths : [item.path], () => this.setDropTarget(null));
             // No redraw here: replacing the row being dragged would leave the
             // drag without a source element.
             div.classList.add('selected');
@@ -988,28 +1027,28 @@ class VirtualExplorer {
             const isDir = item.type === 'DIRECTORY';
             const hereDir = isDir ? item.path : FS.getParentDir(item.path);
             const count = paths.length > 1 ? ` (${paths.length})` : '';
+            const one = paths.length === 1;
+            // Grouped by what they are for, with as few rules between as reads
+            // well: the menu had grown taller than a laptop screen.
             const menuItems = [
-                { label: t('Refresh'), action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
+                ...(one ? [{ label: t('Show in Folder List'), icon: 'list', hint: shortcuts.bindingFor('app:show-folder-list'), action: () => window.app.showFolderList(
+                    isDir ? item.path : FS.getParentDir(item.path), { select: isDir ? null : item.path }) }] : []),
+                ...(one && isDir ? [{ label: t('Show Only This Folder'), icon: 'filter', action: () => setViewRoot(item.path) }] : []),
+                // Grep within this folder (a file → its parent folder).
+                { label: t('Find in Folder'), icon: 'search', action: () => GrepModal.show(hereDir) },
                 { type: 'separator' },
-                { label: t('New File'), action: () => handleNewFile(hereDir) },
-                { label: t('New Folder'), action: () => handleNewFolder(hereDir) },
+                { label: t('New File'), icon: 'file-plus', hint: 'Ctrl+N', action: () => handleNewFile(hereDir) },
+                { label: t('New Folder'), icon: 'folder-plus', action: () => handleNewFolder(hereDir) },
                 { type: 'separator' },
-                { label: t('Cut') + count, action: () => handleCut(paths) },
-                { label: t('Copy') + count, action: () => handleCopy(paths) },
-                { label: t('Paste'), action: () => handlePaste(hereDir) },
+                { label: t('Cut') + count, icon: 'scissors', hint: 'Ctrl+X', action: () => handleCut(paths) },
+                { label: t('Copy') + count, icon: 'copy', hint: 'Ctrl+C', action: () => handleCopy(paths) },
+                { label: t('Paste'), icon: 'clipboard', hint: 'Ctrl+V', action: () => handlePaste(hereDir) },
+                { label: t('Rename'), icon: 'pencil', hint: 'F2', action: () => handleRename(item.path) },
+                { label: t('Delete') + count, icon: 'trash', hint: 'Delete', action: () => handleDelete(paths) },
                 { type: 'separator' },
-                { label: t('Copy Path'), action: () => copyPathsAsText(paths, false) },
-                { label: t('Copy Relative Path'), action: () => copyPathsAsText(paths, true) },
-                { type: 'separator' },
-                { label: t('Rename'), action: () => handleRename(item.path) },
-                { label: t('Delete') + count, action: () => handleDelete(paths) },
-                { type: 'separator' },
-                { label: t('Find in Folder'), action: () => {
-                    // Grep within this folder (a file → its parent folder).
-                    GrepModal.show(hereDir);
-                } },
-                { type: 'separator' },
-                { label: t('Reveal in File Manager'),
+                { label: t('Copy Path'), icon: 'link', action: () => copyPathsAsText(paths, false) },
+                { label: t('Copy Relative Path'), icon: 'link', action: () => copyPathsAsText(paths, true) },
+                { label: t('Reveal in File Manager'), icon: 'folder-open',
                   action: async () => {
                       try {
                           await invoke('reveal_in_file_manager', { path: item.path });
@@ -1018,6 +1057,7 @@ class VirtualExplorer {
                           if (window.showToast) window.showToast(t('Could not open the file manager'));
                       }
                   } },
+                { label: t('Refresh'), icon: 'refresh', action: () => { paths.forEach(p => this.dirCache.delete(p)); this.refresh(); } },
             ];
 
             // Exactly two items of the SAME kind selected → offer a comparison.
@@ -1035,15 +1075,15 @@ class VirtualExplorer {
 
             if (selectedFiles.length === 2 && selectedDirs.length === 0 && !anyExternal) {
                 const [leftPath, rightPath] = selectedFiles;
-                menuItems.splice(1, 0,
-                    { label: `Compare: ${FS.getBasename(leftPath)} / ${FS.getBasename(rightPath)}`,
+                menuItems.unshift(
+                    { label: `Compare: ${FS.getBasename(leftPath)} / ${FS.getBasename(rightPath)}`, icon: 'compare',
                       action: () => window.app.compareTwoFiles(leftPath, rightPath) },
                     { type: 'separator' },
                 );
             } else if (selectedDirs.length === 2 && selectedFiles.length === 0) {
                 const [leftDir, rightDir] = selectedDirs;
-                menuItems.splice(1, 0,
-                    { label: `Compare Folders: ${FS.getBasename(leftDir)} / ${FS.getBasename(rightDir)}`,
+                menuItems.unshift(
+                    { label: `Compare Folders: ${FS.getBasename(leftDir)} / ${FS.getBasename(rightDir)}`, icon: 'compare',
                       action: () => window.app.compareTwoFolders(leftDir, rightDir) },
                     { type: 'separator' },
                 );
@@ -1051,7 +1091,7 @@ class VirtualExplorer {
             // One row only: this starts an application per file.
             if (item.external === 'open' && paths.length === 1) {
                 menuItems.unshift(
-                    { label: t('Open with Default App'), action: () => openExternalItem(item) },
+                    { label: t('Open with Default App'), icon: 'external-link', action: () => openExternalItem(item) },
                     { type: 'separator' },
                 );
             }
@@ -1211,8 +1251,34 @@ function acceptsDrop(e, targetDir) {
 
 /** Ctrl copies, plain moves — Explorer's rule. Files from outside the app are copied. */
 function dropEffectFor(e) {
-    if (!dragPaths) return 'copy';
+    // An OS drag offers only a copy (file_drag.rs), and any other answer is
+    // refused. What the drop then does is still decided in handleDropEvent.
+    if (!dragPaths || nativeDragRunning) return 'copy';
     return (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
+}
+
+/**
+ * Start dragging `paths` from a tree row. Where the OS drag is
+ * available it takes over from the browser's, so that the files can leave the
+ * app; `onEnd` runs once it is over, as no dragend comes for it.
+ */
+function beginRowDrag(e, paths, onEnd) {
+    dragPaths = outermostPaths(paths);
+    if (nativeDragAvailable()) {
+        e.preventDefault();
+        nativeDragRunning = true;
+        startNativeDrag(dragPaths)
+            .catch((err) => console.error('start_file_drag failed', err))
+            .finally(() => {
+                nativeDragRunning = false;
+                dragPaths = null;
+                onEnd();
+            });
+        return;
+    }
+    e.dataTransfer.setData('text/plain', dragPaths.join('\n'));
+    e.dataTransfer.setData('application/x-editor-item', 'true');
+    e.dataTransfer.effectAllowed = 'copyMove';
 }
 
 // --- Init & Exports ---
@@ -1311,18 +1377,18 @@ export function initExplorer(openCallback, cbObj) {
         if (e.target.closest('.tree-item')) return;
         e.preventDefault();
         ContextMenu.show(e, [
-            { label: t('New File'), action: () => handleNewFile(State.currentDir) },
-            { label: t('New Folder'), action: () => handleNewFolder(State.currentDir) },
+            { icon: 'file-plus', label: t('New File'), action: () => handleNewFile(treeRoot()) },
+            { icon: 'folder-plus', label: t('New Folder'), action: () => handleNewFolder(treeRoot()) },
             { type: 'separator' },
-            { label: t('Paste'), action: () => handlePaste(State.currentDir) },
+            { icon: 'clipboard', label: t('Paste'), action: () => handlePaste(treeRoot()) },
             { type: 'separator' },
-            { label: t('Reveal in File Manager'), action: async () => {
+            { icon: 'folder-open', label: t('Reveal in File Manager'), action: async () => {
                 try {
-                    await invoke('reveal_in_file_manager', { path: State.currentDir });
+                    await invoke('reveal_in_file_manager', { path: treeRoot() });
                 } catch (err) { console.error('reveal_in_file_manager failed', err); }
             } },
             { type: 'separator' },
-            { label: t('Refresh All'), action: () => loadExplorer(true) }
+            { icon: 'refresh', label: t('Refresh All'), action: () => loadExplorer(true) }
         ]);
     });
 
@@ -1345,7 +1411,7 @@ function registerExplorerShortcuts() {
         'explorer:new-file': (e) => {
             if (!vExplorer) return;
             const item = vExplorer.flatItems[vExplorer.focusedIndex];
-            handleNewFile(item && item.type === 'DIRECTORY' ? item.path : (item ? FS.getParentDir(item.path) : State.currentDir));
+            handleNewFile(item && item.type === 'DIRECTORY' ? item.path : (item ? FS.getParentDir(item.path) : treeRoot()));
         }
     };
 
@@ -1361,17 +1427,115 @@ export async function loadExplorer(forceRefresh = false) {
 
     if (forceRefresh) vExplorer.dirCache.clear();
 
+    const root = treeRoot();
+    syncRootBar();
     const term = State.explorerSearchTerm ? State.explorerSearchTerm.trim() : '';
 
     if (term) {
         // Name-only filter (content search moved to workspace Grep).
-        await renderFilteredTree(State.currentDir, term, false);
+        await renderFilteredTree(root, term, false);
     } else {
         vExplorer.clearMessage();
         lastSearchTerm = '';
         cachedMatches = null;
-        await vExplorer.setRoot(State.currentDir);
+        await vExplorer.setRoot(root);
     }
+}
+
+/** Where the tree starts. A narrowed folder outside the workspace is stale: forget it. */
+function treeRoot() {
+    if (viewRoot && (!isInsideWorkspace(viewRoot) || normPath(viewRoot) === normPath(State.currentDir))) {
+        viewRoot = null;
+    }
+    return viewRoot || State.currentDir;
+}
+
+/** Narrow the tree to `dir`; the workspace root, or null, shows all of it. */
+async function setViewRoot(dir, focusPath = null) {
+    viewRoot = dir;
+    // The filter's cache holds matches for the previous root.
+    lastSearchTerm = '';
+    cachedMatches = null;
+    if (!vExplorer) return;
+    vExplorer.container.scrollTop = 0;
+    await loadExplorer();
+    const index = focusPath ? vExplorer.flatItems.findIndex(x => normPath(x.path) === normPath(focusPath)) : -1;
+    if (index >= 0) vExplorer.moveCursor(index, {});
+    vExplorer.container.focus({ preventScroll: true });
+}
+
+/** One level up from the narrowed folder, keeping the cursor on where it was. */
+function showParentOfViewRoot() {
+    if (!viewRoot) return;
+    setViewRoot(FS.getParentDir(viewRoot), viewRoot);
+}
+
+/** The line above the tree that says it is narrowed, and the way back out. */
+function syncRootBar() {
+    const list = document.getElementById('file-list');
+    if (!list) return;
+    let bar = document.getElementById('explorer-root-bar');
+    if (!viewRoot) {
+        if (bar) bar.hidden = true;
+        return;
+    }
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'explorer-root-bar';
+        const button = (icon, label, onClick) => {
+            const btn = document.createElement('button');
+            btn.className = 'explorer-root-btn';
+            btn.title = label;
+            btn.setAttribute('aria-label', label);
+            btn.appendChild(iconEl(icon, { size: 13 }));
+            btn.addEventListener('click', onClick);
+            return btn;
+        };
+        const label = document.createElement('span');
+        label.className = 'explorer-root-path';
+        bar.append(
+            button('arrow-up', t('Up one folder'), showParentOfViewRoot),
+            label,
+            button('close', t('Show Whole Workspace'), () => setViewRoot(null, viewRoot)),
+        );
+        list.parentNode.insertBefore(bar, list);
+    }
+    bar.hidden = false;
+    const label = bar.querySelector('.explorer-root-path');
+    label.textContent = viewRoot.slice(State.currentDir.length).replace(/^[\\/]+/, '').replace(/\\/g, '/');
+    label.title = viewRoot;
+}
+
+/** Put the tree's cursor on `path`, file or folder, opening what leads to it. */
+export async function revealInTree(path) {
+    if (!(await revealDirectory(FS.getParentDir(path)))) return false;
+    const index = vExplorer ? vExplorer.flatItems.findIndex(x => normPath(x.path) === normPath(path)) : -1;
+    if (index >= 0) {
+        vExplorer.moveCursor(index, {});
+        vExplorer.container.focus({ preventScroll: true });
+    }
+    return true;
+}
+
+/**
+ * Ctrl+Alt+E: the folder list, for the tree's cursor when the tree has the
+ * keyboard, else for the file being edited, else the workspace.
+ */
+export function showInFolderList() {
+    if (!window.app || !window.app.showFolderList) return;
+    const item = vExplorer && shortcuts.currentScope === 'EXPLORER' ? vExplorer.flatItems[vExplorer.focusedIndex] : null;
+    if (item) {
+        const isDir = item.type === 'DIRECTORY';
+        window.app.showFolderList(isDir ? item.path : FS.getParentDir(item.path), { select: isDir ? null : item.path });
+        return;
+    }
+    const file = window.app.getActiveFile && window.app.getActiveFile();
+    if (file && file.type === 'folder-list') return;
+    if (file && file.path && isInsideWorkspace(file.path)) {
+        window.app.showFolderList(FS.getParentDir(file.path), { select: file.path.replace(/\\/g, '/') });
+        return;
+    }
+    window.app.showFolderList(treeRoot());
 }
 
 export function focusExplorer() {
@@ -1407,6 +1571,8 @@ export function isInsideWorkspace(path) {
  */
 export async function revealDirectory(dirPath) {
     if (!isInsideWorkspace(dirPath)) return false;
+    // Asked for something the narrowed tree does not contain.
+    if (viewRoot && !isSameOrInside(viewRoot, dirPath)) await setViewRoot(null);
     const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
     const target = String(dirPath).replace(/\\/g, '/').replace(/\/+$/, '');
     const r = norm(State.currentDir);

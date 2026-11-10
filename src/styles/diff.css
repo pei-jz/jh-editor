@@ -732,9 +732,8 @@
     background-clip: content-box;
 }
 
-.merge-body .cm-mergeView:hover::-webkit-scrollbar-thumb,
 .merge-body .cm-mergeView.is-scrolling::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.26));
+    background-color: color-mix(in srgb, var(--scrollbar-thumb, rgba(0, 0, 0, 0.26)) 40%, transparent);
 }
 
 /* Minimap: change distribution over the whole comparison. Click to jump. */

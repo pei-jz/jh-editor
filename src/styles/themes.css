@@ -681,25 +681,31 @@ body.theme-paper option { background-color: #f3e9d0; color: #243049; }
    vertically bound slats — `--grain` (fibre noise) over `--slip` (slats +
    binding cords). Reading surfaces get the fibre grain ONLY: the slat lines
    would run straight through prose and code.
+
+   Toned down to 墨竹 (ink bamboo). The charred brown filled the whole pane
+   with a strong warm colour and was hard on the eyes as an editor. The
+   slips are now an ink charcoal with a trace of green, the verdigris a
+   little quieter, and the syntax colours a step down; the slats and the
+   cord on the bars still make it a bundle of bamboo.
    ========================================================================== */
 body.theme-bamboo-ancient {
     /* Surfaces — charred bamboo slips */
-    --bg-color: #3a2e1e;            /* the slip you write on (editor) */
-    --sidebar-bg: #2f2518;          /* the desk */
-    --header-bg: #2f2518;
-    --border-color: #6b5a3c;        /* old bamboo, darkened */
-    --text-color: #e8e0cc;          /* faint ivory ink */
-    --primary-color: #7fc4b8;
+    --bg-color: #262823;            /* the slip you write on (editor) */
+    --sidebar-bg: #1d1f1b;          /* the desk */
+    --header-bg: #1d1f1b;
+    --border-color: #3c3f37;        /* old bamboo, in ink */
+    --text-color: #dfe0d4;          /* faint ivory ink */
+    --primary-color: #7fb8ac;
     /* White on this accent came to 2.00:1 where the accent is used as a
        fill. Same hue, dark enough to read: 8.08. */
     --text-on-primary: #12241f;       /* 銅青 — the patina of unearthed bronzes */
-    --active-tab-bg: #3a2e1e;
-    --active-tab-border: #7fc4b8;
-    --hover-color: rgba(92, 76, 50, 0.45);
-    --bg-color-secondary: #463a26;
-    --bg-active: #5c4c32;
+    --active-tab-bg: #262823;
+    --active-tab-border: #7fb8ac;
+    --hover-color: rgba(70, 74, 64, 0.45);
+    --bg-color-secondary: #2e302a;
+    --bg-active: #3a3d35;
     --radius: 6px;
-    --table-header-bg: #463a26;
+    --table-header-bg: #2e302a;
 
     /* Shadows — deep, like a bundle resting on a dark shelf */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
@@ -707,34 +713,34 @@ body.theme-bamboo-ancient {
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.55);
 
     /* Syntax highlighting — ivory ink with verdigris and gold-leaf accents */
-    --hl-keyword: #7fc4b8;          /* verdigris */
-    --hl-control-flow: #d2a0c4;     /* faded cinnabar-purple */
-    --hl-built-in: #8fc9a8;         /* jade */
-    --hl-literal: #7fc4b8;
-    --hl-string: #ddb277;           /* aged ochre */
-    --hl-comment: #a89d84;          /* worn away, but still legible (4.9:1) */
-    --hl-function: #e0c87a;         /* gold leaf */
-    --hl-variable: #c2b89f;
-    --hl-number: #b7d19a;
-    --hl-operator: #e8e0cc;
+    --hl-keyword: #7fb8ac;          /* verdigris */
+    --hl-control-flow: #c4a2bb;     /* faded cinnabar-purple */
+    --hl-built-in: #8fbfa3;         /* jade */
+    --hl-literal: #7fb8ac;
+    --hl-string: #cfae7e;           /* aged ochre */
+    --hl-comment: #979a8c;          /* worn away, but still legible */
+    --hl-function: #d4c084;         /* gold leaf */
+    --hl-variable: #b9bbad;
+    --hl-number: #abc394;
+    --hl-operator: #dfe0d4;
 
     /* UI element colors */
-    --gutter-color: #a89d84;
-    --tab-inactive-color: #a89d84;
-    --tree-item-color: #c2b89f;
-    --tree-item-active-bg: rgba(127, 196, 184, 0.14);
-    --text-secondary: #a89d84;
+    --gutter-color: #979a8c;
+    --tab-inactive-color: #979a8c;
+    --tree-item-color: #b9bbad;
+    --tree-item-active-bg: rgba(127, 184, 172, 0.14);
+    --text-secondary: #979a8c;
 
     /* Markdown Premium Styles */
-    --code-color: #e0b878;
-    --code-bg: rgba(224, 184, 120, 0.10);
-    --code-border: rgba(224, 184, 120, 0.25);
-    --blockquote-bg: rgba(127, 196, 184, 0.08);
+    --code-color: #d4b57e;
+    --code-bg: rgba(212, 181, 126, 0.10);
+    --code-border: rgba(212, 181, 126, 0.25);
+    --blockquote-bg: rgba(127, 184, 172, 0.08);
 
     /* Selection */
-    --selection-bg: rgba(127, 196, 184, 0.28);
-    --selection-color: #f4eeda;
-    --cm-selection-bg: rgba(127, 196, 184, 0.24);
+    --selection-bg: rgba(127, 184, 172, 0.28);
+    --selection-color: #f0f1e6;
+    --cm-selection-bg: rgba(127, 184, 172, 0.24);
 
     /* Git Status Colors — kept distinct from the verdigris accent so a failure
        never reads as "the app is emphasising this". */
@@ -763,14 +769,14 @@ body.theme-bamboo-ancient {
        4px black gap. Three periods (18 / 54 / 126px) vary the tone slat to
        slat so the bundle doesn't read as a printed stripe. */
     --slip-slats:
-        repeating-linear-gradient(90deg, rgba(0,0,0,0.42) 0 1px, rgba(225,200,150,0.07) 1px 2px, transparent 2px 18px),
-        repeating-linear-gradient(90deg, rgba(225,200,150,0.035) 0 18px, transparent 18px 36px, rgba(0,0,0,0.06) 36px 54px),
-        repeating-linear-gradient(90deg, transparent 0 72px, rgba(0,0,0,0.07) 72px 90px, transparent 90px 108px, rgba(225,200,150,0.04) 108px 126px),
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.42) 0 1px, rgba(210,215,195,0.07) 1px 2px, transparent 2px 18px),
+        repeating-linear-gradient(90deg, rgba(210,215,195,0.035) 0 18px, transparent 18px 36px, rgba(0,0,0,0.06) 36px 54px),
+        repeating-linear-gradient(90deg, transparent 0 72px, rgba(0,0,0,0.07) 72px 90px, transparent 90px 108px, rgba(210,215,195,0.04) 108px 126px),
         repeating-linear-gradient(90deg, rgba(0,0,0,0.10) 0, transparent 5px, transparent 13px, rgba(0,0,0,0.10) 18px);
     /* Twisted hemp cord, drawn as its own layer (sized and placed in the rule
        that uses it). */
-    --slip-cord: repeating-linear-gradient(65deg, #241a0f 0 2px, #6a5233 2px 3px, #4a3822 3px 5px);
-    --slip-bar: var(--slip-slats), linear-gradient(180deg, rgba(225,205,165,0.06) 0%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0.28) 100%);
+    --slip-cord: repeating-linear-gradient(65deg, #1a1c17 0 2px, #4a4d42 2px 3px, #33362e 3px 5px);
+    --slip-bar: var(--slip-slats), linear-gradient(180deg, rgba(205,210,190,0.06) 0%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0.28) 100%);
 }
 
 /* A hanging scroll: bamboo at the rods, paper in between.
@@ -802,12 +808,12 @@ body.theme-bamboo-light #status-bar {
 body.theme-bamboo-ancient #custom-titlebar,
 body.theme-bamboo-light #custom-titlebar {
     border-bottom: 1px solid rgba(0, 0, 0, 0.55);
-    box-shadow: 0 1px 0 rgba(220, 205, 160, 0.10);
+    box-shadow: 0 1px 0 rgba(205, 210, 190, 0.10);
 }
 body.theme-bamboo-ancient #status-bar,
 body.theme-bamboo-light #status-bar {
     border-top: 1px solid rgba(0, 0, 0, 0.55);
-    box-shadow: 0 -1px 0 rgba(220, 205, 160, 0.10);
+    box-shadow: 0 -1px 0 rgba(205, 210, 190, 0.10);
 }
 
 /* Reading surfaces get the fibre grain only. The slat lines are 4px of near
@@ -890,14 +896,14 @@ body.theme-bamboo-ancient button,
 body.theme-bamboo-ancient select,
 body.theme-bamboo-ancient input[type="text"],
 body.theme-bamboo-ancient input[type="password"] {
-    background-color: #463a26;
-    color: #e8e0cc;
-    border: 1px solid #6b5a3c;
+    background-color: #2e302a;
+    color: #dfe0d4;
+    border: 1px solid #3c3f37;
     color-scheme: dark;
 }
 
 body.theme-bamboo-ancient button:hover {
-    background-color: #5c4c32;
+    background-color: #3a3d35;
 }
 
 body.theme-bamboo-ancient input[type="checkbox"] {
@@ -907,18 +913,18 @@ body.theme-bamboo-ancient input[type="checkbox"] {
 }
 
 body.theme-bamboo-ancient #explorer-search {
-    background-color: #463a26;
-    color: #e8e0cc;
-    border: 1px solid #6b5a3c;
+    background-color: #2e302a;
+    color: #dfe0d4;
+    border: 1px solid #3c3f37;
 }
 
 body.theme-bamboo-ancient #explorer-search::placeholder {
-    color: #a89d84;
+    color: #979a8c;
 }
 
 body.theme-bamboo-ancient .modal-content input,
 body.theme-bamboo-ancient .modal-content select {
-    color: #e8e0cc !important;
+    color: #dfe0d4 !important;
 }
 
 /* Floating surfaces rest on the deep bundle shadow. */
@@ -934,8 +940,8 @@ body.theme-bamboo-light .search-modal {
 }
 
 body.theme-bamboo-ancient option {
-    background-color: #463a26;
-    color: #e8e0cc;
+    background-color: #2e302a;
+    color: #dfe0d4;
 }
 
 
@@ -1918,10 +1924,16 @@ body.theme-sumi-e-dark .modal-content select { color: #e6e4dd !important; }
    From docs/design/editor-theme-dark-proposal.html. A notebook at night:
    dark kraft paper, white-chalk (moonlight) ink, and a red pen brightened to
    #d4705e. The handwritten chrome and ruled lines are kept, re-lit for dark.
+
+   Now pencil and highlighter (鉛筆と蛍光ペン). The kraft brown, and then a
+   warm grey with a red pen, both tired the eyes. The sheet is a
+   colourless pencil grey, the accent a yellow highlighter, and
+   a selected button is underlined rather than filled. The handwriting,
+   the ruled lines and the fibre stay: this is the handwritten theme.
    ========================================================================== */
 body.theme-paper-dark {
     /* Empty pane: the same pencil and clip, in chalk on kraft. */
-    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='340' viewBox='0 0 560 340' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.26' fill='none' stroke='%23e08a72' stroke-width='3' stroke-linecap='round' d='M14 316C60 298 84 330 124 312S190 300 226 306'/%3E%3Cg opacity='0.2' transform='translate(232 300)rotate(-30)' fill='%23efe5d2'%3E%3Cpath d='M0 0L70 -26V26Z' fill-opacity='.55'/%3E%3Cpath d='M0 0L24 -9V9Z'/%3E%3Crect x='70' y='-26' width='290' height='52'/%3E%3Crect x='360' y='-26' width='36' height='52' fill-opacity='.55'/%3E%3Crect x='396' y='-26' width='50' height='52' rx='12' fill='%23e08a72'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='190' viewBox='0 0 110 190'%3E%3Cpath opacity='0.26' transform='rotate(10 55 95)' fill='none' stroke='%23efe5d2' stroke-width='4' stroke-linecap='round' d='M36 18V142A24 24 0 0 0 84 142V42A16 16 0 0 0 52 42V128'/%3E%3C/svg%3E");
+    --empty-pane-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='340' viewBox='0 0 560 340' preserveAspectRatio='xMaxYMax meet'%3E%3Cpath opacity='0.26' fill='none' stroke='%23d9b56c' stroke-width='3' stroke-linecap='round' d='M14 316C60 298 84 330 124 312S190 300 226 306'/%3E%3Cg opacity='0.2' transform='translate(232 300)rotate(-30)' fill='%23e3e3e0'%3E%3Cpath d='M0 0L70 -26V26Z' fill-opacity='.55'/%3E%3Cpath d='M0 0L24 -9V9Z'/%3E%3Crect x='70' y='-26' width='290' height='52'/%3E%3Crect x='360' y='-26' width='36' height='52' fill-opacity='.55'/%3E%3Crect x='396' y='-26' width='50' height='52' rx='12' fill='%23d9b56c'/%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='190' viewBox='0 0 110 190'%3E%3Cpath opacity='0.26' transform='rotate(10 55 95)' fill='none' stroke='%23e3e3e0' stroke-width='4' stroke-linecap='round' d='M36 18V142A24 24 0 0 0 84 142V42A16 16 0 0 0 52 42V128'/%3E%3C/svg%3E");
     --empty-pane-art-position: right bottom, left 28px top 10px;
     --empty-pane-art-size: auto 38%, auto 26%;
 
@@ -1931,40 +1943,40 @@ body.theme-paper-dark {
        sheet distinct from what it lies on, and a hue. The sheet is now
        brown kraft paper with a fibre grain, on a darker desk, and casts a
        shadow there (see below). */
-    --bg-color: #382c20;            /* kraft paper at night */
-    --sidebar-bg: #221a13;          /* the desk */
-    --header-bg: #221a13;
-    --border-color: #55452f;
-    --text-color: #efe5d2;          /* white chalk / moonlight pen */
-    --primary-color: #e08a72;       /* red pen, lifted for kraft (5.2:1) */
-    --text-on-primary: #2a0e0a;
-    --active-tab-bg: #382c20;
-    --active-tab-border: #e08a72;
-    --hover-color: #3f3226;
-    --bg-color-secondary: #40332a;
-    --bg-active: #46382a;
+    --bg-color: #242424;            /* pencil-grey paper */
+    --sidebar-bg: #1c1c1c;          /* the desk */
+    --header-bg: #1c1c1c;
+    --border-color: #363636;
+    --text-color: #e3e3e0;          /* pencil, not white */
+    --primary-color: #d9b56c;       /* yellow highlighter */
+    --text-on-primary: #2a2208;
+    --active-tab-bg: #242424;
+    --active-tab-border: #d9b56c;
+    --hover-color: #2e2e2e;
+    --bg-color-secondary: #2c2c2c;
+    --bg-active: #333331;
     --radius: 6px;
-    --table-header-bg: #40332a;
+    --table-header-bg: #2c2c2c;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
 
-    --hl-keyword: #e08a94;
-    --hl-control-flow: #d0a0d0;
+    --hl-keyword: #d9b56c;
+    --hl-control-flow: #c4a7cf;
     --hl-built-in: #8fc9a8;
-    --hl-literal: #e08a94;
-    --hl-string: #9fbf8f;
-    --hl-comment: #b3a690;
-    --hl-function: #e0c08a;
-    --hl-variable: #c8bfae;
-    --hl-number: #8fb4e0;
-    --hl-operator: #efe5d2;
+    --hl-literal: #d9b56c;
+    --hl-string: #b5c98e;
+    --hl-comment: #8f8f8a;
+    --hl-function: #9ccbb5;
+    --hl-variable: #c8c8c3;
+    --hl-number: #8fb4d9;
+    --hl-operator: #e3e3e0;
 
-    --gutter-color: #b3a690;
-    --tab-inactive-color: #b3a690;
-    --tree-item-color: #efe5d2;
-    --tree-item-active-bg: rgba(224, 138, 114, 0.14);
-    --text-secondary: #b0a89a;
+    --gutter-color: #8f8f8a;
+    --tab-inactive-color: #8f8f8a;
+    --tree-item-color: #e3e3e0;
+    --tree-item-active-bg: rgba(217, 181, 108, 0.14);
+    --text-secondary: #9a9a95;
 
     --code-color: #a9c3dd;          /* blue-black ink, lifted for the dark */
     --code-bg: rgba(169, 195, 221, 0.10);
@@ -1972,11 +1984,11 @@ body.theme-paper-dark {
     --danger-base: #e0806e;
     --blockquote-bg: rgba(232, 226, 214, 0.05);
 
-    --selection-bg: rgba(224, 138, 114, 0.28);
-    --selection-color: #efe5d2;
-    --cm-selection-bg: rgba(224, 138, 114, 0.24);
+    --selection-bg: rgba(217, 181, 108, 0.28);
+    --selection-color: #e3e3e0;
+    --cm-selection-bg: rgba(217, 181, 108, 0.24);
 
-    --git-modified-color: #d9a44a;
+    --git-modified-color: #e39b5b;
     --git-staged-color: #8fc9a8;
     --git-untracked-color: #8fc9a8;
 
@@ -1984,7 +1996,7 @@ body.theme-paper-dark {
     --paper-chrome-font: var(--font-hand);
     --paper-rule-color: rgba(232, 226, 214, 0.045);  /* was 0.10: read as a grid, not a ruled page */
     --paper-rule-size: 27px;
-    --paper-margin-color: rgba(224, 138, 114, 0.28);
+    --paper-margin-color: rgba(217, 181, 108, 0.28);
     --paper-vignette: rgba(0, 0, 0, 0.35);
     /* Kraft fibre: short, isotropic flecks, faint enough to sit under text. */
     --kraft-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='k'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.06'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23k)'/%3E%3C/svg%3E");
@@ -1992,11 +2004,12 @@ body.theme-paper-dark {
 
 body.theme-paper-dark {
     background:
-        radial-gradient(140% 120% at 20% -10%, rgba(90, 70, 48, 0.35), transparent 60%),
+        radial-gradient(140% 120% at 20% -10%, rgba(60, 60, 58, 0.30), transparent 60%),
         radial-gradient(160% 140% at 115% 120%, var(--paper-vignette), transparent 55%),
         var(--sidebar-bg);
 }
 
+/* The handwriting stays: Paper is the one handwritten theme, light or dark. */
 body.theme-paper-dark #explorer,
 body.theme-paper-dark #tab-bar,
 body.theme-paper-dark #status-bar,
@@ -2007,6 +2020,14 @@ body.theme-paper-dark .settings-modal-content,
 body.theme-paper-dark button {
     font-family: var(--paper-chrome-font);
     letter-spacing: 0.2px;
+}
+
+/* A selected switch is underlined in highlighter, not filled with it: a
+   block of yellow in a dark settings page is the loudest thing on screen. */
+body.theme-paper-dark #settings-general .theme-mode-switch button.is-on {
+    background: var(--bg-active);
+    color: var(--text-color);
+    box-shadow: inset 0 -2px 0 var(--primary-color);
 }
 
 body.theme-paper-dark .cm-editor,
@@ -2052,31 +2073,31 @@ body.theme-paper-dark .search-modal {
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
 }
 
-body.theme-paper-dark option { background-color: #382c20; color: #efe5d2; }
+body.theme-paper-dark option { background-color: #242424; color: #e3e3e0; }
 
 body.theme-paper-dark button,
 body.theme-paper-dark select,
 body.theme-paper-dark input[type="text"],
 body.theme-paper-dark input[type="password"] {
-    background-color: #40332a;
-    color: #efe5d2;
-    border: 1px solid #55452f;
+    background-color: #2c2c2c;
+    color: #e3e3e0;
+    border: 1px solid #363636;
     color-scheme: dark;
 }
-body.theme-paper-dark button:hover { background-color: #3f3226; }
+body.theme-paper-dark button:hover { background-color: #2e2e2e; }
 body.theme-paper-dark input[type="checkbox"] {
     accent-color: var(--primary-color);
     color-scheme: dark;
     cursor: pointer;
 }
 body.theme-paper-dark #explorer-search {
-    background-color: #40332a;
-    color: #efe5d2;
-    border: 1px solid #55452f;
+    background-color: #2c2c2c;
+    color: #e3e3e0;
+    border: 1px solid #363636;
 }
-body.theme-paper-dark #explorer-search::placeholder { color: #b3a690; }
+body.theme-paper-dark #explorer-search::placeholder { color: #8f8f8a; }
 body.theme-paper-dark .modal-content input,
-body.theme-paper-dark .modal-content select { color: #efe5d2 !important; }
+body.theme-paper-dark .modal-content select { color: #e3e3e0 !important; }
 
 /* ============================================================================
    ☕ Mocha — Latte のダーク版 (latte-dark)

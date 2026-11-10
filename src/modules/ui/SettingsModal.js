@@ -13,7 +13,7 @@ import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './Rege
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
-import { explorerOpensOn, setExplorerOpensOn } from '../utils/ExplorerPrefs.js';
+import { explorerListsFolders, explorerOpensOn, setExplorerListsFolders, setExplorerOpensOn } from '../utils/ExplorerPrefs.js';
 import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
@@ -800,6 +800,8 @@ export function initSettingsModal() {
             if (scrollbackInput) scrollbackInput.value = String(terminalScrollback());
             const explorerOpen = document.getElementById('explorer-open-selector');
             if (explorerOpen) explorerOpen.value = explorerOpensOn();
+            const folderList = document.getElementById('explorer-folder-list');
+            if (folderList) folderList.checked = explorerListsFolders();
 
             // From the welcome screen there is no editor on screen to hold a tab.
             const welcome = document.getElementById('welcome-screen');
@@ -880,6 +882,11 @@ export function initSettingsModal() {
     const explorerOpenSelector = document.getElementById('explorer-open-selector');
     if (explorerOpenSelector) {
         explorerOpenSelector.onchange = (e) => setExplorerOpensOn(e.target.value);
+    }
+    const folderListToggle = document.getElementById('explorer-folder-list');
+    if (folderListToggle) {
+        folderListToggle.checked = explorerListsFolders();
+        folderListToggle.onchange = (e) => setExplorerListsFolders(e.target.checked);
     }
 
     if (fontFamilySelector) {

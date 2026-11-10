@@ -21,7 +21,7 @@
  *  - `→` in prose ("Settings → General → Export"). That is punctuation inside a
  *    sentence, not an icon, and an SVG in the middle of a clause would break
  *    the line box.
- *  - `↵` `←` `→` in keyboard hints ("Send ↵", "Alt + ← / → : turn page").
+ *  - `↵` `←` `→` in keyboard hints ("Send ↵", "Ctrl + ← / → : turn page").
  *    Those name a KEY. Redrawing them would say something different.
  *  - CodeMirror's whitespace and line-ending markers (`□` `→` `↵`). Those stand
  *    for characters in the document and belong to the editor's own rendering.
@@ -112,6 +112,11 @@ const STROKE = {
     // Two sheets, one behind the other — the copy mark everyone already reads.
     // 'copy-table' below is the same idea with a table drawn on it, and is
     // wrong anywhere the thing being copied is not a table.
+    scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
+    'file-plus': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>',
+    'folder-plus': '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
     copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/>',
     'copy-table': '<rect x="8" y="3" width="13" height="13" rx="2"/><line x1="8" y1="8" x2="21" y2="8"/><line x1="14" y1="8" x2="14" y2="16"/><path d="M16 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"/>',
 };

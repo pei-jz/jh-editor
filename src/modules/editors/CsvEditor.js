@@ -1504,34 +1504,34 @@ class CsvController {
         if (r === -1) {
             // Column Header Context Menu
             menuItems = [
-                { label: t('Sort Ascending'), action: () => this.sortColumn(c, 'asc') },
-                { label: t('Sort Descending'), action: () => this.sortColumn(c, 'desc') },
+                { icon: 'triangle-up', label: t('Sort Ascending'), action: () => this.sortColumn(c, 'asc') },
+                { icon: 'triangle-down', label: t('Sort Descending'), action: () => this.sortColumn(c, 'desc') },
                 { type: 'separator' },
-                { label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
-                { label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
-                { label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
-                { label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
-                { label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
+                { icon: 'plus', label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
+                { icon: 'plus', label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
+                { icon: 'copy-table', label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
+                { icon: 'copy-table', label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
+                { icon: 'trash', label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
             ];
         } else {
             // Standard cell context menu
             menuItems = [
-                { label: t('Refresh'), action: () => this.view.refreshSelection() },
+                { icon: 'refresh', label: t('Refresh'), action: () => this.view.refreshSelection() },
                 { type: 'separator' },
-                { label: t('Transpose'), action: () => this.transpose() },
+                { icon: 'swap', label: t('Transpose'), action: () => this.transpose() },
                 { type: 'separator' },
-                { label: t('Insert Row Above'), action: () => { this.model.insertRow(r); this.view.updateData(); } },
-                { label: t('Insert Row Below'), action: () => { this.model.insertRow(r + 1); this.view.updateData(); } },
-                { label: t('Insert Copied Rows Above'), action: () => this.insertCopiedRows(r) },
-                { label: t('Insert Copied Rows Below'), action: () => this.insertCopiedRows(r + 1) },
+                { icon: 'plus', label: t('Insert Row Above'), action: () => { this.model.insertRow(r); this.view.updateData(); } },
+                { icon: 'plus', label: t('Insert Row Below'), action: () => { this.model.insertRow(r + 1); this.view.updateData(); } },
+                { icon: 'copy-table', label: t('Insert Copied Rows Above'), action: () => this.insertCopiedRows(r) },
+                { icon: 'copy-table', label: t('Insert Copied Rows Below'), action: () => this.insertCopiedRows(r + 1) },
                 { type: 'separator' },
-                { label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
-                { label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
-                { label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
-                { label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
+                { icon: 'plus', label: t('Insert Column Left'), action: () => { this.model.insertCol(c); this.view.updateData(); } },
+                { icon: 'plus', label: t('Insert Column Right'), action: () => { this.model.insertCol(c + 1); this.view.updateData(); } },
+                { icon: 'copy-table', label: t('Insert Copied Columns Left'), action: () => this.insertCopiedCols(c) },
+                { icon: 'copy-table', label: t('Insert Copied Columns Right'), action: () => this.insertCopiedCols(c + 1) },
                 { type: 'separator' },
-                { label: t('Delete Row'), action: () => { this.model.deleteRow(r); this.view.updateData(); } },
-                { label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
+                { icon: 'trash', label: t('Delete Row'), action: () => { this.model.deleteRow(r); this.view.updateData(); } },
+                { icon: 'trash', label: t('Delete Column'), action: () => { this.model.deleteCol(c); this.view.updateData(); } }
             ];
         }
         ContextMenu.show(e, menuItems);

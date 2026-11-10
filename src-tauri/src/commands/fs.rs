@@ -108,6 +108,43 @@ pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(result)
 }
 
+#[derive(serde::Serialize)]
+pub struct DirDetail {
+    name: String,
+    path: String,
+    is_directory: bool,
+    size: u64,
+    /// Milliseconds since the epoch; 0 when the filesystem has no answer.
+    modified: f64,
+}
+
+/// One folder's entries with what the folder list shows. Apart from read_dir
+/// because the tree reads far more folders and needs none of this. An entry
+/// that cannot be examined is listed with what is known, not dropped.
+#[command(async)]
+pub fn read_dir_details(path: String) -> Result<Vec<DirDetail>, String> {
+    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for entry in entries.flatten() {
+        let full = entry.path();
+        let meta = fs::metadata(&full).or_else(|_| entry.metadata()).ok();
+        let is_directory = meta.as_ref().is_some_and(|m| m.is_dir());
+        let modified = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0.0, |d| d.as_millis() as f64);
+        result.push(DirDetail {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: full.to_string_lossy().to_string(),
+            is_directory,
+            size: if is_directory { 0 } else { meta.as_ref().map_or(0, |m| m.len()) },
+            modified,
+        });
+    }
+    Ok(result)
+}
+
 #[command(async)]
 pub fn read_file(path: String) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|e| e.to_string())

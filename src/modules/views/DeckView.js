@@ -601,10 +601,10 @@ export class DeckView extends BaseView {
     _slideMenu(e, index) {
         const count = this.slideInfo ? this.slideInfo.length : 0;
         ContextMenu.show(e, [
-            { label: `${t('Duplicate')}  (Ctrl+D)`, action: () => this._duplicate(index) },
-            { label: `${t('Move up')}  (Alt+↑)`, action: () => this._move(index, index - 1), disabled: index === 0 },
-            { label: `${t('Move down')}  (Alt+↓)`, action: () => this._move(index, index + 1), disabled: index >= count - 1 },
-            { label: `${t('Delete')}  (Delete)`, action: () => this._delete(index), disabled: count <= 1 },
+            { icon: 'copy', label: `${t('Duplicate')}  (Ctrl+D)`, action: () => this._duplicate(index) },
+            { icon: 'arrow-up', label: `${t('Move up')}  (Alt+↑)`, action: () => this._move(index, index - 1), disabled: index === 0 },
+            { icon: 'arrow-down', label: `${t('Move down')}  (Alt+↓)`, action: () => this._move(index, index + 1), disabled: index >= count - 1 },
+            { icon: 'trash', label: `${t('Delete')}  (Delete)`, action: () => this._delete(index), disabled: count <= 1 },
         ].filter((i) => !i.disabled));
     }
 

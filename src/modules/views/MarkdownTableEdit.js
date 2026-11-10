@@ -620,12 +620,12 @@ export class MarkdownTableEdit {
                 if (this._showRange()) document.execCommand('copy');
             }
             : () => view.copy();
-        const items = [{ label: t('Copy'), action: copy }, { type: 'separator' }];
-        if (b.r1 > 0) items.push({ label: t('Insert Row Above'), hint: 'Ctrl+Shift++', action: op('row-above', b.r1, b.c1) });
+        const items = [{ icon: 'copy', label: t('Copy'), action: copy }, { type: 'separator' }];
+        if (b.r1 > 0) items.push({ icon: 'plus', label: t('Insert Row Above'), hint: 'Ctrl+Shift++', action: op('row-above', b.r1, b.c1) });
         items.push(
-            { label: t('Insert Row Below'), action: op('row-below', b.r2, b.c1) },
-            { label: t('Insert Column Left'), action: op('col-left', b.r1, b.c1) },
-            { label: t('Insert Column Right'), action: op('col-right', b.r1, b.c2) },
+            { icon: 'plus', label: t('Insert Row Below'), action: op('row-below', b.r2, b.c1) },
+            { icon: 'plus', label: t('Insert Column Left'), action: op('col-left', b.r1, b.c1) },
+            { icon: 'plus', label: t('Insert Column Right'), action: op('col-right', b.r1, b.c2) },
         );
 
         // 見出し行は消さない。範囲に含まれていても数えない。
@@ -634,7 +634,7 @@ export class MarkdownTableEdit {
         const colsToDelete = b.c2 - b.c1 + 1;
         items.push({ type: 'separator' });
         items.push({
-            label: t('Clear Contents'),
+            icon: 'x', label: t('Clear Contents'),
             action: () => {
                 restore();
                 this._rewrite((loc) => clearCells(loc.text, loc.source, b));
@@ -642,20 +642,20 @@ export class MarkdownTableEdit {
         });
         if (rowsToDelete > 0) {
             items.push({
-                label: rowsToDelete > 1 ? t('Delete {n} Rows', { n: rowsToDelete }) : t('Delete Row'),
+                icon: 'trash', label: rowsToDelete > 1 ? t('Delete {n} Rows', { n: rowsToDelete }) : t('Delete Row'),
                 hint: 'Ctrl+-',
                 action: op('row-delete', firstRow, b.c1, b.r2, b.c2),
             });
         }
         if (colsToDelete < located.source.columns) {
             items.push({
-                label: colsToDelete > 1 ? t('Delete {n} Columns', { n: colsToDelete }) : t('Delete Column'),
+                icon: 'trash', label: colsToDelete > 1 ? t('Delete {n} Columns', { n: colsToDelete }) : t('Delete Column'),
                 action: op('col-delete', b.r1, b.c1, b.r2, b.c2),
             });
         }
         items.push(
             { type: 'separator' },
-            { label: t('Edit this block'), hint: 'F2', action: () => view.editSelectedBlock() },
+            { icon: 'pencil', label: t('Edit this block'), hint: 'F2', action: () => view.editSelectedBlock() },
         );
         ContextMenu.show(e, items);
     }

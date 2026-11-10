@@ -655,7 +655,6 @@
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 10px;
     margin-bottom: 16px;
-    scrollbar-width: thin;
     flex-shrink: 0;
 }
 
@@ -668,9 +667,8 @@
     border-radius: 0;
 }
 
-.tnp-tabs:hover::-webkit-scrollbar-thumb,
 .tnp-tabs.is-scrolling::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.26));
+    background-color: color-mix(in srgb, var(--scrollbar-thumb, rgba(0, 0, 0, 0.26)) 40%, transparent);
 }
 
 .tnp-tab-item {
