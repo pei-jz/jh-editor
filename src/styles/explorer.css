@@ -1860,6 +1860,7 @@ body.theme-solarized-dark .tree-icon {
     font-size: 13px;
     color: var(--text-color);
     container-type: inline-size;
+    position: relative;
 }
 
 .flv-bar {
@@ -1891,14 +1892,80 @@ body.theme-solarized-dark .tree-icon {
     cursor: default;
 }
 
+/* The address: each folder in the workspace is a link (FolderListView._drawPath).
+   It scrolls sideways instead of wrapping, with no bar: the end stays in view. */
 .flv-path {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    white-space: nowrap;
+    font-family: var(--editor-font-family, monospace);
+    font-size: 12px;
+}
+
+.flv-path::-webkit-scrollbar {
+    display: none;
+}
+
+/* Specific enough to win over themes that box every button (Paper dark). */
+.flv .flv-path .flv-crumb {
+    flex-shrink: 0;
+    padding: 1px 3px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+
+button.flv-crumb {
+    cursor: pointer;
+}
+
+.flv .flv-path button.flv-crumb:hover {
+    background: var(--hover-color);
+    text-decoration: underline;
+}
+
+/* Above the workspace: shown so the place is clear, but not a way out. */
+.flv-crumb-outside,
+.flv-crumb-sep {
+    color: color-mix(in srgb, var(--text-color) 50%, transparent);
+}
+
+.flv-crumb-current {
+    font-weight: 600;
+}
+
+/* Solid, so it shows round the edges of a drag image that covers the name. */
+.flv .flv-path .flv-crumb.flv-drop {
+    background: var(--primary-color);
+    color: var(--text-on-primary, #fff);
+}
+
+/* "Move to <folder>" under the drop target (FolderListView._showDropHint). */
+.flv-drop-hint {
+    position: absolute;
+    z-index: 20;
+    max-width: 240px;
+    padding: 3px 8px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-family: var(--editor-font-family, monospace);
+    border-radius: 4px;
+    background: var(--primary-color);
+    color: var(--text-on-primary, #fff);
     font-size: 12px;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.flv-drop-hint[hidden] {
+    display: none;
 }
 
 .flv-count {
@@ -2042,8 +2109,39 @@ body.theme-solarized-dark .tree-icon {
     color: var(--selection-color, var(--text-color));
 }
 
+.flv-list:focus .flv-row.cursor:not(.selected) {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--selection-bg) 80%, transparent);
+}
+
 .flv-external .flv-label {
     color: color-mix(in srgb, var(--text-color) 70%, transparent);
+}
+
+/* Cut, waiting for a paste: dimmed, as in Explorer. */
+.flv-row.flv-cut .flv-cell {
+    color: color-mix(in srgb, var(--text-color) 45%, transparent);
+}
+
+/* Where a drop would land: a folder row, or the whole list for this folder. */
+.flv-list .flv-row.flv-drop {
+    background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+    box-shadow: inset 0 0 0 1px var(--primary-color);
+}
+
+.flv-list.flv-drop {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary-color) 60%, transparent);
+}
+
+.flv .flv-row .flv-rename {
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid var(--primary-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font: inherit;
+    outline: none;
 }
 
 .flv-empty {

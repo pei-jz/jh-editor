@@ -933,22 +933,7 @@ class VirtualExplorer {
             labelSpan.style.display = 'inline';
             div.focus();
 
-            if (newName && newName !== item.name) {
-                const parent = item.parent || FS.getParentDir(item.path);
-                const newPath = FS.joinPath(parent, newName);
-                try {
-                    if (await FS.exists(newPath)) {
-                        showAlert('File exists!', { title: 'Rename', kind: 'warning' });
-                        return;
-                    }
-                    await FS.rename(item.path, newPath);
-                    retargetTabs(item.path, newPath);
-                    if (this.dirCache) this.dirCache.delete(parent);
-                    await loadExplorer();
-                } catch (err) {
-                    showAlert('Rename failed: ' + err, { title: 'Rename', kind: 'error' });
-                }
-            }
+            if (newName && newName !== item.name) await renamePath(item.path, newName);
         };
 
         const cancel = () => {
@@ -1811,25 +1796,75 @@ async function handleNewFile(dir) {
         // Use the specified encoding
         await FS.writeFile(targetPath, '', res.encoding); // Empty file
         await loadExplorer(true); // Force Refresh
+        filesChanged();
 
         // Optional: Auto-open the newly created file
         if (openFileCallback) openFileCallback(targetPath);
+        return targetPath;
 
     } catch (err) {
         showAlert('Failed to create file: ' + err, { title: 'New File', kind: 'error' });
     }
+    return null;
 }
 
+/** Returns the folder made, or null. */
 async function handleNewFolder(dir) {
-    const name = await showCustomInput('New Folder', 'Enter folder name:');
-    if (!name) return;
-    const targetPath = FS.joinPath(dir, name);
-    if (await FS.exists(targetPath)) {
-        await showAlert('Exists!', { title: 'New Folder', kind: 'warning' });
-        return;
+    const name = await showCustomInput(t('New Folder'), t('Enter folder name:'));
+    if (!name || !name.trim()) return null;
+    const targetPath = FS.joinPath(dir, name.trim());
+    try {
+        if (await FS.exists(targetPath)) {
+            await showAlert(t('{name} already exists.', { name: name.trim() }), { title: t('New Folder'), kind: 'warning' });
+            return null;
+        }
+        await FS.createDirectory(targetPath);
+    } catch (err) {
+        showAlert(String((err && err.message) || err), { title: t('New Folder'), kind: 'error' });
+        return null;
     }
-    await FS.createDirectory(targetPath);
     await loadExplorer(true); // Force Refresh
+    filesChanged();
+    return targetPath;
+}
+
+/**
+ * Rename `path` to `newName` in the same folder; open tabs follow it. Returns
+ * the new path, or null when nothing was renamed.
+ */
+async function renamePath(path, newName) {
+    const name = String(newName || '').trim();
+    if (!name || name === FS.getBasename(path)) return null;
+    if (/[\\/]/.test(name)) {
+        showAlert(t('A name cannot contain a slash.'), { title: t('Rename'), kind: 'warning' });
+        return null;
+    }
+    const parent = FS.getParentDir(path);
+    const newPath = FS.joinPath(parent, name);
+    try {
+        // A change of case only is the same file on Windows: exists() says yes.
+        if (normPath(newPath) !== normPath(path) && await FS.exists(newPath)) {
+            showAlert(t('{name} already exists.', { name }), { title: t('Rename'), kind: 'warning' });
+            return null;
+        }
+        await FS.rename(path, newPath);
+        retargetTabs(path, newPath);
+    } catch (err) {
+        showAlert(t('Rename failed: {error}', { error: (err && err.message) || err }), { title: t('Rename'), kind: 'error' });
+        return null;
+    }
+    if (vExplorer) vExplorer.dirCache.delete(parent);
+    await loadExplorer();
+    filesChanged();
+    return newPath;
+}
+
+/**
+ * Tell whoever shows files (the folder list) that the tree has just changed
+ * them. Only changes made in the app: nothing watches the disk.
+ */
+function filesChanged() {
+    window.dispatchEvent(new CustomEvent('workspace-files-changed'));
 }
 
 function handleRename(path) {
@@ -1926,6 +1961,7 @@ async function handleDelete(pathOrPaths, { permanent = false } = {}) {
     }
     await loadExplorer(true); // Force Refresh
     focusPath(after);
+    filesChanged();
 }
 
 /**
@@ -1975,7 +2011,7 @@ async function copyPathsAsText(paths, relative) {
  * tree, files copied in Explorer afterwards could never be pasted here.
  */
 async function handlePaste(targetDir) {
-    if (!targetDir) return;
+    if (!targetDir) return [];
     let osSeq = null;
     try { osSeq = await FS.clipboardSequence(); } catch (_) { /* no OS clipboard: ours it is */ }
     const ours = clipboardAction && clipboardAction.paths.length ? clipboardAction : null;
@@ -1989,12 +2025,14 @@ async function handlePaste(targetDir) {
     } else {
         try { sources = (await FS.pasteFiles()) || []; } catch (_) { sources = []; }
     }
-    if (!sources.length) return;
+    if (!sources.length) return [];
 
     const done = await transferInto(targetDir, sources, type === 'cut' ? 'move' : 'copy');
     if (type === 'cut' && clipboardAction === ours) clipboardAction = null;
     await loadExplorer(true);
     if (done.length) focusPath(done[done.length - 1]);
+    filesChanged();
+    return done;
 }
 
 /**
@@ -2072,10 +2110,10 @@ async function handleDropEvent(e, targetDir) {
         mode = 'copy';
         if (!sources.length && files.length) {
             showAlert(t('Could not open the dropped files.'), { title: t('Copy'), kind: 'error' });
-            return;
+            return [];
         }
     }
-    if (!sources.length) return;
+    if (!sources.length) return [];
 
     const done = await transferInto(targetDir, sources, mode);
 
@@ -2087,7 +2125,43 @@ async function handleDropEvent(e, targetDir) {
 
     await loadExplorer(true);
     if (done.length) focusPath(done[done.length - 1]);
+    filesChanged();
+    return done;
 }
+
+/**
+ * The tree's file operations, for the folder list (views/FolderListView.js).
+ * One set of rules for both: the same clipboard, the same "copy never
+ * overwrites", and a drag from either side is a move on the other.
+ */
+export const fileOps = {
+    newFile: handleNewFile,
+    newFolder: handleNewFolder,
+    copy: handleCopy,
+    cut: handleCut,
+    paste: handlePaste,
+    rename: renamePath,
+    delete: handleDelete,
+    copyPaths: copyPathsAsText,
+    isCut: (path) => !!clipboardAction && clipboardAction.type === 'cut'
+        && clipboardAction.paths.some((p) => normPath(p) === normPath(path)),
+    /** Start dragging rows; `onEnd` runs when the drag is over, wherever it ended. */
+    beginDrag: (e, paths, onEnd) => beginRowDrag(e, paths, onEnd),
+    endDrag: () => { if (!nativeDragRunning) dragPaths = null; },
+    acceptsDrop: (e, dir) => acceptsDrop(e, dir),
+    dropEffect: (e) => dropEffectFor(e),
+    /**
+     * What a drop would really do, 'move' or 'copy'. The OS drag can only
+     * offer a copy, so its cursor says "copy" even for a move.
+     */
+    dropMode: (e) => {
+        const types = Array.from((e.dataTransfer && e.dataTransfer.types) || []);
+        const ours = !!dragPaths || types.includes('application/x-editor-item');
+        return ours && !(e.ctrlKey || e.metaKey) ? 'move' : 'copy';
+    },
+    drop: (e, dir) => handleDropEvent(e, dir),
+    refreshTree: () => loadExplorer(true),
+};
 
 export function showExplorerStatus(scanned, total, found, path, percent) {
     if (vExplorer) vExplorer.showProgress(scanned, total, found, path, percent);

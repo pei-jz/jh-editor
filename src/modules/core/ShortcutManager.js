@@ -11,6 +11,18 @@ import { formatBinding } from './CommandRegistry.js';
 const BACKSLASH_CODES = ['Backslash', 'IntlYen', 'IntlRo'];
 const BACKSLASH_CHARS = ['\\', '|', '¥', '｜', '_', 'unidentified', 'process'];
 
+/**
+ * Keys a list of files in the editor (`data-shortcut-keys="files"`) answers
+ * itself: clipboard, select all, new file / folder, rename and delete.
+ */
+export function isFileListKey(key, e) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    const k = String(key).toLowerCase();
+    if (e.altKey) return false;
+    if (ctrl) return ['c', 'x', 'v', 'a', 'n'].includes(k);
+    return k === 'delete' || k === 'f2';
+}
+
 export class ShortcutManager {
     constructor() {
         this.shortcuts = [];
@@ -238,6 +250,13 @@ export class ShortcutManager {
         if (e.altKey && !e.ctrlKey && !e.metaKey && /^Arrow/.test(key)
             && e.target && typeof e.target.closest === 'function'
             && e.target.closest('[data-shortcut-keys="alt-arrows"]')) return;
+        // A list of files in the editor (the folder list) takes the file
+        // manager's keys for itself: Ctrl+C/X/V copy files rather than text,
+        // Delete, F2 and Ctrl+N act on the folder shown. Everything else
+        // (Ctrl+W, Ctrl+Tab, Alt+arrows) still reaches the app.
+        if (e.target && typeof e.target.closest === 'function'
+            && e.target.closest('[data-shortcut-keys="files"]')
+            && isFileListKey(key, e)) return;
 
         // When focus is inside the search panel, let the modal handle all keys itself.
         // Only allow Ctrl+F / Ctrl+H through (to re-open or toggle the modal).

@@ -1079,4 +1079,10 @@ export default {
     'This folder is empty.': 'このフォルダーは空です。',
     'Could not read this folder.': 'このフォルダーを読み込めませんでした。',
     'Explorer: show the selected folder in the Folder List tab': 'エクスプローラー: 選んだフォルダーを「フォルダー一覧」タブに表示',
+    'Enter folder name:': 'フォルダー名を入力してください:',
+    'A name cannot contain a slash.': '名前にスラッシュ記号は使えません。',
+    'Rename failed: {error}': '名前を変更できませんでした: {error}',
+    '{name} already exists.': '{name} はすでにあります。',
+    'Move to {name}': '{name} へ移動',
+    'Copy to {name}': '{name} へコピー',
 };

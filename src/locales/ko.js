@@ -1079,4 +1079,10 @@ export default {
     'This folder is empty.': '이 폴더는 비어 있습니다.',
     'Could not read this folder.': '이 폴더를 읽을 수 없습니다.',
     'Explorer: show the selected folder in the Folder List tab': '탐색기: 선택한 폴더를 "폴더 목록" 탭에 표시',
+    'Enter folder name:': '폴더 이름을 입력하세요:',
+    'A name cannot contain a slash.': '이름에 슬래시를 쓸 수 없습니다.',
+    'Rename failed: {error}': '이름을 바꾸지 못했습니다: {error}',
+    '{name} already exists.': '{name}이(가) 이미 있습니다.',
+    'Move to {name}': '{name}(으)로 이동',
+    'Copy to {name}': '{name}(으)로 복사',
 };

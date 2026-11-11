@@ -728,6 +728,8 @@ async function bootstrap() {
             }
             // ファイル検索の一覧も作り直す(新しく増えたファイルが Ctrl+P で見つかるように)
             FileSearchModal.invalidateCache();
+            // フォルダー一覧のタブも読み直す
+            window.dispatchEvent(new CustomEvent('workspace-files-changed'));
             return loadExplorer(...args);
         },
         'app:shortcut-guide': toggleShortcutGuide,
@@ -941,12 +943,14 @@ async function bootstrap() {
     };
 
     // Places with their own use for a dropped file keep it: the terminal types
-    // the path, the file tree copies it into the folder it lands on, and a
-    // Markdown block editor saves an image next to the note.
+    // the path, the file tree and the folder list (an OS drag from either of
+    // them arrives here as a file from outside) move or copy it into the
+    // folder it lands on, and a Markdown block editor saves an image next to
+    // the note.
     const keepsOwnDrop = (target, files) => {
         if (!target || typeof target.closest !== 'function') return false;
         if (EL.terminal && EL.terminal.panel && EL.terminal.panel.contains(target)) return true;
-        if (State.currentDir && target.closest('#file-list')) return true;
+        if (State.currentDir && target.closest('#file-list, .flv')) return true;
         return !!target.closest('.md-block, .block-editor')
             && files.length > 0 && files.every((f) => /^image\//.test(f.type || ''));
     };

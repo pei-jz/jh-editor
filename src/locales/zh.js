@@ -1079,4 +1079,10 @@ export default {
     'This folder is empty.': '此文件夹为空。',
     'Could not read this folder.': '无法读取此文件夹。',
     'Explorer: show the selected folder in the Folder List tab': '资源管理器：在“文件夹列表”标签中显示所选文件夹',
+    'Enter folder name:': '请输入文件夹名称:',
+    'A name cannot contain a slash.': '名称中不能包含斜杠。',
+    'Rename failed: {error}': '重命名失败: {error}',
+    '{name} already exists.': '{name} 已存在。',
+    'Move to {name}': '移动到 {name}',
+    'Copy to {name}': '复制到 {name}',
 };

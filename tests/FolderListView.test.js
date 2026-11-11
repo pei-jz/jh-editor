@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
-const { fileType, parentFolder, sortEntries } = await import('../src/modules/views/FolderListView.js');
+const { breadcrumbs, compareTarget, fileType, parentFolder, sortEntries, upFrom } = await import('../src/modules/views/FolderListView.js');
 
 const dir = (name, modified = 0) => ({ name, is_directory: true, size: 0, modified });
 const file = (name, size = 0, modified = 0) => ({ name, is_directory: false, size, modified });
@@ -62,5 +62,51 @@ describe('the workspace is the top', () => {
         expect(upFrom('C:/ws', 'C:/ws')).toBeNull();
         expect(upFrom('C:/wsx/a', 'C:/ws')).toBeNull();
         expect(upFrom('C:/a', null)).toBe('C:/');
+    });
+});
+
+describe('folder list address', () => {
+    it('links each folder inside the workspace and none above it', () => {
+        const crumbs = breadcrumbs('C:/work/proj/src/ui', 'C:/work/proj');
+        expect(crumbs.map((c) => c.label)).toEqual(['C:', 'work', 'proj', 'src', 'ui']);
+        expect(crumbs.map((c) => c.inside)).toEqual([false, false, true, true, true]);
+        expect(crumbs[0].path).toBe('C:/');
+        expect(crumbs[3].path).toBe('C:/work/proj/src');
+    });
+
+    it('reads backslashes and a different case as the same workspace', () => {
+        const crumbs = breadcrumbs('c:\\Work\\Proj\\a','C:/work/proj');
+        expect(crumbs.map((c) => c.inside)).toEqual([false, false, true, true]);
+    });
+
+    it('does not treat a folder with a longer name as inside', () => {
+        const crumbs = breadcrumbs('C:/work/proj-old/a', 'C:/work/proj');
+        expect(crumbs.every((c) => !c.inside)).toBe(true);
+    });
+
+    it('handles a path from the root of a Unix file system', () => {
+        const crumbs = breadcrumbs('/home/me/proj', '/home/me');
+        expect(crumbs.map((c) => [c.label, c.path, c.inside])).toEqual([
+            ['/', '/', false], ['home', '/home', false], ['me', '/home/me', true], ['proj', '/home/me/proj', true],
+        ]);
+    });
+
+    it('stops going up at the workspace', () => {
+        expect(upFrom('C:/work/proj/src', 'C:/work/proj')).toBe('C:/work/proj');
+        expect(upFrom('C:/work/proj', 'C:/work/proj')).toBe(null);
+    });
+});
+
+describe('folder list compare', () => {
+    it('offers two files or two folders, upper one on the left', () => {
+        expect(compareTarget([file('a.txt'), file('b.txt')])).toMatchObject({ folders: false, left: { name: 'a.txt' } });
+        expect(compareTarget([dir('x'), dir('y')])).toMatchObject({ folders: true, right: { name: 'y' } });
+    });
+
+    it('offers nothing for one, three, a mix, or a file it cannot read', () => {
+        expect(compareTarget([file('a.txt')])).toBe(null);
+        expect(compareTarget([file('a'), file('b'), file('c')])).toBe(null);
+        expect(compareTarget([dir('x'), file('a.txt')])).toBe(null);
+        expect(compareTarget([file('a.png'), file('b.exe')])).toBe(null);
     });
 });
