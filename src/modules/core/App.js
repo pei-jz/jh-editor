@@ -228,6 +228,8 @@ async function bootstrap() {
         try {
             // Terminal, LSP & SyntaxHighlighter
             terminalManager.init();
+            // ターミナルを「タブに表示」にしたとき、Editor がタブの中に置く
+            window.app.mountTerminal = (container) => terminalManager.mountTab(container);
             lspClient.init();
             // Refresh the status bar's LSP warning when a server's availability
             // changes (start_lsp resolves asynchronously after a file opens).

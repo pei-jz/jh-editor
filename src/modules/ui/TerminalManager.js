@@ -566,8 +566,18 @@ class TerminalManager {
         });
 
         // Resizer Logic
-        document.getElementById('dock-terminal-btn')?.addEventListener('click', () => {
-            this.moveDock(this.dock === 'right' ? 'bottom' : 'right');
+        document.getElementById('dock-terminal-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const choice = (dock, label) => ({
+                label,
+                icon: this.dock === dock ? 'check' : undefined,
+                action: () => { if (this.dock !== dock) this.moveDock(dock); },
+            });
+            ContextMenu.show(e, [
+                choice('bottom', t('Terminal at the bottom')),
+                choice('right', t('Terminal on the right')),
+                choice('tab', t('Terminal in a tab')),
+            ]);
         });
         this.applyDock(terminalDock());
 
@@ -663,7 +673,27 @@ class TerminalManager {
         const { panel, resizer } = EL.terminal;
         const main = document.getElementById('horizontal-main');
         if (!panel || !resizer || !main) return;
+        const wasTab = this.dock === 'tab';
+        // Set first: closing the tab below must not park the panel again.
         this.dock = dock;
+        if (dock === 'tab') {
+            if (panel.style.height) this._bottomHeight = panel.style.height;
+            panel.style.height = '';
+            panel.style.width = '';
+            panel.classList.remove('dock-right');
+            panel.classList.add('dock-tab');
+            resizer.style.display = 'none';
+            this._park();
+            if (this.isOpen && window.app && window.app.showTerminalTab) window.app.showTerminalTab();
+            this._syncDockButton();
+            return;
+        }
+        panel.classList.remove('dock-tab');
+        if (wasTab && window.app && window.app.closeTerminalTab) window.app.closeTerminalTab();
+        if (wasTab) {
+            panel.style.display = this.isOpen ? 'flex' : 'none';
+            resizer.style.display = this.isOpen ? 'block' : 'none';
+        }
         const right = dock === 'right';
         if (right) {
             main.append(resizer, panel);
@@ -677,13 +707,58 @@ class TerminalManager {
         }
         panel.classList.toggle('dock-right', right);
         resizer.className = right ? 'resizer' : 'resizer-horizontal';
+        this._syncDockButton();
+    }
 
+    _syncDockButton() {
         const btn = document.getElementById('dock-terminal-btn');
-        if (btn) {
-            const label = right ? t('Move terminal to the bottom') : t('Move terminal to the right');
-            btn.title = label;
-            btn.setAttribute('aria-label', label);
+        if (!btn) return;
+        const label = t('Where to show the terminal');
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+    }
+
+    /** Out of sight but still in the document, so the terminals keep running. */
+    _park() {
+        const { panel, resizer } = EL.terminal;
+        let park = document.getElementById('terminal-park');
+        if (!park) {
+            park = document.createElement('div');
+            park.id = 'terminal-park';
+            park.hidden = true;
+            document.body.appendChild(park);
         }
+        park.append(resizer, panel);
+    }
+
+    /**
+     * Show the panel inside an editor tab (Editor.js, type 'terminal'). The
+     * returned view puts it back when the tab is switched away from or closed.
+     */
+    mountTab(container) {
+        const panel = EL.terminal.panel;
+        container.classList.add('terminal-tab-mode');
+        container.appendChild(panel);
+        panel.style.display = 'flex';
+        this.isOpen = true;
+        this.renderSessionList();
+        this._afterShow();
+        return {
+            focus: () => this.term?.focus(),
+            getDiagnostics: () => [],
+            destroy: () => {
+                container.classList.remove('terminal-tab-mode');
+                if (this.dock !== 'tab') return;
+                this._park();
+                // Closed rather than switched away from: hidden, the shells
+                // keep running, as with the bottom panel's ×.
+                setTimeout(() => {
+                    if (this.dock === 'tab' && !(window.app && window.app.hasTerminalTab && window.app.hasTerminalTab())) {
+                        this.isOpen = false;
+                    }
+                }, 0);
+            },
+        };
     }
 
     /** The width the terminal and the editors share when it is on the right. */
@@ -707,15 +782,31 @@ class TerminalManager {
     }
 
     async toggle() {
+        if (this.dock === 'tab') {
+            // A tab behind another one is not "shown": bring it forward.
+            const front = window.app && window.app.isTerminalTabActive && window.app.isTerminalTabActive();
+            front ? this.hide() : await this.show();
+            return;
+        }
         this.isOpen ? this.hide() : await this.show();
     }
 
     async show() {
+        if (this.dock === 'tab' && window.app && window.app.showTerminalTab) {
+            // mountTab() does the rest once the tab is drawn.
+            window.app.showTerminalTab();
+            return;
+        }
         EL.terminal.panel.style.display = 'flex';
         EL.terminal.resizer.style.display = 'block';
         this.isOpen = true;
-        
+
         this.renderSessionList();
+        this._afterShow();
+    }
+
+    /** Fit to the room it now has, and start a shell if none is running. */
+    _afterShow() {
         // Wait for DOM to update then fit
         setTimeout(async () => {
             if (this.sessions.size === 0) return;   // the empty state is showing
@@ -730,6 +821,11 @@ class TerminalManager {
     }
 
     hide() {
+        if (this.dock === 'tab') {
+            this.isOpen = false;
+            if (window.app && window.app.closeTerminalTab) window.app.closeTerminalTab();
+            return;
+        }
         EL.terminal.panel.style.display = 'none';
         EL.terminal.resizer.style.display = 'none';
         this.isOpen = false;

@@ -1064,8 +1064,6 @@ export default {
     '{n} files (cached)': '{n} 个文件 (已缓存)',
     '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} 个文件 (已应用上限{timing}) — 打开子文件夹以搜索全部内容',
     '{n} folders': '{n} 个文件夹',
-    'Move terminal to the right': '将终端移到右侧',
-    'Move terminal to the bottom': '将终端移到底部',
     'Up one folder': '上一级文件夹',
     'Show Only This Folder': '仅显示此文件夹',
     'Show Whole Workspace': '显示整个工作区',
@@ -1085,4 +1083,8 @@ export default {
     '{name} already exists.': '{name} 已存在。',
     'Move to {name}': '移动到 {name}',
     'Copy to {name}': '复制到 {name}',
+    'Terminal at the bottom': '在底部显示终端',
+    'Terminal on the right': '在右侧显示终端',
+    'Terminal in a tab': '在标签页中显示终端',
+    'Where to show the terminal': '终端的显示位置',
 };

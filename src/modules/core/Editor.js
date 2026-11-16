@@ -842,6 +842,14 @@ export function renderEditor(targetPane = null) {
             return;
         }
 
+        // Special Case: the terminal, shown in a tab (TerminalManager.mountTab)
+        if (file.type === 'terminal') {
+            const view = window.app.mountTerminal ? window.app.mountTerminal(container) : null;
+            if (isLeft) leftView = view;
+            else rightView = view;
+            return;
+        }
+
         // Special Case: one folder's contents, listed (FolderListView)
         if (file.type === 'folder-list') {
             const view = new FolderListView(container, file, {
@@ -1090,6 +1098,8 @@ export function addViewUsageHint(container, file, options = {}) {
             ['Ctrl+Space', 'select column'],
             ['Ctrl+Shift++', 'insert row / column'],
             ['Ctrl+-', 'delete row / column'],
+            ['Ctrl+;', 'insert column right'],
+            ['Ctrl+Shift+-', 'delete column'],
             ['Ctrl+Shift+E', 'switch to text']
         ];
     } else {
@@ -1588,6 +1598,55 @@ window.app.compareTwoFolders = function (leftRoot, rightRoot) {
     setActiveTab(State.openFiles.length - 1);
 };
 
+const TERMINAL_TAB_PATH = 'terminal://panel';
+
+/** Where the terminal tab is, or null. There is at most one, in either pane. */
+function findTerminalTab() {
+    for (const pane of ['left', 'right']) {
+        const index = paneFiles(pane).findIndex((f) => f.path === TERMINAL_TAB_PATH);
+        if (index >= 0) return { pane, index };
+    }
+    return null;
+}
+
+/**
+ * The terminal shown in an editor tab (its position set to "in a tab"). The
+ * panel itself moves into the tab (TerminalManager.mountTab), so the shells
+ * running in it carry on.
+ */
+window.app.showTerminalTab = function () {
+    const found = findTerminalTab();
+    if (found) {
+        setActiveTab(found.index, found.pane);
+        return;
+    }
+    const pane = activePane();
+    paneFiles(pane).push({
+        name: t('Terminal'),
+        path: TERMINAL_TAB_PATH,
+        type: 'terminal',
+        content: '',
+        encoding: 'UTF-8',
+        eol: getOsLineEnding(),
+        isDirty: false,
+        stats: { size: 0, mtime: 0 },
+    });
+    setActiveTab(paneFiles(pane).length - 1, pane);
+};
+
+window.app.closeTerminalTab = function () {
+    const found = findTerminalTab();
+    if (found) closeTab(found.index, found.pane);
+};
+
+window.app.hasTerminalTab = () => !!findTerminalTab();
+
+/** The terminal tab is the one showing in its pane. */
+window.app.isTerminalTabActive = function () {
+    const found = findTerminalTab();
+    return !!found && paneActiveIndex(found.pane) === found.index;
+};
+
 const FOLDER_LIST_PATH = 'folder://list';
 
 /**
@@ -1980,6 +2039,7 @@ export function tabIconFor(file) {
     if (path.startsWith('search://')) return 'search';
     if (path.startsWith('settings://')) return 'settings';
     if (path.startsWith('folder://')) return 'folder';
+    if (path.startsWith('terminal://')) return 'terminal';
     if (path.startsWith('ai://')) return 'sparkles';
     return null;
 }
@@ -2020,7 +2080,7 @@ export function renderTabs(targetPane = null) {
             let fileName = file.name || 'Untitled';
             if (file.type === 'settings') {
                 fileName = t('Settings');
-            } else if (file.path && !/^(agent|diff|search|folder):\/\//.test(file.path)) {
+            } else if (file.path && !/^(agent|diff|search|folder|terminal):\/\//.test(file.path)) {
                 fileName = file.path.replace(/\\/g, '/').split('/').pop();
             }
             
@@ -2702,17 +2762,34 @@ export async function setupWatcher(_file) {
     return syncWatchers();
 }
 
-async function watchFile(file) {
-    const isAbsolute = file.path && (file.path.match(/^[a-zA-Z]:[\\/]/) || file.path.startsWith('/'));
+/**
+ * The tab object open at `path` right now.
+ *
+ * The watcher must not keep the object it was started with: a reload (and an
+ * encoding change) puts a NEW object in the tab, while the watcher — keyed by
+ * path — keeps running. Holding the old one meant every later save was compared
+ * against the pre-reload stats and text, and was reported as somebody else's
+ * change.
+ */
+export function currentOpenFileAt(path) {
+    const found = findOpenFile(String(path || '').replace(/\\/g, '/'));
+    return found ? found.file : null;
+}
+
+async function watchFile(initial) {
+    const watchedPath = initial.path;
+    const isAbsolute = watchedPath && (watchedPath.match(/^[a-zA-Z]:[\\/]/) || watchedPath.startsWith('/'));
     if (!isAbsolute) return () => {};
 
     const { watch } = await import('@tauri-apps/plugin-fs');
     let isPrompting = false;
 
     return watch(
-        file.path,
+        watchedPath,
         async (event) => {
             if (isPrompting) return;
+            const file = currentOpenFileAt(watchedPath);
+            if (!file) return;
             if (file._skipNextWatcher) {
                 file._skipNextWatcher = false;
                 return;
@@ -2751,8 +2828,13 @@ async function watchFile(file) {
                 : await showConfirm(
                     `${name} has changed on disk. Reload it?`,
                     { title: 'File Changed on Disk', kind: 'warning', okLabel: 'Reload' });
-            if (reload) openFile(file.path, file.encoding);
-            isPrompting = false;
+            // Awaited, so a second event cannot slip in between the prompt
+            // closing and the new tab object (with fresh stats) landing.
+            try {
+                if (reload) await openFile(file.path, file.encoding);
+            } finally {
+                isPrompting = false;
+            }
         },
         { delayMs: 500 },
     );
@@ -2983,7 +3065,7 @@ export async function createNewFileAction() {
  */
 export async function saveCurrentFileAs() {
     const source = getActiveFile();
-    if (!source || source.type === 'settings' || source.type === 'folder-list') return;
+    if (!source || source.type === 'settings' || source.type === 'folder-list' || source.type === 'terminal') return;
 
     if (source.type === 'diff' || source.type === 'compare'
         || source.viewMode === 'diff' || source.viewMode === 'compare') {
@@ -3121,7 +3203,7 @@ function showCompareHintOnce() {
 export async function saveCurrentFile() {
     const file = getActiveFile();
     // Settings save themselves, and there is no file behind the tab to write.
-    if (!file || file.type === 'settings' || file.type === 'folder-list') return false;
+    if (!file || file.type === 'settings' || file.type === 'folder-list' || file.type === 'terminal') return false;
     const hadEdits = canCompareWithSaved(file);
     const saved = await saveFile(file, getCurrentView());
     if (saved && hadEdits) showCompareHintOnce();
@@ -3729,10 +3811,10 @@ export function updateStatusBar(forFile = null) {
         return;
     }
 
-    // A folder list is no document: no size, encoding, line ending or cursor.
-    if (file.type === 'folder-list') {
+    // A folder list or the terminal is no document: no size, encoding, line ending or cursor.
+    if (file.type === 'folder-list' || file.type === 'terminal') {
         const typeEl = document.getElementById('status-file-type');
-        if (typeEl) typeEl.textContent = t('Folder');
+        if (typeEl) typeEl.textContent = file.type === 'terminal' ? t('Terminal') : t('Folder');
         const modeHint = document.getElementById('status-view-mode');
         if (modeHint) modeHint.style.display = 'none';
         for (const id of ['status-selection', 'status-size', 'status-last-modified', 'status-encoding', 'status-eol']) {

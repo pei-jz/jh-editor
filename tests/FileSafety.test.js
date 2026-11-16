@@ -203,6 +203,33 @@ describe('syncWatchers', () => {
         expect(watchSpy).toHaveBeenCalledOnce();
     });
 
+    /* A reload puts a NEW object in the tab while the watcher, keyed by path,
+       keeps running. It used to hold the object it started with, so the user's
+       own next save was measured against pre-reload stats and text, and was
+       reported as somebody else's change. */
+    it('judges a change against the tab as it is now, not as it was when watching began', async () => {
+        let onEvent;
+        watchSpy.mockImplementation(async (_path, cb) => { onEvent = cb; return vi.fn(); });
+        const before = { ...openFile('C:/proj/a.js'), content: 'old text' };
+        State.openFiles = [before];
+        await syncWatchers();
+
+        // Reloaded: the tab now holds a fresh object, read at NEW.
+        const reloaded = { ...openFile('C:/proj/a.js'), content: 'theirs', stats: { mtime: NEW } };
+        State.openFiles = [reloaded];
+        await syncWatchers();
+
+        // The user edits and saves: disk and buffer agree, stats were updated.
+        const SAVED = '2026-01-01T00:00:20.000Z';
+        reloaded.content = 'mine';
+        reloaded.stats = { mtime: SAVED };
+        getFileStats.mockResolvedValue({ mtime: SAVED });
+        readText.mockResolvedValue('mine');
+
+        await onEvent({});
+        expect(showConfirm).not.toHaveBeenCalled();
+    });
+
     it('ignores buffers with nothing on disk behind them', async () => {
         watchSpy.mockResolvedValue(vi.fn());
         State.openFiles = [
@@ -273,7 +300,7 @@ describe('structural', () => {
     });
 
     it('warns a dirty buffer what a reload costs it', () => {
-        const i = editor.indexOf('async function watchFile(file)');
+        const i = editor.indexOf('async function watchFile(initial)');
         const fn = editor.slice(i, editor.indexOf('\n}', i));
         expect(fn).toContain('file.isDirty');
         expect(fn).toContain('Reloading replaces your edits');

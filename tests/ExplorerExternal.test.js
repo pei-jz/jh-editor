@@ -78,6 +78,18 @@ describe('what counts as external', () => {
         expect(programs.filter((e) => back.includes(e))).toEqual([]);
     });
 
+    it('agrees on the documents "Open with Default App" may hand over', () => {
+        const list = (src, re) => [...src.match(re)[1].matchAll(/['"]([a-z0-9]+)['"]/g)].map((m) => m[1]).sort();
+        const front = list(read('src/modules/utils/ExternalFiles.js'), /const DOCUMENTS = new Set\(\[([\s\S]*?)\]\)/);
+        const back = list(read('src-tauri/src/commands/app.rs'), /const DOCUMENT_EXTENSIONS: &\[&str\] = &\[([\s\S]*?)\];/);
+        expect(front.length).toBeGreaterThan(0);
+        expect(back).toEqual(front);
+        // Nothing that runs: scripts and macro-enabled formats stay off it.
+        for (const ext of ['js', 'vbs', 'ps1', 'bat', 'cmd', 'reg', 'hta', 'xlsm', 'docm', 'exe', 'py']) {
+            expect(front).not.toContain(ext);
+        }
+    });
+
     it('runs the launcher off the main thread and registers it', () => {
         expect(read('src-tauri/src/commands/app.rs')).toMatch(/#\[command\(async\)\]\npub fn open_with_default_app/);
         expect(read('src-tauri/src/lib.rs')).toContain('commands::app::open_with_default_app');

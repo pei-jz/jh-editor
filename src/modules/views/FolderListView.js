@@ -20,7 +20,7 @@ import { ContextMenu } from '../ui/ContextMenu.js';
 import { iconEl, iconForFile } from '../ui/Icons.js';
 import { formatSize } from '../ui/LoadingOverlay.js';
 import { formatModified, typeAheadIndex } from '../utils/ExplorerTree.js';
-import { externalKind } from '../utils/ExternalFiles.js';
+import { externalKind, opensWithDefaultApp } from '../utils/ExternalFiles.js';
 
 const SORT_KEY = 'folder_list_sort';
 const COLUMNS = ['name', 'size', 'modified', 'type'];
@@ -671,6 +671,16 @@ export class FolderListView {
         }
     }
 
+    /** Hand the file to the application the OS has for it (Excel, a browser…). */
+    async openWithDefaultApp(entry) {
+        try {
+            await invoke('open_with_default_app', { path: entry.path });
+        } catch (e) {
+            console.error('open_with_default_app failed', e);
+            if (window.showToast) window.showToast(t('Could not open the file'));
+        }
+    }
+
     async newFolder() {
         const made = await fileOps.newFolder(this.file.folder);
         if (made) this._afterChange([made]);
@@ -758,7 +768,13 @@ export class FolderListView {
         const count = many ? ` (${paths.length})` : '';
         const target = entry ? entry.path : this.file.folder;
         const items = [];
-        if (entry && !many) items.push({ icon: 'file', label: t('Open'), hint: 'Enter', action: () => this.open(entry) }, { type: 'separator' });
+        if (entry && !many) {
+            items.push({ icon: 'file', label: t('Open'), hint: 'Enter', action: () => this.open(entry) });
+            if (!entry.is_directory && opensWithDefaultApp(entry.name)) {
+                items.push({ icon: 'external-link', label: t('Open with Default App'), action: () => this.openWithDefaultApp(entry) });
+            }
+            items.push({ type: 'separator' });
+        }
         const compare = entry && compareTarget(paths.map((p) => this.sorted.find((x) => x.path === p)).filter(Boolean));
         if (compare) {
             items.push({

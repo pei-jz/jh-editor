@@ -29,6 +29,20 @@ const OPENABLE = new Set([
     'db', 'sqlite',
 ]);
 
+/**
+ * Files the editor opens itself, but that "Open with Default App" may still
+ * hand to the OS when asked for by name (Excel for a sheet, a browser for a
+ * page). Documents only: a script's default action is to run it (.js and .vbs
+ * under Windows Script Host, .ps1, .bat, .reg merges into the registry), so
+ * none of those, and no macro-enabled Office formats (.xlsm, .docm).
+ * DOCUMENT_EXTENSIONS in src-tauri/src/commands/app.rs is the same list.
+ */
+const DOCUMENTS = new Set([
+    'txt', 'md', 'markdown', 'csv', 'tsv', 'log',
+    'json', 'xml', 'yaml', 'yml', 'html', 'htm', 'svg', 'rtf',
+    'xlsx', 'xls', 'docx', 'pptx', 'ods', 'odt', 'odp',
+]);
+
 const PROGRAMS = new Set([
     'exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o',
     'class', 'jar', 'pyc',
@@ -42,6 +56,12 @@ const PROGRAMS = new Set([
 function extensionOf(name) {
     const dot = String(name || '').lastIndexOf('.');
     return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+/** Whether "Open with Default App" may hand this file to the OS. */
+export function opensWithDefaultApp(name) {
+    const ext = extensionOf(name);
+    return OPENABLE.has(ext) || DOCUMENTS.has(ext);
 }
 
 /** 'open', 'program', or null for a file the editor opens itself. */

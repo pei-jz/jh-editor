@@ -230,3 +230,25 @@
 #terminal-panel.dock-right #terminal-shell-select {
     max-width: 100px;
 }
+
+/* In an editor tab (TerminalManager.mountTab): the whole pane, as tall as the
+   window. The tab already says "Terminal", so the header keeps only controls. */
+.terminal-tab-mode {
+    display: flex;
+    flex-direction: column;
+}
+
+#terminal-panel.dock-tab {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+#terminal-panel.dock-tab #terminal-header {
+    border-top: 0;
+}
+
+#terminal-panel.dock-tab #terminal-header [data-i18n="TERMINAL"] {
+    display: none;
+}

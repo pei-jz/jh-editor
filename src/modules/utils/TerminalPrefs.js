@@ -35,17 +35,23 @@ export const TERMINAL_WIDTH_DEFAULT = 480;
 export const TERMINAL_WIDTH_MIN = 240;
 const TERMINAL_EDITOR_KEEP = 280;
 
-/** Where the panel sits: 'bottom' (the default) or 'right'. */
+/**
+ * Where the panel sits: 'bottom' (the default), 'right', or 'tab' — an editor
+ * tab, for the full height of the window and a split beside a file.
+ */
+export const TERMINAL_DOCKS = ['bottom', 'right', 'tab'];
+
 export function terminalDock() {
     try {
-        return localStorage.getItem(DOCK_KEY) === 'right' ? 'right' : 'bottom';
+        const saved = localStorage.getItem(DOCK_KEY);
+        return TERMINAL_DOCKS.includes(saved) ? saved : 'bottom';
     } catch (_) {
         return 'bottom';
     }
 }
 
 export function setTerminalDock(dock) {
-    try { localStorage.setItem(DOCK_KEY, dock === 'right' ? 'right' : 'bottom'); } catch (_) { /* ignore */ }
+    try { localStorage.setItem(DOCK_KEY, TERMINAL_DOCKS.includes(dock) ? dock : 'bottom'); } catch (_) { /* ignore */ }
 }
 
 /**

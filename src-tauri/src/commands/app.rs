@@ -299,6 +299,16 @@ const OPENABLE_EXTENSIONS: &[&str] = &[
     "db", "sqlite",
 ];
 
+/// Documents the editor shows itself but that the user may still ask to open
+/// with the OS's application by name. No scripts (their default action runs
+/// them) and no macro-enabled Office formats. The same list as `DOCUMENTS` in
+/// src/modules/utils/ExternalFiles.js.
+const DOCUMENT_EXTENSIONS: &[&str] = &[
+    "txt", "md", "markdown", "csv", "tsv", "log",
+    "json", "xml", "yaml", "yml", "html", "htm", "svg", "rtf",
+    "xlsx", "xls", "docx", "pptx", "ods", "odt", "odp",
+];
+
 /// An allowlist, not a list of what is dangerous: such a list is never complete
 /// (.scr, .hta, .cpl, .lnk …), and an unlisted name must fail closed. A trailing
 /// dot or space, which Windows strips when it opens the file, leaves an extension
@@ -311,7 +321,10 @@ fn is_openable_path(path: &str) -> bool {
     }
     p.extension()
         .and_then(|e| e.to_str())
-        .map(|e| OPENABLE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+        .map(|e| {
+            let e = e.to_lowercase();
+            OPENABLE_EXTENSIONS.contains(&e.as_str()) || DOCUMENT_EXTENSIONS.contains(&e.as_str())
+        })
         .unwrap_or(false)
 }
 
@@ -362,6 +375,17 @@ mod open_with_default_app_tests {
         assert!(is_openable_path("C:/work/photo.png"));
         assert!(is_openable_path(r"C:\work\Report.PDF"));
         assert!(is_openable_path("C:/work/a,b & %PATH%.mp4"));
+    }
+
+    #[test]
+    fn takes_documents_asked_for_by_name() {
+        assert!(is_openable_path("C:/work/book.xlsx"));
+        assert!(is_openable_path("C:/work/README.md"));
+        assert!(is_openable_path("C:/work/page.HTML"));
+        assert!(!is_openable_path("C:/work/book.xlsm"));
+        assert!(!is_openable_path("C:/work/run.js"));
+        assert!(!is_openable_path("C:/work/run.vbs"));
+        assert!(!is_openable_path("C:/work/keys.reg"));
     }
 
     #[test]

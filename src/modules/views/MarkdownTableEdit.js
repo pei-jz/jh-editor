@@ -63,11 +63,18 @@ const WIDTH_STORE_FILES = 200;
  */
 function structureKey(e) {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return null;
+    // 列の追加と削除。Ctrl+; は右に 1 列、Ctrl+Shift+- は今の列を消す。
+    // Shift+- は配列で '_' (US) や '=' (JIS) になるので、物理キーで見る。
+    if (!e.shiftKey && e.key === ';') return 'insert-column';
+    if (e.shiftKey && e.code === 'Minus') return 'delete-column';
     if (e.shiftKey && ['+', ';', ':', '='].includes(e.key)) return 'insert';
     if (!e.shiftKey && e.key === '+') return 'insert';
     if (!e.shiftKey && e.key === '-') return 'delete';
     return null;
 }
+
+/** 左右キーの 2 回押しとみなす間隔。 */
+const DOUBLE_TAP_MS = 400;
 
 const ARROWS = {
     ArrowUp: { dr: -1, dc: 0 },
@@ -402,6 +409,17 @@ export class MarkdownTableEdit {
             : caret.bottom > edge.top + 1;
     }
 
+    /** カーソルをセルの先頭 (dir<0) / 末尾 (dir>0) へ。 */
+    _caretToCellEnd(cell, dir) {
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        range.collapse(dir < 0);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
     /** カーソルがセルの先頭 (dir<0) / 末尾 (dir>0) にあるか。文字を選択中なら false。 */
     _caretAtCellEnd(cell, dir) {
         const sel = window.getSelection();
@@ -500,6 +518,10 @@ export class MarkdownTableEdit {
             e.preventDefault();
             e.stopPropagation();
             const { blockEl, index, tableIndex } = state;
+            if (structure === 'insert-column') {
+                this._insertColumnAndEdit(state);
+                return;
+            }
             this.commit();
             this._structureOp({ blockEl, index, tableIndex }, { r1: row, r2: row, c1: col, c2: col }, structure);
             return;
@@ -563,11 +585,25 @@ export class MarkdownTableEdit {
             let c = col + dir;
             if (c >= columns) { c = 0; r++; }
             if (c < 0) { c = columns - 1; r--; }
+            const atEnd = this._caretAtCellEnd(cell, dir);
             // 表の端では移動先がない。セルの中に留まる。
-            if (table.rows[r] && table.rows[r].cells[c] && this._caretAtCellEnd(cell, dir)) {
+            if (table.rows[r] && table.rows[r].cells[c] && atEnd) {
                 e.preventDefault();
                 e.stopPropagation();
+                this._lastArrow = null;
                 this._moveTo(state, r, c, dir < 0 ? 'end' : 'start');
+                return;
+            }
+            // 同じ向きを素早く 2 回で、セルの先頭 / 末尾へ。長い文字の端から
+            // 隣のセルへは、1 文字ずつ戻らずに 3 回で行ける。
+            const now = Date.now();
+            const last = this._lastArrow;
+            this._lastArrow = { key: e.key, cell, at: now };
+            if (!atEnd && last && last.key === e.key && last.cell === cell && now - last.at < DOUBLE_TAP_MS) {
+                e.preventDefault();
+                e.stopPropagation();
+                this._lastArrow = null;
+                this._caretToCellEnd(cell, dir);
             }
         }
     }
@@ -875,7 +911,19 @@ export class MarkdownTableEdit {
         let args;
         let anchor;
         let focus;
-        if (kind === 'insert' && wholeColumns) {
+        if (kind === 'insert-column') {
+            // 選んだ範囲の右に、選んだ列と同じ数だけ。
+            op = 'col-left';
+            args = [0, b.c2 + 1, 0, b.c2 + colCount];
+            anchor = { r: b.r1, c: b.c2 + 1 };
+            focus = { r: b.r2, c: b.c2 + colCount };
+        } else if (kind === 'delete-column') {
+            if (colCount >= cols) return;
+            op = 'col-delete';
+            args = [0, b.c1, rows - 1, b.c2];
+            anchor = { r: b.r1, c: Math.min(b.c1, cols - colCount - 1) };
+            focus = anchor;
+        } else if (kind === 'insert' && wholeColumns) {
             op = 'col-left';
             args = [0, b.c1, 0, b.c2];
             anchor = { r: 0, c: b.c1 };
@@ -900,6 +948,24 @@ export class MarkdownTableEdit {
         }
         this.range = { ...where, anchor, focus };
         this._rewrite((loc) => applyTableOp(loc.text, loc.source, op, ...args));
+    }
+
+    /** Ctrl+; で編集中: 右に列を足して、同じ行の新しいセルの編集へ。 */
+    _insertColumnAndEdit(state) {
+        const { blockEl, index, tableIndex, row, col } = state;
+        const where = { blockEl, index, tableIndex };
+        this.commit();
+        const located = this._locateAt(where);
+        if (!located) return;
+        const next = applyTableOp(located.text, located.source, 'col-right', row, col);
+        if (!this._writeBlock(index, next)) return;
+        this.view._rerenderBlock(blockEl);
+        const table = this._tableAt(where);
+        const cell = table && table.rows[row] && table.rows[row].cells[col + 1];
+        const fresh = cell && this._locate(blockEl, index, table);
+        if (!fresh) return;
+        this._begin(blockEl, index, cell, fresh, 'end');
+        if (typeof cell.scrollIntoView === 'function') cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
     /** 最後のセルから Tab: 行を足して、その行の先頭のセルの編集へ。 */

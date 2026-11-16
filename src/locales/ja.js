@@ -1064,8 +1064,6 @@ export default {
     '{n} files (cached)': '{n} ファイル (キャッシュ)',
     '{shown}/{total} files (limit applied{timing}) — open a subfolder to search all of it': '{shown}/{total} ファイル (上限適用{timing}) — すべて検索するにはサブフォルダーを開いてください',
     '{n} folders': '{n} フォルダー',
-    'Move terminal to the right': 'ターミナルを右へ移動',
-    'Move terminal to the bottom': 'ターミナルを下へ移動',
     'Up one folder': '1 つ上のフォルダーへ',
     'Show Only This Folder': 'このフォルダーだけを表示',
     'Show Whole Workspace': 'ワークスペース全体を表示',
@@ -1085,4 +1083,8 @@ export default {
     '{name} already exists.': '{name} はすでにあります。',
     'Move to {name}': '{name} へ移動',
     'Copy to {name}': '{name} へコピー',
+    'Terminal at the bottom': 'ターミナルを下に表示',
+    'Terminal on the right': 'ターミナルを右に表示',
+    'Terminal in a tab': 'ターミナルをタブに表示',
+    'Where to show the terminal': 'ターミナルの表示位置',
 };

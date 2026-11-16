@@ -5,7 +5,7 @@ import { iconEl, iconForFile, setIcon } from '../ui/Icons.js';
 import * as FS from '../utils/FileSystem.js';
 import { VirtualScroll } from '../utils/VirtualScroll.js';
 import { explorerListsFolders, explorerOpensOn, explorerShowsExternal, setExplorerShowsExternal, SHOW_EXTERNAL_KEY } from '../utils/ExplorerPrefs.js';
-import { externalKind } from '../utils/ExternalFiles.js';
+import { externalKind, opensWithDefaultApp } from '../utils/ExternalFiles.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
 import { GrepModal } from '../ui/GrepModal.js';
 import { showCustomInput, showCustomConfirm, showNewFileModal } from '../ui/Modal.js';
@@ -35,6 +35,19 @@ let viewRoot = null;
 
 // Virtual Explorer Instance
 let vExplorer = null;
+
+/**
+ * May the tree put focus back on one of its rows?
+ *
+ * Yes when focus is already inside it, or has fallen to <body> (which is
+ * where a re-render leaves it once the focused row is detached). No when it
+ * is anywhere else: the user is typing in the editor, a dialog, the terminal.
+ */
+export function focusIsFree(container, doc = document) {
+    const active = doc.activeElement;
+    if (!active || active === doc.body || active === doc.documentElement) return true;
+    return !!container && container.contains(active);
+}
 
 class VirtualExplorer {
     constructor(container) {
@@ -478,8 +491,31 @@ class VirtualExplorer {
     }
 
 
-    setFocus(index) {
+    /** Is keyboard focus inside the tree right now? */
+    ownsFocus() {
+        const active = document.activeElement;
+        return !!active && this.container.contains(active);
+    }
+
+    /**
+     * Move the tree's cursor to `index`.
+     *
+     * The cursor and keyboard focus are separate things. The tree takes focus
+     * only when it already had it (moving between its own rows, or re-rendering
+     * a row it was focused on), or when the caller asks with `{ takeFocus: true }`
+     * because the user has just acted in the tree.
+     *
+     * It used to focus the row every time. refresh() restores the cursor through
+     * here, and the tree is refreshed by things unrelated to where the user is
+     * typing — a save, a git update, a file operation, a refresh still running
+     * from an earlier click — so focus left the editor mid-edit. Shift+arrows then
+     * selected rows in the tree, and Delete offered to delete files.
+     */
+    setFocus(index, { takeFocus = false } = {}) {
         if (index < 0 || index >= this.flatItems.length) return;
+        // Asked before the re-render below: it detaches the focused row, and
+        // focus drops to <body> until the timeout puts it back.
+        const mayFocus = takeFocus || this.ownsFocus();
         this.focusedIndex = index;
 
         // Ensure visible
@@ -499,9 +535,13 @@ class VirtualExplorer {
         this.scroller.onScroll();
 
         // Force focus on DOM element if visible
+        if (!mayFocus) return;
         setTimeout(() => {
             // Don't steal focus while an inline rename is active.
             if (this._renaming) return;
+            // Nor from wherever the user went in the meantime: only from the
+            // tree itself, or from <body> where the detached row left it.
+            if (!focusIsFree(this.container)) return;
             const row = this.container.querySelector(`[data-index="${index}"]`);
             if (row) row.focus();
         }, 0);
@@ -763,7 +803,7 @@ class VirtualExplorer {
             arrow.onclick = (e) => {
                 e.stopPropagation();
                 this.toggle(item);
-                this.setFocus(index);
+                this.setFocus(index, { takeFocus: true });
             };
         } else {
             arrow.style.visibility = 'hidden';
@@ -831,7 +871,7 @@ class VirtualExplorer {
             if (e.shiftKey) {
                 // Shift: range from the anchor; Ctrl+Shift adds the range.
                 this.selectRangeTo(index, ctrl);
-                this.setFocus(index);
+                this.setFocus(index, { takeFocus: true });
             } else if (ctrl) {
                 if (this.selectedPaths.has(item.path)) {
                     this.selectedPaths.delete(item.path);
@@ -839,7 +879,7 @@ class VirtualExplorer {
                     this.selectedPaths.add(item.path);
                 }
                 this.anchorPath = item.path;
-                this.setFocus(index);
+                this.setFocus(index, { takeFocus: true });
             } else {
                 this.selectOnly(index);
                 // A file opens on a single click. A folder, or a file that goes
@@ -869,7 +909,7 @@ class VirtualExplorer {
                     }
                 }
                 // Re-focus explorer so keyboard shortcuts (Delete, etc.) still work
-                this.setFocus(index);
+                this.setFocus(index, { takeFocus: true });
                 this.refresh();
                 this._followFolder(item);
             }
@@ -1006,7 +1046,7 @@ class VirtualExplorer {
             // Right-clicking outside the selection selects that row instead;
             // inside it keeps the selection, so the menu acts on all of it.
             if (!this.selectedPaths.has(item.path)) this.selectOnly(index);
-            this.setFocus(index); // Focus on right click
+            this.setFocus(index, { takeFocus: true }); // Focus on right click
 
             const paths = this.targetPaths();
             const isDir = item.type === 'DIRECTORY';
@@ -1074,7 +1114,7 @@ class VirtualExplorer {
                 );
             }
             // One row only: this starts an application per file.
-            if (item.external === 'open' && paths.length === 1) {
+            if (item.type !== 'DIRECTORY' && opensWithDefaultApp(item.name) && paths.length === 1) {
                 menuItems.unshift(
                     { label: t('Open with Default App'), icon: 'external-link', action: () => openExternalItem(item) },
                     { type: 'separator' },
@@ -1329,7 +1369,7 @@ export function initExplorer(openCallback, cbObj) {
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            vExplorer.setFocus(0);
+            vExplorer.setFocus(0, { takeFocus: true });
             vExplorer.container.focus();
         }
     });
@@ -1584,7 +1624,7 @@ export async function revealDirectory(dirPath) {
         if (tgt === r) vExplorer.container.scrollTop = 0;
         return true;
     }
-    vExplorer.setFocus(index);
+    vExplorer.setFocus(index, { takeFocus: true });
     return true;
 }
 
@@ -1881,7 +1921,7 @@ function handleRename(path) {
     // starting the rename on a detached node — the input was appended to a
     // ghost row and never appeared on screen (both F2 and the context-menu
     // Rename went through this broken path).
-    vExplorer.setFocus(index);
+    vExplorer.setFocus(index, { takeFocus: true });
     const row = EL.explorerList.querySelector(`[data-index="${index}"]`);
     const label = row ? row.querySelector('.tree-label') : null;
     if (row && label) {
@@ -1914,7 +1954,7 @@ function focusPath(path) {
     const index = vExplorer.flatItems.findIndex(x => normPath(x.path) === normPath(path));
     if (index >= 0) {
         vExplorer.selectOnly(index);
-        vExplorer.setFocus(index);
+        vExplorer.setFocus(index, { takeFocus: true });
     }
 }
 
