@@ -57,8 +57,9 @@ describe('which files get the Office preview', () => {
         for (const ext of ['xlsx', 'xls', 'ods', 'docx', 'pptx']) {
             expect(externalKind(`a.${ext}`), `${ext} should not be hidden`).toBe(null);
         }
-        // …and the ones with no reader still are.
-        for (const ext of ['doc', 'ppt', 'pdf']) {
+        // …and the ones with no reader still are. (.pdf has its own preview
+        // now — tests/PdfView.test.js.)
+        for (const ext of ['doc', 'ppt']) {
             expect(externalKind(`a.${ext}`), `${ext} should stay hidden`).toBe('open');
         }
     });

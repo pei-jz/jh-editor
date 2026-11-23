@@ -13,7 +13,8 @@ import { ContextMenu } from '../ui/ContextMenu.js';
 import { lspClient } from '../lsp/LspClient.js';
 import { CodeFormatter } from '../utils/CodeFormatter.js';
 import { formatAsync } from '../utils/AsyncFormatter.js';
-import { TabSearch } from '../ui/TabSearch.js';
+import { CommandPalette } from '../ui/CommandPalette.js';
+import { PathCrumbMenu } from '../ui/PathCrumbMenu.js';
 import { t } from '../utils/I18n.js';
 import { beginLoad, beginFileLoad, formatSize, nextPaint } from '../ui/LoadingOverlay.js';
 
@@ -34,18 +35,17 @@ import { DirDiffView } from '../views/DirDiffView.js';
 import { FolderListView } from '../views/FolderListView.js';
 import { GitCompareView } from '../views/GitCompareView.js';
 import { OfficeView } from '../views/OfficeView.js';
+import { PdfView } from '../views/PdfView.js';
 import { SettingsView } from '../views/SettingsView.js';
 import { isOfficeFile, officeKind } from '../utils/Office.js';
+import { isPdfFile } from '../utils/Pdf.js';
+import { folderTabOpensPinned } from '../utils/ExplorerPrefs.js';
 import { NewFileModal } from '../ui/NewFileModal.js';
 import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { Toast } from '../ui/Toast.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
-import {
-    activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex,
-    findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace,
-    handleStillInUse, mergeRightIntoLeft,
-} from './Panes.js';
+import { activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace, handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, pinnedCount, partitionPinned, clampDropIndex, insertIndexFor, setPinnedInPlace } from './Panes.js';
 
 export { activePane, normalizePane, paneFiles, paneActiveIndex, findOpenFile };
 
@@ -555,11 +555,8 @@ const editorActions = {
         // }
     },
 
-    'app:tab-search': () => {
-        TabSearch.show(State.openFiles, (index) => {
-            setActiveTab(index);
-        });
-    },
+    // A mode of the unified palette: open tabs, most recently shown first.
+    'app:tab-search': () => CommandPalette.toggle('@'),
     'app:toggle-view-mode': (e) => {
         e.preventDefault();
         const file = getActiveFile();
@@ -570,7 +567,7 @@ const editorActions = {
 
         // An Office tab has one view and no text behind it. Toggling would drop
         // it into an empty CodeMirror and look like the file had vanished.
-        if (file.type === 'office') return;
+        if (file.type === 'office' || file.type === 'pdf') return;
 
         // jh-presentation のデッキはソースとスライド表示 (Deck View) を行き来する
         if (file.viewMode === 'deck' || (file.viewMode === 'text' && isDeckFile(file))) {
@@ -646,14 +643,20 @@ function editMarkdownBlock(e, inPlace) {
     }
 }
 
-export async function closeAllTabs(action = 'prompt') {
+export async function closeAllTabs(action = 'prompt', { keepPinned = false } = {}) {
     // action can be: 'prompt' (undefined), true (save), false (discard), or 'force' (discard)
     if (action === undefined) action = 'prompt';
 
     // Both panes: quitting/closing with the right-hand split's work unsaved
     // is just as final. Save and dirty-check must cover both, not just the
     // left one.
-    const allFiles = [...State.openFiles, ...State.rightOpenFiles];
+    //
+    // keepPinned (the tab menu's Close All): the pinned tabs stay, and only
+    // the rest is saved or discarded.
+    const allFiles = [...State.openFiles, ...State.rightOpenFiles].filter((f) => !(keepPinned && f.pinned));
+    if (keepPinned && allFiles.length < State.openFiles.length + State.rightOpenFiles.length) {
+        return closeAllButPinned(action, allFiles);
+    }
     const hasDirty = allFiles.some(f => f.isDirty);
     
     if (action === true || action === 'save') {
@@ -713,6 +716,75 @@ export async function closeAllTabs(action = 'prompt') {
     return true;
 }
 
+/**
+ * Put back the pins a restored session's tabs had. The saved order already
+ * has them first; partitioning again only matters when a pinned tab could not
+ * be reopened and something else would otherwise have closed the gap wrongly.
+ */
+function restorePins(files, entries) {
+    if (!Array.isArray(entries)) return;
+    const pinned = new Set(entries.filter((e) => e && e.pinned).map((e) => e.path));
+    if (!pinned.size) return;
+    for (const f of files) if (f && pinned.has(f.path)) f.pinned = true;
+    partitionPinned(files);
+}
+
+/**
+ * Close All with pinned tabs open: the rest of both panes goes, the pinned
+ * tabs stay where they are. `closing` is what goes.
+ */
+async function closeAllButPinned(action, closing) {
+    const dirty = closing.filter((f) => f && f.isDirty && (!f.type || f.type === 'file' || f.type === 'diff'));
+    if (action === true || action === 'save') {
+        const result = await saveFiles(dirty);
+        if (result.failed.length || result.cancelled.length) {
+            const { message, title, kind } = unsavedReport(result);
+            await showAlert(message, { title, kind });
+            return false;
+        }
+    } else if (action === 'prompt' && closing.some((f) => f.isDirty)) {
+        const proceed = await showConfirm(t('Some files have unsaved changes. Close all tabs and discard them?'), {
+            title: 'Unsaved Changes',
+            kind: 'warning',
+            okLabel: 'Discard & Close',
+            cancelLabel: 'Cancel'
+        });
+        if (!proceed) return false;
+    }
+
+    for (const pane of ['left', 'right']) {
+        const files = paneFiles(pane);
+        const plan = planTabRemoval(files, paneActiveIndex(pane), (f) => !f.pinned);
+        files.splice(0, files.length, ...plan.kept);
+        for (const file of plan.removed) releaseFileHandles(file);
+        setPaneActiveIndex(pane, plan.activeIndex);
+    }
+    // One side left empty is a split with nothing in it.
+    if (State.splitMode && (!State.openFiles.length || !State.rightOpenFiles.length)) {
+        closeSplit();
+        return true;
+    }
+    renderTabs();
+    renderEditor();
+    updateToolbar();
+    const pane = activePane();
+    setupWatcher(paneFiles(pane)[paneActiveIndex(pane)] || null);
+    return true;
+}
+
+/**
+ * Pin or unpin a tab (core/Panes.js keeps pinned tabs at the front). The tab
+ * being looked at stays the one being looked at, wherever it moved to.
+ */
+export function setTabPinned(index, pane, pinned) {
+    pane = normalizePane(pane);
+    const files = paneFiles(pane);
+    const focused = files[paneActiveIndex(pane)];
+    if (setPinnedInPlace(files, index, pinned) < 0) return;
+    setPaneActiveIndex(pane, files.indexOf(focused));
+    renderTabs(pane);
+}
+
 export function renderEditor(targetPane = null) {
     const panesToRender = targetPane ? [targetPane] : (State.splitMode ? ['left', 'right'] : ['left']);
 
@@ -758,6 +830,7 @@ export function renderEditor(targetPane = null) {
         }
 
         if (activePane() === pane) {
+            markShown(file);
             updateStatusBar(file);
             setupContextMenu(file);
         }
@@ -818,6 +891,20 @@ export function renderEditor(targetPane = null) {
             container.classList.add('plain-mode');
             const view = new OfficeView(container, {
                 // The sheet's selection is summed into the status bar.
+                updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
+            });
+            view.render(file.content, file);
+            if (isLeft) leftView = view;
+            else rightView = view;
+            return;
+        }
+
+        // Special Case: PDF preview — the same shape as the Office one: no text
+        // behind the tab, the bytes on file.pdf.
+        if (file.type === 'pdf') {
+            container.classList.add('plain-mode');
+            const view = new PdfView(container, {
+                // The page being read is shown in the status bar.
                 updateStatusBar: () => { if (activePane() === pane) updateStatusBar(file); },
             });
             view.render(file.content, file);
@@ -1420,6 +1507,23 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
             };
         }
 
+        // A PDF is drawn by pdf.js in PdfView. The backend only hands over the
+        // bytes — the webview cannot read a path outside $HOME itself.
+        if (!fileData && isPdfFile(resolvedPath)) {
+            loading.update(sizeText ? t('Reading {size}…', { size: sizeText }) : t('Reading…'));
+            try {
+                fileData = await pdfTab(resolvedPath, stats);
+            } catch (err) {
+                console.warn('PDF preview failed:', resolvedPath, err);
+                if (window.showToast) {
+                    window.showToast(t('Could not read {name}.', {
+                        name: FS.getBasename(resolvedPath) || resolvedPath,
+                    }));
+                }
+                return;
+            }
+        }
+
         // Huge files: open via the Rust mmap backend so the content is never
         // pulled into JS. The viewer fetches visible lines on demand.
         if (!fileData && stats && stats.size > largeFileThresholdBytes() && !forceEncoding) {
@@ -1470,7 +1574,7 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
 
         // What is on disk right now. Edits are compared against it, so undoing
         // back to this text clears the tab's "*" again.
-        if (!fileData.isLarge && fileData.type !== 'office') markSaved(fileData);
+        if (!fileData.isLarge && fileData.type !== 'office' && fileData.type !== 'pdf') markSaved(fileData);
 
         if (forcePlainText) fileData.viewMode = 'text';
 
@@ -1490,6 +1594,8 @@ export async function openFile(path, forceEncoding = false, gotoLine = null, for
             if (forcePlainText) settled.file.viewMode = 'text';
             setActiveTab(settled.index, settled.pane);
         } else if (settled && forceEncoding) {
+            // A PDF reloaded because it changed on disk keeps its page and zoom.
+            if (fileData.type === 'pdf' && settled.file._pdfView) fileData._pdfView = settled.file._pdfView;
             paneFiles(settled.pane)[settled.index] = fileData;
             setActiveTab(settled.index, settled.pane);
             renderEditor(settled.pane);
@@ -1689,9 +1795,12 @@ window.app.showFolderList = function (dir, { follow = false, select = null } = {
         isDirty: false,
         stats: { size: 0, mtime: 0 },
     };
+    if (folderTabOpensPinned()) file.pinned = true;
     const pane = activePane();
-    paneFiles(pane).push(file);
-    setActiveTab(paneFiles(pane).length - 1, pane);
+    const files = paneFiles(pane);
+    const at = file.pinned ? pinnedCount(files) : files.length;
+    files.splice(at, 0, file);
+    setActiveTab(at, pane);
     return file;
 };
 
@@ -2074,6 +2183,12 @@ export function renderTabs(targetPane = null) {
         openFiles.forEach((file, index) => {
             const tab = document.createElement('div');
             tab.className = `tab ${index === activeIdx ? 'active' : ''}`;
+            if (file.pinned) {
+                tab.classList.add('tab-pinned');
+                // The rule that sets the pinned run off from the rest.
+                const next = openFiles[index + 1];
+                if (next && !next.pinned) tab.classList.add('tab-pinned-last');
+            }
             tab.draggable = true;
             tab.dataset.tabIndex = String(index);
             tab.dataset.tabPane = pane;
@@ -2150,19 +2265,38 @@ export function renderTabs(targetPane = null) {
                     { icon: 'compare', label: t('Compare with File...'), action: () => compareWithFile(file) },
                     { icon: 'export', label: t('Save As...'), action: () => saveCurrentFileAs() },
                     { type: 'separator' },
+                    file.pinned
+                        ? { icon: 'pin', label: t('Unpin Tab'), action: () => setTabPinned(index, pane, false) }
+                        : { icon: 'pin', label: t('Pin Tab'), action: () => setTabPinned(index, pane, true) },
                     { icon: 'layout-columns', label: t('New Window'), action: () => window.app?.openNewWindow?.() },
                     { icon: 'swap', label: t('Move to Other Pane'), action: () => moveTabToOtherPane(index, pane) },
                     { type: 'separator' },
-                    { icon: 'x', label: t('Close All (Discard)'), action: () => closeAllTabs(false) },
-                    { icon: 'check', label: t('Close All (Save)'), action: () => closeAllTabs(true) },
-                    { icon: 'close', label: t('Close Others'), action: () => closeOtherTabs(index, pane) }
+                    // Pinned tabs stay: closing everything else is what
+                    // pinning a tab asks for. Switching workspace still
+                    // closes them (App.js calls closeAllTabs without this).
+                    ...(file.pinned ? [{ icon: 'close', label: t('Close'), action: () => closeTab(index, pane) }] : []),
+                    { icon: 'x', label: t('Close All (Discard)'), action: () => closeAllTabs(false, { keepPinned: true }) },
+                    { icon: 'check', label: t('Close All (Save)'), action: () => closeAllTabs(true, { keepPinned: true }) },
+                    { icon: 'close', label: t('Close Others'), action: () => closeOtherTabs(index, pane) },
+                    // The menu has no disabled state; on the last tab the item is simply absent.
+                    ...(index < openFiles.length - 1
+                        ? [{ icon: 'close', label: t('Close to the Right'), action: () => closeTabsToRight(index, pane) }]
+                        : []),
+                    { icon: 'check', label: t('Close Saved Tabs'), action: () => closeSavedTabs(pane) }
                 ]);
             };
-            const closeBtn = document.createElement('span');
-            closeBtn.className = 'tab-close';
-            closeBtn.replaceChildren(iconEl('close', { size: 12 }));
-            closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(index, pane); };
-            tab.appendChild(closeBtn);
+            if (file.pinned) {
+                // Where the close button would be: says why there is none.
+                const pin = iconEl('pin', { size: 11 });
+                pin.classList.add('tab-pin-mark');
+                tab.appendChild(pin);
+            } else {
+                const closeBtn = document.createElement('span');
+                closeBtn.className = 'tab-close';
+                closeBtn.replaceChildren(iconEl('close', { size: 12 }));
+                closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(index, pane); };
+                tab.appendChild(closeBtn);
+            }
             fragment.appendChild(tab);
         });
 
@@ -2398,23 +2532,81 @@ function initTabNavigation() {
 }
 
 
-function closeOtherTabs(keepIndex, pane = activePane()) {
+/**
+ * Close the tabs of one pane that `shouldClose` picks, in one go.
+ *
+ * Unsaved tabs among them are asked about once for the lot (save / close
+ * without saving / cancel), not tab by tab. "Close Others" used to drop its
+ * tabs outright: unsaved edits vanished without a word and the backend
+ * handles of large files were never freed.
+ *
+ * Returns false when nothing was closed because the user backed out or a
+ * save did not go through.
+ */
+async function closeTabsInPane(pane, shouldClose) {
     pane = normalizePane(pane);
-    const isLeft = pane === 'left';
-    const openFiles = paneFiles(pane);
-    const keepFile = openFiles[keepIndex];
-    if (!keepFile) return;
-    if (isLeft) {
-        State.openFiles = [keepFile];
-        State.activeTabIndex = 0;
-    } else {
-        State.rightOpenFiles = [keepFile];
-        State.rightActiveTabIndex = 0;
+    const files = paneFiles(pane);
+    const plan = planTabRemoval(files, paneActiveIndex(pane), shouldClose);
+    if (!plan.removed.length) return true;
+
+    // Same rule as closeTab: compare-text and agent tabs hold nothing to save.
+    const dirty = plan.removed.filter((f) => f.isDirty && f.type !== 'compare' && f.type !== 'agent');
+    if (dirty.length) {
+        const choice = await showDialog({
+            title: 'Unsaved Changes',
+            kind: 'warning',
+            message: t('{count} of the tabs being closed have unsaved changes.', { count: dirty.length }),
+            buttons: [
+                { label: t('Cancel'), value: 'cancel', cancel: true },
+                { label: t('Close without saving'), value: 'discard' },
+                { label: t('Save and close'), value: 'save', primary: true },
+            ],
+        });
+        if (choice === 'cancel' || !choice) return false;
+        if (choice === 'save') {
+            const result = await saveFiles(dirty);
+            if (result.failed.length || result.cancelled.length) {
+                const { message, title, kind } = unsavedReport(result);
+                await showAlert(message, { title, kind });
+                return false;
+            }
+        }
+    }
+
+    // The dialog awaited: re-plan against the pane as it is now, so a tab
+    // opened or closed meanwhile is neither lost nor resurrected.
+    const now = planTabRemoval(paneFiles(pane), paneActiveIndex(pane), (f) => plan.removed.includes(f));
+    files.splice(0, files.length, ...now.kept);
+    for (const file of now.removed) releaseFileHandles(file);
+    setPaneActiveIndex(pane, now.activeIndex);
+
+    if (!files.length && State.splitMode) {
+        closeSplit();
+        return true;
     }
     renderTabs(pane);
     renderEditor(pane);
     updateToolbar();
-    setupWatcher(keepFile);
+    setupWatcher(now.activeIndex >= 0 ? files[now.activeIndex] : null);
+    return true;
+}
+
+function closeOtherTabs(keepIndex, pane = activePane()) {
+    const keep = paneFiles(normalizePane(pane))[keepIndex];
+    if (!keep) return;
+    return closeTabsInPane(pane, (f) => f !== keep && !f.pinned);
+}
+
+function closeTabsToRight(index, pane = activePane()) {
+    return closeTabsInPane(pane, (f, i) => i > index && !f.pinned);
+}
+
+/**
+ * Tabs with nothing unsaved. The terminal tab stays: closing it is not
+ * tidying up, and the shell behind it would go with it.
+ */
+function closeSavedTabs(pane = activePane()) {
+    return closeTabsInPane(pane, (f) => !f.isDirty && !f.pinned && !String(f.path || '').startsWith('terminal://'));
 }
 
 /**
@@ -2439,7 +2631,8 @@ export function moveTabToOtherPane(index, sourcePane, destIndex = null) {
 
     const destFiles = paneFiles(targetPane);
     const file = sourceFiles.splice(index, 1)[0];
-    const at = destIndex == null ? destFiles.length : Math.max(0, Math.min(destIndex, destFiles.length));
+    // A pinned tab stays pinned in the other pane, among its pinned tabs.
+    const at = insertIndexFor(destFiles, file, destIndex);
     destFiles.splice(at, 0, file);
 
     const newSourceActiveIdx = activeIndexAfterRemoval(
@@ -2471,7 +2664,7 @@ export function reorderTab(fromIndex, toIndex, pane) {
     const files = paneFiles(pane);
     const focused = files[paneActiveIndex(pane)];
 
-    reorderInPlace(files, fromIndex, toIndex);
+    reorderInPlace(files, fromIndex, clampDropIndex(files, fromIndex, toIndex));
 
     // Follow the buffer, not the slot — the active tab must not change identity
     // just because something ahead of it moved.
@@ -2801,6 +2994,16 @@ async function watchFile(initial) {
             const oldTime = new Date(file.stats.mtime).getTime();
             if (!(newTime > oldTime + 1000)) return;
 
+            // A PDF has no text to compare and no edits to lose: a newer file
+            // is simply shown. Reading it as text would be a large decode of
+            // binary only to find it differs from ''.
+            if (file.type === 'pdf') {
+                file.stats = curStats;
+                isPrompting = true;
+                try { await openFile(file.path, file.encoding); } finally { isPrompting = false; }
+                return;
+            }
+
             const diskContent = await FS.readFileText(file.path);
             if (diskContent === null) return;
             // A newer timestamp is not a newer file: only a real difference is
@@ -2855,6 +3058,15 @@ async function watchFile(initial) {
 function renderPathCrumbs(dirWithTrailingSlash) {
     const host = EL.fileDirectoryLabel;
     if (!host) return;
+    // The file name after the crumbs opens this file's headings and functions
+    // (the palette's # mode): the last step of the path, inside the file.
+    if (EL.currentFileLabel && !EL.currentFileLabel.dataset.symbolsWired) {
+        EL.currentFileLabel.dataset.symbolsWired = '1';
+        EL.currentFileLabel.classList.add('path-crumb-file');
+        EL.currentFileLabel.addEventListener('click', () => {
+            if (getActiveFile()) CommandPalette.show('#');
+        });
+    }
     host.replaceChildren();
     const dir = String(dirWithTrailingSlash || '').replace(/[\\/]+$/, '');
     if (!dir) return;
@@ -2876,7 +3088,16 @@ function renderPathCrumbs(dirWithTrailingSlash) {
         crumb.className = 'path-crumb';
         crumb.textContent = part;
         crumb.title = target;
-        crumb.onclick = () => openDirectoryFromCrumb(target);
+        // A drive ("C:") is listed as its root.
+        const listTarget = /^[a-zA-Z]:$/.test(target) ? `${target}/` : target;
+        // What is in this folder, as a drop-down: siblings to open, subfolders
+        // to step into, and "Show in Explorer" (what a click used to do) first.
+        crumb.onclick = () => PathCrumbMenu.show(crumb, listTarget, {
+            list: (dir) => FS.readDirectory(dir),
+            open: (path) => openFile(path),
+            reveal: (dir) => openDirectoryFromCrumb(dir),
+            currentPath: getActiveFile()?.path || '',
+        });
         host.appendChild(crumb);
     });
     // The trailing separator before the file name, matching what the plain
@@ -3309,7 +3530,7 @@ async function saveFileNow(file, view, { refresh = true } = {}) {
 
     // An Office preview is a rendering of a file this editor cannot write.
     // Saving would replace a workbook with an empty text file.
-    if (file.type === 'office') {
+    if (file.type === 'office' || file.type === 'pdf') {
         if (window.showToast) window.showToast(t('Preview only — this file cannot be saved from here.'));
         return false;
     }
@@ -3825,7 +4046,8 @@ export function updateStatusBar(forFile = null) {
     }
 
     const isMd = isMarkdownFile(file);
-    const officeLabel = file.type === 'office' ? officeTypeName(file.path || file.name) : null;
+    const officeLabel = file.type === 'office' ? officeTypeName(file.path || file.name)
+        : file.type === 'pdf' ? 'PDF' : null;
     if (document.getElementById('status-file-type')) {
         document.getElementById('status-file-type').textContent =
             officeLabel || (isMd ? 'Markdown' : 'Plain Text');
@@ -3847,7 +4069,9 @@ export function updateStatusBar(forFile = null) {
         // and offering the key would be advertising a dead end.
         if (officeLabel) {
             modeHint.textContent = t('Preview · read-only');
-            modeHint.title = t('Read-only preview — the layout is approximate, and charts are not shown.');
+            modeHint.title = file.type === 'pdf'
+                ? t('Read-only PDF preview — forms and annotations are not editable.')
+                : t('Read-only preview — the layout is approximate, and charts are not shown.');
         } else {
             modeHint.textContent = `${label} · Ctrl+Shift+E`;
             modeHint.title = 'Switch Text / Structure (Table) view — Ctrl+Shift+E';
@@ -3908,7 +4132,7 @@ export function updateStatusBar(forFile = null) {
 
     let selectionValue = 'Ln 1, Col 1';
     const cmView = getCurrentView();
-    if (file.type === 'office') {
+    if (file.type === 'office' || file.type === 'pdf') {
         // No caret and no line numbers in a preview. What a reader of a sheet
         // looks to the status bar for is Excel's 平均 / データの個数 / 合計.
         selectionValue = cmView && typeof cmView.getSelectionSummary === 'function'
@@ -4016,6 +4240,24 @@ async function restoredOfficeTab(path, stats) {
     };
 }
 
+/**
+ * A PDF tab: the bytes, read by the backend as raw IPC rather than JSON.
+ * Shared by openFile() and the session restore so the two build one shape.
+ */
+async function pdfTab(path, stats) {
+    const buffer = await invoke('read_pdf_bytes', { path });
+    return {
+        path,
+        content: '',
+        pdf: new Uint8Array(buffer),
+        type: 'pdf',
+        encoding: 'UTF-8',
+        eol: getOsLineEnding(),
+        isDirty: false,
+        stats: stats || { size: 0, mtime: 0 },
+    };
+}
+
 async function restoreSessionInto(loading) {
     const session = loadSession();
     if (!session || !Array.isArray(session.left) || session.left.length === 0) return 0;
@@ -4055,6 +4297,11 @@ async function restoreSessionInto(loading) {
                 restored++;
                 continue;
             }
+            if (isPdfFile(entry.path)) {
+                State.openFiles.push(await pdfTab(entry.path, stats));
+                restored++;
+                continue;
+            }
 
             const { content, encoding, eol, lossy } = await FS.readFileAutoDetect(entry.path);
             const file = {
@@ -4083,6 +4330,8 @@ async function restoreSessionInto(loading) {
         }
     }
 
+    restorePins(State.openFiles, session.left);
+
     // The secondary pane, when the last session had one. Restored before the
     // untitled buffers so those always land in the primary pane.
     if (session.splitMode && Array.isArray(session.right) && session.right.length > 0) {
@@ -4095,6 +4344,11 @@ async function restoreSessionInto(loading) {
                 if (!stats) continue;
                 if (isOfficeFile(entry.path)) {
                     State.rightOpenFiles.push(await restoredOfficeTab(entry.path, stats));
+                    restored++;
+                    continue;
+                }
+                if (isPdfFile(entry.path)) {
+                    State.rightOpenFiles.push(await pdfTab(entry.path, stats));
                     restored++;
                     continue;
                 }
@@ -4115,6 +4369,7 @@ async function restoreSessionInto(loading) {
                 console.warn('[Session] could not restore', entry.path, e);
             }
         }
+        restorePins(State.rightOpenFiles, session.right);
         if (State.rightOpenFiles.length > 0) {
             // seed:false — the pane already has its own tabs. The saved value
             // is the DIRECTION, not a boolean: reopening a vertical split as a

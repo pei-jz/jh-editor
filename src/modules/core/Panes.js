@@ -153,3 +153,140 @@ export function mergeRightIntoLeft(left, right) {
     }
     return left;
 }
+
+/**
+ * When each tab was last on screen, for the Ctrl+T list.
+ *
+ * A WeakMap, not a field on the file object: the session saver serializes
+ * those objects, and a closed tab must not be kept alive by this bookkeeping.
+ * A counter rather than Date.now(), so two switches in the same millisecond
+ * still sort in the order they happened.
+ */
+const lastShown = new WeakMap();
+let shownSeq = 0;
+
+export function markShown(file) {
+    if (file && typeof file === 'object') lastShown.set(file, ++shownSeq);
+}
+
+/**
+ * Every open tab in both panes, most recently shown first.
+ *
+ * Tabs never shown this run (restored from the session and not yet visited)
+ * keep their strip order behind the visited ones. A buffer a split shows in
+ * both panes is listed once, under the pane that is active if it is there.
+ */
+export function tabsByRecentUse() {
+    const entries = openTabEntries(activePane()).map((e, order) => ({ ...e, order }));
+    entries.sort((a, b) =>
+        (lastShown.get(b.file) || 0) - (lastShown.get(a.file) || 0) || a.order - b.order);
+    return entries.map(({ file, pane, index }) => ({ file, pane, index }));
+}
+
+/**
+ * Every open tab as { file, pane, index }, in strip order, `firstPane`'s tabs
+ * first. A buffer a split shows in both panes is listed once, under the pane
+ * that comes first. A stale right pane is ignored once the split is gone.
+ */
+export function openTabEntries(firstPane = LEFT) {
+    const panes = State.splitMode ? [firstPane, otherPane(firstPane)] : [LEFT];
+    const seen = new Set();
+    const entries = [];
+    for (const pane of panes) {
+        paneFiles(pane).forEach((file, index) => {
+            if (!file || seen.has(file)) return;
+            seen.add(file);
+            entries.push({ file, pane, index });
+        });
+    }
+    return entries;
+}
+
+/**
+ * Split a pane's tabs into the ones that stay and the ones `shouldClose`
+ * picks, and say which tab is active afterwards.
+ *
+ * The active tab stays active if it survives. Otherwise the nearest survivor
+ * to its left takes over (the same direction a single close moves in), then
+ * the first one; -1 when nothing is left.
+ */
+export function planTabRemoval(files, activeIndex, shouldClose) {
+    const kept = [];
+    const removed = [];
+    let nextActive = -1;
+    let leftOfActive = -1;
+    files.forEach((file, i) => {
+        if (shouldClose(file, i)) {
+            removed.push(file);
+            return;
+        }
+        if (i === activeIndex) nextActive = kept.length;
+        if (i < activeIndex) leftOfActive = kept.length;
+        kept.push(file);
+    });
+    if (nextActive < 0) nextActive = leftOfActive >= 0 ? leftOfActive : (kept.length ? 0 : -1);
+    return { kept, removed, activeIndex: nextActive };
+}
+
+// --- Pinned tabs --------------------------------------------------------------
+//
+// A pinned tab (file.pinned) sits at the front of its pane and stays there:
+// the pinned tabs of a pane are always its first ones, in an unbroken run.
+// Everything below keeps that true, so the tab strip, the bulk closes and the
+// session can each read "the first pinnedCount() tabs" and nothing else.
+// New tabs are appended, which never breaks it.
+
+/** How many tabs at the front of `files` are pinned. */
+export function pinnedCount(files) {
+    let n = 0;
+    while (n < files.length && files[n] && files[n].pinned) n++;
+    return n;
+}
+
+/** Put the pinned tabs first, each group keeping its order. */
+export function partitionPinned(files) {
+    const pinned = files.filter((f) => f && f.pinned);
+    const rest = files.filter((f) => !(f && f.pinned));
+    files.splice(0, files.length, ...pinned, ...rest);
+    return files;
+}
+
+/**
+ * Bound a drop position (an insertion index, as reorderInPlace takes) so a
+ * tab lands in its own group: a pinned one among the pinned, any other after
+ * them. Dragging a tab across the boundary used to be the only way to break
+ * the run.
+ */
+export function clampDropIndex(files, fromIndex, toIndex) {
+    const file = files[fromIndex];
+    const pc = pinnedCount(files);
+    if (file && file.pinned) return Math.max(0, Math.min(toIndex, pc));
+    return Math.max(pc, Math.min(toIndex, files.length));
+}
+
+/**
+ * Where `file`, coming from another pane, goes in `files`: `destIndex` (null
+ * for the end of its group) bounded to the file's group.
+ */
+export function insertIndexFor(files, file, destIndex) {
+    const pc = pinnedCount(files);
+    if (file && file.pinned) return destIndex == null ? pc : Math.max(0, Math.min(destIndex, pc));
+    return destIndex == null ? files.length : Math.max(pc, Math.min(destIndex, files.length));
+}
+
+/**
+ * Pin or unpin the tab at `index`. It moves to the boundary: a newly pinned
+ * tab becomes the last pinned one, an unpinned tab the first of the rest, so
+ * neither jumps further than it has to. Returns its new index.
+ */
+export function setPinnedInPlace(files, index, pinned) {
+    const file = files[index];
+    if (!file) return -1;
+    if (!!file.pinned === !!pinned) return index;
+    files.splice(index, 1);
+    if (pinned) file.pinned = true;
+    else delete file.pinned;
+    const at = pinnedCount(files);
+    files.splice(at, 0, file);
+    return at;
+}

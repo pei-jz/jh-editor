@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { RecentFiles, sameWorkspace } from '../src/modules/utils/RecentFiles.js';
+import { RecentFiles, sameWorkspace, isInWorkspace } from '../src/modules/utils/RecentFiles.js';
 
 describe('RecentFiles', () => {
     beforeEach(() => localStorage.clear());
@@ -18,11 +18,11 @@ describe('RecentFiles', () => {
             expect(RecentFiles.getFiles()).toEqual([]);
         });
 
-        it('keeps the 15 latest', () => {
-            for (let i = 0; i < 20; i++) RecentFiles.recordFile(`C:/${i}.txt`);
+        it('keeps the 100 latest', () => {
+            for (let i = 0; i < 105; i++) RecentFiles.recordFile(`C:/${i}.txt`);
             const files = RecentFiles.getFiles();
-            expect(files).toHaveLength(15);
-            expect(files[0]).toBe('C:/19.txt');
+            expect(files).toHaveLength(100);
+            expect(files[0]).toBe('C:/104.txt');
         });
 
         it('clears', () => {
@@ -70,6 +70,27 @@ describe('RecentFiles', () => {
         it('never matches a missing path', () => {
             expect(sameWorkspace('', '')).toBe(false);
             expect(sameWorkspace(null, 'C:/a')).toBe(false);
+        });
+    });
+
+    describe('per workspace', () => {
+        it('lists only the files inside the workspace, most recent first', () => {
+            RecentFiles.recordFile('C:/w/a.txt');
+            RecentFiles.recordFile('C:/other/b.txt');
+            RecentFiles.recordFile('C:\\W\\sub\\c.txt');
+            expect(RecentFiles.getFilesIn('c:/w/')).toEqual(['C:\\W\\sub\\c.txt', 'C:/w/a.txt']);
+        });
+
+        it('does not take a sibling folder with the same prefix for the workspace', () => {
+            expect(isInWorkspace('C:/work2/a.txt', 'C:/work')).toBe(false);
+            expect(isInWorkspace('C:/work/a.txt', 'C:/work')).toBe(true);
+            expect(isInWorkspace('C:/work/a.txt', '')).toBe(false);
+        });
+
+        it('keeps enough history that another project does not push this one out', () => {
+            RecentFiles.recordFile('C:/w/keep.txt');
+            for (let i = 0; i < 30; i++) RecentFiles.recordFile(`C:/other/${i}.txt`);
+            expect(RecentFiles.getFilesIn('C:/w')).toEqual(['C:/w/keep.txt']);
         });
     });
 });

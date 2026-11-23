@@ -64,7 +64,8 @@ function _isRestorable(f) {
     // no disk backing — re-opening them would be meaningless or misleading.
     // 'office' is the exception: it IS a file on disk, just one that is parsed
     // on open rather than read as text, so reopening it does the right thing.
-    if (f.type && f.type !== 'file' && f.type !== 'office') return false;
+    // 'pdf' likewise.
+    if (f.type && f.type !== 'file' && f.type !== 'office' && f.type !== 'pdf') return false;
     if (f.viewMode === 'diff' || f.viewMode === 'compare') return false;
     return !/^(search|ai|settings):\/\//.test(f.path);
 }
@@ -74,6 +75,8 @@ function _describe(f) {
         path: f.path,
         viewMode: f.viewMode || null,
         encoding: f.encoding || null,
+        // Only when set, so a session saved before pinning reads the same.
+        ...(f.pinned ? { pinned: true } : {}),
     };
 }
 

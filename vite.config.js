@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { aiClientAlias, hasAiClient } from './scripts/ai-client-alias.js';
+import { pdfjsAssets } from './scripts/pdfjs-assets.js';
 
 const host = process.env.TAURI_DEV_HOST;
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -14,6 +15,8 @@ if (!hasAiClient(root)) {
 
 export default defineConfig({
     clearScreen: false,
+    // pdf.js fetches its CMaps, fonts and decoders by URL — see the plugin.
+    plugins: [pdfjsAssets(root)],
     resolve: {
         alias: aiClientAlias(root),
     },
@@ -80,6 +83,9 @@ export default defineConfig({
                         if (/\/node_modules\/(@mermaid-js\/layout-elk|elkjs|d3|d3-[^/]+|internmap|delaunator|robust-predicates)\//.test(id)) {
                             return undefined;
                         }
+                        // pdf.js (~1 MB) comes with the first PDF opened —
+                        // see views/PdfView.js loadPdfjs().
+                        if (id.includes('/pdfjs-dist/')) return undefined;
                         return 'vendor'; // Split other vendors
                     }
                 }

@@ -46,7 +46,7 @@ describe('what counts as external', () => {
 
     it('sorts viewers from programs, in any case', () => {
         expect(externalKind('a.PNG')).toBe('open');
-        expect(externalKind('a.pdf')).toBe('open');
+        expect(externalKind('a.mp4')).toBe('open');
         expect(externalKind('a.exe')).toBe('program');
         expect(externalKind('report.pdf.exe')).toBe('program');
         expect(externalKind('tool.jar')).toBe('program');

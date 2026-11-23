@@ -482,7 +482,13 @@ describe('text from a document or a file name is escaped before innerHTML', () =
     });
 
     it('escapes file names and paths in lists', () => {
-        expect(read('src/modules/ui/TabSearch.js')).toContain('${escapeHtml(name)}');
+        // The unified palette (tabs, files, symbols) draws every row as text.
+        // Its match highlight is built from text nodes, never innerHTML.
+        const palette = read('src/modules/ui/CommandPalette.js');
+        expect(palette).toContain("appendMarked(label, String(r.label ?? ''), r.labelRanges);");
+        expect(palette).toContain('appendMarked(bdi, r.detail, r.detailRanges);');
+        expect(palette).toContain('document.createTextNode(text.slice(at, start))');
+        expect(palette).toContain('mark.textContent = text.slice(start, end);');
         expect(read('src/modules/ui/Modal.js')).toContain('${escapeHtml(file.name)}');
         // File search builds its highlighted name and folder from text nodes.
         const fileSearch = read('src/modules/ui/FileSearchModal.js');

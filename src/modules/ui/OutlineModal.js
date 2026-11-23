@@ -4,55 +4,130 @@ import { getCurrentView } from '../core/Editor.js';
 import { MarkdownView } from '../views/MarkdownView.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
 
+/**
+ * Headings (Markdown) or classes and functions (code) in `file`, by line.
+ * Shared with the unified palette's `#` mode.
+ */
+export function collectOutline(file) {
+    if (!file || !file.content) return { items: [], isMarkdown: false };
+    const fileName = file.name || (file.path ? file.path.split(/[/\\]/).pop() : 'Untitled');
+    const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+    const isMarkdown = ext === 'md' || ext === 'markdown';
+
+    // Parse headings/functions from the file content
+    const lines = file.content.split(/\r?\n/);
+    const headings = [];
+    let index = 0; // track line index for plain text navigation
+    
+    lines.forEach((line) => {
+        let item = null;
+        if (isMarkdown) {
+            const match = line.match(/^(#{1,6})\s+(.*)/);
+            if (match) {
+                item = { level: match[1].length, text: match[2], lineIndex: index, fullText: line };
+            }
+        } else {
+            // simple heuristic for JS, Java, Rust, Python, etc.
+            const classMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*(class|interface|struct|enum|trait|impl)\s+([a-zA-Z0-9_]+)/);
+            if (classMatch) {
+                item = { level: 1, text: `${classMatch[1]} ${classMatch[2]}`, lineIndex: index, fullText: line };
+            } else {
+                const fnMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*(?:function|def|fn)\s+([a-zA-Z0-9_]+)/);
+                if (fnMatch) {
+                    item = { level: 2, text: `${fnMatch[1]}()`, lineIndex: index, fullText: line };
+                } else {
+                    // methods/arrow functions
+                    const methodMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*([a-zA-Z0-9_]+)\s*\([^)]*\)\s*(?::\s*[a-zA-Z0-9_<>]+)?\s*\{/);
+                    if (methodMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
+                        item = { level: 2, text: `${methodMatch[1]}()`, lineIndex: index, fullText: line };
+                    } else {
+                        const arrowMatch = line.match(/^\s*(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)\s*=>/);
+                        if (arrowMatch) {
+                            item = { level: 2, text: `${arrowMatch[1]}()`, lineIndex: index, fullText: line };
+                        }
+                    }
+                }
+            }
+        }
+        if (item) headings.push(item);
+        index++;
+    });
+
+    return { items: headings, isMarkdown };
+}
+
+/** Move the active view to an outline item. */
+export function jumpToOutlineItem(item) {
+        
+        const currentView = getCurrentView();
+        if (currentView && typeof currentView.jumpToLine === 'function') {
+            currentView.jumpToLine(item.lineIndex, item.fullText);
+            if (currentView.blocksData) {
+                // Highlight the block element on the page for Markdown mode
+                setTimeout(() => {
+                    for (let i = 0; i < currentView.blocksData.length; i++) {
+                        if (currentView.blocksData[i].includes(item.fullText || item.originalLine)) {
+                            const blocks = document.querySelectorAll('.md-block');
+                            blocks.forEach(b => {
+                                if (parseInt(b.dataset.index) === i) {
+                                    b.style.transition = 'background-color 0.5s';
+                                    b.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 122, 204), 0.3)';
+                                    setTimeout(() => b.style.backgroundColor = 'transparent', 1000);
+                                }
+                            });
+                            break;
+                        }
+                    }
+                }, 100);
+            }
+        } else if (currentView && currentView.blocksData) {
+            for (let i = 0; i < currentView.blocksData.length; i++) {
+                if (currentView.blocksData[i].includes(item.fullText || item.originalLine)) {
+                    if (typeof currentView.selectBlock === 'function') {
+                        currentView.selectBlock(i);
+                        
+                        // Highlight the block element on the page
+                        setTimeout(() => {
+                            const blocks = document.querySelectorAll('.md-block');
+                            blocks.forEach(b => {
+                                if (parseInt(b.dataset.index) === i) {
+                                    b.style.transition = 'background-color 0.5s';
+                                    b.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 122, 204), 0.3)';
+                                    setTimeout(() => b.style.backgroundColor = 'transparent', 1000);
+                                }
+                            });
+                        }, 100);
+                    }
+                    break;
+                }
+            }
+        } else if (currentView && typeof currentView.jumpToLine === 'function' && !currentView.textarea) {
+            // CodeMirror view: jump by line index (selects + scrolls to it).
+            currentView.jumpToLine(item.lineIndex);
+        } else if (currentView && currentView.textarea) {
+
+            // Plain text view fallback
+            const linesArr = currentView.textarea.value.split('\n');
+            let charPos = 0;
+            for (let i = 0; i < item.lineIndex; i++) {
+                charPos += linesArr[i].length + 1; // +1 for newline
+            }
+            currentView.textarea.focus();
+            currentView.textarea.setSelectionRange(charPos, charPos + item.fullText.length);
+            
+            // Scroll to line roughly
+            const lineHeight = parseFloat(getComputedStyle(currentView.textarea).lineHeight) || 20;
+            currentView.textarea.scrollTop = (item.lineIndex * lineHeight) - (currentView.textarea.clientHeight / 2);
+        }
+}
+
 export const OutlineModal = {
     show() {
         if (State.activeTabIndex < 0) return;
         const file = State.openFiles[State.activeTabIndex];
         if (!file || !file.content) return;
 
-        const fileName = file.name || (file.path ? file.path.split(/[/\\]/).pop() : 'Untitled');
-        const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
-        const isMarkdown = ext === 'md' || ext === 'markdown';
-
-        // Parse headings/functions from the file content
-        const lines = file.content.split(/\r?\n/);
-        const headings = [];
-        let index = 0; // track line index for plain text navigation
-        
-        lines.forEach((line) => {
-            let item = null;
-            if (isMarkdown) {
-                const match = line.match(/^(#{1,6})\s+(.*)/);
-                if (match) {
-                    item = { level: match[1].length, text: match[2], lineIndex: index, fullText: line };
-                }
-            } else {
-                // simple heuristic for JS, Java, Rust, Python, etc.
-                const classMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*(class|interface|struct|enum|trait|impl)\s+([a-zA-Z0-9_]+)/);
-                if (classMatch) {
-                    item = { level: 1, text: `${classMatch[1]} ${classMatch[2]}`, lineIndex: index, fullText: line };
-                } else {
-                    const fnMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*(?:function|def|fn)\s+([a-zA-Z0-9_]+)/);
-                    if (fnMatch) {
-                        item = { level: 2, text: `${fnMatch[1]}()`, lineIndex: index, fullText: line };
-                    } else {
-                        // methods/arrow functions
-                        const methodMatch = line.match(/^\s*(?:export\s+|public\s+|private\s+|protected\s+|static\s+|async\s+)*([a-zA-Z0-9_]+)\s*\([^)]*\)\s*(?::\s*[a-zA-Z0-9_<>]+)?\s*\{/);
-                        if (methodMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
-                            item = { level: 2, text: `${methodMatch[1]}()`, lineIndex: index, fullText: line };
-                        } else {
-                            const arrowMatch = line.match(/^\s*(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)\s*=>/);
-                            if (arrowMatch) {
-                                item = { level: 2, text: `${arrowMatch[1]}()`, lineIndex: index, fullText: line };
-                            }
-                        }
-                    }
-                }
-            }
-            if (item) headings.push(item);
-            index++;
-        });
-
+        const { items: headings, isMarkdown } = collectOutline(file);
         if (headings.length === 0) {
             // Optional: Show a toast saying no headings found
             return;
@@ -119,67 +194,7 @@ export const OutlineModal = {
 
         const selectAndClose = (item) => {
             overlay.remove();
-            
-            const currentView = getCurrentView();
-            if (currentView && typeof currentView.jumpToLine === 'function') {
-                currentView.jumpToLine(item.lineIndex, item.fullText);
-                if (currentView.blocksData) {
-                    // Highlight the block element on the page for Markdown mode
-                    setTimeout(() => {
-                        for (let i = 0; i < currentView.blocksData.length; i++) {
-                            if (currentView.blocksData[i].includes(item.fullText || item.originalLine)) {
-                                const blocks = document.querySelectorAll('.md-block');
-                                blocks.forEach(b => {
-                                    if (parseInt(b.dataset.index) === i) {
-                                        b.style.transition = 'background-color 0.5s';
-                                        b.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 122, 204), 0.3)';
-                                        setTimeout(() => b.style.backgroundColor = 'transparent', 1000);
-                                    }
-                                });
-                                break;
-                            }
-                        }
-                    }, 100);
-                }
-            } else if (currentView && currentView.blocksData) {
-                for (let i = 0; i < currentView.blocksData.length; i++) {
-                    if (currentView.blocksData[i].includes(item.fullText || item.originalLine)) {
-                        if (typeof currentView.selectBlock === 'function') {
-                            currentView.selectBlock(i);
-                            
-                            // Highlight the block element on the page
-                            setTimeout(() => {
-                                const blocks = document.querySelectorAll('.md-block');
-                                blocks.forEach(b => {
-                                    if (parseInt(b.dataset.index) === i) {
-                                        b.style.transition = 'background-color 0.5s';
-                                        b.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 122, 204), 0.3)';
-                                        setTimeout(() => b.style.backgroundColor = 'transparent', 1000);
-                                    }
-                                });
-                            }, 100);
-                        }
-                        break;
-                    }
-                }
-            } else if (currentView && typeof currentView.jumpToLine === 'function' && !currentView.textarea) {
-                // CodeMirror view: jump by line index (selects + scrolls to it).
-                currentView.jumpToLine(item.lineIndex);
-            } else if (currentView && currentView.textarea) {
-
-                // Plain text view fallback
-                const linesArr = currentView.textarea.value.split('\n');
-                let charPos = 0;
-                for (let i = 0; i < item.lineIndex; i++) {
-                    charPos += linesArr[i].length + 1; // +1 for newline
-                }
-                currentView.textarea.focus();
-                currentView.textarea.setSelectionRange(charPos, charPos + item.fullText.length);
-                
-                // Scroll to line roughly
-                const lineHeight = parseFloat(getComputedStyle(currentView.textarea).lineHeight) || 20;
-                currentView.textarea.scrollTop = (item.lineIndex * lineHeight) - (currentView.textarea.clientHeight / 2);
-            }
+            jumpToOutlineItem(item);
         };
 
         input.addEventListener('input', () => {

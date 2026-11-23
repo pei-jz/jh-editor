@@ -65,3 +65,22 @@ export function setExplorerListsFolders(on) {
         localStorage.setItem(FOLDER_LIST_KEY, on ? '1' : '0');
     } catch (_) { /* ignore */ }
 }
+
+// Whether the folder list tab opens pinned (core/Panes.js, pinned tabs). On by
+// default: the tab looked like every other one and got lost among them, and
+// a pinned tab sits at the front where it is found.
+const FOLDER_TAB_PIN_KEY = 'settings_folderTabPinned';
+
+export function folderTabOpensPinned() {
+    try {
+        return localStorage.getItem(FOLDER_TAB_PIN_KEY) !== '0';
+    } catch (_) {
+        return true;
+    }
+}
+
+export function setFolderTabOpensPinned(on) {
+    try {
+        localStorage.setItem(FOLDER_TAB_PIN_KEY, on ? '1' : '0');
+    } catch (_) { /* ignore */ }
+}

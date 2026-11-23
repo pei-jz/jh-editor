@@ -251,7 +251,9 @@ body.theme-latte {
     --sidebar-bg: #e6e9ef;
     --header-bg: #e6e9ef;
     --border-color: rgba(0, 0, 0, 0.09);
-    --text-color: #4c4f69;
+    /* Catppuccin's text (#4c4f69) is 7.1:1 on the page but 6.0 on the
+       panels, which left every derived muted tone under 4.5. */
+    --text-color: #3b3e56;
     /* Was Latte's pink (#ea76cb): 2.34:1 against the page and 2.64:1
        under white text. That colour belongs to syntax, not to chrome.
        Latte's mauve is the palette's own accent and carries both,
@@ -270,7 +272,7 @@ body.theme-latte {
     --tab-inactive-color: #666876;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(234, 118, 203, 0.1);
-    --text-secondary: #666876;
+    --text-secondary: #575a6c;
 
     /* Markdown Premium Styles */
     --code-color: #984d84;   /* pink darkened to 4.5:1 */
@@ -301,7 +303,8 @@ body.theme-solarized-dark {
     --border-color: rgba(255, 255, 255, 0.08);
     --text-color: #b0bec5;
     /* Brighter than base1 for clear readability */
-    --primary-color: #268bd2;
+    /* Solarized blue (#268bd2) is 4.08:1 on base03; lifted, same hue. */
+    --primary-color: #4a9ee0;
     /* White on this accent came to 3.68:1 where the accent is used as a
        fill. Same hue, dark enough to read: 4.56. */
     --text-on-primary: #00212b;
@@ -373,11 +376,15 @@ body.theme-solarized-light {
     --sidebar-bg: #eee8d5;
     --header-bg: #eee8d5;
     --border-color: rgba(0, 0, 0, 0.09);
-    --text-color: #586e75;   /* base01 (was base00, 4.13:1) */
-    --primary-color: #268bd2;
+    /* base01 (#586e75) was still 4.99:1 on the page and 4.39 on the panels;
+       this is between base01 and base02, the same hue. */
+    --text-color: #33474e;
+    /* Solarized blue (#268bd2) is 3.41:1 here; deepened, same hue. */
+    --primary-color: #1b6aa5;
     /* White on this came to 3.68:1 where the accent is used as a
        fill. The palette already has a darkest ink; use that. */
-    --text-on-primary: #00212b;
+    /* The deepened accent takes white (5.7:1); base03 on it fell to 2.9. */
+    --text-on-primary: #ffffff;
     --active-tab-bg: #fdf6e3;
     --active-tab-border: #268bd2;
     --hover-color: #eee8d5;
@@ -403,7 +410,7 @@ body.theme-solarized-light {
     --tab-inactive-color: #657b83;
     --tree-item-color: var(--text-color);
     --tree-item-active-bg: rgba(38, 139, 210, 0.1);
-    --text-secondary: #657b83;
+    --text-secondary: #4f646b;
 
     /* Markdown Premium Styles */
     --code-color: #cb4b16;
@@ -1431,10 +1438,11 @@ body.theme-kakejiku .explorer-tab {
        label to ~3:1. The ink is already muted; it does not need dimming too. */
     opacity: 0.92;
 }
-/* The active chip is the honji showing through the mounting, so it is light,
-   and the accent's own 金茶 reads on it as it does on the sheet. */
+/* The active chip is the honji showing through the mounting, so it is light.
+   Its label is the sheet's ink: the accent's 金茶 as text measured 4.09:1
+   here. The accent stays on the icon and the underline (explorer.css). */
 body.theme-kakejiku .explorer-tab.active {
-    color: var(--primary-color);
+    color: var(--text-color);
 }
 
 /* Explorer hover: the tree sits on the honji (light), so hovering must paint a
@@ -2391,8 +2399,12 @@ body {
     /* ── Text ─────────────────────────────────────────────────────────
        Mixing toward transparent rather than toward a grey keeps these legible
        on whatever surface they land on, including a translucent one. */
-    --text-muted: color-mix(in srgb, var(--text-color) 68%, transparent);
-    --text-faint: color-mix(in srgb, var(--text-color) 55%, transparent);
+    /* Measured in every theme on the page and on its panels: 68% / 55% left
+       muted text under 4.5:1 in five themes and faint text under 3:1 in four.
+       Muted is for text people read (paths, hints); faint only for what may
+       recede (counts, placeholders). */
+    --text-muted: color-mix(in srgb, var(--text-color) 80%, transparent);
+    --text-faint: color-mix(in srgb, var(--text-color) 64%, transparent);
     --text-on-primary: #fff;
 
     /* ── The accent, at usable strengths ──────────────────────────────

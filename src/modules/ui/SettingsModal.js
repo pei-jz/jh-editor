@@ -13,7 +13,7 @@ import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './Rege
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
-import { explorerListsFolders, explorerOpensOn, setExplorerListsFolders, setExplorerOpensOn } from '../utils/ExplorerPrefs.js';
+import { explorerListsFolders, explorerOpensOn, folderTabOpensPinned, setExplorerListsFolders, setExplorerOpensOn, setFolderTabOpensPinned } from '../utils/ExplorerPrefs.js';
 import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
     MIN_THRESHOLD_MB, MAX_THRESHOLD_MB,
@@ -802,6 +802,8 @@ export function initSettingsModal() {
             if (explorerOpen) explorerOpen.value = explorerOpensOn();
             const folderList = document.getElementById('explorer-folder-list');
             if (folderList) folderList.checked = explorerListsFolders();
+            const folderPinned = document.getElementById('folder-tab-pinned');
+            if (folderPinned) folderPinned.checked = folderTabOpensPinned();
 
             // From the welcome screen there is no editor on screen to hold a tab.
             const welcome = document.getElementById('welcome-screen');
@@ -887,6 +889,11 @@ export function initSettingsModal() {
     if (folderListToggle) {
         folderListToggle.checked = explorerListsFolders();
         folderListToggle.onchange = (e) => setExplorerListsFolders(e.target.checked);
+    }
+    const folderPinnedToggle = document.getElementById('folder-tab-pinned');
+    if (folderPinnedToggle) {
+        folderPinnedToggle.checked = folderTabOpensPinned();
+        folderPinnedToggle.onchange = (e) => setFolderTabOpensPinned(e.target.checked);
     }
 
     if (fontFamilySelector) {

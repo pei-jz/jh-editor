@@ -60,6 +60,7 @@ pub fn run() {
             commands::deck::open_deck_in_browser,
             commands::deck::open_deck_audience,
             commands::office::read_office_image,
+            commands::pdf::read_pdf_bytes,
             commands::search::search_files,
             commands::search::list_all_files,
             commands::search::start_grep,

@@ -3,7 +3,7 @@ import { State } from '../src/modules/core/Store.js';
 import {
     activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex,
     otherPane, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace,
-    handleStillInUse, mergeRightIntoLeft,
+    handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, openTabEntries,
 } from '../src/modules/core/Panes.js';
 
 const mk = (path, over = {}) => ({ path, name: path.split('/').pop(), content: '', isDirty: false, ...over });
@@ -279,5 +279,97 @@ describe('Panes — collapsing a split', () => {
         mergeRightIntoLeft(left, [null, undefined]);
         mergeRightIntoLeft(left, []);
         expect(left).toHaveLength(1);
+    });
+});
+
+describe('tabsByRecentUse — the Ctrl+T order', () => {
+    beforeEach(reset);
+
+    it('puts the most recently shown tab first', () => {
+        const [a, b, c] = [mk('/a'), mk('/b'), mk('/c')];
+        State.openFiles = [a, b, c];
+        markShown(a); markShown(c); markShown(b);
+        expect(tabsByRecentUse().map((e) => e.file)).toEqual([b, c, a]);
+    });
+
+    // Restored from the session and never visited: no reason to reshuffle them.
+    it('keeps strip order for tabs not shown yet, behind the visited ones', () => {
+        const [a, b, c, d] = [mk('/a2'), mk('/b2'), mk('/c2'), mk('/d2')];
+        State.openFiles = [a, b, c, d];
+        markShown(c);
+        expect(tabsByRecentUse().map((e) => e.file)).toEqual([c, a, b, d]);
+    });
+
+    // The old list held the left pane only; a right-hand tab was unreachable.
+    it('covers both panes and says where each tab lives', () => {
+        const [l, r] = [mk('/l'), mk('/r')];
+        State.openFiles = [l];
+        State.rightOpenFiles = [r];
+        State.splitMode = true;
+        markShown(l); markShown(r);
+        expect(tabsByRecentUse()).toEqual([
+            { file: r, pane: 'right', index: 0 },
+            { file: l, pane: 'left', index: 0 },
+        ]);
+    });
+
+    it('lists a buffer shown in both panes once', () => {
+        const shared = mk('/shared');
+        State.openFiles = [shared];
+        State.rightOpenFiles = [shared];
+        State.splitMode = true;
+        expect(tabsByRecentUse()).toHaveLength(1);
+    });
+
+    it('ignores a stale right pane once the split is gone', () => {
+        State.openFiles = [mk('/only')];
+        State.rightOpenFiles = [mk('/stale')];
+        expect(tabsByRecentUse().map((e) => e.file.path)).toEqual(['/only']);
+    });
+});
+
+describe('planTabRemoval — closing several tabs at once', () => {
+    const files = ['a', 'b', 'c', 'd', 'e'].map((n) => mk('/' + n));
+
+    it('keeps the active tab active when it survives', () => {
+        const plan = planTabRemoval(files, 3, (_, i) => i === 0 || i === 4);
+        expect(plan.kept.map((f) => f.path)).toEqual(['/b', '/c', '/d']);
+        expect(plan.activeIndex).toBe(2);
+    });
+
+    it('moves to the nearest survivor on the left when the active tab goes', () => {
+        const plan = planTabRemoval(files, 3, (_, i) => i >= 2);
+        expect(plan.kept.map((f) => f.path)).toEqual(['/a', '/b']);
+        expect(plan.activeIndex).toBe(1);
+    });
+
+    it('falls back to the first survivor when nothing is left of the active tab', () => {
+        const plan = planTabRemoval(files, 0, (_, i) => i < 2);
+        expect(plan.activeIndex).toBe(0);
+        expect(plan.kept[0].path).toBe('/c');
+    });
+
+    it('reports -1 when every tab goes', () => {
+        const plan = planTabRemoval(files, 2, () => true);
+        expect(plan).toMatchObject({ kept: [], activeIndex: -1 });
+        expect(plan.removed).toHaveLength(5);
+    });
+
+    it('closes to the right of a tab', () => {
+        const plan = planTabRemoval(files, 4, (_, i) => i > 1);
+        expect(plan.kept.map((f) => f.path)).toEqual(['/a', '/b']);
+        expect(plan.activeIndex).toBe(1);
+    });
+});
+
+describe('openTabEntries: strip order for the Open Files panel', () => {
+    beforeEach(reset);
+
+    it('lists the first pane, then the other, each in strip order', () => {
+        const [a, b, c] = [mk('/oa'), mk('/ob'), mk('/oc')];
+        State.openFiles = [a, b];
+        State.rightOpenFiles = [c];
+        State.splitMode = true;
+        expect(openTabEntries('right').map((e) => [e.pane, e.index])).toEqual([['right', 0], ['left', 0], ['left', 1]]);
     });
 });

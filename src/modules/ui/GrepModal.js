@@ -107,7 +107,7 @@ function _isOnDisk(file) {
 export function canSearchInMemory(file) {
     return !!file && typeof file.content === 'string'
         && !file.isLarge && file.editId == null
-        && !['office', 'search-results', 'dir-diff', 'folder-list'].includes(file.type);
+        && !['office', 'pdf', 'search-results', 'dir-diff', 'folder-list'].includes(file.type);
 }
 
 /** Where a search starts by default: beside the open file, else the workspace. */
@@ -155,7 +155,11 @@ function _searchInMemory(file, query, opts) {
 }
 
 export const GrepModal = {
-    show(presetFolder) {
+    /**
+     * `presetTerm` fills the search box, for the unified palette's `?` mode:
+     * the text typed there carries over instead of being typed twice.
+     */
+    show(presetFolder, presetTerm = '') {
         _injectStyles();
         const existing = document.getElementById('grep-overlay');
         if (existing) existing.remove();
@@ -326,7 +330,8 @@ export const GrepModal = {
         scopeFile.onclick = () => setScope(true);
         syncScope();
 
-        setTimeout(() => term.focus(), 0);
+        if (presetTerm) term.value = String(presetTerm);
+        setTimeout(() => { term.focus(); if (presetTerm) term.select(); }, 0);
 
         const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
 

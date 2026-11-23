@@ -24,7 +24,7 @@
 const OPENABLE = new Set([
     'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp',
     'zip', 'tar', 'gz', '7z', 'rar',
-    'pdf', 'doc', 'ppt',
+    'doc', 'ppt',
     'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv',
     'db', 'sqlite',
 ]);
@@ -41,6 +41,7 @@ const DOCUMENTS = new Set([
     'txt', 'md', 'markdown', 'csv', 'tsv', 'log',
     'json', 'xml', 'yaml', 'yml', 'html', 'htm', 'svg', 'rtf',
     'xlsx', 'xls', 'docx', 'pptx', 'ods', 'odt', 'odp',
+    'pdf',
 ]);
 
 const PROGRAMS = new Set([

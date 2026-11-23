@@ -13,3 +13,4 @@ pub mod file_drag;
 pub mod office;
 pub mod office_shapes;
 pub mod deck;
+pub mod pdf;

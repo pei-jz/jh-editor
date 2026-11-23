@@ -66,9 +66,14 @@ function keysInUse() {
         // Theme names live in the registry and the <option> elements are built
         // from it, so the label there IS the key.
         'src/modules/utils/Themes.js',
+        // The unified palette's modes: chip labels and input placeholders.
+        'src/modules/utils/PaletteQuery.js',
     ]) {
         const table = read(f);
         for (const m of table.matchAll(/label: '((?:[^'\\]|\\.)+)'/g)) {
+            keys.add(m[1].replace(/\\'/g, "'"));
+        }
+        for (const m of table.matchAll(/placeholder: '((?:[^'\\]|\\.)+)'/g)) {
             keys.add(m[1].replace(/\\'/g, "'"));
         }
         // A label containing an apostrophe is written with double quotes.

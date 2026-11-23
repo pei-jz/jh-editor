@@ -161,7 +161,17 @@ that tab; the current mode is always shown in the status bar.
   `FileSearch.js`); recently opened files win a tie. Globs work (`*設計*.xlsx`, or a
   path glob with `/`), and `Enter` opens the hit — a workbook straight into the Office
   preview, so finding one design document among thousands and reading it is a few keys
-- **Tab search** (`Ctrl+T`), **outline** (`Ctrl+O`), **go to line** (`Ctrl+L`)
+- **One palette for finding anything** — the first character picks what it searches:
+  nothing for files, `@` open tabs (most recently used first, so `Ctrl+T` `Enter` goes
+  back to the previous tab), `>` commands, `#` headings and functions in the file, `:` a
+  line, `?` text across the workspace. `Ctrl+Shift+R`, `Ctrl+T`, `Ctrl+Shift+P`, `Ctrl+O`
+  and `Ctrl+L` open it with their prefix already typed
+  — shown as a list or as a **folder tree** (`Ctrl+Alt+T`), and resizable by dragging
+  its edges
+- **Closing tabs in bulk** — the tab menu has **Close to the Right** and **Close Saved
+  Tabs**, asking once about any unsaved work among them
+- **Path in the title bar** — each folder opens a list of what is in it (step into
+  subfolders, open a sibling file); the file name lists its headings and functions
 - **Compare** two files from the explorer, or two whole **folders** (recursive: differing files
   open as a diff, files present on only one side are marked `+` / `-`)
 - **Printing** (`Ctrl+P`) — a preview first, where you choose to keep the theme's

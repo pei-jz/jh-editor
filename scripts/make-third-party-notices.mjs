@@ -33,8 +33,8 @@ const repo = join(here, '..');
 const LICENSE_FILES = /^(LICEN[CS]E|COPYING|NOTICE)([-.].*)?$/i;
 
 /**
- * `public/lib/` へ直接置いているもの。ビルドを通さず index.html から読むので
- * 依存グラフに現れず、放っておくと表記から漏れる。
+ * `public/lib/` へ直接置いているものと、ビルドが node_modules から直接コピーする
+ * もの。どちらも依存グラフに現れず、放っておくと表記から漏れる。
  */
 const VENDORED = [
     {
@@ -48,6 +48,51 @@ const VENDORED = [
         file: 'public/lib/mermaid.min.js',
         license: 'MIT',
         homepage: 'https://github.com/mermaid-js/mermaid',
+    },
+    // pdf.js のデータファイル。scripts/pdfjs-assets.js が node_modules から
+    // dist/pdfjs/ へ出す。pdfjs-dist 本体とは別の権利者・別のライセンスで、
+    // 本文はそれぞれのファイルにしか無いので、ここで拾う。
+    {
+        name: 'Adobe CMap resources (pdfjs-dist/cmaps)',
+        file: 'node_modules/pdfjs-dist/cmaps/LICENSE',
+        licenseFile: 'node_modules/pdfjs-dist/cmaps/LICENSE',
+        license: 'BSD-3-Clause',
+        homepage: 'https://github.com/adobe-type-tools/cmap-resources',
+    },
+    {
+        name: 'Foxit standard fonts (pdfjs-dist/standard_fonts)',
+        file: 'node_modules/pdfjs-dist/standard_fonts/LICENSE_FOXIT',
+        licenseFile: 'node_modules/pdfjs-dist/standard_fonts/LICENSE_FOXIT',
+        license: 'BSD-3-Clause',
+        homepage: 'https://pdfium.googlesource.com/pdfium/',
+    },
+    {
+        name: 'PDFium JBIG2 decoder (pdfjs-dist/wasm)',
+        file: 'node_modules/pdfjs-dist/wasm/LICENSE_JBIG2',
+        licenseFile: 'node_modules/pdfjs-dist/wasm/LICENSE_JBIG2',
+        license: 'BSD-3-Clause',
+        homepage: 'https://pdfium.googlesource.com/pdfium/',
+    },
+    {
+        name: 'pdf.js JBIG2 decoder build (pdfjs-dist/wasm)',
+        file: 'node_modules/pdfjs-dist/wasm/LICENSE_PDFJS_JBIG2',
+        licenseFile: 'node_modules/pdfjs-dist/wasm/LICENSE_PDFJS_JBIG2',
+        license: 'Apache-2.0',
+        homepage: 'https://github.com/mozilla/pdf.js',
+    },
+    {
+        name: 'OpenJPEG (pdfjs-dist/wasm)',
+        file: 'node_modules/pdfjs-dist/wasm/LICENSE_OPENJPEG',
+        licenseFile: 'node_modules/pdfjs-dist/wasm/LICENSE_OPENJPEG',
+        license: 'BSD-2-Clause',
+        homepage: 'https://github.com/uclouvain/openjpeg',
+    },
+    {
+        name: 'pdf.js OpenJPEG decoder build (pdfjs-dist/wasm)',
+        file: 'node_modules/pdfjs-dist/wasm/LICENSE_PDFJS_OPENJPEG',
+        licenseFile: 'node_modules/pdfjs-dist/wasm/LICENSE_PDFJS_OPENJPEG',
+        license: 'BSD-2-Clause',
+        homepage: 'https://github.com/mozilla/pdf.js',
     },
 ];
 
@@ -217,7 +262,10 @@ const npm = collectNpm();
 const cargo = collectCargo();
 const vendored = VENDORED.map((v) => {
     if (!existsSync(join(repo, v.file))) die(`${v.file} が無い。VENDORED の記述が古い`);
-    return { ...v, version: '', text: null };
+    const text = v.licenseFile
+        ? readFileSync(join(repo, v.licenseFile), 'utf8').replace(/\r\n/g, '\n').trim()
+        : null;
+    return { ...v, version: '', text };
 });
 
 if (!npm.length) die('npm の依存を 1 件も拾えなかった。node_modules はあるか');

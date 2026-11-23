@@ -8,7 +8,10 @@
  */
 
 const FILES_KEY = 'jheditor_recent_files';
-const MAX_FILES = 15;
+/** One list for every workspace; the palette shows only the current one's
+ *  share, so it has to be long enough that switching projects does not push
+ *  the other project's files out. It was 15. */
+const MAX_FILES = 100;
 
 function readFiles() {
     try {
@@ -46,8 +49,20 @@ export function sameWorkspace(a, b) {
     return !!a && !!b && norm(a) === norm(b);
 }
 
+/** Is `path` inside the folder `dir`? Slashes and case do not matter. */
+export function isInWorkspace(path, dir) {
+    const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const root = norm(dir);
+    return !!root && norm(path).startsWith(`${root}/`);
+}
+
 export const RecentFiles = {
     getFiles: readFiles,
+
+    /** Recent files inside `dir`, most recent first. */
+    getFilesIn(dir) {
+        return readFiles().filter((p) => isInWorkspace(p, dir));
+    },
     getWorkspaces: readWorkspaces,
 
     /**

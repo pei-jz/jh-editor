@@ -81,6 +81,38 @@ function appendHighlighted(parent, text, ranges) {
     if (at < text.length) parent.appendChild(document.createTextNode(text.slice(at)));
 }
 
+/**
+ * Rank workspace files for `query`, sharing this modal's index. Used by the
+ * unified palette's file mode. Resolves to `{ hits, partial, total }`; `hits`
+ * is empty with no workspace open. `partial` says the index was cut at
+ * FILE_CACHE_LIMIT, so a miss may not mean the file is absent.
+ */
+export async function searchWorkspaceFiles(query, limit = 60) {
+    const dir = State.currentDir;
+    if (!dir || !String(query || '').trim()) return { hits: [], partial: false, total: 0 };
+    const entries = await loadIndex(dir);
+    return {
+        hits: rankFiles(String(query).trim(), entries, { limit, recent: RecentFiles.getFiles() }),
+        partial: _fileCacheTotal > FILE_CACHE_LIMIT,
+        total: _fileCacheTotal,
+    };
+}
+
+/** The absolute path a ranked hit stands for. */
+export function hitPath(hit) {
+    let fullPath = hit.item.path;
+    const normalizedCurrentDir = String(State.currentDir || '').replace(/\\/g, '/');
+    if (normalizedCurrentDir && !fullPath.startsWith(normalizedCurrentDir) && !fullPath.match(/^[a-zA-Z]:\//)) {
+        fullPath = FS.joinPath(State.currentDir, hit.item.path);
+    }
+    return fullPath;
+}
+
+/** Start building the index ahead of the first keystroke. */
+export function preloadWorkspaceFiles() {
+    if (State.currentDir) loadIndex(State.currentDir).catch(() => {});
+}
+
 export const FileSearchModal = {
     /** Invalidate cache (call when files change, e.g. after save, create, delete) */
     invalidateCache() {

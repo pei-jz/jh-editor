@@ -195,6 +195,55 @@
     opacity: 1;
 }
 
+/* Pinned tabs: at the front of the strip, narrower, tinted with the theme's
+   accent, and set off from the rest by a rule after the last one. No close
+   button — a pinned tab is one kept on purpose; it is unpinned or closed from
+   its menu (or Ctrl+W).
+   :root in front: the themes set .tab's background as body.theme-x .tab,
+   which outranks two classes but not three. */
+:root .tab.tab-pinned {
+    max-width: 140px;
+    padding: 8px 10px;
+    gap: 6px;
+    background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    /* The line along the top is what reads at a glance; the tint alone is
+       lost on the patterned themes. */
+    box-shadow: inset 0 2px 0 var(--primary-color);
+}
+
+:root .tab.tab-pinned:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
+}
+
+:root .tab.tab-pinned.active {
+    background-color: color-mix(in srgb, var(--primary-color) 14%, var(--active-tab-bg));
+}
+
+:root .tab.tab-pinned .tab-icon {
+    color: var(--primary-color);
+}
+
+.tab.tab-pinned-last {
+    margin-right: 6px;
+    position: relative;
+}
+
+.tab.tab-pinned-last::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: 7px;
+    bottom: 7px;
+    width: 1px;
+    background: var(--border-color);
+}
+
+.tab-pin-mark {
+    flex-shrink: 0;
+    opacity: 0.55;
+    margin-left: -2px;
+}
+
 #new-tab-btn {
     background: none;
     border: none;

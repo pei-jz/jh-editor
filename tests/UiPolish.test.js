@@ -452,9 +452,11 @@ describe('the way in to the commands', () => {
         const app = read('src/modules/core/App.js');
         expect(app).toContain('EL.statusCommandsBtn?.addEventListener');
         expect(app).toContain('CommandPalette.toggle()');
+        // Ctrl+Shift+P opens it on its command mode.
+        expect(app).toContain("'app:command-palette': () => CommandPalette.toggle('>')");
         // The palette dispatches through the same path a keystroke takes, so a
         // command cannot behave differently depending on how it was invoked.
-        expect(app).toContain('initCommandPalette((cmd) => delegateToView(cmd)(null))');
+        expect(app).toContain('initCommandPalette((cmd) => delegateToView(cmd)(null), {');
         // The guide is still reachable — it is one row inside the palette.
         expect(app).toContain("'app:shortcut-guide': toggleShortcutGuide");
     });

@@ -43,7 +43,7 @@ fn do_list_all_files(dir: String) -> Result<Vec<FileEntry>, String> {
         "exe", "dll", "so", "dylib", "bin", "obj", "o",
         "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "svg",
         "zip", "tar", "gz", "7z", "rar",
-        "pdf", "doc", "ppt",
+        "doc", "ppt",
         "mp3", "mp4", "wav", "avi", "mov", "mkv", "flac",
         "db", "sqlite", "class", "jar", "pyc", "pdb",
         "woff", "woff2", "ttf", "eot", "otf",

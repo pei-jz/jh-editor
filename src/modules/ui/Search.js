@@ -406,8 +406,12 @@ const _performSearch = (noFocus = false, keepPosition = false, step = null) => {
         }
 
         const test = (s) => { regex.lastIndex = 0; return regex.test(s); };
-        const matches = _gridView.collectCellMatches(test);
-        matches.forEach(mm => State.searchMatches.push({ r: mm.r, c: mm.c, isCell: true }));
+        // The regex goes along too, for a view whose cell is a run of text
+        // rather than a value (the PDF preview): it marks each occurrence
+        // inside the run, not the whole run, and that needs where they are.
+        // Whatever else the view put on a match is kept for the way back.
+        const matches = _gridView.collectCellMatches(test, regex);
+        matches.forEach(mm => State.searchMatches.push({ ...mm, isCell: true }));
 
         if (State.searchMatches.length > 0) {
             State.currentMatchIndex = 0;

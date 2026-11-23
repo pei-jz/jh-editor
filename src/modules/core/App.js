@@ -4,7 +4,7 @@ import { configureMarkdown } from '../utils/Markdown.js';
 import { initLayout } from './Layout.js';
 import { initExplorer, loadExplorer, showInFolderList } from './Explorer.js';
 import { openFile, retargetOpenFile, createNewFileAction, saveCurrentFile, saveFiles, needsSaveLocation, unsavedReport, saveCurrentFileAs, updateStatusBar, closeFileByPath, closeFilesUnderDir, closeAllTabs, renderEditor, renderTabs, setActiveTab, formatCurrentFile, closeTab, focusEditor, triggerCopy, triggerCut, triggerPaste, getCurrentView, getActiveFile, compareWithDisk, openCompareEditor, toggleWhitespace, setFileEol, restoreSession } from './Editor.js';
-import { activePane, paneActiveIndex } from './Panes.js';
+import { activePane, paneActiveIndex, paneFiles, tabsByRecentUse } from './Panes.js';
 import { flushSession, suspend as sessionSuspend, resume as sessionResume } from './Session.js';
 import { ContextMenu } from '../ui/ContextMenu.js';
 
@@ -21,17 +21,15 @@ import { toggleWorkspaceMenu } from '../ui/WorkspaceMenu.js';
 import { toggleFolderJumpOverlay } from '../ui/FolderJumpPanel.js';
 import { syncFolderJumpTray } from '../ui/FolderJumpSettings.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
-import { TabSearch } from '../ui/TabSearch.js';
 import { initSettingsModal, applyTheme } from '../ui/SettingsModal.js';
 import { effectiveTheme } from '../utils/WorkspaceTheme.js';
 import { toggleShortcutGuide } from '../ui/ShortcutGuide.js';
 import { CommandPalette, initCommandPalette } from '../ui/CommandPalette.js';
 import { initEmptyPaneGuide, renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { applyIcons, iconEl } from '../ui/Icons.js';
-import { OutlineModal } from '../ui/OutlineModal.js';
-import { FileSearchModal } from '../ui/FileSearchModal.js';
+import { collectOutline, jumpToOutlineItem } from '../ui/OutlineModal.js';
+import { FileSearchModal, searchWorkspaceFiles, hitPath, preloadWorkspaceFiles } from '../ui/FileSearchModal.js';
 import { GrepModal } from '../ui/GrepModal.js';
-import { GotoLineModal } from '../ui/GotoLineModal.js';
 import { focusExplorer } from './Explorer.js';
 import { terminalManager } from '../ui/TerminalManager.js';
 import GitPanel from '../ui/GitPanel.js';
@@ -677,11 +675,13 @@ async function bootstrap() {
         'app:save': saveCurrentFile,
         'app:save-as': saveCurrentFileAs,
         'app:search': toggleSearch,
-        'app:file-search': () => FileSearchModal.show(),
+        // The pickers are modes of one palette now; each key opens it with its
+        // prefix typed (utils/PaletteQuery.js).
+        'app:file-search': () => CommandPalette.toggle(''),
         'app:print': () => PrintPreview.show({ view: getCurrentView(), file: getActiveFile() }),
         'app:grep': () => GrepModal.show(),
         'app:format': formatCurrentFile,
-        'app:outline-modal': () => OutlineModal.show(),
+        'app:outline-modal': () => CommandPalette.toggle('#'),
         'app:workspace-menu': () => openWorkspaceMenu(),
         'app:folder-jump': () => openFolderJump(),
         'app:show-folder-list': () => showInFolderList(),
@@ -699,7 +699,7 @@ async function bootstrap() {
         // shortcut table but had no action.
         'editor:next-tab': () => switchTabRelative(1),
         'editor:prev-tab': () => switchTabRelative(-1),
-        'app:goto-line': () => GotoLineModal.show(),
+        'app:goto-line': () => CommandPalette.toggle(':'),
         'app:toggle-vim': () => {
             const v = getCurrentView();
             if (v && typeof v.setVimEnabled === 'function') v.setVimEnabled(!v.isVimEnabled());
@@ -735,7 +735,7 @@ async function bootstrap() {
             return loadExplorer(...args);
         },
         'app:shortcut-guide': toggleShortcutGuide,
-        'app:command-palette': () => CommandPalette.toggle(),
+        'app:command-palette': () => CommandPalette.toggle('>'),
         'app:focus-explorer': focusExplorer,
         'app:focus-editor': () => focusEditor({ toStart: true }),
         'app:agent-tasks': () => {
@@ -874,7 +874,30 @@ async function bootstrap() {
     // The palette runs commands through exactly the path a keystroke takes —
     // active view first, global action second. Anything else would give a
     // command two behaviours depending on how it was invoked.
-    initCommandPalette((cmd) => delegateToView(cmd)(null));
+    initCommandPalette((cmd) => delegateToView(cmd)(null), {
+        tabs: () => tabsByRecentUse(),
+        activeFile: () => getActiveFile(),
+        activateTab: (entry) => {
+            // The list was taken when the palette opened; find the tab again
+            // in case anything moved since.
+            const at = paneFiles(entry.pane).indexOf(entry.file);
+            if (at >= 0) setActiveTab(at, entry.pane);
+        },
+        hasWorkspace: () => !!State.currentDir,
+        workspace: () => State.currentDir || '',
+        searchFiles: (q) => searchWorkspaceFiles(q),
+        hitPath: (hit) => hitPath(hit),
+        preload: () => preloadWorkspaceFiles(),
+        // Only this workspace's: the list is shared by every workspace, and
+        // another project's files are noise here.
+        recentFiles: () => (State.currentDir ? RecentFiles.getFilesIn(State.currentDir) : RecentFiles.getFiles()),
+        openPath: (path) => openFile(path),
+        outline: () => collectOutline(getActiveFile()),
+        jumpOutline: (item) => jumpToOutlineItem(item),
+        lineCount: () => window.app.getLineCount?.() || 0,
+        goToLine: (n) => window.app.goToLine?.(n),
+        grep: (q) => GrepModal.show(undefined, q),
+    });
     initEmptyPaneGuide((cmd) => delegateToView(cmd)(null));
     // renderEditor draws it from here on; this covers the panes it has not been
     // asked to draw yet. A restored session has already filled them.
