@@ -16,6 +16,7 @@ import { Navigation } from '../utils/Navigation.js';
 import { showAlert } from '../ui/Dialog.js';
 import { isAtSavedState } from '../utils/DirtyState.js';
 import { escapeHtml } from '../utils/SanitizeHtml.js';
+import { addViewSwitchButton } from '../ui/ViewSwitchButton.js';
 
 /**
  * Why a JSON file has to stay read-only in the tree, or null.
@@ -110,7 +111,13 @@ export class StructureView extends BaseView {
 
         const rightHeader = document.createElement('div');
         rightHeader.className = 'pane-header';
-        rightHeader.textContent = t('Selected Element Source');
+        const rightTitle = document.createElement('span');
+        rightTitle.textContent = t('Selected Element Source');
+        rightHeader.appendChild(rightTitle);
+        // Back to the text (Ctrl+Shift+E). In the header rather than floating
+        // over the corner, where it would sit on top of this header and the
+        // source below it.
+        addViewSwitchButton(rightHeader, file, { cls: 'cm-view-switch-btn--inline' });
         rightPane.appendChild(rightHeader);
 
         const rightPaneContent = document.createElement('div');

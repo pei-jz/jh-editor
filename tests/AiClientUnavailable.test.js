@@ -19,6 +19,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
 
 beforeEach(() => {
+    // These describe the AI flows, which run only once AI is turned on
+    // (utils/AiPrefs.js; off is covered in AiPrefs.test.js).
+    localStorage.setItem('settings_aiEnabled', '1');
     document.body.innerHTML = '<div class="slot"></div>';
     showDialog.mockClear();
 });

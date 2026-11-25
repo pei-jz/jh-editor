@@ -1,6 +1,7 @@
 import { State } from './Store.js';
 import { SHORTCUTS } from './ShortcutDefinitions.js';
-import { formatBinding } from './CommandRegistry.js';
+import { formatBinding, AI_COMMAND_IDS } from './CommandRegistry.js';
+import { aiEnabled } from '../utils/AiPrefs.js';
 
 /**
  * Physical keys that can carry a backslash, and the characters they may report.
@@ -298,6 +299,11 @@ export class ShortcutManager {
         });
 
         const match = matches.find(s => s.scope === this.currentScope) || matches.find(s => s.scope === 'GLOBAL');
+
+        // AI off: an AI key is not this app's key. It is left to whatever
+        // else wants it (Ctrl+Space to the editor) instead of opening an AI
+        // prompt for someone who never turned AI on (utils/AiPrefs.js).
+        if (match && AI_COMMAND_IDS.has(match.cmd) && !aiEnabled()) return;
 
         if (match) {
             // A markdown table cell being edited in place is a text field.

@@ -335,7 +335,7 @@ class GitPanel {
                     <h3>Commit Changes</h3>
                     <textarea id="git-commit-input" placeholder="Commit message (Required)"></textarea>
                     <div class="git-modal-btns">
-                        <button id="git-commit-ai-btn" title="${t('Generate a commit message from the staged diff')}">${svgIcon('sparkles', { size: 12 })}<span>AI</span></button>
+                        <button id="git-commit-ai-btn" class="ai-only" title="${t('Generate a commit message from the staged diff')}">${svgIcon('sparkles', { size: 12 })}<span>AI</span></button>
                         <button id="git-commit-cancel">Cancel</button>
                         <button id="git-commit-confirm" class="primary-btn">Commit</button>
                     </div>

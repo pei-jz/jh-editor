@@ -32,6 +32,9 @@ const BUTTON_STYLE = 'background:none;border:1px solid var(--primary-border);col
  */
 export async function showAgentNoticeIfOffline(host, { reachable = () => isAgentReachable(1500), margin = '0 0 6px' } = {}) {
     if (!host) return null;
+    // AI off: nothing to check and nothing to say (utils/AiPrefs.js).
+    const { aiEnabled } = await import('../utils/AiPrefs.js');
+    if (!aiEnabled()) return null;
     // Loaded on first use, like AIAgent does: nothing of the agent's at boot.
     const { aiClientBundled, ensureAgentAvailable } = await import('../ai/AgentConnection.js');
 

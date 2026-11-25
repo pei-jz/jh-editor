@@ -1128,6 +1128,20 @@ export default {
     'Could not read this folder.': '이 폴더를 읽을 수 없습니다.',
     'Explorer: show the selected folder in the Folder List tab': '탐색기: 선택한 폴더를 "폴더 목록" 탭에 표시',
     'Pin the Folder List tab when it opens': '"폴더 목록" 탭을 열 때 고정',
+
+    // View switch (ui/ViewSwitchButton.js, status bar in core/Editor.js)
+    'Text View': '텍스트 보기',
+    'Markdown View': 'Markdown 보기',
+    'Table View': '표 보기',
+    'Structure View': '구조 보기',
+    'Deck View': '슬라이드 보기',
+    'Switch to {view}': '{view}로 전환',
+
+    // AI on/off (utils/AiPrefs.js, ui/SettingsModal.js, ai/AgentConnection.js)
+    'AI Features': 'AI 기능',
+    'Use AI features (J.H AI Agent)': 'AI 기능 사용 (J.H AI Agent)',
+    'While this is off, J.H Editor does not look for or connect to J.H AI Agent, and the AI commands and buttons are hidden. Turn it on only if you use J.H AI Agent.': '이 설정이 꺼져 있는 동안 J.H Editor는 J.H AI Agent를 찾거나 연결하지 않으며, AI 명령과 버튼도 표시하지 않습니다. J.H AI Agent를 사용할 때만 켜세요.',
+    'AI features are off. Turn them on in Settings → Agent.': 'AI 기능이 꺼져 있습니다. 설정의 "에이전트"에서 켤 수 있습니다.',
     'Enter folder name:': '폴더 이름을 입력하세요:',
     'A name cannot contain a slash.': '이름에 슬래시를 쓸 수 없습니다.',
     'Rename failed: {error}': '이름을 바꾸지 못했습니다: {error}',

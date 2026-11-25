@@ -1128,6 +1128,20 @@ export default {
     'Could not read this folder.': 'このフォルダーを読み込めませんでした。',
     'Explorer: show the selected folder in the Folder List tab': 'エクスプローラー: 選んだフォルダーを「フォルダー一覧」タブに表示',
     'Pin the Folder List tab when it opens': '「フォルダー一覧」タブを開いたときにピン留めする',
+
+    // 表示の切り替え（ui/ViewSwitchButton.js, core/Editor.js のステータスバー）
+    'Text View': 'テキスト表示',
+    'Markdown View': 'Markdown 表示',
+    'Table View': '表で表示',
+    'Structure View': '構造で表示',
+    'Deck View': 'スライド表示',
+    'Switch to {view}': '切り替え先: {view}',
+
+    // AI on/off (utils/AiPrefs.js, ui/SettingsModal.js, ai/AgentConnection.js)
+    'AI Features': 'AI 機能',
+    'Use AI features (J.H AI Agent)': 'AI 機能を使う (J.H AI Agent)',
+    'While this is off, J.H Editor does not look for or connect to J.H AI Agent, and the AI commands and buttons are hidden. Turn it on only if you use J.H AI Agent.': 'オフの間、J.H Editor は J.H AI Agent を探したり接続したりせず、AI のコマンドやボタンも表示しません。J.H AI Agent を使う場合だけオンにしてください。',
+    'AI features are off. Turn them on in Settings → Agent.': 'AI 機能はオフです。設定の「エージェント」でオンにできます。',
     'Enter folder name:': 'フォルダー名を入力してください:',
     'A name cannot contain a slash.': '名前にスラッシュ記号は使えません。',
     'Rename failed: {error}': '名前を変更できませんでした: {error}',

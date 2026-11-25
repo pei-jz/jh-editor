@@ -1128,6 +1128,20 @@ export default {
     'Could not read this folder.': '无法读取此文件夹。',
     'Explorer: show the selected folder in the Folder List tab': '资源管理器：在“文件夹列表”标签中显示所选文件夹',
     'Pin the Folder List tab when it opens': '打开“文件夹列表”标签时将其固定',
+
+    // View switch (ui/ViewSwitchButton.js, status bar in core/Editor.js)
+    'Text View': '文本视图',
+    'Markdown View': 'Markdown 视图',
+    'Table View': '表格视图',
+    'Structure View': '结构视图',
+    'Deck View': '幻灯片视图',
+    'Switch to {view}': '切换到{view}',
+
+    // AI on/off (utils/AiPrefs.js, ui/SettingsModal.js, ai/AgentConnection.js)
+    'AI Features': 'AI 功能',
+    'Use AI features (J.H AI Agent)': '使用 AI 功能 (J.H AI Agent)',
+    'While this is off, J.H Editor does not look for or connect to J.H AI Agent, and the AI commands and buttons are hidden. Turn it on only if you use J.H AI Agent.': '关闭期间，J.H Editor 不会查找或连接 J.H AI Agent，也不显示 AI 命令和按钮。仅在使用 J.H AI Agent 时开启。',
+    'AI features are off. Turn them on in Settings → Agent.': 'AI 功能已关闭。可在设置的“代理”中开启。',
     'Enter folder name:': '请输入文件夹名称:',
     'A name cannot contain a slash.': '名称中不能包含斜杠。',
     'Rename failed: {error}': '重命名失败: {error}',

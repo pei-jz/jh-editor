@@ -1,4 +1,5 @@
-import { listCommands, searchCommands } from '../core/CommandRegistry.js';
+import { listCommands, searchCommands, AI_COMMAND_IDS } from '../core/CommandRegistry.js';
+import { aiEnabled } from '../utils/AiPrefs.js';
 import { icon, iconForFile } from './Icons.js';
 import { t } from '../utils/I18n.js';
 import { MODES, parsePaletteInput, inputFor, parseLineQuery, filterByText } from '../utils/PaletteQuery.js';
@@ -122,7 +123,9 @@ function tabDir(file) {
 // highlighted first.
 
 function commandRows(query) {
-    const all = listCommands(t);
+    // The AI commands only once AI is turned on (Settings → Agent).
+    const ai = aiEnabled();
+    const all = listCommands(t).filter((c) => ai || !AI_COMMAND_IDS.has(c.id));
     const list = query ? searchCommands(all, query) : orderForEmptyQuery(all);
     return {
         rows: list.map((cmd) => ({

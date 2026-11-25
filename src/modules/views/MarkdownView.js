@@ -28,6 +28,7 @@ import { enableLightbox } from '../ui/Lightbox.js';
 import { attachDiagramZoom } from '../ui/DiagramZoom.js';
 import { keyIsOwnedByPopup } from '../utils/KeyOwnership.js';
 import { isFullScreenKey } from '../utils/FullScreenKey.js';
+import { addViewSwitchButton } from '../ui/ViewSwitchButton.js';
 import { invoke } from '@tauri-apps/api/core';
 import { MarkdownTableEdit } from './MarkdownTableEdit.js';
 import { MarkdownBlockEdit } from './MarkdownBlockEdit.js';
@@ -361,6 +362,9 @@ export class MarkdownView extends BaseView {
         backlinkBtn.title = t('Find notes that [[link]] to this one');
         backlinkBtn.onclick = (e) => { e.stopPropagation(); this.showBacklinks(); };
         toolbar.appendChild(backlinkBtn);
+
+        // Back to the text (Ctrl+Shift+E), at the edge as in the text editor.
+        addViewSwitchButton(toolbar, file);
 
         if (State.markdownViewMode === 'book') {
             this._renderBookMode(blocks);

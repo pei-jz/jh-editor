@@ -236,6 +236,12 @@ export function searchCommands(commands, query) {
     return scored.map((s) => s.c);
 }
 
+/**
+ * The AI commands. Hidden from the palette and their keys left alone while AI
+ * is off (utils/AiPrefs.js), so someone who never turned it on never meets them.
+ */
+export const AI_COMMAND_IDS = new Set(COMMANDS.filter((c) => c.category === 'AI').map((c) => c.id));
+
 /** Raw metadata, for tests. */
 export function allCommandIds() {
     return COMMANDS.map((c) => c.id);

@@ -25,6 +25,7 @@
 
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { aiEnabled } from '../utils/AiPrefs.js';
 
 const DEFAULT_PORT = 14300;
 const AGENT_ID = 'io.github.pei-jz.jhaiagent';
@@ -80,6 +81,12 @@ let _cache = null;
 let _cachePromise = null;
 
 export async function getConnectionConfig({ force = false } = {}) {
+    // AI off: do not go looking for the agent — not even its port file. The
+    // default address is answered and NOT cached, so turning AI on finds the
+    // real one without a restart.
+    if (!aiEnabled()) {
+        return { host: '127.0.0.1', port: DEFAULT_PORT, hostUrl: `http://127.0.0.1:${DEFAULT_PORT}`, source: 'off' };
+    }
     if (!force && _cache) return _cache;
     if (!force && _cachePromise) return _cachePromise;
 
@@ -124,6 +131,8 @@ export function refreshConnectionConfig() {
  * putting an approval prompt in front of the user is worth doing at all.
  */
 export async function isAgentReachable(timeoutMs = 2000) {
+    // AI off: no request to localhost at all (utils/AiPrefs.js).
+    if (!aiEnabled()) return false;
     const cfg = await getConnectionConfig();
     try {
         const controller = new AbortController();

@@ -2316,6 +2316,12 @@ body.theme-solarized-light .md-view-mode-toggle {
 .cm-toolbar-btn.active .cm-tb-icon { opacity: 1; }
 /* Vim badge uses a monospace face for its mode text but shares the button look. */
 .cm-vim-badge { font-family: var(--editor-font-family, monospace); }
+/* The view switch (Ctrl+Shift+E) inside a pane header (StructureView), where
+   the full-size button would make the header taller than its neighbour's. */
+.cm-view-switch-btn--inline {
+    padding: 2px 8px;
+    font-weight: normal;
+}
 
 /* Search scrollbar ruler (CodeMirror): clickable strip of match ticks. */
 .cm-search-scrollbar-marks {

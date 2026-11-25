@@ -133,6 +133,8 @@ export class DeckView extends BaseView {
 
         this.aiBtn = this._button(t('Ask AI to change'), 'robot', () => this._openAiModal(),
             t('Write what to change on each slide, then ask J.H AI Agent or copy one request for another AI'));
+        // Hidden while AI is off (utils/AiPrefs.js, `.ai-off .ai-only`).
+        this.aiBtn.classList.add('ai-only');
         this.aiCount = document.createElement('span');
         this.aiCount.className = 'deck-view-count';
         this.aiBtn.append(this.aiCount);

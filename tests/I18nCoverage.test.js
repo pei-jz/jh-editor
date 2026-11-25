@@ -68,6 +68,8 @@ function keysInUse() {
         'src/modules/utils/Themes.js',
         // The unified palette's modes: chip labels and input placeholders.
         'src/modules/utils/PaletteQuery.js',
+        // The view names the view switch and the status bar show.
+        'src/modules/utils/ViewSwitch.js',
     ]) {
         const table = read(f);
         for (const m of table.matchAll(/label: '((?:[^'\\]|\\.)+)'/g)) {

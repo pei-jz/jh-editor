@@ -1062,3 +1062,7 @@ body.tab-drag-active #editor-content > *,
 body.tab-drag-active #editor-content-right > * {
     pointer-events: none;
 }
+
+/* AI features are off until turned on in Settings → Agent (utils/AiPrefs.js).
+   Controls that only make sense with AI carry .ai-only and are not shown. */
+.ai-off .ai-only { display: none !important; }

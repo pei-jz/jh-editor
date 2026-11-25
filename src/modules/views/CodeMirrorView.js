@@ -50,6 +50,7 @@ import { PageFlip } from 'page-flip';
 import { State } from '../core/Store.js';
 import { isAtSavedState } from '../utils/DirtyState.js';
 import * as HtmlPreview from '../ui/HtmlPreview.js';
+import { addViewSwitchButton } from '../ui/ViewSwitchButton.js';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { SyntaxHighlighter } from '../utils/SyntaxHighlighter.js';
 import { highlightCode as cmHighlight } from '../utils/CMHighlighter.js';
@@ -614,6 +615,13 @@ export class CodeMirrorView {
             toolbar.appendChild(pvBtn);
             this._htmlPreviewBtn = pvBtn;
         }
+
+        // Markdown / CSV / JSON / XML / HTML: the way to the other view, last so
+        // it sits at the edge (Ctrl+Shift+E; nothing for files without one).
+        // Only for a tab: StructureView mounts this editor for one node's source,
+        // on a stand-in file with no viewMode, and the switch there would flip
+        // the whole tab from inside its own source pane.
+        if (file && file.viewMode) addViewSwitchButton(toolbar, file);
 
         if (State.plainTextViewMode === 'book') {
             this._renderBookMode(content);

@@ -56,6 +56,7 @@ import { initDefaultPlugins } from './ViewPlugins.js';
 import { showAlert, showConfirm, showDialog } from '../ui/Dialog.js';
 import { largeFileThresholdBytes } from '../utils/LargeFileSetting.js';
 import { isDeckFile, slideIndexAt } from '../utils/DeckHost.js';
+import { isMarkdownFile, hasStructureView, viewSwitchTarget, currentViewLabel } from '../utils/ViewSwitch.js';
 
 // Initialize Plugins
 initDefaultPlugins();
@@ -74,11 +75,9 @@ initDefaultPlugins();
  * A buffer with no name at all is the one case with nothing to go on, and it
  * keeps the old default (PluginManager.resolve agrees).
  */
-export function isMarkdownFile(file) {
-    const name = ((file && (file.path || file.name)) || '').toLowerCase();
-    if (!name) return true;
-    return name.endsWith('.md') || name.endsWith('.markdown');
-}
+// Lives in utils/ViewSwitch.js, which the view toolbars share; re-exported
+// here for the callers (and tests) that have always imported it from Editor.js.
+export { isMarkdownFile };
 
 // Above this size, plain-text files open in the read-only virtualized
 // LargeFileView instead of the CM6-based CodeMirrorView. The user can still
@@ -561,10 +560,6 @@ const editorActions = {
         e.preventDefault();
         const file = getActiveFile();
         if (!file) return;
-        const path = (file.path || file.name || '').toLowerCase();
-        const structural = ['.csv', '.xml', '.xsd', '.wsdl', '.html', '.htm', '.jsp', '.json'];
-        const isMarkdown = isMarkdownFile(file);
-
         // An Office tab has one view and no text behind it. Toggling would drop
         // it into an empty CodeMirror and look like the file had vanished.
         if (file.type === 'office' || file.type === 'pdf') return;
@@ -588,7 +583,8 @@ const editorActions = {
             return;
         }
 
-        if (structural.some(ext => path.endsWith(ext)) || isMarkdown) {
+        // The same list the toolbar button asks (utils/ViewSwitch.js).
+        if (hasStructureView(file)) {
             if (file.viewMode === 'text') {
                 if (file.content && file.content.length > 5 * 1024 * 1024) {
                     if (window.showToast) window.showToast(t('This file is too large for the structure view.'));
@@ -1068,6 +1064,8 @@ export function renderEditor(targetPane = null) {
         // viewClass IS CodeMirrorView, so every .txt / .log / .js was going
         // through here and sprouting a panel. Ask the view that was built.
         addViewUsageHint(container, file, { isTextEditor: view instanceof CodeMirrorView });
+        // The status bar above was drawn before file.viewMode was decided.
+        if (activePane() === pane) updateViewModeHint(file);
 
         if (isLeft) leftView = view;
         else rightView = view;
@@ -4019,6 +4017,44 @@ function officeTypeName(path) {
     }
 }
 
+/**
+ * The view-mode item in the status bar. Its own function because renderEditor
+ * calls it a second time: the status bar is drawn before a tab's first
+ * render decides its view mode, and a CSV opened straight into the table
+ * was labelled "Text View" until the cursor moved.
+ */
+function updateViewModeHint(file) {
+    if (!file) return;
+    const isPreview = file.type === 'office' || file.type === 'pdf';
+    // Show the active view mode + the Ctrl+Shift+E hint so users discover the
+    // Text ⇄ Structure / Table / Markdown toggle (previously a hidden feature).
+    // The key is offered only where it does something: it was printed beside
+    // every .txt and .js, which have no second view. The toolbar button asks
+    // the same question (utils/ViewSwitch.js).
+    const modeHint = document.getElementById('status-view-mode');
+    if (modeHint) {
+        const label = t(currentViewLabel(file));
+        const target = viewSwitchTarget(file, { isDeck: file.viewMode === 'text' && isDeckFile(file) });
+        // No Ctrl+Shift+E on an Office tab — there is no second view to go to,
+        // and offering the key would be advertising a dead end.
+        if (isPreview) {
+            modeHint.textContent = t('Preview · read-only');
+            modeHint.title = file.type === 'pdf'
+                ? t('Read-only PDF preview — forms and annotations are not editable.')
+                : t('Read-only preview — the layout is approximate, and charts are not shown.');
+        } else if (target || file.viewMode === 'deck') {
+            modeHint.textContent = `${label} · Ctrl+Shift+E`;
+            modeHint.title = target
+                ? `${t('Switch to {view}', { view: t(target.label) })} — Ctrl+Shift+E`
+                : `${t('Source')} — Ctrl+Shift+E`;
+        } else {
+            modeHint.textContent = label;
+            modeHint.title = '';
+        }
+        modeHint.style.display = 'inline';
+    }
+}
+
 export function updateStatusBar(forFile = null) {
     const file = forFile || getActiveFile();
     if (!file) {
@@ -4053,31 +4089,7 @@ export function updateStatusBar(forFile = null) {
             officeLabel || (isMd ? 'Markdown' : 'Plain Text');
     }
 
-    // Show the active view mode + the Ctrl+Shift+E hint so users discover the
-    // Text ⇄ Structure / Table / Markdown toggle (previously a hidden feature).
-    const modeHint = document.getElementById('status-view-mode');
-    if (modeHint) {
-        const ext = (file.path || file.name || '').toLowerCase();
-        const isCsv = ext.endsWith('.csv') || ext.endsWith('.tsv');
-        let label = '';
-        if (file.viewMode === 'deck') label = 'Deck View';
-        else if (isMd && file.viewMode === 'structure') label = 'Markdown View';
-        else if (isCsv && file.viewMode === 'structure') label = 'Table View';
-        else if (file.viewMode === 'structure') label = 'Structure View';
-        else label = 'Text View';
-        // No Ctrl+Shift+E on an Office tab — there is no second view to go to,
-        // and offering the key would be advertising a dead end.
-        if (officeLabel) {
-            modeHint.textContent = t('Preview · read-only');
-            modeHint.title = file.type === 'pdf'
-                ? t('Read-only PDF preview — forms and annotations are not editable.')
-                : t('Read-only preview — the layout is approximate, and charts are not shown.');
-        } else {
-            modeHint.textContent = `${label} · Ctrl+Shift+E`;
-            modeHint.title = 'Switch Text / Structure (Table) view — Ctrl+Shift+E';
-        }
-        modeHint.style.display = 'inline';
-    }
+    updateViewModeHint(file);
 
     // A buffer that was never saved carries `stats: { size: 0, mtime: 0 }` as a
     // placeholder, and this printed it: "0 B" beside a file with text in it, and

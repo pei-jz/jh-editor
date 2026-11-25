@@ -50,6 +50,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { showConfirm, showAlert, showDialog } from '../ui/Dialog.js';
 import { applyI18n, t } from '../utils/I18n.js';
+import { applyAiClass } from '../utils/AiPrefs.js';
 
 
 import { listen } from '@tauri-apps/api/event';
@@ -1043,6 +1044,9 @@ async function bootstrap() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Before anything is drawn: the AI-only buttons are hidden until the user
+    // turns AI on (utils/AiPrefs.js), and must not flash in first.
+    applyAiClass();
     // The watchdog covers the case a try/catch cannot: boot does not throw, it
     // simply never returns — an await on something that will not settle. Four
     // seconds is far longer than a normal boot and far shorter than the user

@@ -27,6 +27,8 @@ import { isAgentReachable } from './ConnectionConfig.js';
 import { showDialog } from '../ui/Dialog.js';
 import { t } from '../utils/I18n.js';
 import JhAiClient from '@jh/ai-client';
+import { aiEnabled } from '../utils/AiPrefs.js';
+import { Toast } from '../ui/Toast.js';
 
 /**
  * False in a build made without the sibling jh-ai-agent checkout, where
@@ -86,6 +88,15 @@ async function waitForReachable(timeoutMs = 10000) {
  * included). Returns false when the user cancelled or the agent still is not up.
  */
 export async function ensureAgentAvailable() {
+    // AI is off until the user turns it on (utils/AiPrefs.js). The entry
+    // points are hidden then; this is the backstop for one that is not (an
+    // Agent Tasks tab restored from an earlier session). No probe, no
+    // registry lookup, no dialog about installing anything — a line saying
+    // where the switch is.
+    if (!aiEnabled()) {
+        Toast.info(t('AI features are off. Turn them on in Settings → Agent.'));
+        return false;
+    }
     if (!aiClientBundled) {
         await showDialog({
             title: t('AI is not available in this build'),

@@ -13,6 +13,7 @@ import { RegexPresets, DEFAULT_CATEGORY as REGEX_DEFAULT_CATEGORY } from './Rege
 import { showConfirm } from './Dialog.js';
 import { SCOPES, getScope, setScope } from '../ai/ContextScope.js';
 import { isLocalSuggestEnabled, setLocalSuggestEnabled } from './InlineCompletion.js';
+import { aiEnabled, setAiEnabled } from '../utils/AiPrefs.js';
 import { explorerListsFolders, explorerOpensOn, folderTabOpensPinned, setExplorerListsFolders, setExplorerOpensOn, setFolderTabOpensPinned } from '../utils/ExplorerPrefs.js';
 import {
     getLargeFileThresholdMB, setLargeFileThresholdMB,
@@ -614,7 +615,21 @@ export function initSettingsModal() {
         const container = agent.container;
         if (!container) return;
 
+        // AI is off until it is turned on here (utils/AiPrefs.js). Off, this tab
+        // shows the switch and the local suggestions only: no connection status,
+        // because showing one means probing for the agent, which is exactly
+        // what off promises not to do.
+        const aiOn = aiEnabled();
         container.innerHTML = `
+            <div class="settings-section-title">${t('AI Features')}</div>
+            <div class="settings-option">
+                <label for="ai-enabled">${t('Use AI features (J.H AI Agent)')}</label>
+                <input type="checkbox" id="ai-enabled"${aiOn ? ' checked' : ''}>
+            </div>
+            <div class="settings-description" style="margin-bottom:20px;">
+                ${t('While this is off, J.H Editor does not look for or connect to J.H AI Agent, and the AI commands and buttons are hidden. Turn it on only if you use J.H AI Agent.')}
+            </div>
+            ${aiOn ? `
             <div class="settings-section-title">Agent Integration</div>
 
             <div id="agent-conn-status" style="margin-bottom:15px; padding:10px 12px; border-radius:6px; background:rgba(0,180,255,0.07); border:1px solid rgba(0,180,255,0.25); font-size:12px;">
@@ -646,6 +661,7 @@ export function initSettingsModal() {
             </div>
 
             <div id="ai-scope-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px;"></div>
+            ` : ''}
 
             <div class="settings-section-title">Inline Suggestions</div>
             <div class="settings-description" style="margin-bottom:12px;">
@@ -670,6 +686,14 @@ export function initSettingsModal() {
 
         // Every other setting takes effect as it is changed, and this one now does
         // too. It was what the dialog's whole "Save & Apply" button came down to.
+        const aiToggle = container.querySelector('#ai-enabled');
+        if (aiToggle) {
+            aiToggle.onchange = () => {
+                setAiEnabled(aiToggle.checked);
+                renderAgentSettings();
+            };
+        }
+
         const agentUrlInput = container.querySelector('#ai-agent-url');
         if (agentUrlInput) agentUrlInput.onchange = saveAgentSettings;
 
@@ -718,7 +742,8 @@ export function initSettingsModal() {
 
         // Run discovery probe + display result so the user can tell at a glance
         // whether the agent is reachable and which config source is active.
-        (async () => {
+        // Only with AI on: off means not looking for the agent at all.
+        if (aiOn) (async () => {
             try {
                 const { getConnectionConfig, isAgentReachable } = await import('../ai/ConnectionConfig.js');
                 const cfg = await getConnectionConfig({ force: true });

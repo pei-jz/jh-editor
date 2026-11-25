@@ -1,6 +1,7 @@
 import { BaseView } from './BaseView.js';
 import { CsvEditor } from '../editors/CsvEditor.js';
 import { isAtSavedState, rememberSavedForm } from '../utils/DirtyState.js';
+import { addViewSwitchButton } from '../ui/ViewSwitchButton.js';
 
 // Key for the grid's serialisation of the saved file (see onLoaded below).
 const CSV_FORM = 'csv-grid';
@@ -42,6 +43,15 @@ export class CsvView extends BaseView {
         });
 
         this.container.appendChild(wrapper);
+
+        // Back to the text (Ctrl+Shift+E), in the same top-right corner as the
+        // other views' toolbars. The container is the positioned parent.
+        const toolbar = document.createElement('div');
+        toolbar.className = 'cm-view-toolbar';
+        if (addViewSwitchButton(toolbar, file)) {
+            if (!this.container.style.position) this.container.style.position = 'relative';
+            this.container.appendChild(toolbar);
+        }
 
         // Restore the grid scroll position (saved in destroy()) so switching
         // tabs and coming back keeps the same viewport.
