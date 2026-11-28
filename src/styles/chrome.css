@@ -1,0 +1,145 @@
+/* ==========================================================================
+   Chrome surfaces — the titlebar, tab bars, explorer and status bar.
+
+   Each theme used to give these three or four faces a shade or two off the
+   page, and drew lines between them as well. Close-but-not-equal reads as
+   neither one surface nor two, and the window did not look like an
+   application. So there are now two clear treatments:
+
+   - Light themes: the chrome IS the page colour. Hairlines alone mark where
+     one part ends and the next begins.
+   - Dark themes: the chrome is a single colour, a clear step below the page,
+     with no lines between its parts. The current tab takes the page colour,
+     so it reads as the page reaching up into the bar.
+
+   Imported last (index.css): the themes paint these faces with
+   body.theme-x #id selectors of the same weight, so order alone would
+   decide, and a few theme rules carry !important. The theme textures
+   (background-image) are left as they are.
+   ========================================================================== */
+
+/* ---- Light: one surface, hairlines ---- */
+body.theme-light,
+body.theme-paper,
+body.theme-sumi-e,
+body.theme-kakejiku,
+body.theme-latte,
+body.theme-nord-light,
+body.theme-solarized-light,
+body.theme-bamboo-light {
+    --header-bg: var(--bg-color);
+    --sidebar-bg: var(--bg-color);
+    --active-tab-bg: var(--bg-color);
+}
+
+:is(body.theme-light, body.theme-paper, body.theme-sumi-e, body.theme-kakejiku,
+    body.theme-latte, body.theme-nord-light, body.theme-solarized-light, body.theme-bamboo-light)
+    :is(#custom-titlebar, #tab-bar, #tab-bar-right, #explorer, #status-bar, .explorer-tabs) {
+    background-color: var(--bg-color) !important;
+}
+
+:is(body.theme-light, body.theme-paper, body.theme-sumi-e, body.theme-kakejiku,
+    body.theme-latte, body.theme-nord-light, body.theme-solarized-light, body.theme-bamboo-light) {
+    & #custom-titlebar { border-bottom: 1px solid var(--border-color) !important; }
+    & #tab-bar,
+    & #tab-bar-right { border-bottom: 1px solid var(--border-color) !important; }
+    & #explorer { border-right: 1px solid var(--border-color) !important; }
+    & #status-bar { border-top: 1px solid var(--border-color) !important; }
+    & .explorer-tabs { background-image: none !important; }
+}
+
+/* ---- Dark: one sunken surface, no lines ---- */
+body.theme-dark,
+body.theme-paper-dark,
+body.theme-sumi-e-dark,
+body.theme-kakejiku-dark,
+body.theme-latte-dark,
+body.theme-nord,
+body.theme-solarized-dark,
+body.theme-bamboo-ancient {
+    --chrome-surface: color-mix(in srgb, var(--bg-color) 68%, #000);
+    --header-bg: var(--chrome-surface);
+    --sidebar-bg: var(--chrome-surface);
+    --active-tab-bg: var(--bg-color);
+}
+
+:is(body.theme-dark, body.theme-paper-dark, body.theme-sumi-e-dark, body.theme-kakejiku-dark,
+    body.theme-latte-dark, body.theme-nord, body.theme-solarized-dark, body.theme-bamboo-ancient) {
+    & :is(#custom-titlebar, #tab-bar, #tab-bar-right, #explorer, #status-bar) {
+        background-color: var(--chrome-surface) !important;
+        border-color: transparent !important;
+    }
+    & #custom-titlebar { border-bottom: 0 !important; box-shadow: none !important; }
+    & #tab-bar,
+    & #tab-bar-right { border-bottom: 0 !important; }
+    & #explorer { border-right: 0 !important; }
+    & #status-bar { border-top: 0 !important; }
+    & #resizer-left { background: var(--chrome-surface) !important; }
+    & .explorer-tabs { background: transparent !important; border-bottom: 0 !important; }
+    & .tab:not(.active) { background-color: transparent !important; }
+    & .tab.active { background-color: var(--bg-color) !important; }
+}
+
+/* ---- Square corners, one kind of line (every theme) ----
+   The rounded tab tops bent the 2px line along a pinned tab, and the
+   Files / Git chip had a border, a radius and an underline of its own:
+   shapes nothing else in the window uses. Tabs are square, and the current
+   Files / Git tab is marked by the same 2px line and nothing else. */
+:root .tab,
+:root .tab-pin-overflow {
+    border-radius: 0 !important;
+}
+
+:root .explorer-tabs {
+    padding: 0;
+    gap: 0;
+}
+
+:root .explorer-tab {
+    height: 100%;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+:root .explorer-tab:hover {
+    background: color-mix(in srgb, var(--text-color) 6%, transparent) !important;
+}
+
+:root .explorer-tab.active {
+    background: transparent !important;
+    box-shadow: inset 0 -2px 0 var(--primary-color) !important;
+}
+
+/* ---- Kakejiku (light) ----
+   Its chrome was the dark indigo mount, with pale ink on it. Now that the
+   chrome takes the sheet colour, the ink follows the sheet, and the brocade
+   weave gives way to the silk. */
+body.theme-kakejiku {
+    --titlebar-text: var(--text-color);
+    --titlebar-text-dim: var(--text-secondary);
+    --tab-inactive-color: var(--text-secondary);
+}
+
+body.theme-kakejiku :is(#tab-bar, #tab-bar-right, #custom-titlebar, #status-bar, .explorer-tabs) {
+    background-image: var(--silk) !important;
+    color: var(--text-color) !important;
+}
+
+body.theme-kakejiku :is(.titlebar-btn, .titlebar-tool-btn, #new-tab-btn, .new-tab-menu-btn) {
+    color: var(--text-secondary) !important;
+}
+
+body.theme-kakejiku .tab { color: var(--text-secondary) !important; }
+body.theme-kakejiku .tab.active { color: var(--text-color) !important; }
+body.theme-kakejiku .tab:hover {
+    background-color: var(--hover-color) !important;
+    color: var(--text-color) !important;
+}
+body.theme-kakejiku .explorer-tab { color: var(--text-secondary) !important; }
+body.theme-kakejiku .explorer-tab.active { color: var(--text-color) !important; }
+body.theme-kakejiku #status-bar,
+body.theme-kakejiku #status-bar * { color: var(--text-secondary) !important; }
+body.theme-kakejiku #status-bar #status-whitespace.active,
+body.theme-kakejiku #status-bar #status-vim-mode { color: var(--primary-color) !important; }

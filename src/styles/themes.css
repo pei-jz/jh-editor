@@ -715,12 +715,12 @@ body.theme-bamboo-ancient {
     --header-bg: #483719;
     --border-color: #4a3b22;        /* old bamboo, in ink */
     --text-color: #e2d4ae;          /* pale gold writing */
-    --primary-color: #e0c574;       /* straw gold */
+    --primary-color: #83ad66;       /* green bamboo */
     /* White on this accent is too faint where it is a fill; the board's own
        dark reads on it. */
     --text-on-primary: #221d13;
     --active-tab-bg: #221d13;
-    --active-tab-border: #e0c574;
+    --active-tab-border: #83ad66;
     --hover-color: rgba(120, 95, 50, 0.30);
     --bg-color-secondary: #2c2519;
     --bg-active: #3a3020;
@@ -733,34 +733,34 @@ body.theme-bamboo-ancient {
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.55);
 
     /* Syntax highlighting — pale gold ink with leaf, rust and sky accents */
-    --hl-keyword: #e0c574;          /* straw gold */
+    --hl-keyword: #83ad66;          /* green bamboo */
     --hl-control-flow: #e0a0b0;     /* faded cinnabar-purple */
     --hl-built-in: #9cc8a6;         /* jade */
-    --hl-literal: #e0c574;
+    --hl-literal: #83ad66;
     --hl-string: #eba274;           /* rust */
     --hl-comment: #ad9869;          /* worn away, but still legible */
     --hl-function: #96c6dc;         /* sky */
     --hl-variable: #d8c9a2;
-    --hl-number: #b9d08a;
+    --hl-number: #e0c574;   /* straw gold, the accent before the green */
     --hl-operator: #e2d4ae;
 
     /* UI element colors */
     --gutter-color: #a89062;
     --tab-inactive-color: #dccb9c;
     --tree-item-color: #dccdaa;
-    --tree-item-active-bg: rgba(224, 197, 116, 0.14);
+    --tree-item-active-bg: rgba(131, 173, 102, 0.14);
     --text-secondary: #c9b383;
 
     /* Markdown Premium Styles */
     --code-color: #eba274;
     --code-bg: rgba(235, 162, 116, 0.10);
     --code-border: rgba(235, 162, 116, 0.25);
-    --blockquote-bg: rgba(224, 197, 116, 0.07);
+    --blockquote-bg: rgba(131, 173, 102, 0.07);
 
     /* Selection */
-    --selection-bg: rgba(224, 197, 116, 0.24);
+    --selection-bg: rgba(131, 173, 102, 0.24);
     --selection-color: #f0e4c4;
-    --cm-selection-bg: rgba(224, 197, 116, 0.20);
+    --cm-selection-bg: rgba(131, 173, 102, 0.20);
 
     /* Git Status Colors — kept distinct from the verdigris accent so a failure
        never reads as "the app is emphasising this". */
@@ -797,7 +797,7 @@ body.theme-bamboo-ancient {
        that uses it). */
     --slip-cord: repeating-linear-gradient(65deg, #1a1408 0 2px, #6a5530 2px 3px, #4a3a1e 3px 5px);
     --slip-bar: var(--slip-slats), linear-gradient(180deg, rgba(255,235,190,0.06) 0%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0.26) 100%);
-    --accent-spark: #9ccc7a;
+    --accent-spark: #f07f73;   /* 差し色: 朱 */
 }
 
 /* A hanging scroll: bamboo at the rods, paper in between.
@@ -1991,10 +1991,10 @@ body.theme-paper-dark {
     --header-bg: #1c1c1c;
     --border-color: #363636;
     --text-color: #e7e7e4;          /* pencil, not white */
-    --primary-color: #d9b56c;       /* yellow highlighter */
+    --primary-color: #e8868c;       /* red pen, as on the light Paper */
     --text-on-primary: #2a2208;
     --active-tab-bg: #242424;
-    --active-tab-border: #d9b56c;
+    --active-tab-border: #e8868c;
     --hover-color: #2e2e2e;
     --bg-color-secondary: #2c2c2c;
     --bg-active: #333331;
@@ -2004,10 +2004,10 @@ body.theme-paper-dark {
     --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
 
-    --hl-keyword: #d9b56c;
+    --hl-keyword: #e8868c;
     --hl-control-flow: #c4a7cf;
     --hl-built-in: #8fc9a8;
-    --hl-literal: #d9b56c;
+    --hl-literal: #e8868c;
     --hl-string: #b5c98e;
     --hl-comment: #93938e;
     --hl-function: #9ccbb5;
@@ -2018,7 +2018,7 @@ body.theme-paper-dark {
     --gutter-color: #8f8f8a;
     --tab-inactive-color: #93938e;
     --tree-item-color: #e3e3e0;
-    --tree-item-active-bg: rgba(217, 181, 108, 0.14);
+    --tree-item-active-bg: rgba(232, 134, 140, 0.14);
     --text-secondary: #a2a29d;
 
     --code-color: #a9c3dd;          /* blue-black ink, lifted for the dark */
@@ -2027,9 +2027,9 @@ body.theme-paper-dark {
     --danger-base: #e0806e;
     --blockquote-bg: rgba(232, 226, 214, 0.05);
 
-    --selection-bg: rgba(217, 181, 108, 0.28);
+    --selection-bg: rgba(232, 134, 140, 0.28);
     --selection-color: #e3e3e0;
-    --cm-selection-bg: rgba(217, 181, 108, 0.24);
+    --cm-selection-bg: rgba(232, 134, 140, 0.24);
 
     --git-modified-color: #e39b5b;
     --git-staged-color: #8fc9a8;
@@ -2039,7 +2039,7 @@ body.theme-paper-dark {
     --paper-chrome-font: var(--font-hand);
     --paper-rule-color: transparent;  /* was 0.10: read as a grid, not a ruled page */
     --paper-rule-size: 27px;
-    --paper-margin-color: rgba(217, 181, 108, 0.28);
+    --paper-margin-color: rgba(232, 134, 140, 0.28);
     --paper-vignette: rgba(0, 0, 0, 0.35);
     /* Kraft fibre: short, isotropic flecks, faint enough to sit under text. */
     --kraft-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='k'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.06'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23k)'/%3E%3C/svg%3E");
@@ -2164,10 +2164,10 @@ body.theme-latte-dark {
     --header-bg: #16120f;
     --border-color: #3a3029;
     --text-color: #ebe1d6;
-    --primary-color: #d6a26e;       /* caramel */
+    --primary-color: #d98f6a;       /* cinnamon */
     --text-on-primary: #1e1915;
     --active-tab-bg: #1e1915;
-    --active-tab-border: #d6a26e;
+    --active-tab-border: #d98f6a;
     --hover-color: #2b241e;
     --bg-color-secondary: #2b241e;
     --bg-active: #2b241e;
@@ -2177,10 +2177,10 @@ body.theme-latte-dark {
     --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.42);
     --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.50);
 
-    --hl-keyword: #d6a26e;
+    --hl-keyword: #d98f6a;
     --hl-control-flow: #e09a9a;
     --hl-built-in: #8fc7b8;
-    --hl-literal: #d6a26e;
+    --hl-literal: #d98f6a;
     --hl-string: #a9c58e;
     --hl-comment: #998b7e;
     --hl-function: #8fb4d0;
@@ -2191,22 +2191,22 @@ body.theme-latte-dark {
     --gutter-color: #95877a;
     --tab-inactive-color: #b2a496;
     --tree-item-color: #e0d6ca;
-    --tree-item-active-bg: rgba(214, 162, 110, 0.16);
+    --tree-item-active-bg: rgba(217, 143, 106, 0.16);
     --text-secondary: #b2a496;
 
     --code-color: #f0c890;
     --code-bg: rgba(240, 200, 144, 0.10);
     --code-border: rgba(240, 200, 144, 0.25);
-    --blockquote-bg: rgba(214, 162, 110, 0.08);
+    --blockquote-bg: rgba(217, 143, 106, 0.08);
 
-    --selection-bg: rgba(214, 162, 110, 0.26);
+    --selection-bg: rgba(217, 143, 106, 0.26);
     --selection-color: #ebe1d6;
-    --cm-selection-bg: rgba(214, 162, 110, 0.22);
+    --cm-selection-bg: rgba(217, 143, 106, 0.22);
 
     --git-modified-color: #e8c07a;
     --git-staged-color: #a9c58e;
     --git-untracked-color: #a9c58e;
-    --accent-spark: #f5ad7e;   /* 差し色: ピーチ */
+    --accent-spark: #6fd0b8;   /* 差し色: ミント */
 }
 
 body.theme-latte-dark button,

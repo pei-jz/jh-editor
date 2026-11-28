@@ -53,10 +53,12 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         expect(block).toContain('--text-secondary: #c9b383;');
     });
 
-    it('uses straw gold as the accent and green bamboo for the caret', () => {
-        expect(block).toContain('--primary-color: #e0c574;');
-        expect(block).toContain('--active-tab-border: #e0c574;');
-        expect(block).toContain('--accent-spark: #9ccc7a;');
+    // Was straw gold (#e0c574). Four dark themes had ended on gold, and at
+    // OKLCH L 83 it sat nearly as bright as the text; green bamboo at L 70.
+    it('uses green bamboo as the accent and cinnabar for the caret', () => {
+        expect(block).toContain('--primary-color: #83ad66;');
+        expect(block).toContain('--active-tab-border: #83ad66;');
+        expect(block).toContain('--accent-spark: #f07f73;');
     });
 
     it('uses old bamboo for the borders', () => {

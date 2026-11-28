@@ -71,11 +71,12 @@ describe('nothing hunts for the agent on a timer', () => {
         expect(offenders, offenders.join(', ')).toEqual([]);
     });
 
-    /* The two intervals the app does run are named here so that a third one has
-       to be looked at rather than merely added. Neither is about the agent:
-       one drags the editor's scroll, one repaints "⏳ Sending… 1.4 s" while a
-       request the user started is in flight. */
-    it('the intervals the app does run are the two known ones', () => {
+    /* The one interval the app does run is named here so that another has to
+       be looked at rather than merely added. It is not about the agent: it
+       repaints "⏳ Sending… 1.4 s" while a request the user started is in
+       flight. (Holding a tab-strip arrow used to run a second one; it is a
+       requestAnimationFrame loop now, so it can speed up as it is held.) */
+    it('the interval the app does run is the one known one', () => {
         const files = ['src/modules/core/Editor.js', 'src/modules/ui/AiChatPanel.js'];
         let total = 0;
         for (const dir of ['src/modules/core', 'src/modules/ui', 'src/modules/utils',
@@ -89,7 +90,7 @@ describe('nothing hunts for the agent on a timer', () => {
                 total += hits;
             }
         }
-        expect(total).toBe(2);
+        expect(total).toBe(1);
     });
 });
 
