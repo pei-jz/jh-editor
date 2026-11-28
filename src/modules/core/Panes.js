@@ -341,3 +341,31 @@ export function foldedPinIndices(files, activeIdx, keep = 3) {
     });
     return out;
 }
+
+/**
+ * Where a tab dropped on a pane body goes. While the editor is one pane, the
+ * right edge of it splits side by side and the bottom edge splits one above
+ * the other (the nearer edge wins in the corner); anywhere else is the pane
+ * it is already in. Once split, a body is simply that pane.
+ *
+ * @param {{left:number,top:number,right:number,bottom:number,width:number,height:number}} rect
+ * @returns {{ pane: 'left'|'right', direction: 'horizontal'|'vertical'|null }}
+ *          direction is set only when the drop creates the split.
+ */
+export function paneDropZone(rect, x, y, split, pane) {
+    if (split || pane === RIGHT) return { pane, direction: null };
+    const edgeX = Math.max(80, rect.width * 0.25);
+    const edgeY = Math.max(60, rect.height * 0.25);
+    const fromRight = rect.right - x;
+    const fromBottom = rect.bottom - y;
+    const nearRight = fromRight < edgeX;
+    const nearBottom = fromBottom < edgeY;
+    if (nearRight && nearBottom) {
+        return fromRight / rect.width <= fromBottom / rect.height
+            ? { pane: RIGHT, direction: 'horizontal' }
+            : { pane: RIGHT, direction: 'vertical' };
+    }
+    if (nearRight) return { pane: RIGHT, direction: 'horizontal' };
+    if (nearBottom) return { pane: RIGHT, direction: 'vertical' };
+    return { pane: LEFT, direction: null };
+}

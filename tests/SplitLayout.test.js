@@ -243,3 +243,29 @@ describe('terminal shell selection', () => {
         expect(tm).toContain('shells.some((s) => s.id === saved) ? saved : shells[0].id');
     });
 });
+
+// Splitting used to show the current tab on both sides. On the settings tab
+// that left the new pane blank: the settings screen is one element, and only
+// one pane can hold it (the terminal likewise). A split now MOVES the current
+// tab across; showing one document on both sides is Ctrl + drag.
+describe('what a split does with the current tab', () => {
+    const editor = read('src/modules/core/Editor.js');
+    const split = editor.slice(editor.indexOf('export function splitEditor('), editor.indexOf('export function closeSplit('));
+
+    it('moves the current tab into the new pane, in the asked direction', () => {
+        expect(split).toContain("moveTabToOtherPane(idx, 'left', null, { direction });");
+        expect(editor).toContain("splitEditor({ seed: false, direction });");
+    });
+
+    it('never puts the settings screen or the terminal in both panes', () => {
+        expect(editor).toContain("const SINGLE_VIEW_TYPES = new Set(['settings', 'terminal']);");
+        expect(split).toContain('SINGLE_VIEW_TYPES.has(current.type)');
+        const dup = editor.slice(editor.indexOf('export function duplicateTabToPane('));
+        expect(dup).toContain('if (!file || SINGLE_VIEW_TYPES.has(file.type)) return false;');
+    });
+
+    it('shows a tab in both panes only when Ctrl is held on the drop', () => {
+        expect(editor).toContain('const dragCopies = (e) => !!(e && (e.ctrlKey || e.metaKey));');
+        expect(editor).toContain("e.dataTransfer.effectAllowed = 'copyMove';");
+    });
+});

@@ -45,7 +45,7 @@ import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { Toast } from '../ui/Toast.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
-import { activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace, handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, pinnedCount, partitionPinned, clampDropIndex, insertIndexFor, setPinnedInPlace, insertFilesAt, tabRange, foldedPinIndices } from './Panes.js';
+import { activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace, handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, pinnedCount, partitionPinned, clampDropIndex, insertIndexFor, setPinnedInPlace, insertFilesAt, tabRange, foldedPinIndices, paneDropZone } from './Panes.js';
 
 export { activePane, normalizePane, paneFiles, paneActiveIndex, findOpenFile };
 
@@ -2456,7 +2456,8 @@ export function renderTabs(targetPane = null) {
                 // lands inside CodeMirror, which owns its own drop handling.
                 document.body.classList.add('tab-drag-active');
                 if (e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
+                    // copy: Ctrl + drop shows the tab in the other pane as well.
+                    e.dataTransfer.effectAllowed = 'copyMove';
                     // A drag needs *some* payload to start, but deliberately not
                     // text/plain — CodeMirror would happily insert that path into
                     // the document. The real payload is `dragSource`, since
@@ -2546,6 +2547,63 @@ function clearDropMarkers() {
         .forEach(el => el.classList.remove('tab-drop-before', 'tab-drop-after'));
     document.querySelectorAll('.pane-drop-target, .pane-drop-split')
         .forEach(el => el.classList.remove('pane-drop-target', 'pane-drop-split'));
+    hideDropPreview();
+}
+
+/** Whether a drag with Ctrl held would show these tabs in the other pane too. */
+const dragCopies = (e) => !!(e && (e.ctrlKey || e.metaKey));
+
+/** The tabs a drag carries. */
+const draggedFiles = (src) => src.files || [paneFiles(src.pane)[src.index]].filter(Boolean);
+
+/**
+ * Show `file` in `destPane` as well, without taking it from where it is: one
+ * document on both sides, to compare two places in it. The SAME object, as a
+ * one-tab split is (see splitEditor). The settings screen and the terminal
+ * are one element each and are left where they are.
+ */
+export function duplicateTabToPane(file, destPane, destIndex = null, { direction = 'horizontal' } = {}) {
+    if (!file || SINGLE_VIEW_TYPES.has(file.type)) return false;
+    if (destPane === 'right' && !State.splitMode) splitEditor({ seed: false, direction });
+    destPane = normalizePane(destPane);
+    const destFiles = paneFiles(destPane);
+    let at = destFiles.indexOf(file);
+    if (at < 0) {
+        at = insertIndexFor(destFiles, file, destIndex);
+        destFiles.splice(at, 0, file);
+    }
+    setPaneActiveIndex(destPane, at);
+    State.activePane = destPane;
+    renderTabs();
+    renderEditor();
+    updateToolbar();
+    return true;
+}
+
+// The drop preview: one rectangle over the area the tab will occupy, with a
+// line saying what the drop does. An outline on the whole pane plus a thin
+// bar at its edge did not say whether the window would split, or where.
+let dropPreview = null;
+
+function showDropPreview(rect, label, refused = false) {
+    if (!dropPreview) {
+        dropPreview = document.createElement('div');
+        dropPreview.className = 'pane-drop-preview';
+        const tag = document.createElement('span');
+        tag.className = 'pane-drop-preview-label';
+        dropPreview.appendChild(tag);
+        document.body.appendChild(dropPreview);
+    }
+    Object.assign(dropPreview.style, {
+        left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+    });
+    dropPreview.classList.toggle('refused', refused);
+    dropPreview.firstChild.textContent = label;
+    dropPreview.classList.add('visible');
+}
+
+function hideDropPreview() {
+    if (dropPreview) dropPreview.classList.remove('visible');
 }
 
 /** Clear every trace of an in-flight tab drag (dropped, or cancelled). */
@@ -2572,7 +2630,7 @@ function installTabDropTarget(container, pane) {
     container.addEventListener('dragover', (e) => {
         if (!dragSource) return;
         e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        if (e.dataTransfer) e.dataTransfer.dropEffect = dragCopies(e) ? 'copy' : 'move';
 
         clearDropMarkers();
         const idx = dropIndexAt(container, e.clientX);
@@ -2598,6 +2656,10 @@ function installTabDropTarget(container, pane) {
         const src = dragSource;
         endTabDrag();
 
+        if (dragCopies(e)) {
+            if (src.pane !== pane) draggedFiles(src).forEach((f) => duplicateTabToPane(f, pane, target));
+            return;
+        }
         if (src.files) moveTabsTo(src.files, pane, target);
         else if (src.pane === pane) reorderTab(src.index, target, pane);
         else moveTabToOtherPane(src.index, src.pane, target);
@@ -2605,11 +2667,13 @@ function installTabDropTarget(container, pane) {
 }
 
 /**
- * Dropping a tab onto a pane's body moves it there.
+ * Dropping a tab onto a pane's body moves it there; with Ctrl held it is shown
+ * there as well (duplicateTabToPane).
  *
- * The left body additionally acts as a "split here" zone: while the editor is
- * unsplit the right pane is display:none and can't receive a drop at all, so
- * dropping on the right quarter of the left body is what creates the split.
+ * While unsplit the right pane is display:none and can't receive a drop, so
+ * the edges of the left body create the split: the right edge side by side,
+ * the bottom edge one above the other (paneDropZone). A rectangle over the
+ * area the tab will take says which, before the button is let go.
  */
 export function installPaneDropTargets() {
     const targets = [
@@ -2617,13 +2681,27 @@ export function installPaneDropTargets() {
         [EL.editorContentRight, 'right'],
     ];
 
-    // Would this drop land in the right pane? True for the right body always,
-    // and for the right edge of the left body while unsplit.
-    const wantsRight = (el, pane, clientX) => {
-        if (pane === 'right') return true;
-        if (State.splitMode) return false;
+    // What a drop at the pointer on `el` would do: where, and the preview.
+    const plan = (el, pane, e) => {
         const r = el.getBoundingClientRect();
-        return clientX > r.right - Math.max(80, r.width * 0.25);
+        const zone = paneDropZone(r, e.clientX, e.clientY, !!State.splitMode, pane);
+        const files = draggedFiles(dragSource);
+        const single = files.length > 0 && files.every((f) => SINGLE_VIEW_TYPES.has(f.type));
+        // Splitting off a pane's every tab would leave it empty, which folds
+        // the split straight back: show them on both sides instead, as the
+        // split command does with a lone tab.
+        const wouldEmpty = !!zone.direction && paneFiles(dragSource.pane).length <= files.length;
+        const copy = dragCopies(e) || (wouldEmpty && !single);
+        const samePane = (zone.pane === dragSource.pane && !zone.direction) || (wouldEmpty && single);
+        let rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+        if (zone.direction === 'horizontal') rect = { left: r.left + r.width / 2, top: r.top, width: r.width / 2, height: r.height };
+        if (zone.direction === 'vertical') rect = { left: r.left, top: r.top + r.height / 2, width: r.width, height: r.height / 2 };
+        let label;
+        if (copy && single) label = t('This tab can only be in one pane');
+        else if (zone.direction === 'horizontal') label = copy ? t('Split right and show in both') : t('Split right');
+        else if (zone.direction === 'vertical') label = copy ? t('Split down and show in both') : t('Split down');
+        else label = copy ? t('Show in both panes') : t('Move here');
+        return { zone, rect, label, copy, refused: copy && single, none: samePane };
     };
 
     for (const [el, pane] of targets) {
@@ -2633,23 +2711,32 @@ export function installPaneDropTargets() {
         el.addEventListener('dragover', (e) => {
             if (!dragSource) return;
             e.preventDefault();
-            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-            const toRight = wantsRight(el, pane, e.clientX);
-            el.classList.toggle('pane-drop-target', !toRight);
-            el.classList.toggle('pane-drop-split', toRight && pane === 'left');
+            const p = plan(el, pane, e);
+            if (e.dataTransfer) e.dataTransfer.dropEffect = p.none || p.refused ? 'none' : (p.copy ? 'copy' : 'move');
+            if (p.none) hideDropPreview();
+            else showDropPreview(p.rect, p.label, p.refused);
         });
-        el.addEventListener('dragleave', () => {
-            el.classList.remove('pane-drop-target', 'pane-drop-split');
+        el.addEventListener('dragleave', (e) => {
+            if (!el.contains(e.relatedTarget)) hideDropPreview();
         });
         el.addEventListener('drop', (e) => {
             if (!dragSource) return;
             e.preventDefault();
             const src = dragSource;
-            const destPane = wantsRight(el, pane, e.clientX) ? 'right' : 'left';
+            const p = plan(el, pane, e);
             endTabDrag();
-            if (src.files) { moveTabsTo(src.files, destPane); return; }
-            if (src.pane === destPane) return; // already there
-            moveTabToOtherPane(src.index, src.pane);
+            if (p.none || p.refused) return;
+            const direction = p.zone.direction || 'horizontal';
+            if (p.copy) {
+                draggedFiles(src).forEach((f) => duplicateTabToPane(f, p.zone.pane, null, { direction }));
+                return;
+            }
+            if (src.files) {
+                if (p.zone.pane === 'right' && !State.splitMode) splitEditor({ seed: false, direction });
+                moveTabsTo(src.files, p.zone.pane);
+                return;
+            }
+            moveTabToOtherPane(src.index, src.pane, null, { direction });
         });
     }
 }
@@ -2865,7 +2952,7 @@ function closeSavedTabs(pane = activePane()) {
  * `destIndex === null` appends. The source tab always keeps its buffer object,
  * so unsaved edits travel with it.
  */
-export function moveTabToOtherPane(index, sourcePane, destIndex = null) {
+export function moveTabToOtherPane(index, sourcePane, destIndex = null, { direction = 'horizontal' } = {}) {
     sourcePane = normalizePane(sourcePane);
     const sourceFiles = paneFiles(sourcePane);
     if (index < 0 || index >= sourceFiles.length) return;
@@ -2875,7 +2962,7 @@ export function moveTabToOtherPane(index, sourcePane, destIndex = null) {
     if (!State.splitMode) {
         // Split without duplicating the active buffer — the tab about to move
         // is what will populate the new pane.
-        splitEditor({ seed: false });
+        splitEditor({ seed: false, direction });
     }
 
     const destFiles = paneFiles(targetPane);
@@ -2934,11 +3021,33 @@ export function reorderTab(fromIndex, toIndex, pane) {
  *        doing nothing, so Ctrl+\\ / Ctrl+Alt+\\ toggle between the two.
  * @param {boolean} [options.seed]  clone the active tab into the new pane
  */
+/** Tab types whose view is a single element: only one pane can show them. */
+const SINGLE_VIEW_TYPES = new Set(['settings', 'terminal']);
+
 export function splitEditor(options = {}) {
     const { seed = true, direction = 'horizontal' } = options;
     if (State.splitMode === direction) return;
 
     const reorienting = !!State.splitMode;
+    // A fresh split MOVES the current tab into the new pane; it does not show
+    // it twice. (Showing one document on both sides, to compare two places in
+    // it, is Ctrl + drag — see duplicateTabToPane.) With only one tab there is
+    // nothing to move without emptying the first pane, which folds the split
+    // straight back, so that one tab is shown on both sides — unless it is the
+    // settings screen or the terminal, which are one element each and can
+    // only be in one pane.
+    if (!reorienting && seed && State.rightOpenFiles.length === 0) {
+        const idx = State.activeTabIndex;
+        const current = State.openFiles[idx];
+        if (current && State.openFiles.length > 1) {
+            moveTabToOtherPane(idx, 'left', null, { direction });
+            return;
+        }
+        if (current && SINGLE_VIEW_TYPES.has(current.type)) {
+            Toast.info(t('There is no other tab to show beside this one.'));
+            return;
+        }
+    }
     State.splitMode = direction;
     applySplitOrientation(direction);
 
@@ -2956,9 +3065,9 @@ export function splitEditor(options = {}) {
     }
 
     if (seed && State.rightOpenFiles.length === 0 && State.openFiles.length > 0 && State.activeTabIndex >= 0) {
-        // The SAME object, not a copy. Splitting duplicates the current file —
-        // the convention VS Code and JetBrains both follow — and it only works
-        // if the two panes are two views of ONE document. A `{ ...activeFile }`
+        // Only one tab, so it is shown on both sides. The SAME object, not a
+        // copy: this only works if the two panes are two views of ONE
+        // document. A `{ ...activeFile }`
         // clone diverged the moment either side was typed into: one path, two
         // texts, `file.content` set by whichever pane wrote last, and a save
         // that picked one of them arbitrarily.

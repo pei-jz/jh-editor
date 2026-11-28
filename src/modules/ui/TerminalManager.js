@@ -161,6 +161,12 @@ class TerminalManager {
             lineHeight: 1.1,
             rightClickSelectsWord: true,
             scrollback: terminalScrollback(),
+            // 文字色と背景色を両方指定する出力は、組み合わせ次第で読めなくなる。
+            // WSL の /mnt/c 以下は全員書き込み可なので、ls がフォルダーを
+            // 「緑の背景に青い字」(LS_COLORS の ow=34;42) で出し、明るいテーマ
+            // ではどちらも濃い色になって字が消えていた。背景との差が 4.5:1 に
+            // 届かない字だけ、xterm が明るさを寄せて読める色にする。
+            minimumContrastRatio: 4.5,
         });
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);

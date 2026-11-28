@@ -63,6 +63,14 @@ function _injectStyles() {
         display: none;
     }
     .filter-select-list.open { display: block; }
+    /* The app's scrollbars stay hidden until hovered. In this list that left
+       an empty strip down the right, where the highlight stopped short, and
+       nothing said there were more refs above or below. A thin, always
+       visible thumb says both. */
+    .filter-select-list::-webkit-scrollbar { width: 8px; }
+    .filter-select-list::-webkit-scrollbar-thumb {
+        background-color: color-mix(in srgb, var(--text-color) 28%, transparent);
+    }
     .filter-select-group {
         padding: 4px 8px 2px;
         font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
@@ -223,6 +231,10 @@ export function createFilterSelect({
         list.classList.add('open');
         place();
         render(''); // always start from the full list, like a dropdown
+        // Open on the current value with refs on both sides of it, not with it
+        // pressed against the bottom edge and the one above cut in half.
+        const cur = list.querySelector('.filter-select-option.active');
+        if (cur) list.scrollTop = Math.max(0, cur.offsetTop - (list.clientHeight - cur.offsetHeight) / 2);
         // While the list is open Enter picks an option and Escape closes the
         // list — neither belongs to a surrounding dialog. See Dialog.js.
         element.dataset.dialogKeys = 'own';

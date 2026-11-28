@@ -27,9 +27,14 @@ const cm = read('src/modules/views/CodeMirrorView.js');
 
 describe('a split shares the buffer', () => {
     it('puts the same object in both panes', () => {
-        const i = editor.indexOf('if (seed && State.rightOpenFiles.length === 0');
+        // A lone tab split, and Ctrl + drag, both show one tab on both sides.
+        const i = editor.indexOf('if (seed && State.rightOpenFiles.length === 0 && State.openFiles.length > 0');
+        expect(i).toBeGreaterThan(-1);
         const block = editor.slice(i, editor.indexOf('State.activePane', i));
         expect(block).toContain('State.rightOpenFiles.push(State.openFiles[State.activeTabIndex]);');
+        const dup = editor.slice(editor.indexOf('export function duplicateTabToPane('));
+        expect(dup.slice(0, 900)).toContain('destFiles.splice(at, 0, file);');
+        expect(dup.slice(0, 900)).not.toMatch(/\{\s*\.\.\.file\s*\}/);
         // The comment above it quotes the old clone, so match the CODE.
         expect(block).not.toContain('const cloned =');
     });

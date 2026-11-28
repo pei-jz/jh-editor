@@ -1137,3 +1137,45 @@ body.tab-drag-active #editor-content-right > * {
 /* AI features are off until turned on in Settings → Agent (utils/AiPrefs.js).
    Controls that only make sense with AI carry .ai-only and are not shown. */
 .ai-off .ai-only { display: none !important; }
+
+/* Where a dragged tab will land (Editor.js showDropPreview): the area it
+   will take, tinted, with what the drop does written in it. */
+.pane-drop-preview {
+    position: fixed;
+    z-index: 900;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 2px solid var(--primary-color);
+    background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    opacity: 0;
+    transition: opacity 0.1s ease, left 0.12s ease, top 0.12s ease, width 0.12s ease, height 0.12s ease;
+}
+
+.pane-drop-preview.visible {
+    opacity: 1;
+}
+
+.pane-drop-preview.refused {
+    border-style: dashed;
+    border-color: var(--text-secondary, var(--border-color));
+    background-color: color-mix(in srgb, var(--text-color) 6%, transparent);
+}
+
+.pane-drop-preview-label {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bg-color);
+    background-color: var(--primary-color);
+    box-shadow: var(--shadow-md, 0 3px 10px rgba(0, 0, 0, 0.2));
+}
+
+.pane-drop-preview.refused .pane-drop-preview-label {
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+}

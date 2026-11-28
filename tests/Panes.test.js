@@ -4,7 +4,7 @@ import {
     activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex,
     otherPane, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace,
     handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, openTabEntries,
-    insertFilesAt, tabRange, foldedPinIndices,
+    insertFilesAt, tabRange, foldedPinIndices, paneDropZone,
 } from '../src/modules/core/Panes.js';
 
 const mk = (path, over = {}) => ({ path, name: path.split('/').pop(), content: '', isDirty: false, ...over });
@@ -423,5 +423,22 @@ describe('foldedPinIndices', () => {
 
     it('folds nothing with three pins or fewer', () => {
         expect(foldedPinIndices([pin('a'), pin('b'), pin('c'), tab('x')], 0)).toEqual([]);
+    });
+});
+
+describe('paneDropZone', () => {
+    const r = { left: 0, top: 0, right: 1000, bottom: 600, width: 1000, height: 600 };
+    it('splits side by side at the right edge, one above the other at the bottom', () => {
+        expect(paneDropZone(r, 950, 300, false, 'left')).toEqual({ pane: 'right', direction: 'horizontal' });
+        expect(paneDropZone(r, 500, 580, false, 'left')).toEqual({ pane: 'right', direction: 'vertical' });
+        expect(paneDropZone(r, 500, 300, false, 'left')).toEqual({ pane: 'left', direction: null });
+    });
+    it('lets the nearer edge win in the corner', () => {
+        expect(paneDropZone(r, 990, 500, false, 'left').direction).toBe('horizontal');
+        expect(paneDropZone(r, 800, 595, false, 'left').direction).toBe('vertical');
+    });
+    it('is just the pane once split', () => {
+        expect(paneDropZone(r, 990, 590, 'horizontal', 'left')).toEqual({ pane: 'left', direction: null });
+        expect(paneDropZone(r, 10, 10, 'vertical', 'right')).toEqual({ pane: 'right', direction: null });
     });
 });

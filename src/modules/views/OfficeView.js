@@ -2657,7 +2657,10 @@ function injectStyles() {
     .of-gutter { width: ${GUTTER_WIDTH}px; text-align: right;
         color: color-mix(in srgb, var(--text-color) 55%, transparent);
         position: sticky; left: 0; z-index: 2; background: var(--bg-color); }
-    .of-corner { z-index: 4; }
+    /* The header row has no height of its own to take 100% of, so the shared
+       height: 100% collapsed the corner to its 1px border: a second line on
+       top, and none under it where the column letters have theirs. */
+    .of-corner { z-index: 4; height: ${ROW_HEIGHT}px; }
 
     /* Merged cells, drawn over the rows. Opaque, so the gridlines of the cells
        underneath do not show through the middle of a box. */
