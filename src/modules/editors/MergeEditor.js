@@ -36,7 +36,7 @@ import {
 } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import {
-    MergeView, unifiedMergeView, getChunks, getOriginalDoc, Change, Chunk,
+    MergeView, unifiedMergeView, getChunks, getOriginalDoc, Change, Chunk, uncollapseUnchanged,
 } from '@codemirror/merge';
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { pageMotionKeymap } from '../utils/CMPageMotion.js';
@@ -46,6 +46,8 @@ import {
     canCopyToward, mergeDirty, sideDirty, blockCopyEdit, blockCombineEdit, clampSplit,
 } from '../utils/MergeSides.js';
 import { computeDiff } from '../utils/LineDiff.js';
+import { MergeSearch, searchMarkField, searchMarkTheme } from './MergeSearch.js';
+import { Toast } from '../ui/Toast.js';
 
 // Long unchanged stretches fold away, keeping a few lines of context.
 const COLLAPSE = { margin: 3, minSize: 8 };
@@ -468,7 +470,7 @@ const mergeTheme = EditorView.theme({
     '.cm-content': { caretColor: 'var(--text-color)' },
     '.cm-line': { paddingLeft: '4px' },
     '&.cm-focused': { outline: 'none' },
-    '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--text-color)' },
+    '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--accent-spark, var(--text-color))', borderLeftWidth: '2px' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
         backgroundColor: 'var(--cm-selection-bg, rgba(51, 144, 250, 0.18))',
     },
@@ -611,6 +613,8 @@ export class MergeEditor {
         // read again. Coming back to the window is when those have happened.
         this._onWindowFocus = () => { this.recompare({ quiet: true }); };
         window.addEventListener('focus', this._onWindowFocus);
+
+        this.search = new MergeSearch(this);
 
         this.split = clampSplit(readSetting('diff_split'));
         this._build();
@@ -876,6 +880,10 @@ export class MergeEditor {
             box.appendChild(el('span', `merge-badge ${side.writable ? 'is-writable' : 'is-readonly'}`,
                 side.writable ? t('Editable') : t('Read-only')));
             if (sideDirty(side)) box.appendChild(el('span', 'merge-badge is-unsaved', t('Unsaved')));
+            if (this._searchSideKey() === key) {
+                box.classList.add('is-search-target');
+                box.appendChild(el('span', 'merge-badge is-searching', t('Searching')));
+            }
             return box;
         };
 
@@ -917,7 +925,9 @@ export class MergeEditor {
             this.whitespaceCompartment.of(this.showWhitespace ? highlightWhitespace() : []),
             EditorState.readOnly.of(!writable),
             focusField,
+            searchMarkField,
             mergeTheme,
+            searchMarkTheme,
         ];
     }
 
@@ -1163,6 +1173,7 @@ export class MergeEditor {
 
     _destroyEditors() {
         this.closeMergeMenu();
+        if (this.search) this.search.reset();
         const s = this._scroller();
         if (s) this.file._mergeScrollTop = s.scrollTop;
         if (this._controlsObserver) {
@@ -2247,6 +2258,59 @@ export class MergeEditor {
 
     getDiagnostics() {
         return [];
+    }
+
+    // ── Find (the app's search panel) ────────────────────────────────────────
+    //
+    // The panel searches one document at a time, so it searches the side the
+    // cursor is on (see MergeSearch.js).
+
+    isCodeMirrorMode() { return !!(this.mergeView || this.unifiedView); }
+    get editorView() { return this.search.editorView; }
+    get lastSearchTruncated() { return this.search.lastSearchTruncated; }
+    performSearch(...args) { return this.search.performSearch(...args); }
+    cancelSearch() { return this.search.cancelSearch(); }
+    renderSearchHighlights(matches, index) { this.search.renderSearchHighlights(matches, index); }
+    scrollToMatch(index) { this.search.scrollToMatch(index); }
+    getSelectionOffsets() { return this.search.getSelectionOffsets(); }
+    replaceNext(...args) { return this.search.replaceNext(...args); }
+    replaceAll(...args) { return this.search.replaceAll(...args); }
+
+    /** 'left' | 'right' while that side holds the search hits, else null. */
+    _searchSideKey() {
+        const view = this.search && this.search.target;
+        if (!view || !this.mergeView) return null;
+        if (view === this.mergeView.a) return 'left';
+        if (view === this.mergeView.b) return 'right';
+        return null;
+    }
+
+    _onSearchTargetChanged() {
+        if (this.headersEl) this._renderHeaders();
+    }
+
+    _notifyReadOnlySearch() {
+        Toast.show(t('This side is read-only. Put the cursor on an editable side to replace.'), 'info');
+    }
+
+    /**
+     * Unfold the run of unchanged lines that hides `pos` in `view`, and the
+     * matching run on the other side so the panes stay lined up.
+     */
+    _unfoldAt(view, pos) {
+        const doc = view.state.doc;
+        const line = doc.lineAt(Math.min(pos, doc.length));
+        const block = view.lineBlockAt(line.from);
+        if (block.from === line.from && block.to === line.to) return;
+        view.dispatch({ effects: uncollapseUnchanged.of(block.from) });
+        if (!this.mergeView) return;
+        const isA = view === this.mergeView.a;
+        const other = isA ? this.mergeView.b : this.mergeView.a;
+        const docs = this._docs();
+        const startLine = doc.lineAt(block.from).number;
+        const pair = lineCounterpart(this._chunks(), docs.a, docs.b, isA ? 'a' : 'b', startLine);
+        const otherLine = isA ? pair.b : pair.a;
+        if (otherLine) other.dispatch({ effects: uncollapseUnchanged.of(other.state.doc.line(otherLine).from) });
     }
 
     // ── Minimap ──────────────────────────────────────────────────────────────

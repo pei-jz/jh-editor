@@ -290,3 +290,54 @@ export function setPinnedInPlace(files, index, pinned) {
     files.splice(at, 0, file);
     return at;
 }
+
+/**
+ * Move several tabs into `files` together, keeping their order: they land
+ * before the tab that stood at `destIndex` (the first one there that is not
+ * itself moving), or at the end for null. Each still lands in its own group,
+ * pinned among the pinned. `moving` may already be in `files` (a reorder);
+ * removing them from any other pane is the caller's job.
+ * Returns the index of the first moved tab, or -1 when nothing moved.
+ */
+export function insertFilesAt(files, moving, destIndex = null) {
+    const set = new Set(moving);
+    // Pinned first, so each group's run stays unbroken as they go in.
+    moving = [...moving.filter((f) => f && f.pinned), ...moving.filter((f) => !(f && f.pinned))];
+    let anchor = null;
+    if (destIndex != null) {
+        for (let i = Math.max(0, destIndex); i < files.length; i++) {
+            if (!set.has(files[i])) { anchor = files[i]; break; }
+        }
+    }
+    for (let i = files.length - 1; i >= 0; i--) if (set.has(files[i])) files.splice(i, 1);
+    for (const file of moving) {
+        // Re-read each time: a pinned tab clamped into its group lands ahead
+        // of the anchor and shifts it.
+        const at = anchor ? files.indexOf(anchor) : files.length;
+        files.splice(insertIndexFor(files, file, at), 0, file);
+    }
+    return moving.length ? files.indexOf(moving[0]) : -1;
+}
+
+/** The tabs from `a` to `b` (either order) in `files`, for Shift+click. */
+export function tabRange(files, a, b) {
+    const i = files.indexOf(a);
+    const j = files.indexOf(b);
+    if (i < 0 || j < 0) return b && files.includes(b) ? [b] : [];
+    return files.slice(Math.min(i, j), Math.max(i, j) + 1);
+}
+
+/**
+ * Indices (into `files`) of the pinned tabs past the first `keep`, which the
+ * strip folds into a "+N" list. The current tab is never folded away.
+ */
+export function foldedPinIndices(files, activeIdx, keep = 3) {
+    const out = [];
+    let seen = 0;
+    files.forEach((f, i) => {
+        if (!f.pinned) return;
+        seen++;
+        if (seen > keep && i !== activeIdx) out.push(i);
+    });
+    return out;
+}

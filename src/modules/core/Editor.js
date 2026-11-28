@@ -45,7 +45,7 @@ import { renderEmptyPaneGuide } from '../ui/EmptyPaneGuide.js';
 import { Toast } from '../ui/Toast.js';
 import { scheduleSessionSave, flushSession, loadSession, loadDrafts, dropDraft, clearDrafts } from './Session.js';
 import { RecentFiles } from '../utils/RecentFiles.js';
-import { activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace, handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, pinnedCount, partitionPinned, clampDropIndex, insertIndexFor, setPinnedInPlace } from './Panes.js';
+import { activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace, handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, pinnedCount, partitionPinned, clampDropIndex, insertIndexFor, setPinnedInPlace, insertFilesAt, tabRange, foldedPinIndices } from './Panes.js';
 
 export { activePane, normalizePane, paneFiles, paneActiveIndex, findOpenFile };
 
@@ -2161,6 +2161,216 @@ export function canCompareWithSaved(file) {
     return !String(file.path).includes('://') && !tabIconFor(file);
 }
 
+// --- Selecting several tabs -----------------------------------------------------
+// Ctrl+click adds a tab to the selection (the pane's current tab comes along
+// the first time, so Ctrl+clicking one other tab selects two), Shift+click
+// selects a run, and a plain click goes back to one tab. A selection is moved
+// by dragging any tab in it, and two selected tabs can be compared.
+
+const tabSelection = new Set();
+let tabSelectionAnchor = null;
+
+function allOpenTabs() {
+    return [...State.openFiles, ...State.rightOpenFiles];
+}
+
+/** The selected tabs, in strip order (left pane first). */
+export function selectedTabs() {
+    return allOpenTabs().filter((f) => tabSelection.has(f));
+}
+
+export function clearTabSelection() {
+    if (!tabSelection.size) return;
+    tabSelection.clear();
+    tabSelectionAnchor = null;
+    renderTabs();
+}
+
+function onTabClick(e, file, index, pane) {
+    const files = paneFiles(pane);
+    if (e.ctrlKey || e.metaKey) {
+        if (!tabSelection.size) {
+            const current = files[paneActiveIndex(pane)];
+            if (current && current !== file) tabSelection.add(current);
+        }
+        if (tabSelection.has(file)) tabSelection.delete(file);
+        else tabSelection.add(file);
+        tabSelectionAnchor = file;
+        renderTabs();
+        return;
+    }
+    if (e.shiftKey) {
+        const anchor = tabSelectionAnchor && files.includes(tabSelectionAnchor)
+            ? tabSelectionAnchor : files[paneActiveIndex(pane)];
+        tabSelection.clear();
+        for (const f of tabRange(files, anchor, file)) tabSelection.add(f);
+        tabSelectionAnchor = anchor || file;
+        renderTabs();
+        return;
+    }
+    const hadSelection = tabSelection.size > 0;
+    tabSelection.clear();
+    tabSelectionAnchor = file;
+    setActiveTab(index, pane);
+    if (hadSelection) renderTabs();
+}
+
+/** Whether a tab holds text that a comparison can show and write back. */
+export function canCompareTab(file) {
+    if (!file || file.isLarge || typeof file.content !== 'string') return false;
+    if (file.type === 'office' || file.type === 'pdf' || file.type === 'settings') return false;
+    return !tabIconFor(file);
+}
+
+/** Compare two open tabs side by side; both sides save through their tabs. */
+export function compareTabs(a, b) {
+    if (!canCompareTab(a) || !canCompareTab(b) || a === b) {
+        if (window.showToast) window.showToast(t('These tabs cannot be compared.'));
+        return;
+    }
+    const nameOf = (f) => (f.path ? FS.getBasename(f.path) : (f.name || t('Untitled')));
+    openMergeTab({
+        id: `tabs:${a.path || a.name}|${b.path || b.name}`,
+        title: t('Compare: {name}', { name: `${nameOf(a)} ↔ ${nameOf(b)}` }),
+        path: b.path || a.path || '',
+        left: { label: a.path || nameOf(a), text: a.content, writable: true, target: { kind: 'buffer', file: a } },
+        right: { label: b.path || nameOf(b), text: b.content, writable: true, target: { kind: 'buffer', file: b } },
+    });
+}
+
+/**
+ * Move several tabs to `destPane` together, before the tab at `destIndex`
+ * (null: the end). Splits first when the right pane is wanted and absent.
+ */
+export function moveTabsTo(files, destPane, destIndex = null) {
+    const moving = files.filter((f) => allOpenTabs().includes(f));
+    if (!moving.length) return;
+    if (destPane === 'right' && !State.splitMode) splitEditor({ seed: false });
+    destPane = normalizePane(destPane);
+    const activeBefore = {
+        left: State.openFiles[State.activeTabIndex] || null,
+        right: State.rightOpenFiles[State.rightActiveTabIndex] || null,
+    };
+    const source = destPane === 'left' ? 'right' : 'left';
+    const sourceFiles = paneFiles(source);
+    const sourceActiveIdx = paneActiveIndex(source);
+    for (let i = sourceFiles.length - 1; i >= 0; i--) {
+        if (moving.includes(sourceFiles[i])) sourceFiles.splice(i, 1);
+    }
+    const destFiles = paneFiles(destPane);
+    insertFilesAt(destFiles, moving, destIndex);
+
+    // The tab that was showing stays showing where it can; the destination
+    // shows the moved tab that was current, else the first moved.
+    const shown = moving.find((f) => f === activeBefore.left || f === activeBefore.right) || moving[0];
+    setPaneActiveIndex(destPane, destFiles.indexOf(shown));
+    const keep = activeBefore[source];
+    if (keep && sourceFiles.includes(keep)) setPaneActiveIndex(source, sourceFiles.indexOf(keep));
+    else setPaneActiveIndex(source, sourceFiles.length ? Math.min(Math.max(0, sourceActiveIdx), sourceFiles.length - 1) : -1);
+    State.activePane = destPane;
+
+    if (State.splitMode && (sourceFiles.length === 0 || destFiles.length === 0)) {
+        closeSplit();
+        const landed = State.openFiles.indexOf(shown);
+        if (landed >= 0) setActiveTab(landed, 'left');
+        return;
+    }
+    renderTabs();
+    renderEditor();
+    updateToolbar();
+    setupWatcher(shown);
+}
+
+/** Close the selected tabs, pane by pane (unsaved ones are asked about). */
+async function closeSelectedTabs() {
+    const chosen = selectedTabs();
+    tabSelection.clear();
+    for (const pane of ['right', 'left']) {
+        if (pane === 'right' && !State.splitMode) continue;
+        if (!paneFiles(pane).some((f) => chosen.includes(f))) continue;
+        const ok = await closeTabsInPane(pane, (f) => chosen.includes(f));
+        if (!ok) break;
+    }
+    renderTabs();
+}
+
+/** The tab menu's items for a selection of several tabs. */
+function selectionMenuItems(pane) {
+    const chosen = selectedTabs();
+    const items = [];
+    if (chosen.length === 2) {
+        const [a, b] = chosen;
+        if (canCompareTab(a) && canCompareTab(b)) {
+            items.push({ icon: 'compare', label: t('Compare Selected Tabs'), action: () => { tabSelection.clear(); compareTabs(a, b); } });
+        }
+    }
+    const other = pane === 'left' ? 'right' : 'left';
+    items.push({ icon: 'swap', label: t('Move Selected Tabs to Other Pane'), action: () => { tabSelection.clear(); moveTabsTo(chosen, other); } });
+    items.push({ type: 'separator' });
+    items.push({ icon: 'close', label: t('Close Selected Tabs ({count})', { count: chosen.length }), action: () => closeSelectedTabs() });
+    items.push({ icon: 'x', label: t('Clear Selection'), action: () => clearTabSelection() });
+    return items;
+}
+
+/**
+ * Keep up to three pinned tabs in view as the strip scrolls: each sticks at
+ * the left edge, after the ones before it, and the other tabs pass
+ * underneath. Pinned tabs past the third fold into a "+N" button after them,
+ * which lists them; the current tab is never folded away.
+ */
+const STICKY_PINS = 3;
+
+function tabDisplayName(file) {
+    if (file.type === 'settings') return t('Settings');
+    if (file.path && !/^(agent|diff|search|folder|terminal):\/\//.test(file.path)) {
+        return file.path.replace(/\\/g, '/').split('/').pop();
+    }
+    return file.name || 'Untitled';
+}
+
+/** The "+N" button and the list it opens. */
+function pinOverflowButton(files, folded, pane) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab-pin-overflow';
+    btn.append(iconEl('pin', { size: 11 }), document.createTextNode(`+${folded.length}`));
+    btn.title = folded.map((i) => tabDisplayName(files[i])).join('\n');
+    btn.onclick = (e) => {
+        ContextMenu.show(e, folded.map((i) => {
+            const file = files[i];
+            const dir = file.path && !file.path.includes('://')
+                ? file.path.replace(/\\/g, '/').split('/').slice(-2, -1)[0] || '' : '';
+            return {
+                icon: tabIconFor(file) || 'pin',
+                label: tabDisplayName(file) + (file.isDirty ? ' *' : ''),
+                hint: dir,
+                action: () => { tabSelection.clear(); setActiveTab(i, pane); },
+            };
+        }));
+    };
+    return btn;
+}
+
+function layoutStickyPins(container) {
+    const pinned = [...container.querySelectorAll('.tab.tab-pinned:not(.tab-pinned-folded)')];
+    const more = container.querySelector('.tab-pin-overflow');
+    const fixed = more ? [...pinned, more] : pinned.slice(0, STICKY_PINS);
+    let left = 0;
+    for (const tab of pinned) {
+        if (!fixed.includes(tab)) {
+            tab.classList.remove('tab-pinned-sticky', 'tab-pinned-sticky-edge');
+            tab.style.left = '';
+        }
+    }
+    fixed.forEach((el, i) => {
+        el.classList.add('tab-pinned-sticky');
+        el.classList.toggle('tab-pinned-sticky-edge', i === fixed.length - 1);
+        el.style.left = `${left}px`;
+        left += el.offsetWidth;
+    });
+    container.classList.toggle('has-sticky-pins', left > 0);
+}
+
 export function renderTabs(targetPane = null) {
     // Tabs changed (opened / closed / reordered / dirtied) → persist the session
     // so a crash or restart comes back to the same place. Cheap + debounced
@@ -2177,26 +2387,30 @@ export function renderTabs(targetPane = null) {
         if (!container) return;
         installTabDropTarget(container, pane);
 
+        // A tab closed since it was selected is no longer selected.
+        const open = allOpenTabs();
+        for (const f of [...tabSelection]) if (!open.includes(f)) tabSelection.delete(f);
+
         const fragment = document.createDocumentFragment();
+        const folded = foldedPinIndices(openFiles, activeIdx, STICKY_PINS);
+        const lastPinned = openFiles.reduce((acc, f, i) => (f.pinned ? i : acc), -1);
         openFiles.forEach((file, index) => {
             const tab = document.createElement('div');
             tab.className = `tab ${index === activeIdx ? 'active' : ''}`;
+            if (tabSelection.size > 1 && tabSelection.has(file)) tab.classList.add('tab-selected');
             if (file.pinned) {
                 tab.classList.add('tab-pinned');
-                // The rule that sets the pinned run off from the rest.
+                if (folded.includes(index)) tab.classList.add('tab-pinned-folded');
+                // The rule that sets the pinned run off from the rest (the
+                // "+N" button carries it when there is one).
                 const next = openFiles[index + 1];
-                if (next && !next.pinned) tab.classList.add('tab-pinned-last');
+                if (!folded.length && next && !next.pinned) tab.classList.add('tab-pinned-last');
             }
             tab.draggable = true;
             tab.dataset.tabIndex = String(index);
             tab.dataset.tabPane = pane;
-            let fileName = file.name || 'Untitled';
-            if (file.type === 'settings') {
-                fileName = t('Settings');
-            } else if (file.path && !/^(agent|diff|search|folder|terminal):\/\//.test(file.path)) {
-                fileName = file.path.replace(/\\/g, '/').split('/').pop();
-            }
-            
+            const fileName = tabDisplayName(file);
+
             // Virtual tabs (diff / compare / agent / search results) used to
             // carry an emoji at the front of file.name. That put a decoration
             // inside a value the rest of the app treats as a name — and it is
@@ -2232,9 +2446,11 @@ export function renderTabs(targetPane = null) {
             // The name may be cut short; the full path stays one hover away.
             tab.title = file.path && !file.path.includes('://') ? file.path : fileName;
 
-            tab.onclick = () => setActiveTab(index, pane);
+            tab.onclick = (e) => onTabClick(e, file, index, pane);
             tab.ondragstart = (e) => {
-                dragSource = { pane, index };
+                // Dragging a tab of a selection takes the whole selection.
+                const group = tabSelection.size > 1 && tabSelection.has(file) ? selectedTabs() : null;
+                dragSource = { pane, index, files: group };
                 tab.classList.add('tab-dragging');
                 // Lets the pane bodies act as drop targets: without it the drag
                 // lands inside CodeMirror, which owns its own drop handling.
@@ -2255,6 +2471,11 @@ export function renderTabs(targetPane = null) {
             tab.oncontextmenu = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (tabSelection.size > 1 && tabSelection.has(file)) {
+                    ContextMenu.show(e, selectionMenuItems(pane));
+                    return;
+                }
+                if (tabSelection.size) { tabSelection.clear(); renderTabs(); }
                 ContextMenu.show(e, [
                     { icon: 'link', label: t('Copy Path'), action: () => { if (file.path) writeText(file.path); } },
                     ...(canCompareWithSaved(file)
@@ -2296,10 +2517,16 @@ export function renderTabs(targetPane = null) {
                 tab.appendChild(closeBtn);
             }
             fragment.appendChild(tab);
+            if (index === lastPinned && folded.length) {
+                const more = pinOverflowButton(openFiles, folded, pane);
+                if (openFiles[index + 1]) more.classList.add('tab-pinned-last');
+                fragment.appendChild(more);
+            }
         });
 
         container.innerHTML = '';
         container.appendChild(fragment);
+        layoutStickyPins(container);
     });
 
     updateTabNavigation();
@@ -2371,7 +2598,8 @@ function installTabDropTarget(container, pane) {
         const src = dragSource;
         endTabDrag();
 
-        if (src.pane === pane) reorderTab(src.index, target, pane);
+        if (src.files) moveTabsTo(src.files, pane, target);
+        else if (src.pane === pane) reorderTab(src.index, target, pane);
         else moveTabToOtherPane(src.index, src.pane, target);
     });
 }
@@ -2419,6 +2647,7 @@ export function installPaneDropTargets() {
             const src = dragSource;
             const destPane = wantsRight(el, pane, e.clientX) ? 'right' : 'left';
             endTabDrag();
+            if (src.files) { moveTabsTo(src.files, destPane); return; }
             if (src.pane === destPane) return; // already there
             moveTabToOtherPane(src.index, src.pane);
         });
@@ -2467,6 +2696,12 @@ function updateTabNavigation() {
         trackPaneFocus();
     }
 
+    // Widths are only known once the strip is laid out (it is hidden behind
+    // the welcome screen at first), and change as the window does.
+    for (const strip of [EL.tabsContainer, EL.tabsContainerRight]) {
+        if (strip && strip.offsetWidth) layoutStickyPins(strip);
+    }
+
     const container = EL.tabsContainer;
     const hasOverflow = container.scrollWidth > container.clientWidth;
 
@@ -2497,17 +2732,33 @@ function initTabNavigation() {
     tabBar.insertBefore(navLeftBtn, EL.tabsContainer);
     tabBar.insertBefore(navRightBtn, EL.newTabBtn);
 
+    // A click moves one step; holding the button scrolls on, faster the
+    // longer it is held. The strip has `scroll-behavior: smooth`, so the
+    // held steps must say 'instant': with 'auto' each one started a smooth
+    // animation that the next cancelled, and holding scrolled slower than
+    // clicking.
     const startScroll = (dir) => {
         if (scrollInterval) return;
-        EL.tabsContainer.scrollBy({ left: dir * 100, behavior: 'smooth' });
-        scrollInterval = setInterval(() => {
-            EL.tabsContainer.scrollBy({ left: dir * 50, behavior: 'auto' });
-        }, 50);
+        const strip = EL.tabsContainer;
+        strip.scrollBy({ left: dir * 120, behavior: 'smooth' });
+        const t0 = performance.now();
+        let last = t0;
+        const tick = (now) => {
+            if (!scrollInterval) return;
+            const held = now - t0;
+            if (held > 250) {
+                const speed = Math.min(600 + (held - 250) * 2.4, 2400); // px/s
+                strip.scrollBy({ left: dir * speed * (now - last) / 1000, behavior: 'instant' });
+            }
+            last = now;
+            scrollInterval = requestAnimationFrame(tick);
+        };
+        scrollInterval = requestAnimationFrame(tick);
     };
 
     const stopScroll = () => {
         if (scrollInterval) {
-            clearInterval(scrollInterval);
+            cancelAnimationFrame(scrollInterval);
             scrollInterval = null;
         }
     };

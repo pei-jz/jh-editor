@@ -228,7 +228,12 @@
     position: relative;
 }
 
-.tab.tab-pinned-last::after {
+.tab-pin-overflow.tab-pinned-last {
+    margin-right: 6px;
+}
+
+.tab.tab-pinned-last::after,
+.tab-pin-overflow.tab-pinned-last::after {
     content: '';
     position: absolute;
     right: -4px;
@@ -242,6 +247,72 @@
     flex-shrink: 0;
     opacity: 0.55;
     margin-left: -2px;
+}
+
+/* The first three pinned tabs stay at the left edge while the strip scrolls
+   (Editor.js layoutStickyPins sets each one's `left`). Opaque, so the tabs
+   passing underneath do not show through: the tint is mixed into the bar's
+   own colour instead of into transparent. */
+:root .tab.tab-pinned.tab-pinned-sticky {
+    position: sticky;
+    z-index: 3;
+    background-color: color-mix(in srgb, var(--primary-color) 16%, var(--header-bg));
+}
+
+:root .tab.tab-pinned.tab-pinned-sticky:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 24%, var(--header-bg));
+}
+
+:root .tab.tab-pinned.tab-pinned-sticky.active {
+    background-color: color-mix(in srgb, var(--primary-color) 14%, var(--active-tab-bg));
+}
+
+/* The last fixed pin: a soft edge where the scrolling tabs slide under. */
+:root .tab.tab-pinned.tab-pinned-sticky-edge {
+    box-shadow: inset 0 2px 0 var(--primary-color), 6px 0 6px -5px rgba(0, 0, 0, 0.45);
+}
+
+/* Pinned tabs past the third are folded into the "+N" button after the
+   fixed ones, which lists them (Editor.js pinOverflowButton). */
+.tab.tab-pinned-folded {
+    display: none;
+}
+
+.tab-pin-overflow {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    padding: 0 9px;
+    border: none;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary-color);
+    cursor: pointer;
+    position: sticky;
+    z-index: 3;
+    background-color: color-mix(in srgb, var(--primary-color) 16%, var(--header-bg));
+    box-shadow: inset 0 2px 0 var(--primary-color);
+}
+
+.tab-pin-overflow:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 26%, var(--header-bg));
+}
+
+.tab-pin-overflow.tab-pinned-sticky-edge {
+    box-shadow: inset 0 2px 0 var(--primary-color), 6px 0 6px -5px rgba(0, 0, 0, 0.45);
+}
+
+/* Several tabs selected (Ctrl / Shift + click): an outline and a tint, so
+   the selection reads apart from the one current tab. */
+:root .tab.tab-selected {
+    background-color: color-mix(in srgb, var(--primary-color) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 70%, transparent);
+}
+
+:root .tab.tab-selected.tab-pinned-sticky {
+    background-color: color-mix(in srgb, var(--primary-color) 26%, var(--header-bg));
 }
 
 #new-tab-btn {

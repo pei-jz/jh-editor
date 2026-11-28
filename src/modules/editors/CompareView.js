@@ -73,6 +73,18 @@ export class CompareView {
     focus() { if (this.editor) this.editor.focus(); }
     getDiagnostics() { return []; }
 
+    // Find: the comparison searches the side the cursor is on (MergeSearch.js).
+    isCodeMirrorMode() { return !!(this.editor && this.editor.isCodeMirrorMode()); }
+    get editorView() { return this.editor ? this.editor.editorView : null; }
+    get lastSearchTruncated() { return this.editor ? this.editor.lastSearchTruncated : 0; }
+    performSearch(...args) { return this.editor ? this.editor.performSearch(...args) : Promise.resolve(false); }
+    cancelSearch() { return this.editor ? this.editor.cancelSearch() : false; }
+    renderSearchHighlights(matches, index) { if (this.editor) this.editor.renderSearchHighlights(matches, index); }
+    scrollToMatch(index) { if (this.editor) this.editor.scrollToMatch(index); }
+    getSelectionOffsets() { return this.editor ? this.editor.getSelectionOffsets() : null; }
+    replaceNext(...args) { return this.editor ? this.editor.replaceNext(...args) : -1; }
+    replaceAll(...args) { return this.editor ? this.editor.replaceAll(...args) : Promise.resolve(0); }
+
     // Compare tabs hold no on-disk content, so there is nothing to flush here.
     applyChanges() { /* no-op */ }
 

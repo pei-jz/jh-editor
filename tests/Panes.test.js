@@ -4,6 +4,7 @@ import {
     activePane, normalizePane, paneFiles, paneActiveIndex, setPaneActiveIndex,
     otherPane, findOpenFile, activeFile, activeIndexAfterRemoval, reorderInPlace,
     handleStillInUse, mergeRightIntoLeft, markShown, tabsByRecentUse, planTabRemoval, openTabEntries,
+    insertFilesAt, tabRange, foldedPinIndices,
 } from '../src/modules/core/Panes.js';
 
 const mk = (path, over = {}) => ({ path, name: path.split('/').pop(), content: '', isDirty: false, ...over });
@@ -371,5 +372,56 @@ describe('openTabEntries: strip order for the Open Files panel', () => {
         State.rightOpenFiles = [c];
         State.splitMode = true;
         expect(openTabEntries('right').map((e) => [e.pane, e.index])).toEqual([['right', 0], ['left', 0], ['left', 1]]);
+    });
+});
+
+describe('Panes — moving several tabs at once', () => {
+    const names = (list) => list.map((f) => f.name);
+
+    it('keeps their order and lands them before the tab at the drop point', () => {
+        const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map((n) => mk(n));
+        const files = [a, b, c, d, e];
+        expect(insertFilesAt(files, [b, d], 4)).toBe(2);
+        expect(names(files)).toEqual(['a', 'c', 'b', 'd', 'e']);
+    });
+
+    it('appends for a null drop point, and takes tabs from elsewhere', () => {
+        const [a, b, x, y] = ['a', 'b', 'x', 'y'].map((n) => mk(n));
+        const files = [a, b];
+        expect(insertFilesAt(files, [x, y], null)).toBe(2);
+        expect(names(files)).toEqual(['a', 'b', 'x', 'y']);
+    });
+
+    it('keeps pinned tabs among the pinned', () => {
+        const p1 = mk('p1', { pinned: true });
+        const [a, b] = ['a', 'b'].map((n) => mk(n));
+        const p2 = mk('p2', { pinned: true });
+        const files = [p1, a, b];
+        insertFilesAt(files, [a, p2], 3);
+        expect(names(files)).toEqual(['p1', 'p2', 'b', 'a']);
+    });
+
+    it('selects a run either way round for Shift+click', () => {
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((n) => mk(n));
+        expect(names(tabRange([a, b, c, d], d, b))).toEqual(['b', 'c', 'd']);
+        expect(names(tabRange([a, b, c, d], null, c))).toEqual(['c']);
+    });
+});
+
+describe('foldedPinIndices', () => {
+    const pin = (name) => ({ name, pinned: true });
+    const tab = (name) => ({ name });
+    const files = [pin('a'), pin('b'), pin('c'), pin('d'), pin('e'), tab('x')];
+
+    it('folds the pinned tabs past the third', () => {
+        expect(foldedPinIndices(files, 5)).toEqual([3, 4]);
+    });
+
+    it('keeps the current tab out of the list', () => {
+        expect(foldedPinIndices(files, 4)).toEqual([3]);
+    });
+
+    it('folds nothing with three pins or fewer', () => {
+        expect(foldedPinIndices([pin('a'), pin('b'), pin('c'), tab('x')], 0)).toEqual([]);
     });
 });
