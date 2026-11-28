@@ -21,8 +21,8 @@ import { Toast } from './Toast.js';
  * いるので、明るいテーマでは薄すぎて読めない。テーマは明暗どちらもあるの
  * だから、両方ぶん用意しないと片方が必ず読めなくなる。
  *
- * 値はどのテーマの背景に対しても 4.4:1 以上になるよう選んである。暗い側は
- * nord (#3b4252) が、明るい側は Paper (#e7dab9) が下限を決める。背景が最も
+ * 値はどのテーマの背景に対しても 4.3:1 以上になるよう選んである。暗い側は
+ * nord (#3b4252) が、明るい側は竹簡 (#d0b475) が下限を決める。背景が最も
  * 中間に寄っているテーマが通れば、他はそれより楽になる。
  */
 const ANSI_DARK = {
@@ -34,8 +34,8 @@ const ANSI_DARK = {
 };
 
 const ANSI_LIGHT = {
-    red: '#b32222', green: '#006b4a', yellow: '#6b5a00', blue: '#0a4b96',
-    magenta: '#8a1f9c', cyan: '#0a5f70', white: '#4a4a4a',
+    red: '#911b1b', green: '#00563c', yellow: '#594b00', blue: '#0a4992',
+    magenta: '#7a1b8a', cyan: '#0a5364', white: '#4a4a4a',
     brightRed: '#8f1a1a', brightGreen: '#005539', brightYellow: '#544700',
     brightBlue: '#073a75', brightMagenta: '#6b1879', brightCyan: '#084a58',
     brightWhite: '#1f1f1f',

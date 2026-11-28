@@ -41,24 +41,26 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
         for (const t of tokens) expect(block).toContain(`${t}:`);
     });
 
-    it('keeps the ink-bamboo (墨竹) slip surfaces', () => {
-        expect(block).toContain('--bg-color: #262823;');
-        expect(block).toContain('--sidebar-bg: #1d1f1b;');
-        expect(block).toContain('--bg-color-secondary: #2e302a;');
+    it('keeps the lamplit slip surfaces: a dark board, honey bars', () => {
+        expect(block).toContain('--bg-color: #221d13;');
+        expect(block).toContain('--sidebar-bg: #2f2617;');
+        expect(block).toContain('--header-bg: #483719;');
+        expect(block).toContain('--bg-color-secondary: #2c2519;');
     });
 
-    it('writes in faint ivory ink', () => {
-        expect(block).toContain('--text-color: #dfe0d4;');
-        expect(block).toContain('--text-secondary: #979a8c;');
+    it('writes in pale gold', () => {
+        expect(block).toContain('--text-color: #e2d4ae;');
+        expect(block).toContain('--text-secondary: #c9b383;');
     });
 
-    it('uses bronze-verdigris (銅青) as the accent', () => {
-        expect(block).toContain('--primary-color: #7fb8ac;');
-        expect(block).toContain('--active-tab-border: #7fb8ac;');
+    it('uses straw gold as the accent and green bamboo for the caret', () => {
+        expect(block).toContain('--primary-color: #e0c574;');
+        expect(block).toContain('--active-tab-border: #e0c574;');
+        expect(block).toContain('--accent-spark: #9ccc7a;');
     });
 
-    it('uses old bamboo, in ink, for the borders', () => {
-        expect(block).toContain('--border-color: #3c3f37;');
+    it('uses old bamboo for the borders', () => {
+        expect(block).toContain('--border-color: #4a3b22;');
     });
 
     // A hanging scroll: bamboo at the rods, paper in between. The slats used
@@ -125,6 +127,23 @@ describe('bamboo-ancient theme — ported 簡牘古文 palette', () => {
                 && sel.split(',').some(s => /(^|\s)\.md-(body|block)$/.test(s.trim())))
             .map(([, sel]) => sel.trim());
         expect(offenders).toEqual([]);
+    });
+
+    // The light half is the bundle in the museum photograph: honey slips and
+    // black ink, the board two steps quieter than raw bamboo.
+    it('writes black ink on honey bamboo in the light half', () => {
+        const light = themeBlock('bamboo-light');
+        expect(light).toContain('--bg-color: #d7bd83;');
+        expect(light).toContain('--header-bg: #c7a96a;');
+        expect(light).toContain('--text-color: #1a1206;');
+        expect(light).toContain('--primary-color: #2a2010;');
+        expect(light).toContain('--accent-spark: #36681d;');
+    });
+
+    // The tab strip and the status bar meet the board at a dotted cord.
+    it('binds the bundle with a cord at the tab strip and the status bar', () => {
+        expect(themes).toContain('body.theme-bamboo-light #tab-bar,\nbody.theme-bamboo-light #tab-bar-right {\n    border-bottom: 2px dotted');
+        expect(themes).toContain('body.theme-bamboo-light #status-bar {\n    border-top: 2px dotted');
     });
 
     it('leaves the other themes untouched', () => {

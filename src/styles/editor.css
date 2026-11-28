@@ -167,7 +167,7 @@
     resize: vertical;
     background: var(--bg-color);
     color: var(--text-color);
-    caret-color: var(--primary-color);
+    caret-color: var(--accent-spark, var(--primary-color));
 }
 
 .block-editor:focus {
@@ -207,12 +207,13 @@
 }
 .block-cm .cm-content {
     padding: 12px 14px;
-    caret-color: var(--primary-color);
+    caret-color: var(--accent-spark, var(--primary-color));
     -moz-tab-size: 2;
     tab-size: 2;
 }
 .block-cm .cm-cursor {
-    border-left-color: var(--primary-color);
+    border-left-color: var(--accent-spark, var(--primary-color));
+    border-left-width: 2px;
 }
 .block-cm .cm-selectionBackground,
 .block-cm .cm-content ::selection {
@@ -1004,7 +1005,7 @@ body.theme-solarized-dark {
     background-color: transparent !important;
     z-index: 2;
     color: transparent;
-    caret-color: var(--text-color);
+    caret-color: var(--accent-spark, var(--text-color));
     overflow: auto !important;
     /* ENABLE SCROLLING */
     pointer-events: auto !important;
@@ -1462,7 +1463,7 @@ body.theme-dark .hljs-string {
 .node-source-editor {
     background: transparent;
     color: transparent;
-    caret-color: var(--text-color);
+    caret-color: var(--accent-spark, var(--text-color));
     z-index: 2;
     resize: none;
     outline: none;
@@ -2221,7 +2222,9 @@ body.theme-solarized-light .md-view-mode-toggle {
     tab-size: 3;
 }
 
-/* Global Search Match Colors to override syntax highlighting */
+/* Global Search Match Colors to override syntax highlighting.
+   Every hit is yellow; the one you are on takes the theme's accent
+   (--accent-spark), lightened so the black text on it stays readable. */
 .cm-searchMatch,
 .cm-searchMatch * {
     background-color: rgba(255, 255, 0, 0.8) !important;
@@ -2230,8 +2233,8 @@ body.theme-solarized-light .md-view-mode-toggle {
 
 .cm-searchMatch.cm-searchMatch-selected,
 .cm-searchMatch.cm-searchMatch-selected * {
-    background-color: rgba(255, 152, 0, 0.8) !important;
-    outline: 1.5px solid #ff6d00 !important;
+    background-color: color-mix(in srgb, var(--accent-spark, #ff9800) 45%, #fff) !important;
+    outline: 2px solid var(--accent-spark, #ff6d00) !important;
     outline-offset: -1px;
     color: black !important;
 }

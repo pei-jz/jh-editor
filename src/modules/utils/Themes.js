@@ -65,7 +65,7 @@ export const THEMES = [
     { id: 'dark', family: 'standard', dark: true, bootBg: '#1e1e22' },
     { id: 'paper', family: 'paper', dark: false, bootBg: '#e7dab9' },
     { id: 'paper-dark', family: 'paper', dark: true, bootBg: '#1c1c1c' },
-    { id: 'sumi-e', family: 'sumi-e', dark: false, bootBg: '#ece8df' },
+    { id: 'sumi-e', family: 'sumi-e', dark: false, bootBg: '#f0efec' },
     { id: 'sumi-e-dark', family: 'sumi-e', dark: true, bootBg: '#0f0f0f' },
     // Hanging Scroll is deliberately NOT dark: its mounting is indigo, but the
     // sheet you actually read is moon-white silk, so code, diagrams and
@@ -75,11 +75,11 @@ export const THEMES = [
     // gold-damask mount and a vermillion seal brightened for the dark ground.
     { id: 'kakejiku-dark', family: 'kakejiku', dark: true, bootBg: '#232c3f' },
     // Fresh green slips, the same bundle before it was buried.
-    { id: 'bamboo-light', family: 'bamboo', dark: false, bootBg: '#e2e4cf' },
-    { id: 'bamboo-ancient', family: 'bamboo', dark: true, bootBg: '#1d1f1b' },
+    { id: 'bamboo-light', family: 'bamboo', dark: false, bootBg: '#d0b475' },
+    { id: 'bamboo-ancient', family: 'bamboo', dark: true, bootBg: '#2f2617' },
     // Catppuccin Latte and Mocha.
-    { id: 'latte', family: 'coffee', dark: false, bootBg: '#f0e8d0' },
-    { id: 'latte-dark', family: 'coffee', dark: true, bootBg: '#1e1e2e' },
+    { id: 'latte', family: 'coffee', dark: false, bootBg: '#f5f0e8' },
+    { id: 'latte-dark', family: 'coffee', dark: true, bootBg: '#1e1915' },
     // Nord's Snow Storm greys, with the Frost and Aurora inks darkened to read.
     { id: 'nord-light', family: 'nord', dark: false, bootBg: '#e5e9f0' },
     { id: 'nord', family: 'nord', dark: true, bootBg: '#3b4252' },

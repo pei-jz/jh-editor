@@ -141,7 +141,7 @@ const jhTheme = EditorView.theme({
         backgroundColor: "var(--scrollbar-thumb, rgba(0,0,0,0.26))"
     },
     ".cm-content": {
-        caretColor: "var(--text-color)",
+        caretColor: "var(--accent-spark, var(--text-color))",
         padding: "10px 8px 500px 8px" // Extra bottom padding for scroll beyond last line
     },
     // CodeMirror indents every line by 6px of its own. That inset sits between
@@ -158,8 +158,11 @@ const jhTheme = EditorView.theme({
     "&.cm-focused": {
         outline: "none"
     },
+    // The caret takes the theme's accent and is 2px wide: in the text colour at
+    // 1.2px it was lost among the strokes it sits between.
     "&.cm-focused .cm-cursor": {
-        borderLeftColor: "var(--text-color)"
+        borderLeftColor: "var(--accent-spark, var(--text-color))",
+        borderLeftWidth: "2px"
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
         // Theme-aware, translucent highlight (see --cm-selection-bg in themes.css
@@ -181,8 +184,8 @@ const jhTheme = EditorView.theme({
         backgroundColor: "rgba(255, 255, 0, 0.45)"
     },
     ".cm-searchMatch.cm-searchMatch-selected": {
-        backgroundColor: "rgba(255, 152, 0, 0.45)",
-        outline: "1.5px solid #ff6d00",
+        backgroundColor: "color-mix(in srgb, var(--accent-spark, #ff9800) 45%, #fff)",
+        outline: "2px solid var(--accent-spark, #ff6d00)",
         outlineOffset: "-1px"
     },
     // Compact chip for a newline hit (the ↵ widget).
@@ -195,8 +198,8 @@ const jhTheme = EditorView.theme({
         opacity: "0.9"
     },
     ".cm-searchMatch-nl.cm-searchMatch-selected": {
-        backgroundColor: "rgba(255, 152, 0, 0.55)",
-        outline: "1px solid #ff6d00"
+        backgroundColor: "color-mix(in srgb, var(--accent-spark, #ff9800) 45%, #fff)",
+        outline: "1px solid var(--accent-spark, #ff6d00)"
     },
     // Both were flat white — 5% and 10% — which is nothing at all on a light
     // theme and barely a shade on a dark one. The tokens mix against the
@@ -235,9 +238,12 @@ const jhTheme = EditorView.theme({
     // VSCode-style active line: no block highlight in the gutter, just a
     // brighter (full-opacity) number. Selector matches the dim rule's
     // specificity and comes later so it wins.
+    // The current line's number in the accent, so the caret's line can be
+    // found from the left edge as well.
     ".cm-lineNumbers .cm-activeLineGutter": {
         backgroundColor: "transparent",
-        color: "var(--text-color)",
+        color: "var(--accent-spark, var(--text-color))",
+        fontWeight: "600",
         opacity: "1"
     },
     // The lint gutter reserves its width whether or not anything is wrong, so
